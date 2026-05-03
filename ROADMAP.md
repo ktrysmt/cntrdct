@@ -53,7 +53,7 @@ P-2. pr-miner-rust detector
 
 P-3. SARIF output validation in CI
 
-- Status: `[ ]`
+- Status: `[x]`
 - Goal: verify that `cntrdct scan --format sarif` produces output
   that passes `sarif-multitool validate` against the OASIS 2.1.0
   schema on every CI run.
@@ -196,7 +196,7 @@ T2-7. Suppression mechanism
 
 T2-8. Pre-built release binaries
 
-- Status: `[ ]`
+- Status: `[x]`
 - Goal: GitHub Releases automatically attach binaries for
   Linux x86_64, Linux aarch64, macOS x86_64, macOS aarch64,
   Windows x86_64.
