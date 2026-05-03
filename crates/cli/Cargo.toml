@@ -18,6 +18,10 @@ path = "src/lib.rs"
 name = "cntrdct"
 path = "src/main.rs"
 
+[[bin]]
+name = "cargo-cntrdct"
+path = "src/cargo_subcommand.rs"
+
 [dependencies]
 cntrdct-core = { workspace = true }
 cntrdct-detector-clone-drift = { workspace = true }
