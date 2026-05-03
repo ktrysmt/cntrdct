@@ -181,7 +181,7 @@ T1-7. GitHub Pages essay site
 
 T2-7. Suppression mechanism
 
-- Status: `[ ]`
+- Status: `[x]`
 - Goal: in-source suppression via
   `#[cntrdct::allow(<detector_id>)]` attribute, plus a project-wide
   `cntrdct.toml` for severity remapping, threshold overrides, and
