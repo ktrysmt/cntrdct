@@ -4,9 +4,15 @@ description = "Detect statements that follow a divergent terminator within the s
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-cntrdct-core = { path = "../core" }
+cntrdct-core = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tree-sitter = "0.22"

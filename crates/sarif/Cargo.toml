@@ -4,7 +4,13 @@ description = "SARIF 2.1.0 emitter for cntrdct findings."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-cntrdct-core = { path = "../core" }
+cntrdct-core = { workspace = true }
 serde_json = { workspace = true }

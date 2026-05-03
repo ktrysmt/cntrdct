@@ -4,10 +4,16 @@ description = "Layer 2 statistical ranker for cntrdct findings."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-cntrdct-core = { path = "../core" }
-cntrdct-calibration = { path = "../calibration" }
+cntrdct-core = { workspace = true }
+cntrdct-calibration = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

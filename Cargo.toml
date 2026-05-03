@@ -20,9 +20,24 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 authors = ["cntrdct contributors"]
-repository = ""
+repository = "https://github.com/ktrysmt/cntrdct"
+homepage = "https://github.com/ktrysmt/cntrdct"
+readme = "README.md"
+keywords = ["linter", "static-analysis", "rust", "contradiction", "evidence-based"]
+categories = ["development-tools", "command-line-utilities"]
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "1"
+cntrdct-core = { path = "crates/core", version = "0.1.0" }
+cntrdct-calibration = { path = "crates/calibration", version = "0.1.0" }
+cntrdct-ranker = { path = "crates/ranker", version = "0.1.0" }
+cntrdct-sarif = { path = "crates/sarif", version = "0.1.0" }
+cntrdct-eval = { path = "crates/eval", version = "0.1.0" }
+cntrdct-adjudicator-llm = { path = "crates/adjudicator-llm", version = "0.1.0" }
+cntrdct-detector-clone-drift = { path = "crates/detector-clone-drift", version = "0.1.0" }
+cntrdct-detector-arg-swap = { path = "crates/detector-arg-swap", version = "0.1.0" }
+cntrdct-detector-comment-code = { path = "crates/detector-comment-code", version = "0.1.0" }
+cntrdct-detector-unreachable-after-terminator = { path = "crates/detector-unreachable-after-terminator", version = "0.1.0" }
+cntrdct-detector-config-interaction = { path = "crates/detector-config-interaction", version = "0.1.0" }

@@ -4,6 +4,12 @@ description = "Command-line interface for the cntrdct linter."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [lib]
 path = "src/lib.rs"
@@ -13,17 +19,17 @@ name = "cntrdct"
 path = "src/main.rs"
 
 [dependencies]
-cntrdct-core = { path = "../core" }
-cntrdct-detector-clone-drift = { path = "../detector-clone-drift" }
-cntrdct-detector-arg-swap = { path = "../detector-arg-swap" }
-cntrdct-detector-comment-code = { path = "../detector-comment-code" }
-cntrdct-detector-unreachable-after-terminator = { path = "../detector-unreachable-after-terminator" }
-cntrdct-detector-config-interaction = { path = "../detector-config-interaction" }
-cntrdct-sarif = { path = "../sarif" }
-cntrdct-ranker = { path = "../ranker" }
-cntrdct-calibration = { path = "../calibration" }
-cntrdct-adjudicator-llm = { path = "../adjudicator-llm" }
-cntrdct-eval = { path = "../eval" }
+cntrdct-core = { workspace = true }
+cntrdct-detector-clone-drift = { workspace = true }
+cntrdct-detector-arg-swap = { workspace = true }
+cntrdct-detector-comment-code = { workspace = true }
+cntrdct-detector-unreachable-after-terminator = { workspace = true }
+cntrdct-detector-config-interaction = { workspace = true }
+cntrdct-sarif = { workspace = true }
+cntrdct-ranker = { workspace = true }
+cntrdct-calibration = { workspace = true }
+cntrdct-adjudicator-llm = { workspace = true }
+cntrdct-eval = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 clap = { version = "4", features = ["derive"] }
