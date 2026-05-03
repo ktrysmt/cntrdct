@@ -56,3 +56,25 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check licenses
+
+  sarif:
+    name: SARIF schema (OASIS 2.1.0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: install sarif-multitool
+        run: dotnet tool install --global Sarif.Multitool
+      - name: build cntrdct
+        run: cargo build --release -p cntrdct-cli
+      - name: emit + validate sample SARIF
+        run: |
+          ./target/release/cntrdct scan benchmarks/corpus/files \
+              --format sarif \
+              --no-calibration > /tmp/sample.sarif
+          export PATH="$HOME/.dotnet/tools:$PATH"
+          sarif validate /tmp/sample.sarif
