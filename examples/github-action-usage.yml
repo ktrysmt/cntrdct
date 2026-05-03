@@ -1,0 +1,51 @@
+# Example: how a downstream Rust project would call the cntrdct GitHub
+# Action on every PR. Drop a copy of this file into
+# `.github/workflows/cntrdct.yml` in your own repo.
+#
+# Two commonly-useful jobs:
+# - `inline-annotations`: surface findings as inline diff comments on the PR.
+# - `sarif-upload`: upload SARIF for the GitHub code-scanning tab so issues
+#   show up in Security > Code scanning.
+#
+# Both run on ubuntu-latest. The action installs the matching pre-built
+# binary from the latest cntrdct release; pin `version: vX.Y.Z` for
+# reproducible runs.
+
+name: cntrdct
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  inline-annotations:
+    name: cntrdct (annotations)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ktrysmt/cntrdct/.github/actions/scan@main
+        with:
+          path: src
+          output: annotations
+          fail-on: error
+
+  sarif-upload:
+    name: cntrdct (SARIF)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: scan
+        uses: ktrysmt/cntrdct/.github/actions/scan@main
+        with:
+          path: src
+          output: sarif
+          sarif-file: cntrdct.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.scan.outputs.sarif-file }}

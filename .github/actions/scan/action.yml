@@ -1,0 +1,171 @@
+name: cntrdct
+description: >
+  Run the cntrdct evidence-based contradiction linter on a Rust path and
+  surface findings as inline GitHub annotations or SARIF.
+author: cntrdct contributors
+branding:
+  icon: alert-triangle
+  color: yellow
+
+inputs:
+  path:
+    description: "Path to scan (file or directory)."
+    required: false
+    default: "."
+  version:
+    description: >
+      cntrdct release tag to install (e.g. v0.2.0). The literal "latest"
+      resolves to the most recent published release.
+    required: false
+    default: "latest"
+  output:
+    description: >
+      Output mode. "annotations" emits ::warning::/::error:: workflow
+      commands so findings appear inline on the PR diff.  "sarif" writes
+      a SARIF 2.1.0 document to `sarif-file` (suitable for
+      github/codeql-action/upload-sarif).  "json" prints the raw findings
+      JSON to stdout.
+    required: false
+    default: "annotations"
+  sarif-file:
+    description: "Output path when `output: sarif`. Ignored otherwise."
+    required: false
+    default: "cntrdct.sarif"
+  fail-on:
+    description: >
+      Exit code policy. "error" exits non-zero when any finding has
+      raw_severity Error.  "warning" exits non-zero on Error or Warning.
+      "never" always exits 0.  Annotations / SARIF output is unaffected.
+    required: false
+    default: "never"
+  config:
+    description: "Optional cntrdct.toml path. Defaults to scan-root discovery."
+    required: false
+    default: ""
+  adjudicate:
+    description: >
+      When "true", also run the Layer 3 LLM adjudicator on the top-N
+      findings.  Requires `ANTHROPIC_API_KEY` in the env. Default off.
+    required: false
+    default: "false"
+  adjudicate-top:
+    description: "Number of findings to adjudicate when `adjudicate: true`."
+    required: false
+    default: "5"
+  no-calibration:
+    description: "When 'true', force the uncalibrated ranker."
+    required: false
+    default: "false"
+
+outputs:
+  sarif-file:
+    description: "Path of the SARIF document written when `output: sarif`."
+    value: ${{ inputs.sarif-file }}
+  finding-count:
+    description: "Number of findings emitted (after suppression / config)."
+    value: ${{ steps.scan.outputs.finding_count }}
+
+runs:
+  using: composite
+  steps:
+    - name: resolve cntrdct binary
+      id: install
+      shell: bash
+      run: |
+        set -euo pipefail
+        repo="ktrysmt/cntrdct"
+        if [[ "${{ inputs.version }}" == "latest" ]]; then
+          tag=$(curl -fsSL "https://api.github.com/repos/${repo}/releases/latest" \
+                | grep -m1 '"tag_name"' \
+                | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+        else
+          tag="${{ inputs.version }}"
+        fi
+        if [[ -z "${tag}" ]]; then
+          echo "::error::could not resolve cntrdct release tag"
+          exit 1
+        fi
+        os=$(uname -s | tr '[:upper:]' '[:lower:]')
+        arch=$(uname -m)
+        case "${os}-${arch}" in
+          linux-x86_64)              target=x86_64-unknown-linux-gnu ;;
+          linux-aarch64|linux-arm64) target=aarch64-unknown-linux-gnu ;;
+          darwin-x86_64)             target=x86_64-apple-darwin ;;
+          darwin-arm64)              target=aarch64-apple-darwin ;;
+          *) echo "::error::unsupported runner ${os}-${arch}"; exit 1 ;;
+        esac
+        asset="cntrdct-${tag}-${target}.tar.gz"
+        url="https://github.com/${repo}/releases/download/${tag}/${asset}"
+        echo "downloading ${url}"
+        tmpdir=$(mktemp -d)
+        curl -fsSL "${url}" -o "${tmpdir}/cntrdct.tar.gz"
+        tar -C "${tmpdir}" -xzf "${tmpdir}/cntrdct.tar.gz"
+        bin_dir="${tmpdir}/cntrdct-${tag}-${target}"
+        chmod +x "${bin_dir}/cntrdct" "${bin_dir}/cargo-cntrdct"
+        echo "${bin_dir}" >> "$GITHUB_PATH"
+        echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+        echo "bin_dir=${bin_dir}" >> "$GITHUB_OUTPUT"
+
+    - name: scan
+      id: scan
+      shell: bash
+      env:
+        SCAN_PATH: ${{ inputs.path }}
+        OUTPUT_MODE: ${{ inputs.output }}
+        SARIF_FILE: ${{ inputs.sarif-file }}
+        CFG_PATH: ${{ inputs.config }}
+        ADJUDICATE: ${{ inputs.adjudicate }}
+        ADJUDICATE_TOP: ${{ inputs.adjudicate-top }}
+        NO_CALIBRATION: ${{ inputs.no-calibration }}
+        ACTION_DIR: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        export PATH="${{ steps.install.outputs.bin_dir }}:$PATH"
+
+        args=(scan "${SCAN_PATH}")
+        if [[ "${NO_CALIBRATION}" == "true" ]]; then
+          args+=(--no-calibration)
+        fi
+        if [[ -n "${CFG_PATH}" ]]; then
+          args+=(--config "${CFG_PATH}")
+        fi
+        if [[ "${ADJUDICATE}" == "true" ]]; then
+          args+=(--adjudicate --adjudicate-top "${ADJUDICATE_TOP}")
+        fi
+
+        json_tmp=$(mktemp)
+        cntrdct "${args[@]}" --format json > "${json_tmp}"
+        echo "json findings cached at ${json_tmp}" >&2
+        echo "json_path=${json_tmp}" >> "$GITHUB_OUTPUT"
+
+        case "${OUTPUT_MODE}" in
+          json)
+            cat "${json_tmp}"
+            ;;
+          sarif)
+            cntrdct "${args[@]}" --format sarif > "${SARIF_FILE}"
+            ;;
+          annotations)
+            python3 "${ACTION_DIR}/scripts/annotate.py" < "${json_tmp}" || true
+            ;;
+          *)
+            echo "::error::unknown output mode: ${OUTPUT_MODE}"
+            exit 1
+            ;;
+        esac
+
+        count=$(python3 "${ACTION_DIR}/scripts/count.py" < "${json_tmp}")
+        echo "finding_count=${count}" >> "$GITHUB_OUTPUT"
+
+    - name: enforce fail-on policy
+      shell: bash
+      env:
+        FAIL_ON: ${{ inputs.fail-on }}
+        ACTION_DIR: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        if [[ -z "${{ steps.scan.outputs.json_path }}" ]]; then
+          exit 0
+        fi
+        python3 "${ACTION_DIR}/scripts/enforce.py" "${FAIL_ON}" \
+          < "${{ steps.scan.outputs.json_path }}"
