@@ -1,0 +1,29 @@
+# cargo-deny configuration for the cntrdct workspace.
+#
+# Run locally with `cargo deny check licenses`. CI runs the same check via
+# EmbarkStudios/cargo-deny-action.
+
+[graph]
+all-features = true
+
+[licenses]
+version = 2
+confidence-threshold = 0.93
+# Allow-list of SPDX identifiers. Every transitive dependency must satisfy at
+# least one of these. The list intentionally restricts to permissive licenses
+# plus MPL-2.0 (file-level weak copyleft, compatible when consumed as a
+# library without modification).
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "BSL-1.0",
+    "CDLA-Permissive-2.0",
+]
