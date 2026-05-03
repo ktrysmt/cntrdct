@@ -18,13 +18,19 @@ Layer 1 → 4 pipeline (detect → rank → adjudicate → SARIF) runs end-to-en
 ## Quickstart
 
 ```sh
-# Install from source (no published release yet).
+# Pre-built binary (Linux x86_64/aarch64, macOS x86_64/aarch64).
+curl -fsSL https://raw.githubusercontent.com/ktrysmt/cntrdct/main/scripts/install.sh | bash
+
+# Or, from source.
 git clone https://github.com/ktrysmt/cntrdct.git
 cd cntrdct
 cargo install --path crates/cli
 
 # Scan any Rust path. Default output is JSON to stdout.
 cntrdct scan ./src
+
+# Or invoke through cargo.
+cargo cntrdct scan ./src
 
 # SARIF 2.1.0 output, ready for GitHub code scanning or any SARIF viewer.
 cntrdct scan ./src --format sarif > findings.sarif
