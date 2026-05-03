@@ -221,7 +221,7 @@ T2-9. GitHub Action wrapper
 
 T2-10. Parallel detection via rayon
 
-- Status: `[ ]`
+- Status: `[x]`
 - Goal: per-file detector runs execute in parallel.
 - Acceptance: scanning a 1000-file crate is at least 4x faster on
   an 8-core machine compared to the serial baseline. Output
