@@ -29,6 +29,26 @@ declared in `crates/core/src/lib.rs`.
 - `tan-pldi-2011` — L. Tan, Y. Zhou, Y. Padioleau, "aComment: Mining Annotations from
   Comments and Code to Detect Interrupt-related Concurrency Bugs", PLDI 2011.
 
+### unreachable-after-terminator
+
+- `hovemeyer-pugh-oopsla-2004` — D. Hovemeyer, W. Pugh, "Finding Bugs is Easy",
+  OOPSLA 2004 (ACM SIGPLAN Notices 39(12)). Introduces the FindBugs "UR —
+  Unreachable code" bug pattern category.
+- `engler-sosp-2001` — D. Engler, D.Y. Chen, S. Hallem, A. Chou, B. Chelf, "Bugs as
+  Deviant Behavior: A General Approach to Inferring Errors in Systems Code",
+  SOSP 2001. Foundational work on control-flow contradictions as high-confidence
+  anomaly signals.
+
+### config-interaction
+
+- `tartler-eurosys-2011` — B. Tartler, D. Lohmann, J. Sincero,
+  W. Schröder-Preikschat, "Feature consistency in compile-time-configurable system
+  software: facing the Linux 10,000 feature problem", EuroSys 2011. Canonical
+  reference for the dead-block / inconsistent-feature anomaly class.
+- `nadi-icse-2014` — S. Nadi, T. Berger, C. Kästner, K. Czarnecki, "Mining
+  configuration constraints: Static analyses and empirical results", ICSE 2014.
+  Empirical evidence that contradictory cfg predicates recur in production code.
+
 ## Layer 2 (Statistical ranking)
 
 - `kremenek-engler-sas-2003` — T. Kremenek, D. Engler, "Z-Ranking: Using Statistical

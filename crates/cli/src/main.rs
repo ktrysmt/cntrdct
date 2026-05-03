@@ -6,6 +6,8 @@ use cntrdct_core::Detector;
 use cntrdct_detector_arg_swap::ArgSwap;
 use cntrdct_detector_clone_drift::CloneDrift;
 use cntrdct_detector_comment_code::CommentCode;
+use cntrdct_detector_config_interaction::ConfigInteraction;
+use cntrdct_detector_unreachable_after_terminator::UnreachableAfterTerminator;
 
 #[derive(Parser)]
 #[command(name = "cntrdct", about = "Evidence-based contradiction linter")]
@@ -58,6 +60,19 @@ enum Commands {
         /// `<cache_dir>/cntrdct/priors.json`.
         #[arg(long)]
         output: Option<PathBuf>,
+    },
+    /// Evaluate detectors against a labelled corpus and print the
+    /// precision/recall/F1 report as JSON.
+    ///
+    /// Spec: `docs/spec/eval-v0.md`.
+    Eval {
+        /// Corpus root directory. Must contain `manifest.jsonl` unless
+        /// `--manifest` is given.
+        corpus_dir: PathBuf,
+        /// Override the manifest file path. Defaults to
+        /// `<corpus_dir>/manifest.jsonl`.
+        #[arg(long)]
+        manifest: Option<PathBuf>,
     },
 }
 
@@ -138,8 +153,15 @@ fn main() -> ExitCode {
                         let clone_drift = CloneDrift::new();
                         let arg_swap = ArgSwap::new();
                         let comment_code = CommentCode::new();
-                        let detectors: Vec<&dyn Detector> =
-                            vec![&clone_drift, &arg_swap, &comment_code];
+                        let unreachable = UnreachableAfterTerminator::new();
+                        let config_interaction = ConfigInteraction::new();
+                        let detectors: Vec<&dyn Detector> = vec![
+                            &clone_drift,
+                            &arg_swap,
+                            &comment_code,
+                            &unreachable,
+                            &config_interaction,
+                        ];
                         cntrdct_sarif::to_sarif_with_rules_pretty_ranked(
                             &ranked,
                             &detectors,
@@ -154,6 +176,22 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         },
+        Commands::Eval { corpus_dir, manifest } => {
+            let manifest_path = manifest
+                .unwrap_or_else(|| corpus_dir.join("manifest.jsonl"));
+            match cntrdct_cli::run_eval(&corpus_dir, &manifest_path) {
+                Ok(report) => {
+                    let body = serde_json::to_string_pretty(&report)
+                        .expect("EvalReport serializes cleanly");
+                    println!("{}", body);
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: {}", e);
+                    ExitCode::from(1)
+                }
+            }
+        }
         Commands::Calibrate { corpus, output } => {
             let output_path = output
                 .or_else(cntrdct_cli::default_priors_path)

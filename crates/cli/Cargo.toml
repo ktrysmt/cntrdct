@@ -17,10 +17,13 @@ cntrdct-core = { path = "../core" }
 cntrdct-detector-clone-drift = { path = "../detector-clone-drift" }
 cntrdct-detector-arg-swap = { path = "../detector-arg-swap" }
 cntrdct-detector-comment-code = { path = "../detector-comment-code" }
+cntrdct-detector-unreachable-after-terminator = { path = "../detector-unreachable-after-terminator" }
+cntrdct-detector-config-interaction = { path = "../detector-config-interaction" }
 cntrdct-sarif = { path = "../sarif" }
 cntrdct-ranker = { path = "../ranker" }
 cntrdct-calibration = { path = "../calibration" }
 cntrdct-adjudicator-llm = { path = "../adjudicator-llm" }
+cntrdct-eval = { path = "../eval" }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 clap = { version = "4", features = ["derive"] }

@@ -25,6 +25,8 @@ use cntrdct_core::Detector;
 use cntrdct_detector_arg_swap::ArgSwap;
 use cntrdct_detector_clone_drift::CloneDrift;
 use cntrdct_detector_comment_code::CommentCode;
+use cntrdct_detector_config_interaction::ConfigInteraction;
+use cntrdct_detector_unreachable_after_terminator::UnreachableAfterTerminator;
 
 fn workspace_root() -> PathBuf {
     // CARGO_MANIFEST_DIR points at crates/cli; the workspace root is two levels up.
@@ -140,6 +142,8 @@ fn registered_detectors() -> Vec<Box<dyn Detector>> {
         Box::new(CloneDrift::new()),
         Box::new(ArgSwap::new()),
         Box::new(CommentCode::new()),
+        Box::new(UnreachableAfterTerminator::new()),
+        Box::new(ConfigInteraction::new()),
     ]
 }
 

@@ -101,6 +101,24 @@ fn t5_deterministic_across_runs() {
 }
 
 #[test]
+fn unreachable_after_terminator_fires_through_cli_scan() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("dead.rs"),
+        "fn f() { return; bar(); }\n",
+    )
+    .unwrap();
+    let findings = scan(dir.path()).expect("scan must succeed");
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.detector_id == "unreachable-after-terminator"),
+        "expected at least one unreachable-after-terminator finding via CLI scan, got {:#?}",
+        findings
+    );
+}
+
+#[test]
 fn t6_ignores_non_rs_files() {
     let dir = make_drift_dir();
     fs::write(dir.path().join("readme.md"), "# not rust").unwrap();

@@ -1,0 +1,74 @@
+// cntrdct evaluation corpus manifest. One JSON object per non-blank line.
+// Lines starting with `//` are skipped by the loader. See benchmarks/README.md.
+//
+// Positives — files where a detector should fire.
+//
+// arg-swap
+{"file":"files/arg_swap_001.rs","expected":[{"detector_id":"arg-swap","line":8}]}
+{"file":"files/arg_swap_002.rs","expected":[{"detector_id":"arg-swap","line":16}]}
+{"file":"files/arg_swap_003.rs","expected":[{"detector_id":"arg-swap","line":14}]}
+{"file":"files/arg_swap_004.rs","expected":[{"detector_id":"arg-swap","line":14}]}
+{"file":"files/arg_swap_005.rs","expected":[{"detector_id":"arg-swap","line":16}]}
+{"file":"files/arg_swap_006.rs","expected":[{"detector_id":"arg-swap","line":15}]}
+{"file":"files/arg_swap_007.rs","expected":[{"detector_id":"arg-swap","line":14}]}
+{"file":"files/arg_swap_008.rs","expected":[{"detector_id":"arg-swap","line":14}]}
+{"file":"files/arg_swap_009.rs","expected":[{"detector_id":"arg-swap","line":14}]}
+{"file":"files/arg_swap_010.rs","expected":[{"detector_id":"arg-swap","line":14}]}
+//
+// clone-drift
+{"file":"files/clone_drift_001.rs","expected":[{"detector_id":"clone-drift","line":41}]}
+{"file":"files/clone_drift_002.rs","expected":[{"detector_id":"clone-drift","line":47}]}
+{"file":"files/clone_drift_003.rs","expected":[{"detector_id":"clone-drift","line":39}]}
+{"file":"files/clone_drift_004.rs","expected":[{"detector_id":"clone-drift","line":48}]}
+{"file":"files/clone_drift_005.rs","expected":[{"detector_id":"clone-drift","line":39}]}
+{"file":"files/clone_drift_006.rs","expected":[{"detector_id":"clone-drift","line":35}]}
+{"file":"files/clone_drift_007.rs","expected":[{"detector_id":"clone-drift","line":47}]}
+{"file":"files/clone_drift_008.rs","expected":[{"detector_id":"clone-drift","line":39}]}
+{"file":"files/clone_drift_009.rs","expected":[{"detector_id":"clone-drift","line":39}]}
+{"file":"files/clone_drift_010.rs","expected":[{"detector_id":"clone-drift","line":43}]}
+//
+// comment-code
+{"file":"files/comment_code_001.rs","expected":[{"detector_id":"comment-code","line":2}]}
+{"file":"files/comment_code_002.rs","expected":[{"detector_id":"comment-code","line":9}]}
+{"file":"files/comment_code_003.rs","expected":[{"detector_id":"comment-code","line":8}]}
+{"file":"files/comment_code_004.rs","expected":[{"detector_id":"comment-code","line":8}]}
+{"file":"files/comment_code_005.rs","expected":[{"detector_id":"comment-code","line":8}]}
+{"file":"files/comment_code_006.rs","expected":[{"detector_id":"comment-code","line":8}]}
+{"file":"files/comment_code_007.rs","expected":[{"detector_id":"comment-code","line":9}]}
+{"file":"files/comment_code_008.rs","expected":[{"detector_id":"comment-code","line":8}]}
+{"file":"files/comment_code_009.rs","expected":[{"detector_id":"comment-code","line":8}]}
+{"file":"files/comment_code_010.rs","expected":[{"detector_id":"comment-code","line":8}]}
+//
+// config-interaction
+{"file":"files/config_interaction_001.rs","expected":[{"detector_id":"config-interaction","line":10}]}
+{"file":"files/config_interaction_002.rs","expected":[{"detector_id":"config-interaction","line":9}]}
+{"file":"files/config_interaction_003.rs","expected":[{"detector_id":"config-interaction","line":9}]}
+{"file":"files/config_interaction_004.rs","expected":[{"detector_id":"config-interaction","line":9}]}
+{"file":"files/config_interaction_005.rs","expected":[{"detector_id":"config-interaction","line":9}]}
+{"file":"files/config_interaction_006.rs","expected":[{"detector_id":"config-interaction","line":9}]}
+{"file":"files/config_interaction_007.rs","expected":[{"detector_id":"config-interaction","line":9}]}
+{"file":"files/config_interaction_008.rs","expected":[{"detector_id":"config-interaction","line":9}]}
+//
+// unreachable-after-terminator
+{"file":"files/unreachable_001.rs","expected":[{"detector_id":"unreachable-after-terminator","line":3}]}
+{"file":"files/unreachable_002.rs","expected":[{"detector_id":"unreachable-after-terminator","line":3}]}
+{"file":"files/unreachable_003.rs","expected":[{"detector_id":"unreachable-after-terminator","line":11}]}
+{"file":"files/unreachable_004.rs","expected":[{"detector_id":"unreachable-after-terminator","line":13}]}
+{"file":"files/unreachable_005.rs","expected":[{"detector_id":"unreachable-after-terminator","line":11}]}
+{"file":"files/unreachable_006.rs","expected":[{"detector_id":"unreachable-after-terminator","line":13}]}
+{"file":"files/unreachable_007.rs","expected":[{"detector_id":"unreachable-after-terminator","line":14}]}
+{"file":"files/unreachable_008.rs","expected":[{"detector_id":"unreachable-after-terminator","line":11}]}
+{"file":"files/unreachable_009.rs","expected":[{"detector_id":"unreachable-after-terminator","line":13}]}
+{"file":"files/unreachable_010.rs","expected":[{"detector_id":"unreachable-after-terminator","line":11}]}
+//
+// Negatives — files where no finding is expected.
+{"file":"files/arg_swap_negative_001.rs","expected":[]}
+{"file":"files/arg_swap_negative_002.rs","expected":[]}
+{"file":"files/arg_swap_negative_003.rs","expected":[]}
+{"file":"files/clone_drift_negative_001.rs","expected":[]}
+{"file":"files/comment_code_negative_001.rs","expected":[]}
+{"file":"files/comment_code_negative_002.rs","expected":[]}
+{"file":"files/comment_code_negative_003.rs","expected":[]}
+{"file":"files/unreachable_negative_001.rs","expected":[]}
+{"file":"files/unreachable_negative_002.rs","expected":[]}
+{"file":"files/unreachable_negative_003.rs","expected":[]}

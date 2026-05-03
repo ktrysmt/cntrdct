@@ -5,15 +5,18 @@ members = [
     "crates/detector-clone-drift",
     "crates/detector-arg-swap",
     "crates/detector-comment-code",
+    "crates/detector-unreachable-after-terminator",
+    "crates/detector-config-interaction",
     "crates/sarif",
     "crates/ranker",
     "crates/calibration",
+    "crates/eval",
     "crates/adjudicator-llm",
     "crates/cli",
 ]
 
 [workspace.package]
-version = "0.0.1"
+version = "0.1.0"
 edition = "2021"
 license = "MIT"
 authors = ["cntrdct contributors"]

@@ -19,6 +19,9 @@ use cntrdct_core::{
 use cntrdct_detector_arg_swap::ArgSwap;
 use cntrdct_detector_clone_drift::CloneDrift;
 use cntrdct_detector_comment_code::CommentCode;
+use cntrdct_detector_config_interaction::ConfigInteraction;
+use cntrdct_detector_unreachable_after_terminator::UnreachableAfterTerminator;
+use cntrdct_eval::{evaluate, load_manifest, EvalError, EvalReport};
 use cntrdct_ranker::{CalibratedRanker, UncalibratedRanker};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -32,6 +35,16 @@ pub enum ScanError {
     Io(#[from] std::io::Error),
     #[error("detector error: {0}")]
     Detector(#[from] cntrdct_core::DetectorError),
+}
+
+#[derive(Debug, Error)]
+pub enum EvalRunError {
+    #[error("eval error: {0}")]
+    Eval(#[from] EvalError),
+    #[error("scan error: {0}")]
+    Scan(#[from] ScanError),
+    #[error("serialize error: {0}")]
+    Serialize(#[from] serde_json::Error),
 }
 
 #[derive(Debug, Error)]
@@ -71,9 +84,13 @@ pub fn scan(path: &Path) -> Result<Vec<Finding>, ScanError> {
     let clone_drift = CloneDrift::new();
     let arg_swap = ArgSwap::new();
     let comment_code = CommentCode::new();
+    let unreachable = UnreachableAfterTerminator::new();
+    let config_interaction = ConfigInteraction::new();
     register_detector(&clone_drift)?;
     register_detector(&arg_swap)?;
     register_detector(&comment_code)?;
+    register_detector(&unreachable)?;
+    register_detector(&config_interaction)?;
 
     let stats = CorpusStats {
         file_count: parsed.len(),
@@ -89,6 +106,8 @@ pub fn scan(path: &Path) -> Result<Vec<Finding>, ScanError> {
     let mut findings = clone_drift.detect(&ctx)?;
     findings.extend(arg_swap.detect(&ctx)?);
     findings.extend(comment_code.detect(&ctx)?);
+    findings.extend(unreachable.detect(&ctx)?);
+    findings.extend(config_interaction.detect(&ctx)?);
     Ok(findings)
 }
 
@@ -229,6 +248,23 @@ pub fn calibrate(
         source: e,
     })?;
     Ok(priors.len())
+}
+
+// ---------- Eval subcommand ----------
+
+/// Load a manifest, run `scan` over the corpus directory, and compute the
+/// `EvalReport`. Spec: `docs/spec/eval-v0.md` F7. Pure orchestration —
+/// matching and metric arithmetic live in `cntrdct-eval`.
+pub fn run_eval(corpus_dir: &Path, manifest_path: &Path) -> Result<EvalReport, EvalRunError> {
+    let manifest = load_manifest(manifest_path)?;
+    for entry in &manifest.entries {
+        let abs = corpus_dir.join(&entry.file);
+        if !abs.exists() {
+            return Err(EvalRunError::Eval(EvalError::MissingSource(abs)));
+        }
+    }
+    let findings = scan(corpus_dir)?;
+    Ok(evaluate(&manifest, &findings, corpus_dir))
 }
 
 // ---------- File discovery ----------

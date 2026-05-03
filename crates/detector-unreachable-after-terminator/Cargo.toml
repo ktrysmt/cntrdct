@@ -1,0 +1,13 @@
+[package]
+name = "cntrdct-detector-unreachable-after-terminator"
+description = "Detect statements that follow a divergent terminator within the same block."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cntrdct-core = { path = "../core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tree-sitter = "0.22"
+tree-sitter-rust = "0.21"

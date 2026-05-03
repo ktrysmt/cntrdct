@@ -1,6 +1,6 @@
 ---
 name: cntrdct
-description: Evidence-based contradiction linter. Scans Rust code for drifted clones — code fragments that look identical but have diverged inconsistently, which often indicates a fix that was missed in some copies. Every finding cites the peer-reviewed paper that justifies the detection. Use when the user asks to scan/lint/check for inconsistencies, drifted clones, or contradictions.
+description: Evidence-based contradiction linter. Scans Rust code for drifted clones, swapped call arguments, doc/code mismatches, unreachable code after a divergent terminator, and contradictory cfg attribute pairs. Every finding cites the peer-reviewed paper that justifies the detection. Use when the user asks to scan/lint/check for inconsistencies, drifted clones, or contradictions.
 allowed-tools: Bash, Read
 ---
 
@@ -117,7 +117,8 @@ rationale verbatim — do not paraphrase or expand it.
 Then add one paragraph summarizing:
 
 - How many total findings
-- The dominant detector (e.g., clone-drift only in v0)
+- The dominant detector across the five shipped detectors (clone-drift,
+  arg-swap, comment-code, unreachable-after-terminator, config-interaction)
 - The single highest rank_score and what it represents
 - A reminder that Layer 2 statistics (`posterior_tp`, `wilson_lower`) are
   uncalibrated in v0 — the ordering is by sibling count, not by true-positive
@@ -147,6 +148,22 @@ arg-swap detector:
 - `rice-icse-2017` — A. Rice et al., "Detecting Argument Selection Defects",
   ICSE 2017. Industrial evidence that argument-name swaps are a recurring
   defect class detectable by lightweight static analysis.
+
+unreachable-after-terminator detector:
+
+- `hovemeyer-pugh-oopsla-2004` — Hovemeyer & Pugh, "Finding Bugs is Easy",
+  OOPSLA 2004. Source of the "UR — Unreachable code" bug pattern category.
+- `engler-sosp-2001` — Engler et al., "Bugs as Deviant Behavior", SOSP 2001.
+  Foundational work on control-flow contradictions as anomaly signals.
+
+config-interaction detector:
+
+- `tartler-eurosys-2011` — Tartler et al., "Feature consistency in
+  compile-time-configurable system software", EuroSys 2011. Canonical
+  reference for the dead-block / inconsistent-feature anomaly class.
+- `nadi-icse-2014` — Nadi et al., "Mining configuration constraints",
+  ICSE 2014. Empirical evidence that contradictory cfg predicates recur
+  in production code.
 
 Layer 3 LLM adjudicator (only when `--adjudicate` is in use):
 
