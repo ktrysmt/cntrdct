@@ -18,6 +18,7 @@ use cntrdct_core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Location,
     ParsedFile, Severity,
 };
+use rayon::prelude::*;
 
 pub const SIMILARITY_THRESHOLD: f64 = 0.5;
 pub const NGRAM_SIZE: usize = 3;
@@ -87,15 +88,17 @@ impl Detector for CloneDrift {
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
-        let mut all_fns: Vec<FnInfo> = Vec::new();
-        for file in ctx.files {
-            if file.language != "rust" {
-                continue;
-            }
-            if let Some(fns) = extract_fns(file) {
-                all_fns.extend(fns);
-            }
-        }
+        // Per-file parsing dominates this detector's runtime; clustering and
+        // partitioning that follow are intrinsically cross-file and stay
+        // serial. The parallel collect preserves source order because rayon's
+        // collect from an indexed parallel iterator is deterministic.
+        let all_fns: Vec<FnInfo> = ctx
+            .files
+            .par_iter()
+            .filter(|f| f.language == "rust")
+            .filter_map(extract_fns)
+            .flatten()
+            .collect();
 
         if all_fns.len() < MIN_GROUP_SIZE {
             return Ok(vec![]);
@@ -266,33 +269,55 @@ fn node_location(file: &ParsedFile, node: tree_sitter::Node) -> Location {
     }
 }
 
-fn find_root(parent: &[usize], x: usize) -> usize {
+/// Path-compressing root lookup. Used during the union-find merge phase so a
+/// subsequent find on the same node is O(1). Cluster equivalence is unchanged
+/// (path compression is a representation optimisation only).
+fn find_root_compress(parent: &mut [usize], x: usize) -> usize {
+    let mut root = x;
+    while parent[root] != root {
+        root = parent[root];
+    }
     let mut cur = x;
     while parent[cur] != cur {
-        cur = parent[cur];
+        let next = parent[cur];
+        parent[cur] = root;
+        cur = next;
     }
-    cur
+    root
 }
 
 fn cluster(fns: &[FnInfo]) -> Vec<Vec<usize>> {
     let n = fns.len();
-    let mut parent: Vec<usize> = (0..n).collect();
 
-    for i in 0..n {
-        for j in (i + 1)..n {
-            if jaccard(&fns[i].ngrams, &fns[j].ngrams) >= SIMILARITY_THRESHOLD {
-                let ri = find_root(&parent, i);
-                let rj = find_root(&parent, j);
-                if ri != rj {
-                    parent[ri] = rj;
-                }
-            }
+    // Pairwise Jaccard scan dominates this detector's runtime. Compute the
+    // O(n²) similarity test in parallel, materialise the qualifying pairs,
+    // then merge into a single union-find serially. The merge is cheap
+    // relative to the comparison phase, and keeping it serial avoids a lock
+    // around `parent`.
+    let pairs: Vec<(usize, usize)> = (0..n)
+        .into_par_iter()
+        .flat_map_iter(|i| {
+            ((i + 1)..n)
+                .filter(move |&j| jaccard(&fns[i].ngrams, &fns[j].ngrams) >= SIMILARITY_THRESHOLD)
+                .map(move |j| (i, j))
+        })
+        .collect();
+
+    let mut parent: Vec<usize> = (0..n).collect();
+    for (i, j) in pairs {
+        let ri = find_root_compress(&mut parent, i);
+        let rj = find_root_compress(&mut parent, j);
+        if ri != rj {
+            parent[ri] = rj;
         }
     }
 
     let mut groups: HashMap<usize, Vec<usize>> = HashMap::new();
     for i in 0..n {
-        groups.entry(find_root(&parent, i)).or_default().push(i);
+        groups
+            .entry(find_root_compress(&mut parent, i))
+            .or_default()
+            .push(i);
     }
 
     let mut result: Vec<Vec<usize>> = groups.into_values().collect();

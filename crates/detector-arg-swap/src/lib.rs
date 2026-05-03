@@ -19,6 +19,7 @@ use cntrdct_core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Location,
     ParsedFile, Severity,
 };
+use rayon::prelude::*;
 
 static CITATIONS: &[Citation] = &[
     Citation {
@@ -81,37 +82,39 @@ impl Detector for ArgSwap {
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
+        // Phase 1: extract function definitions in parallel, then fold into a
+        // single name-keyed map. The fold step stays serial because HashMap
+        // construction is cheap relative to tree-sitter parsing.
+        let per_file_defs: Vec<(String, FnDef)> = ctx
+            .files
+            .par_iter()
+            .filter(|f| f.language == "rust")
+            .filter_map(extract_fn_defs)
+            .flatten()
+            .collect();
         let mut defs_by_name: HashMap<String, Vec<FnDef>> = HashMap::new();
-        for file in ctx.files {
-            if file.language != "rust" {
-                continue;
-            }
-            if let Some(defs) = extract_fn_defs(file) {
-                for (name, def) in defs {
-                    defs_by_name.entry(name).or_default().push(def);
-                }
-            }
+        for (name, def) in per_file_defs {
+            defs_by_name.entry(name).or_default().push(def);
         }
 
-        let mut findings: Vec<Finding> = Vec::new();
-        for file in ctx.files {
-            if file.language != "rust" {
-                continue;
-            }
-            let Some(calls) = extract_call_sites(file) else {
-                continue;
-            };
-            for call in calls {
+        // Phase 2: scan call sites per file in parallel, emitting one Finding
+        // per swap match. Tree-sitter parsers are constructed inside the
+        // closure, so each rayon worker owns its parser.
+        let mut findings: Vec<Finding> = ctx
+            .files
+            .par_iter()
+            .filter(|f| f.language == "rust")
+            .filter_map(extract_call_sites)
+            .flatten()
+            .filter_map(|call| {
                 if call.args.len() != 2 {
-                    continue;
+                    return None;
                 }
-                let Some(candidates) = defs_by_name.get(&call.callee) else {
-                    continue;
-                };
+                let candidates = defs_by_name.get(&call.callee)?;
                 let matching: Vec<&FnDef> =
                     candidates.iter().filter(|d| d.params.len() == 2).collect();
                 if matching.len() != 1 {
-                    continue;
+                    return None;
                 }
                 let def = matching[0];
 
@@ -124,7 +127,7 @@ impl Detector for ArgSwap {
                 let swapped = a0 == p1 && a1 == p0;
 
                 if swapped && !identity {
-                    findings.push(Finding {
+                    Some(Finding {
                         detector_id: "arg-swap".to_string(),
                         primary: call.location.clone(),
                         related: vec![def.location.clone()],
@@ -142,10 +145,12 @@ impl Detector for ArgSwap {
                                 "argument_names": call.args.clone(),
                             }),
                         },
-                    });
+                    })
+                } else {
+                    None
                 }
-            }
-        }
+            })
+            .collect();
 
         findings.sort_by(|a, b| {
             a.primary

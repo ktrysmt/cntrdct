@@ -35,7 +35,9 @@ thiserror = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 walkdir = "2"
 dirs = "5"
+rayon = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
 mockito = "1"
+rayon = { workspace = true }

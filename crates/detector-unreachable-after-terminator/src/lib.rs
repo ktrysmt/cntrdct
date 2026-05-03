@@ -7,6 +7,7 @@ use cntrdct_core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Location,
     ParsedFile, Severity,
 };
+use rayon::prelude::*;
 
 pub const TERMINATOR_MACROS: &[&str] = &[
     "panic",
@@ -67,13 +68,16 @@ impl Detector for UnreachableAfterTerminator {
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
-        let mut findings: Vec<Finding> = Vec::new();
-        for file in ctx.files {
-            if file.language != "rust" {
-                continue;
-            }
-            scan_file(file, &mut findings);
-        }
+        let mut findings: Vec<Finding> = ctx
+            .files
+            .par_iter()
+            .filter(|f| f.language == "rust")
+            .flat_map_iter(|file| {
+                let mut local = Vec::new();
+                scan_file(file, &mut local);
+                local
+            })
+            .collect();
         findings.sort_by(|a, b| {
             a.primary
                 .file

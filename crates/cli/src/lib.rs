@@ -21,6 +21,7 @@ use cntrdct_detector_config_interaction::ConfigInteraction;
 use cntrdct_detector_unreachable_after_terminator::UnreachableAfterTerminator;
 use cntrdct_eval::{evaluate, load_manifest, EvalError, EvalReport};
 use cntrdct_ranker::{CalibratedRanker, UncalibratedRanker};
+use rayon::prelude::*;
 use std::collections::HashMap;
 use thiserror::Error;
 use walkdir::WalkDir;
@@ -66,18 +67,18 @@ pub fn scan(path: &Path) -> Result<Vec<Finding>, ScanError> {
 
     let rust_paths = collect_rust_files(path);
 
-    let mut parsed: Vec<ParsedFile> = Vec::with_capacity(rust_paths.len());
-    for p in &rust_paths {
-        let source = match fs::read_to_string(p) {
-            Ok(s) => s,
-            Err(_) => continue,
-        };
-        parsed.push(ParsedFile {
-            path: p.clone(),
-            language: "rust".to_string(),
-            source,
-        });
-    }
+    // Read files in parallel. Unreadable files (permission errors, transient
+    // races) are silently skipped, matching the previous serial behaviour.
+    let parsed: Vec<ParsedFile> = rust_paths
+        .par_iter()
+        .filter_map(|p| {
+            fs::read_to_string(p).ok().map(|source| ParsedFile {
+                path: p.clone(),
+                language: "rust".to_string(),
+                source,
+            })
+        })
+        .collect();
 
     let clone_drift = CloneDrift::new();
     let arg_swap = ArgSwap::new();
@@ -101,11 +102,29 @@ pub fn scan(path: &Path) -> Result<Vec<Finding>, ScanError> {
         config: &config,
     };
 
-    let mut findings = clone_drift.detect(&ctx)?;
-    findings.extend(arg_swap.detect(&ctx)?);
-    findings.extend(comment_code.detect(&ctx)?);
-    findings.extend(unreachable.detect(&ctx)?);
-    findings.extend(config_interaction.detect(&ctx)?);
+    // Run all five detectors in parallel against the shared context. Each
+    // detector implementation is `Send + Sync` per the trait bound, so this
+    // is sound. Output ordering is restored via a deterministic post-hoc
+    // sort below so the ranker (and snapshot tests) see stable input.
+    let detectors: Vec<&(dyn Detector + Sync)> = vec![
+        &clone_drift,
+        &arg_swap,
+        &comment_code,
+        &unreachable,
+        &config_interaction,
+    ];
+    let nested: Result<Vec<Vec<Finding>>, cntrdct_core::DetectorError> =
+        detectors.par_iter().map(|d| d.detect(&ctx)).collect();
+    let mut findings: Vec<Finding> = nested?.into_iter().flatten().collect();
+
+    findings.sort_by(|a, b| {
+        a.detector_id
+            .cmp(&b.detector_id)
+            .then_with(|| a.primary.file.cmp(&b.primary.file))
+            .then_with(|| a.primary.start_line.cmp(&b.primary.start_line))
+            .then_with(|| a.primary.start_col.cmp(&b.primary.start_col))
+    });
+
     Ok(findings)
 }
 
