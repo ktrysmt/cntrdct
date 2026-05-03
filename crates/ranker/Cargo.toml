@@ -1,0 +1,13 @@
+[package]
+name = "cntrdct-ranker"
+description = "Layer 2 statistical ranker for cntrdct findings."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cntrdct-core = { path = "../core" }
+cntrdct-calibration = { path = "../calibration" }
+
+[dev-dependencies]
+serde_json = { workspace = true }

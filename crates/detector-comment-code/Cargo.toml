@@ -1,0 +1,13 @@
+[package]
+name = "cntrdct-detector-comment-code"
+description = "Comment/code contradiction detection grounded in iComment/aComment."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cntrdct-core = { path = "../core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tree-sitter = "0.22"
+tree-sitter-rust = "0.21"

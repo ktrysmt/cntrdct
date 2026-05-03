@@ -1,0 +1,10 @@
+[package]
+name = "cntrdct-sarif"
+description = "SARIF 2.1.0 emitter for cntrdct findings."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cntrdct-core = { path = "../core" }
+serde_json = { workspace = true }

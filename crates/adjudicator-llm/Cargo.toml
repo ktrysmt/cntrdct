@@ -1,0 +1,16 @@
+[package]
+name = "cntrdct-adjudicator-llm"
+description = "Layer 3 LLM adjudicator for cntrdct findings (Anthropic Messages API)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cntrdct-core = { path = "../core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"] }
+
+[dev-dependencies]
+mockito = "1"

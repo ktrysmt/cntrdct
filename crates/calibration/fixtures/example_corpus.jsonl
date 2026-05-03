@@ -1,0 +1,8 @@
+{"detector_id":"clone-drift","repo":"cntrdct-self","file":"crates/detector-clone-drift/src/lib.rs","line":42,"verdict":"TruePositive","anomaly_class":"Logic"}
+{"detector_id":"clone-drift","repo":"cntrdct-self","file":"crates/detector-clone-drift/src/lib.rs","line":118,"verdict":"TruePositive"}
+{"detector_id":"clone-drift","repo":"cntrdct-self","file":"crates/detector-clone-drift/src/lib.rs","line":201,"verdict":"FalsePositive"}
+{"detector_id":"arg-swap","repo":"cntrdct-self","file":"crates/detector-arg-swap/src/lib.rs","line":15,"verdict":"TruePositive","anomaly_class":"Interface"}
+{"detector_id":"arg-swap","repo":"cntrdct-self","file":"crates/detector-arg-swap/src/lib.rs","line":77,"verdict":"FalsePositive"}
+{"detector_id":"comment-code","repo":"cntrdct-self","file":"crates/detector-comment-code/src/lib.rs","line":8,"verdict":"TruePositive"}
+{"detector_id":"comment-code","repo":"cntrdct-self","file":"crates/detector-comment-code/src/lib.rs","line":33,"verdict":"FalsePositive"}
+{"detector_id":"comment-code","repo":"cntrdct-self","file":"crates/detector-comment-code/src/lib.rs","line":61,"verdict":"FalsePositive"}

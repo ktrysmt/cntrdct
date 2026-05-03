@@ -1,0 +1,32 @@
+[package]
+name = "cntrdct-cli"
+description = "Command-line interface for the cntrdct linter."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "cntrdct"
+path = "src/main.rs"
+
+[dependencies]
+cntrdct-core = { path = "../core" }
+cntrdct-detector-clone-drift = { path = "../detector-clone-drift" }
+cntrdct-detector-arg-swap = { path = "../detector-arg-swap" }
+cntrdct-detector-comment-code = { path = "../detector-comment-code" }
+cntrdct-sarif = { path = "../sarif" }
+cntrdct-ranker = { path = "../ranker" }
+cntrdct-calibration = { path = "../calibration" }
+cntrdct-adjudicator-llm = { path = "../adjudicator-llm" }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+walkdir = "2"
+dirs = "5"
+
+[dev-dependencies]
+tempfile = "3"
+mockito = "1"
