@@ -208,7 +208,7 @@ T2-8. Pre-built release binaries
 
 T2-9. GitHub Action wrapper
 
-- Status: `[ ]`
+- Status: `[x]`
 - Goal: `cntrdct/action` (or an analogous repository) so that
   users can add `uses: cntrdct/action@v1` to their own CI and get
   cntrdct findings as PR comments.
