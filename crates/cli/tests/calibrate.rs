@@ -9,9 +9,7 @@ use std::path::PathBuf;
 
 use cntrdct_calibration::DetectorPrior;
 use cntrdct_cli::{calibrate, pick_ranker, rank_with_calibration, scan};
-use cntrdct_core::{
-    AnomalyClass, Evidence, Finding, Location, RankedFinding, Severity,
-};
+use cntrdct_core::{AnomalyClass, Evidence, Finding, Location, RankedFinding, Severity};
 use tempfile::tempdir;
 
 const FN_BASE: &str = r#"
@@ -185,5 +183,8 @@ fn pick_ranker_with_missing_priors_path_falls_back_silently() {
     let ranker = pick_ranker(false, Some(&bogus)).expect("no error on missing priors");
     let f = make_finding("clone-drift", 4);
     let out = ranker.rank(vec![f]);
-    assert!(out[0].posterior_tp.is_none(), "fallback must be uncalibrated");
+    assert!(
+        out[0].posterior_tp.is_none(),
+        "fallback must be uncalibrated"
+    );
 }

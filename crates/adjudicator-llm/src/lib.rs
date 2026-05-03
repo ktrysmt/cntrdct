@@ -14,8 +14,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use cntrdct_core::{
-    AdjudicationResult, AdjudicationVerdict, Adjudicator, Citation, DetectorError,
-    RankedFinding,
+    AdjudicationResult, AdjudicationVerdict, Adjudicator, Citation, DetectorError, RankedFinding,
 };
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -136,10 +135,7 @@ impl<C: HttpClient> AnthropicAdjudicator<C> {
 }
 
 impl<C: HttpClient> Adjudicator for AnthropicAdjudicator<C> {
-    fn adjudicate(
-        &self,
-        finding: &RankedFinding,
-    ) -> Result<AdjudicationResult, DetectorError> {
+    fn adjudicate(&self, finding: &RankedFinding) -> Result<AdjudicationResult, DetectorError> {
         let prompt = build_prompt(finding, &HashMap::new());
 
         let body = json!({
@@ -151,7 +147,10 @@ impl<C: HttpClient> Adjudicator for AnthropicAdjudicator<C> {
 
         let headers = vec![
             ("x-api-key".to_string(), self.api_key.clone()),
-            ("anthropic-version".to_string(), ANTHROPIC_VERSION.to_string()),
+            (
+                "anthropic-version".to_string(),
+                ANTHROPIC_VERSION.to_string(),
+            ),
             ("content-type".to_string(), "application/json".to_string()),
         ];
 
@@ -171,13 +170,9 @@ impl<C: HttpClient> Adjudicator for AnthropicAdjudicator<C> {
 /// the adjudicator would send for a given `RankedFinding`. Stable as long as
 /// the prompt template is.
 #[doc(hidden)]
-pub fn __sample_build_prompt(
-    rf: &RankedFinding,
-    lookup: &HashMap<&str, &str>,
-) -> String {
+pub fn __sample_build_prompt(rf: &RankedFinding, lookup: &HashMap<&str, &str>) -> String {
     build_prompt(rf, lookup)
 }
-
 
 /// Build the adjudication prompt for a single ranked finding.
 ///
@@ -185,10 +180,7 @@ pub fn __sample_build_prompt(
 /// `citations_lookup` is reserved for a future enrichment that swaps citation
 /// keys for human-readable titles inline. v0 leaves it unused but keeps the
 /// parameter so the API does not need to break later.
-pub(crate) fn build_prompt(
-    rf: &RankedFinding,
-    _citations_lookup: &HashMap<&str, &str>,
-) -> String {
+pub(crate) fn build_prompt(rf: &RankedFinding, _citations_lookup: &HashMap<&str, &str>) -> String {
     let f = &rf.finding;
 
     let location = format!(
@@ -208,8 +200,8 @@ pub(crate) fn build_prompt(
         _ => "uncalibrated".to_string(),
     };
 
-    let raw_pretty = serde_json::to_string_pretty(&f.evidence.raw)
-        .unwrap_or_else(|_| "{}".to_string());
+    let raw_pretty =
+        serde_json::to_string_pretty(&f.evidence.raw).unwrap_or_else(|_| "{}".to_string());
 
     format!(
         "You are evaluating a static analysis finding from cntrdct. Decide whether it is a true bug or a false positive.\n\
@@ -258,8 +250,8 @@ pub(crate) fn parse_response(raw: &Value) -> Result<AdjudicationResult, Adjudica
 
     let stripped = strip_code_fence(text);
 
-    let inner: Value = serde_json::from_str(stripped)
-        .map_err(|e| AdjudicatorError::InnerJson(e.to_string()))?;
+    let inner: Value =
+        serde_json::from_str(stripped).map_err(|e| AdjudicatorError::InnerJson(e.to_string()))?;
 
     let verdict_str = inner
         .get("verdict")
@@ -363,8 +355,7 @@ impl HttpClient for ReqwestClient {
             // 4xx/5xx failures.
             return Err(AdjudicatorError::Http(format!(
                 "status {}: {}",
-                status,
-                body
+                status, body
             )));
         }
         Ok(body)
@@ -386,9 +377,7 @@ pub struct MockResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cntrdct_core::{
-        AnomalyClass, Evidence, Finding, Location, RankedFinding, Severity,
-    };
+    use cntrdct_core::{AnomalyClass, Evidence, Finding, Location, RankedFinding, Severity};
     use std::path::PathBuf;
     use std::sync::Mutex;
 
@@ -525,7 +514,10 @@ mod tests {
             p.contains("posterior_tp=0.6000"),
             "posterior_tp must be in prior section"
         );
-        assert!(p.contains("LikelyTruePositive"), "instruction schema missing");
+        assert!(
+            p.contains("LikelyTruePositive"),
+            "instruction schema missing"
+        );
     }
 
     #[test]
@@ -596,7 +588,10 @@ mod tests {
             "```json\n{\"verdict\":\"LikelyTruePositive\",\"confidence\":0.8,\"rationale\":\"r\"}\n```",
         );
         let res = parse_response(&raw).unwrap();
-        assert!(matches!(res.verdict, AdjudicationVerdict::LikelyTruePositive));
+        assert!(matches!(
+            res.verdict,
+            AdjudicationVerdict::LikelyTruePositive
+        ));
         assert_eq!(res.confidence, 0.8);
     }
 
@@ -629,18 +624,15 @@ mod tests {
 
     #[test]
     fn parse_response_missing_confidence_errs() {
-        let raw = anthropic_response(
-            "{\"verdict\":\"LikelyTruePositive\",\"rationale\":\"r\"}",
-        );
+        let raw = anthropic_response("{\"verdict\":\"LikelyTruePositive\",\"rationale\":\"r\"}");
         let err = parse_response(&raw).unwrap_err();
         assert!(matches!(err, AdjudicatorError::MissingField("confidence")));
     }
 
     #[test]
     fn parse_response_invalid_verdict_errs() {
-        let raw = anthropic_response(
-            "{\"verdict\":\"Maybe\",\"confidence\":0.5,\"rationale\":\"r\"}",
-        );
+        let raw =
+            anthropic_response("{\"verdict\":\"Maybe\",\"confidence\":0.5,\"rationale\":\"r\"}");
         let err = parse_response(&raw).unwrap_err();
         assert!(matches!(err, AdjudicatorError::InvalidVerdict(_)));
     }
@@ -654,7 +646,10 @@ mod tests {
         ));
         let adj = AnthropicAdjudicator::new(mock, "test-key".to_string());
         let res = adj.adjudicate(&make_ranked(Some((0.6, 0.4)))).unwrap();
-        assert!(matches!(res.verdict, AdjudicationVerdict::LikelyTruePositive));
+        assert!(matches!(
+            res.verdict,
+            AdjudicationVerdict::LikelyTruePositive
+        ));
         assert_eq!(res.confidence, 0.85);
         assert_eq!(res.rationale, "matches drift");
         assert_eq!(res.calibration_tag.as_deref(), Some("T1.5"));
@@ -674,7 +669,10 @@ mod tests {
 
         let headers = adj.client.last_headers.lock().unwrap().clone().unwrap();
         let pairs: HashMap<String, String> = headers.into_iter().collect();
-        assert_eq!(pairs.get("x-api-key").map(String::as_str), Some("secret-key"));
+        assert_eq!(
+            pairs.get("x-api-key").map(String::as_str),
+            Some("secret-key")
+        );
         assert_eq!(
             pairs.get("anthropic-version").map(String::as_str),
             Some(ANTHROPIC_VERSION)

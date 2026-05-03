@@ -207,10 +207,18 @@ mod tests {
 
     struct Bad;
     impl Detector for Bad {
-        fn id(&self) -> &'static str { "bad" }
-        fn name(&self) -> &'static str { "Bad" }
-        fn citations(&self) -> &'static [Citation] { &[] }
-        fn supported_languages(&self) -> &'static [&'static str] { &["*"] }
+        fn id(&self) -> &'static str {
+            "bad"
+        }
+        fn name(&self) -> &'static str {
+            "Bad"
+        }
+        fn citations(&self) -> &'static [Citation] {
+            &[]
+        }
+        fn supported_languages(&self) -> &'static [&'static str] {
+            &["*"]
+        }
         fn detect(&self, _: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
             Ok(vec![])
         }
@@ -218,10 +226,18 @@ mod tests {
 
     struct Good;
     impl Detector for Good {
-        fn id(&self) -> &'static str { "good" }
-        fn name(&self) -> &'static str { "Good" }
-        fn citations(&self) -> &'static [Citation] { GOOD_CITES }
-        fn supported_languages(&self) -> &'static [&'static str] { &["*"] }
+        fn id(&self) -> &'static str {
+            "good"
+        }
+        fn name(&self) -> &'static str {
+            "Good"
+        }
+        fn citations(&self) -> &'static [Citation] {
+            GOOD_CITES
+        }
+        fn supported_languages(&self) -> &'static [&'static str] {
+            &["*"]
+        }
         fn detect(&self, _: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
             Ok(vec![])
         }
@@ -323,10 +339,22 @@ mod tests {
             "must contain adjudication object: {}",
             json
         );
-        assert!(json.contains("\"verdict\":\"LikelyTruePositive\""), "got: {}", json);
+        assert!(
+            json.contains("\"verdict\":\"LikelyTruePositive\""),
+            "got: {}",
+            json
+        );
         assert!(json.contains("\"confidence\":0.82"), "got: {}", json);
-        assert!(json.contains("\"rationale\":\"matches drift pattern\""), "got: {}", json);
-        assert!(json.contains("\"calibration_tag\":\"T1.5\""), "got: {}", json);
+        assert!(
+            json.contains("\"rationale\":\"matches drift pattern\""),
+            "got: {}",
+            json
+        );
+        assert!(
+            json.contains("\"calibration_tag\":\"T1.5\""),
+            "got: {}",
+            json
+        );
     }
 
     #[test]
@@ -342,7 +370,11 @@ mod tests {
         ];
         for (variant, expected) in cases {
             let s = serde_json::to_string(variant).expect("serializes");
-            assert_eq!(&s, expected, "variant {:?} must serialize to {}", variant, expected);
+            assert_eq!(
+                &s, expected,
+                "variant {:?} must serialize to {}",
+                variant, expected
+            );
         }
     }
 }

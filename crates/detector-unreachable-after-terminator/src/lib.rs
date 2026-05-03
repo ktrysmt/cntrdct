@@ -32,8 +32,7 @@ static CITATIONS: &[Citation] = &[
     Citation {
         key: "engler-sosp-2001",
         authors: "D. Engler, D.Y. Chen, S. Hallem, A. Chou, B. Chelf",
-        title:
-            "Bugs as Deviant Behavior: A General Approach to Inferring Errors in Systems Code",
+        title: "Bugs as Deviant Behavior: A General Approach to Inferring Errors in Systems Code",
         venue: "SOSP 2001",
         year: 2001,
         doi: Some("10.1145/502034.502041"),

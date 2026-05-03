@@ -16,8 +16,8 @@
 use std::collections::HashMap;
 
 use cntrdct_core::{
-    AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding,
-    Location, ParsedFile, Severity,
+    AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Location,
+    ParsedFile, Severity,
 };
 
 static CITATIONS: &[Citation] = &[
@@ -237,11 +237,7 @@ fn extract_call_sites(file: &ParsedFile) -> Option<Vec<CallSite>> {
     Some(calls)
 }
 
-fn walk_for_calls(
-    node: tree_sitter::Node,
-    file: &ParsedFile,
-    out: &mut Vec<CallSite>,
-) {
+fn walk_for_calls(node: tree_sitter::Node, file: &ParsedFile, out: &mut Vec<CallSite>) {
     if node.kind() == "call_expression" {
         if let Some(call) = parse_call(node, file) {
             out.push(call);

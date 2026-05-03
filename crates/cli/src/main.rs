@@ -112,16 +112,12 @@ fn main() -> ExitCode {
                     match cntrdct_cli::read_anthropic_api_key() {
                         Some(key) => match cntrdct_cli::build_default_adjudicator(key) {
                             Ok(mut adj) => {
-                                if let Ok(url) =
-                                    std::env::var("ANTHROPIC_API_URL_OVERRIDE")
-                                {
+                                if let Ok(url) = std::env::var("ANTHROPIC_API_URL_OVERRIDE") {
                                     adj = adj.with_url(url);
                                 }
-                                if let Err(e) = cntrdct_cli::adjudicate_top_n(
-                                    &mut ranked,
-                                    &adj,
-                                    adjudicate_top,
-                                ) {
+                                if let Err(e) =
+                                    cntrdct_cli::adjudicate_top_n(&mut ranked, &adj, adjudicate_top)
+                                {
                                     eprintln!(
                                         "note: adjudication failed; continuing without verdicts ({})",
                                         e
@@ -162,10 +158,7 @@ fn main() -> ExitCode {
                             &unreachable,
                             &config_interaction,
                         ];
-                        cntrdct_sarif::to_sarif_with_rules_pretty_ranked(
-                            &ranked,
-                            &detectors,
-                        )
+                        cntrdct_sarif::to_sarif_with_rules_pretty_ranked(&ranked, &detectors)
                     }
                 };
                 println!("{}", output);
@@ -176,9 +169,11 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         },
-        Commands::Eval { corpus_dir, manifest } => {
-            let manifest_path = manifest
-                .unwrap_or_else(|| corpus_dir.join("manifest.jsonl"));
+        Commands::Eval {
+            corpus_dir,
+            manifest,
+        } => {
+            let manifest_path = manifest.unwrap_or_else(|| corpus_dir.join("manifest.jsonl"));
             match cntrdct_cli::run_eval(&corpus_dir, &manifest_path) {
                 Ok(report) => {
                     let body = serde_json::to_string_pretty(&report)

@@ -115,7 +115,10 @@ fn corpus_has_minimum_positives_per_registered_detector() {
         .filter_map(|id| {
             let count = stats.positives_per_detector.get(id).copied().unwrap_or(0);
             if count < MIN_POSITIVES_PER_DETECTOR {
-                Some(format!("{}: {} (need {})", id, count, MIN_POSITIVES_PER_DETECTOR))
+                Some(format!(
+                    "{}: {} (need {})",
+                    id, count, MIN_POSITIVES_PER_DETECTOR
+                ))
             } else {
                 None
             }

@@ -14,7 +14,11 @@ fn workspace_root() -> PathBuf {
 }
 
 fn cntrdct_bin() -> PathBuf {
-    let exe = if cfg!(windows) { "cntrdct.exe" } else { "cntrdct" };
+    let exe = if cfg!(windows) {
+        "cntrdct.exe"
+    } else {
+        "cntrdct"
+    };
     PathBuf::from(env!("CARGO_BIN_EXE_cntrdct"))
         .parent()
         .map(|p| p.join(exe))
@@ -38,7 +42,10 @@ fn k1_eval_against_seed_corpus_succeeds() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let value: serde_json::Value = serde_json::from_str(&stdout)
         .unwrap_or_else(|e| panic!("stdout must parse as JSON: {}\n{}", e, stdout));
-    assert!(value.get("per_detector").is_some(), "report has per_detector");
+    assert!(
+        value.get("per_detector").is_some(),
+        "report has per_detector"
+    );
     assert!(value.get("overall").is_some(), "report has overall");
     assert!(value.get("corpus_size").is_some(), "report has corpus_size");
 }
@@ -57,7 +64,9 @@ fn k2_seed_corpus_yields_nonzero_precision_and_recall() {
     let precision = value["overall"]["precision"]
         .as_f64()
         .expect("overall.precision is a number");
-    let recall = value["overall"]["recall"].as_f64().expect("overall.recall is a number");
+    let recall = value["overall"]["recall"]
+        .as_f64()
+        .expect("overall.recall is a number");
     assert!(
         precision > 0.0,
         "seed corpus must produce > 0 precision, got {}",
@@ -72,7 +81,9 @@ fn k2_seed_corpus_yields_nonzero_precision_and_recall() {
 
 #[test]
 fn k3_eval_with_missing_manifest_exits_nonzero() {
-    let bad = workspace_root().join("benchmarks").join("nonexistent_corpus_dir");
+    let bad = workspace_root()
+        .join("benchmarks")
+        .join("nonexistent_corpus_dir");
     let output = Command::new(cntrdct_bin())
         .arg("eval")
         .arg(&bad)

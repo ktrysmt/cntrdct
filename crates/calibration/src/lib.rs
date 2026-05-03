@@ -132,9 +132,7 @@ pub fn load_corpus(path: &Path) -> Result<Vec<LabelledFinding>, CalibrationError
 pub fn compute_priors(corpus: &[LabelledFinding]) -> HashMap<String, DetectorPrior> {
     let mut counts: HashMap<String, (u32, u32)> = HashMap::new();
     for entry in corpus {
-        let slot = counts
-            .entry(entry.detector_id.clone())
-            .or_insert((0, 0));
+        let slot = counts.entry(entry.detector_id.clone()).or_insert((0, 0));
         match entry.verdict {
             Verdict::TruePositive => slot.0 += 1,
             Verdict::FalsePositive => slot.1 += 1,

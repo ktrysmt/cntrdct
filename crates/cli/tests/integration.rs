@@ -48,12 +48,7 @@ fn make_drift_dir() -> tempfile::TempDir {
 fn t1_scan_dir_with_drift_finds_one() {
     let dir = make_drift_dir();
     let findings = scan(dir.path()).expect("scan must succeed");
-    assert_eq!(
-        findings.len(),
-        1,
-        "expected 1 finding, got {:#?}",
-        findings
-    );
+    assert_eq!(findings.len(), 1, "expected 1 finding, got {:#?}", findings);
     assert!(
         findings[0].primary.file.ends_with("e.rs"),
         "primary should be e.rs, got {:?}",
@@ -103,11 +98,7 @@ fn t5_deterministic_across_runs() {
 #[test]
 fn unreachable_after_terminator_fires_through_cli_scan() {
     let dir = tempdir().unwrap();
-    fs::write(
-        dir.path().join("dead.rs"),
-        "fn f() { return; bar(); }\n",
-    )
-    .unwrap();
+    fs::write(dir.path().join("dead.rs"), "fn f() { return; bar(); }\n").unwrap();
     let findings = scan(dir.path()).expect("scan must succeed");
     assert!(
         findings

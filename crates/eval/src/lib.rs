@@ -76,11 +76,10 @@ pub fn load_manifest(path: &Path) -> Result<Manifest, EvalError> {
         if trimmed.is_empty() || trimmed.starts_with("//") {
             continue;
         }
-        let entry: ManifestEntry =
-            serde_json::from_str(trimmed).map_err(|e| EvalError::Parse {
-                line: line_no,
-                source: e,
-            })?;
+        let entry: ManifestEntry = serde_json::from_str(trimmed).map_err(|e| EvalError::Parse {
+            line: line_no,
+            source: e,
+        })?;
         entries.push(entry);
     }
     Ok(Manifest { entries })
@@ -103,10 +102,7 @@ pub fn evaluate(
         .collect();
 
     for det in detector_ids {
-        let exp_for_det: Vec<&Key> = expected_keys
-            .iter()
-            .filter(|(d, _, _)| d == det)
-            .collect();
+        let exp_for_det: Vec<&Key> = expected_keys.iter().filter(|(d, _, _)| d == det).collect();
         let act_for_det: Vec<&Key> = actual_keys.iter().filter(|(d, _, _)| d == det).collect();
 
         let (tp, fp, fn_) = match_one_to_one(&exp_for_det, &act_for_det);
@@ -150,7 +146,9 @@ fn actual_index(findings: &[cntrdct_core::Finding], corpus_dir: &Path) -> Vec<Ke
 }
 
 fn relativize(path: &Path, base: &Path) -> PathBuf {
-    path.strip_prefix(base).map(Path::to_path_buf).unwrap_or_else(|_| path.to_path_buf())
+    path.strip_prefix(base)
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|_| path.to_path_buf())
 }
 
 fn match_one_to_one(expected: &[&Key], actual: &[&Key]) -> (u32, u32, u32) {

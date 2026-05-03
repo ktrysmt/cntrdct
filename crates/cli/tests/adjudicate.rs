@@ -14,8 +14,8 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use cntrdct_adjudicator_llm::{
-    AdjudicatorError, AnthropicAdjudicator, HttpClient, MockResponse, ANTHROPIC_VERSION,
-    ADJUDICATOR_CITATIONS, DEFAULT_MODEL,
+    AdjudicatorError, AnthropicAdjudicator, HttpClient, MockResponse, ADJUDICATOR_CITATIONS,
+    ANTHROPIC_VERSION, DEFAULT_MODEL,
 };
 use cntrdct_cli::{adjudicate_top_n, rank_with_calibration, scan};
 use cntrdct_core::{AdjudicationResult, AdjudicationVerdict, RankedFinding};
@@ -106,8 +106,7 @@ fn adjudicate_top_n_populates_only_top_findings() {
     // helper with top_n smaller than the count.
     let dir = make_drift_dir();
     let findings = scan(dir.path()).expect("scan");
-    let mut ranked: Vec<RankedFinding> =
-        rank_with_calibration(findings, true, None).expect("rank");
+    let mut ranked: Vec<RankedFinding> = rank_with_calibration(findings, true, None).expect("rank");
     assert!(!ranked.is_empty());
 
     // Pad ranked so we can verify top-N partitioning.

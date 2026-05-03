@@ -3,8 +3,8 @@
 use std::path::PathBuf;
 
 use cntrdct_core::{
-    register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig,
-    Finding, ParsedFile, Severity,
+    register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
+    ParsedFile, Severity,
 };
 use cntrdct_detector_comment_code::CommentCode;
 

@@ -9,12 +9,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use cntrdct_adjudicator_llm::{AnthropicAdjudicator, ReqwestClient};
-use cntrdct_calibration::{
-    compute_priors, load_corpus, CalibrationError, DetectorPrior,
-};
+use cntrdct_calibration::{compute_priors, load_corpus, CalibrationError, DetectorPrior};
 use cntrdct_core::{
-    register_detector, Adjudicator, CorpusStats, DetectContext, Detector, DetectorConfig,
-    Finding, ParsedFile, RankedFinding, Ranker,
+    register_detector, Adjudicator, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
+    ParsedFile, RankedFinding, Ranker,
 };
 use cntrdct_detector_arg_swap::ArgSwap;
 use cntrdct_detector_clone_drift::CloneDrift;
@@ -217,9 +215,8 @@ pub fn adjudicate_top_n<A: Adjudicator>(
 pub fn build_default_adjudicator(
     api_key: String,
 ) -> Result<AnthropicAdjudicator<ReqwestClient>, cntrdct_core::DetectorError> {
-    let client = ReqwestClient::new().map_err(|e| {
-        cntrdct_core::DetectorError::Config(format!("reqwest init: {}", e))
-    })?;
+    let client = ReqwestClient::new()
+        .map_err(|e| cntrdct_core::DetectorError::Config(format!("reqwest init: {}", e)))?;
     Ok(AnthropicAdjudicator::new(client, api_key))
 }
 
@@ -230,10 +227,7 @@ pub fn build_default_adjudicator(
 ///
 /// Returns the number of detectors written (so the caller can print a friendly
 /// message to stderr).
-pub fn calibrate(
-    corpus_path: &Path,
-    output_path: &Path,
-) -> Result<usize, CalibrateError> {
+pub fn calibrate(corpus_path: &Path, output_path: &Path) -> Result<usize, CalibrateError> {
     let corpus = load_corpus(corpus_path)?;
     let priors = compute_priors(&corpus);
     if let Some(parent) = output_path.parent() {

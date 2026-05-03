@@ -101,11 +101,7 @@ fn latest_prereg() -> PathBuf {
 #[test]
 fn prereg_directory_contains_at_least_one_markdown_file() {
     let dir = prereg_dir();
-    assert!(
-        dir.is_dir(),
-        "expected directory at {}",
-        dir.display()
-    );
+    assert!(dir.is_dir(), "expected directory at {}", dir.display());
     assert!(
         !list_prereg_markdown().is_empty(),
         "no *.md files under {}",
@@ -116,8 +112,8 @@ fn prereg_directory_contains_at_least_one_markdown_file() {
 #[test]
 fn latest_prereg_contains_required_sections() {
     let path = latest_prereg();
-    let text = fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
+    let text =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
     let missing: Vec<&str> = REQUIRED_SECTIONS
         .iter()
         .copied()
@@ -134,8 +130,8 @@ fn latest_prereg_contains_required_sections() {
 #[test]
 fn latest_prereg_references_eval_spec() {
     let path = latest_prereg();
-    let text = fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
+    let text =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
     assert!(
         text.contains(EVAL_SPEC_REF),
         "{} does not reference {}",
@@ -147,8 +143,8 @@ fn latest_prereg_references_eval_spec() {
 #[test]
 fn latest_prereg_cites_every_registered_layer1_key() {
     let path = latest_prereg();
-    let text = fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
+    let text =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
     let needed = current_citation_keys();
     let missing: Vec<&String> = needed
         .iter()

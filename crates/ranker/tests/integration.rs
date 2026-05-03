@@ -25,7 +25,9 @@ fn make_finding_for(detector_id: &str, file: &str, line: u32, related_count: usi
     Finding {
         detector_id: detector_id.to_string(),
         primary: loc(file, line),
-        related: (0..related_count).map(|i| loc("rel.rs", i as u32 + 1)).collect(),
+        related: (0..related_count)
+            .map(|i| loc("rel.rs", i as u32 + 1))
+            .collect(),
         message: "diverged".to_string(),
         raw_severity: Severity::Warning,
         anomaly_class: AnomalyClass::Logic,
@@ -125,8 +127,7 @@ fn calibrated_with_empty_priors_matches_uncalibrated() {
         make_finding("a.rs", 1, 5),
         make_finding("m.rs", 7, 5),
     ];
-    let calibrated: Box<dyn Ranker> =
-        Box::new(CalibratedRanker::new(HashMap::new()));
+    let calibrated: Box<dyn Ranker> = Box::new(CalibratedRanker::new(HashMap::new()));
     let uncalibrated: Box<dyn Ranker> = Box::new(UncalibratedRanker::new());
     let cal = calibrated.rank(findings.clone());
     let unc = uncalibrated.rank(findings);
@@ -164,10 +165,7 @@ fn calibrated_orders_two_detectors_by_wilson_lower() {
     let mut priors: HashMap<String, DetectorPrior> = HashMap::new();
     // Same `related.len()` so the log factor is identical; ordering is decided
     // by wilson_lower_95 alone.
-    priors.insert(
-        "high-precision".to_string(),
-        prior(90, 10, 0.892, 0.836),
-    );
+    priors.insert("high-precision".to_string(), prior(90, 10, 0.892, 0.836));
     priors.insert("low-precision".to_string(), prior(10, 90, 0.108, 0.060));
     let ranker = CalibratedRanker::new(priors);
 

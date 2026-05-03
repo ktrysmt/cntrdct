@@ -3,8 +3,8 @@
 //! Spec: `cntrdct/docs/spec/sarif-v0.md`.
 
 use cntrdct_core::{
-    AdjudicationResult, AdjudicationVerdict, AnomalyClass, Citation, Detector, Finding,
-    Location, RankedFinding, Severity,
+    AdjudicationResult, AdjudicationVerdict, AnomalyClass, Citation, Detector, Finding, Location,
+    RankedFinding, Severity,
 };
 use serde_json::{json, Map, Value};
 
@@ -64,10 +64,7 @@ pub fn to_sarif_pretty(findings: &[Finding]) -> String {
 }
 
 /// Pretty variant of `to_sarif_with_rules`.
-pub fn to_sarif_with_rules_pretty(
-    findings: &[Finding],
-    detectors: &[&dyn Detector],
-) -> String {
+pub fn to_sarif_with_rules_pretty(findings: &[Finding], detectors: &[&dyn Detector]) -> String {
     serde_json::to_string_pretty(&to_sarif_with_rules(findings, detectors))
         .expect("SARIF JSON value is always serializable")
 }
@@ -80,10 +77,7 @@ pub fn to_sarif_with_rules_pretty(
 /// calibration_tag are surfaced in SARIF as a structured property so SARIF
 /// consumers (CodeQL viewer, GitHub Code Scanning, etc.) can display them
 /// without knowing about cntrdct's bespoke JSON shape.
-pub fn to_sarif_with_rules_ranked(
-    ranked: &[RankedFinding],
-    detectors: &[&dyn Detector],
-) -> Value {
+pub fn to_sarif_with_rules_ranked(ranked: &[RankedFinding], detectors: &[&dyn Detector]) -> Value {
     let results: Vec<Value> = ranked.iter().map(ranked_to_result).collect();
     let rules: Vec<Value> = detectors.iter().map(|d| detector_to_rule(*d)).collect();
     json!({
@@ -128,19 +122,10 @@ fn adjudication_to_value(a: &AdjudicationResult) -> Value {
         "verdict".to_string(),
         Value::String(verdict_to_str(a.verdict).to_string()),
     );
-    obj.insert(
-        "confidence".to_string(),
-        json!(a.confidence),
-    );
-    obj.insert(
-        "rationale".to_string(),
-        Value::String(a.rationale.clone()),
-    );
+    obj.insert("confidence".to_string(), json!(a.confidence));
+    obj.insert("rationale".to_string(), Value::String(a.rationale.clone()));
     if let Some(tag) = &a.calibration_tag {
-        obj.insert(
-            "calibration_tag".to_string(),
-            Value::String(tag.clone()),
-        );
+        obj.insert("calibration_tag".to_string(), Value::String(tag.clone()));
     }
     Value::Object(obj)
 }
@@ -156,10 +141,7 @@ fn verdict_to_str(v: AdjudicationVerdict) -> &'static str {
 fn detector_to_rule(d: &dyn Detector) -> Value {
     let mut rule = Map::new();
     rule.insert("id".to_string(), Value::String(d.id().to_string()));
-    rule.insert(
-        "shortDescription".to_string(),
-        json!({ "text": d.name() }),
-    );
+    rule.insert("shortDescription".to_string(), json!({ "text": d.name() }));
 
     if let Some(primary) = d.citations().first() {
         rule.insert(

@@ -2,9 +2,7 @@
 //! `build_prompt` output. Not shipped; lives in `examples/` so `cargo run
 //! --example show_prompt -p cntrdct-adjudicator-llm` always works.
 
-use cntrdct_core::{
-    AnomalyClass, Evidence, Finding, Location, RankedFinding, Severity,
-};
+use cntrdct_core::{AnomalyClass, Evidence, Finding, Location, RankedFinding, Severity};
 use serde_json::json;
 use std::collections::HashMap;
 use std::path::PathBuf;

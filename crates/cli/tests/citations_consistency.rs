@@ -45,8 +45,8 @@ fn workspace_root() -> PathBuf {
 /// a family of detectors and so does not need a per-id subsection.
 fn layer_keys(layer_heading_prefix: &str) -> BTreeSet<String> {
     let path = workspace_root().join("CITATIONS.md");
-    let text = fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
+    let text =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
 
     let mut in_target = false;
     let mut keys: BTreeSet<String> = BTreeSet::new();
@@ -83,8 +83,8 @@ fn layer_keys(layer_heading_prefix: &str) -> BTreeSet<String> {
 /// that subsection. Keys appear as bullet lines of the form `` - `<key>` — ...``.
 fn layer1_subsections() -> BTreeMap<String, BTreeSet<String>> {
     let path = workspace_root().join("CITATIONS.md");
-    let text = fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
+    let text =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
 
     let mut in_layer1 = false;
     let mut current: Option<String> = None;

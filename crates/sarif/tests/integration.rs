@@ -3,12 +3,10 @@
 use std::path::PathBuf;
 
 use cntrdct_core::{
-    AdjudicationResult, AdjudicationVerdict, AnomalyClass, Citation, DetectContext,
-    Detector, DetectorError, Evidence, Finding, Location, RankedFinding, Severity,
+    AdjudicationResult, AdjudicationVerdict, AnomalyClass, Citation, DetectContext, Detector,
+    DetectorError, Evidence, Finding, Location, RankedFinding, Severity,
 };
-use cntrdct_sarif::{
-    to_sarif, to_sarif_pretty, to_sarif_with_rules, to_sarif_with_rules_ranked,
-};
+use cntrdct_sarif::{to_sarif, to_sarif_pretty, to_sarif_with_rules, to_sarif_with_rules_ranked};
 
 static CD_CITATIONS: &[Citation] = &[
     Citation {
@@ -43,10 +41,18 @@ static AS_CITATIONS: &[Citation] = &[Citation {
 
 struct FakeCloneDrift;
 impl Detector for FakeCloneDrift {
-    fn id(&self) -> &'static str { "clone-drift" }
-    fn name(&self) -> &'static str { "Clone Drift" }
-    fn citations(&self) -> &'static [Citation] { CD_CITATIONS }
-    fn supported_languages(&self) -> &'static [&'static str] { &["rust"] }
+    fn id(&self) -> &'static str {
+        "clone-drift"
+    }
+    fn name(&self) -> &'static str {
+        "Clone Drift"
+    }
+    fn citations(&self) -> &'static [Citation] {
+        CD_CITATIONS
+    }
+    fn supported_languages(&self) -> &'static [&'static str] {
+        &["rust"]
+    }
     fn detect(&self, _: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
         Ok(vec![])
     }
@@ -54,10 +60,18 @@ impl Detector for FakeCloneDrift {
 
 struct FakeArgSwap;
 impl Detector for FakeArgSwap {
-    fn id(&self) -> &'static str { "arg-swap" }
-    fn name(&self) -> &'static str { "Argument Swap" }
-    fn citations(&self) -> &'static [Citation] { AS_CITATIONS }
-    fn supported_languages(&self) -> &'static [&'static str] { &["rust"] }
+    fn id(&self) -> &'static str {
+        "arg-swap"
+    }
+    fn name(&self) -> &'static str {
+        "Argument Swap"
+    }
+    fn citations(&self) -> &'static [Citation] {
+        AS_CITATIONS
+    }
+    fn supported_languages(&self) -> &'static [&'static str] {
+        &["rust"]
+    }
     fn detect(&self, _: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
         Ok(vec![])
     }
@@ -292,7 +306,10 @@ fn t18_existing_properties_payload_preserved() {
     let f = make_finding_with_class(Severity::Warning, AnomalyClass::Logic);
     let s = to_sarif(&[f]);
     let props = &s["runs"][0]["results"][0]["properties"];
-    assert!(props["citationKeys"].is_array(), "citationKeys must still be present");
+    assert!(
+        props["citationKeys"].is_array(),
+        "citationKeys must still be present"
+    );
     assert_eq!(props["citationKeys"][0], "cordy-roy-icpc-2008");
     assert_eq!(props["raw"]["group_size"], 5);
     assert_eq!(props["anomalyClass"], "Logic");

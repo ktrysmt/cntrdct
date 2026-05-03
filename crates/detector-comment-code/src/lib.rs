@@ -11,8 +11,8 @@
 //! 4. Emit one Finding per match.
 
 use cntrdct_core::{
-    AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding,
-    Location, ParsedFile, Severity,
+    AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Location,
+    ParsedFile, Severity,
 };
 
 static CITATIONS: &[Citation] = &[
@@ -136,9 +136,7 @@ fn collect_findings_in_file(file: &ParsedFile, out: &mut Vec<Finding>) {
         if let Some(trigger) = pattern_b_match(*child, &file.source, &doc_lc) {
             out.push(make_finding(file, *child, "B", trigger));
         }
-        if let Some(trigger) =
-            pattern_c_match(&children, idx, &file.source, &doc_lc)
-        {
+        if let Some(trigger) = pattern_c_match(&children, idx, &file.source, &doc_lc) {
             out.push(make_finding(file, *child, "C", trigger));
         }
     }
@@ -147,11 +145,7 @@ fn collect_findings_in_file(file: &ParsedFile, out: &mut Vec<Finding>) {
 /// Walk preceding siblings of `children[idx]` upward as long as they are
 /// `///` line comments. Returns the rendered doc text (lines joined with
 /// `\n`, prefix stripped). `//!` and plain `//` comments are ignored.
-fn collect_preceding_doc(
-    children: &[tree_sitter::Node],
-    idx: usize,
-    source: &str,
-) -> String {
+fn collect_preceding_doc(children: &[tree_sitter::Node], idx: usize, source: &str) -> String {
     let mut lines: Vec<String> = Vec::new();
     let mut i = idx;
     while i > 0 {
@@ -177,11 +171,7 @@ fn collect_preceding_doc(
     lines.join("\n")
 }
 
-fn pattern_a_match(
-    node: tree_sitter::Node,
-    source: &str,
-    doc_lc: &str,
-) -> Option<&'static str> {
+fn pattern_a_match(node: tree_sitter::Node, source: &str, doc_lc: &str) -> Option<&'static str> {
     let trigger = PATTERN_A_TRIGGERS
         .iter()
         .find(|p| doc_lc.contains(*p))
@@ -197,11 +187,7 @@ fn pattern_a_match(
     Some(trigger)
 }
 
-fn pattern_b_match(
-    node: tree_sitter::Node,
-    source: &str,
-    doc_lc: &str,
-) -> Option<&'static str> {
+fn pattern_b_match(node: tree_sitter::Node, source: &str, doc_lc: &str) -> Option<&'static str> {
     if !doc_lc.contains("panic") {
         return None;
     }

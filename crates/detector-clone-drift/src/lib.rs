@@ -15,8 +15,8 @@
 use std::collections::{HashMap, HashSet};
 
 use cntrdct_core::{
-    AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding,
-    Location, ParsedFile, Severity,
+    AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Location,
+    ParsedFile, Severity,
 };
 
 pub const SIMILARITY_THRESHOLD: f64 = 0.5;
@@ -135,10 +135,7 @@ impl Detector for CloneDrift {
                     detector_id: "clone-drift".to_string(),
                     primary: drifted.location.clone(),
                     related,
-                    message: format!(
-                        "function diverged from {} similar siblings",
-                        related_count
-                    ),
+                    message: format!("function diverged from {} similar siblings", related_count),
                     raw_severity: Severity::Warning,
                     anomaly_class: AnomalyClass::Logic,
                     evidence: Evidence {

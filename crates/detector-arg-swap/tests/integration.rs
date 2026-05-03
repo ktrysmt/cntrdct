@@ -3,8 +3,8 @@
 use std::path::PathBuf;
 
 use cntrdct_core::{
-    register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig,
-    Finding, ParsedFile,
+    register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
+    ParsedFile,
 };
 use cntrdct_detector_arg_swap::ArgSwap;
 
@@ -180,7 +180,10 @@ fn caller() {
 "#;
     let findings = run(vec![parsed("a.rs", src)]);
     let known: &[&str] = &["li-zhou-fse-2005", "rice-icse-2017"];
-    assert!(!findings.is_empty(), "T8 prerequisite: must produce findings");
+    assert!(
+        !findings.is_empty(),
+        "T8 prerequisite: must produce findings"
+    );
     for f in &findings {
         assert!(
             f.evidence.citation_keys.iter().any(|k| known.contains(k)),

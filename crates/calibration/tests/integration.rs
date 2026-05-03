@@ -93,7 +93,9 @@ fn compute_priors_groups_by_detector_id_and_counts_tp_fp() {
     ];
     let priors = compute_priors(&corpus);
 
-    let cd = priors.get("clone-drift").expect("clone-drift prior present");
+    let cd = priors
+        .get("clone-drift")
+        .expect("clone-drift prior present");
     assert_eq!(cd.tp, 1);
     assert_eq!(cd.fp, 1);
 
@@ -232,7 +234,11 @@ fn example_corpus_fixture_loads() {
     let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let fixture = manifest.join("fixtures").join("example_corpus.jsonl");
     let corpus = load_corpus(&fixture).expect("example corpus loads");
-    assert!(corpus.len() >= 5, "expected >= 5 entries, got {}", corpus.len());
+    assert!(
+        corpus.len() >= 5,
+        "expected >= 5 entries, got {}",
+        corpus.len()
+    );
 
     let priors = compute_priors(&corpus);
     // Must cover all three registered detectors.

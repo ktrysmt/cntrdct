@@ -5,8 +5,8 @@
 use std::path::PathBuf;
 
 use cntrdct_core::{
-    register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig,
-    Finding, ParsedFile,
+    register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
+    ParsedFile,
 };
 use cntrdct_detector_clone_drift::CloneDrift;
 
@@ -151,7 +151,12 @@ fn t5_drift_on_one_two_split() {
         parsed("pair2.rs", FN_VARIANT_B),
     ];
     let findings = run(files);
-    assert_eq!(findings.len(), 1, "expected 1 drift finding, got {:#?}", findings);
+    assert_eq!(
+        findings.len(),
+        1,
+        "expected 1 drift finding, got {:#?}",
+        findings
+    );
     assert_eq!(findings[0].primary.file, PathBuf::from("solo.rs"));
     assert_eq!(findings[0].related.len(), 2);
 }
@@ -208,7 +213,10 @@ fn t7_every_finding_has_known_citation() {
         "bettenburg-msr-2009",
         "krinke-icsm-2007",
     ];
-    assert!(!findings.is_empty(), "T7 prerequisite: must produce findings");
+    assert!(
+        !findings.is_empty(),
+        "T7 prerequisite: must produce findings"
+    );
     for f in &findings {
         assert!(
             !f.evidence.citation_keys.is_empty(),

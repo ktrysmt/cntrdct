@@ -118,7 +118,7 @@ fn e1_counts_tp_fp_fn_correctly() {
     ]);
     let actual = vec![
         finding_at("clone-drift", &dir.path().join("files/a.rs"), 10), // TP
-        finding_at("arg-swap", &dir.path().join("files/b.rs"), 5),      // FP
+        finding_at("arg-swap", &dir.path().join("files/b.rs"), 5),     // FP
     ];
     let report = evaluate(&m, &actual, dir.path());
     assert_eq!(report.overall.tp, 1);
@@ -135,7 +135,7 @@ fn e2_breakdown_by_detector_id() {
     ]);
     let actual = vec![
         finding_at("clone-drift", &dir.path().join("a.rs"), 1), // TP for clone-drift
-        finding_at("arg-swap", &dir.path().join("a.rs"), 99),    // FP for arg-swap (wrong line)
+        finding_at("arg-swap", &dir.path().join("a.rs"), 99),   // FP for arg-swap (wrong line)
         finding_at("comment-code", &dir.path().join("b.rs"), 3), // TP for comment-code
     ];
     let report = evaluate(&m, &actual, dir.path());
@@ -177,7 +177,10 @@ fn e4_matches_by_file_relative_to_corpus_dir_and_line_and_detector() {
         42,
     )];
     let report = evaluate(&m, &actual, dir.path());
-    assert_eq!(report.overall.tp, 1, "absolute actual path must be relativised");
+    assert_eq!(
+        report.overall.tp, 1,
+        "absolute actual path must be relativised"
+    );
 }
 
 #[test]
@@ -211,18 +214,31 @@ fn e7_f1_zero_when_precision_plus_recall_zero() {
 fn e8_f1_with_balanced_precision_and_recall() {
     let dir = tempdir().unwrap();
     // Construct: 1 TP, 1 FP, 1 FN → precision = 0.5, recall = 0.5, f1 = 0.5.
-    let m = manifest(vec![
-        entry("a.rs", vec![("clone-drift", 1), ("clone-drift", 2)]),
-    ]);
+    let m = manifest(vec![entry(
+        "a.rs",
+        vec![("clone-drift", 1), ("clone-drift", 2)],
+    )]);
     let actual = vec![
         finding_at("clone-drift", &dir.path().join("a.rs"), 1), // TP
         finding_at("clone-drift", &dir.path().join("a.rs"), 99), // FP
-                                                                  // line 2 is FN
+                                                                // line 2 is FN
     ];
     let report = evaluate(&m, &actual, dir.path());
-    assert!((report.overall.precision - 0.5).abs() < 1e-9, "got {}", report.overall.precision);
-    assert!((report.overall.recall - 0.5).abs() < 1e-9, "got {}", report.overall.recall);
-    assert!((report.overall.f1 - 0.5).abs() < 1e-9, "got {}", report.overall.f1);
+    assert!(
+        (report.overall.precision - 0.5).abs() < 1e-9,
+        "got {}",
+        report.overall.precision
+    );
+    assert!(
+        (report.overall.recall - 0.5).abs() < 1e-9,
+        "got {}",
+        report.overall.recall
+    );
+    assert!(
+        (report.overall.f1 - 0.5).abs() < 1e-9,
+        "got {}",
+        report.overall.f1
+    );
 }
 
 #[test]

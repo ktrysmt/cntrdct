@@ -6,8 +6,8 @@
 use std::path::PathBuf;
 
 use cntrdct_core::{
-    register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig,
-    Finding, ParsedFile,
+    register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
+    ParsedFile,
 };
 use cntrdct_detector_unreachable_after_terminator::UnreachableAfterTerminator;
 
@@ -36,12 +36,7 @@ fn run(files: Vec<ParsedFile>) -> Vec<Finding> {
 fn t1_return_followed_by_call() {
     let src = "fn f() { return; bar(); }";
     let findings = run(vec![parsed("a.rs", src)]);
-    assert_eq!(
-        findings.len(),
-        1,
-        "expected 1 finding, got {:#?}",
-        findings
-    );
+    assert_eq!(findings.len(), 1, "expected 1 finding, got {:#?}", findings);
     let f = &findings[0];
     assert_eq!(f.detector_id, "unreachable-after-terminator");
     assert_eq!(f.related.len(), 1, "should link to terminator location");
@@ -151,7 +146,10 @@ fn t8_known_citations_present() {
     let src = "fn f() { return; bar(); }";
     let findings = run(vec![parsed("a.rs", src)]);
     let known: &[&str] = &["hovemeyer-pugh-oopsla-2004", "engler-sosp-2001"];
-    assert!(!findings.is_empty(), "T8 prerequisite: must produce findings");
+    assert!(
+        !findings.is_empty(),
+        "T8 prerequisite: must produce findings"
+    );
     for f in &findings {
         assert!(
             f.evidence.citation_keys.iter().any(|k| known.contains(k)),
@@ -187,7 +185,10 @@ fn t11_non_rust_file_skipped() {
         source: "function f() { return; foo(); }".to_string(),
     };
     let findings = run(vec![file]);
-    assert!(findings.is_empty(), "non-rust file must be skipped silently");
+    assert!(
+        findings.is_empty(),
+        "non-rust file must be skipped silently"
+    );
 }
 
 #[test]

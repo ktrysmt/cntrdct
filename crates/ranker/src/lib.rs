@@ -95,8 +95,7 @@ impl cntrdct_core::Ranker for CalibratedRanker {
             .map(|f| match self.priors.get(&f.detector_id) {
                 Some(prior) => {
                     let related = f.related.len() as f64;
-                    let rank_score =
-                        prior.wilson_lower_95 * (1.0 + (1.0 + related).log2());
+                    let rank_score = prior.wilson_lower_95 * (1.0 + (1.0 + related).log2());
                     RankedFinding {
                         finding: f,
                         posterior_tp: Some(prior.posterior_tp),

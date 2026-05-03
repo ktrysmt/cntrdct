@@ -6,8 +6,8 @@
 use std::path::PathBuf;
 
 use cntrdct_core::{
-    register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig,
-    Finding, ParsedFile,
+    register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
+    ParsedFile,
 };
 use cntrdct_detector_config_interaction::ConfigInteraction;
 
@@ -42,7 +42,11 @@ fn f() {}
     assert_eq!(findings.len(), 1, "got {:#?}", findings);
     let f = &findings[0];
     assert_eq!(f.detector_id, "config-interaction");
-    assert_eq!(f.related.len(), 2, "should link to both attribute locations");
+    assert_eq!(
+        f.related.len(),
+        2,
+        "should link to both attribute locations"
+    );
     assert_eq!(
         f.evidence.raw["inner_predicate"].as_str().unwrap_or(""),
         "feature = \"x\"",
@@ -157,7 +161,9 @@ fn t13_three_attrs_one_finding_with_additional_pairs() {
     let src = "#[cfg(unix)]\n#[cfg(not(unix))]\n#[cfg(not(unix))]\nfn f() {}\n";
     let findings = run(vec![parsed("a.rs", src)]);
     assert_eq!(findings.len(), 1, "got {:#?}", findings);
-    let extra = findings[0].evidence.raw["additional_pairs"].as_u64().unwrap_or(99);
+    let extra = findings[0].evidence.raw["additional_pairs"]
+        .as_u64()
+        .unwrap_or(99);
     assert_eq!(extra, 1, "got raw: {}", findings[0].evidence.raw);
 }
 
