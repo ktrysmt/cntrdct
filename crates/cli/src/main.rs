@@ -47,6 +47,11 @@ enum Commands {
         /// is set.
         #[arg(long, default_value_t = 5)]
         adjudicate_top: usize,
+        /// Override the `cntrdct.toml` config file. When omitted, the scan
+        /// root is searched for `cntrdct.toml`; absent file is silently
+        /// treated as an empty config.
+        #[arg(long)]
+        config: Option<PathBuf>,
     },
     /// Build calibration priors from a labelled JSONL corpus.
     ///
@@ -94,8 +99,22 @@ fn main() -> ExitCode {
             priors,
             adjudicate,
             adjudicate_top,
-        } => match cntrdct_cli::scan(&path) {
-            Ok(findings) => {
+            config,
+        } => match cntrdct_cli::scan_full(&path) {
+            Ok((raw_findings, parsed_files)) => {
+                let findings = match cntrdct_cli::apply_suppression(
+                    config.as_deref(),
+                    &path,
+                    &parsed_files,
+                    raw_findings,
+                ) {
+                    Ok(f) => f,
+                    Err(e) => {
+                        eprintln!("error: {}", e);
+                        return ExitCode::from(1);
+                    }
+                };
+
                 let mut ranked = match cntrdct_cli::rank_with_calibration(
                     findings,
                     no_calibration,

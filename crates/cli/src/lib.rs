@@ -61,6 +61,12 @@ pub enum CalibrateError {
 }
 
 pub fn scan(path: &Path) -> Result<Vec<Finding>, ScanError> {
+    scan_full(path).map(|(findings, _)| findings)
+}
+
+/// Like [`scan`] but also returns the parsed files. Callers that want to run
+/// the suppression filter (`cntrdct_config::apply`) need both.
+pub fn scan_full(path: &Path) -> Result<(Vec<Finding>, Vec<ParsedFile>), ScanError> {
     if !path.exists() {
         return Err(ScanError::PathNotFound(path.to_path_buf()));
     }
@@ -125,7 +131,28 @@ pub fn scan(path: &Path) -> Result<Vec<Finding>, ScanError> {
             .then_with(|| a.primary.start_col.cmp(&b.primary.start_col))
     });
 
-    Ok(findings)
+    Ok((findings, parsed))
+}
+
+// ---------- Suppression / config integration ----------
+
+/// Discover `<root>/cntrdct.toml` (or load `--config` if given), then apply
+/// path globs, attribute suppressions, and per-detector overrides to the
+/// findings. Returns the surviving findings in source order.
+///
+/// Spec: T2-7 (`docs/spec/suppression-v0.md`).
+pub fn apply_suppression(
+    config_override: Option<&Path>,
+    scan_root: &Path,
+    files: &[ParsedFile],
+    findings: Vec<Finding>,
+) -> Result<Vec<Finding>, cntrdct_config::ConfigError> {
+    let config = if let Some(p) = config_override {
+        cntrdct_config::Config::load_from(p)?
+    } else {
+        cntrdct_config::Config::discover_in(scan_root)?.unwrap_or_default()
+    };
+    cntrdct_config::apply(&config, files, findings)
 }
 
 // ---------- Calibration discovery ----------
