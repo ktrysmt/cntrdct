@@ -10,6 +10,42 @@
 //!   live in `Ranker` implementations and are derived from labelled corpora.
 //! - P5: severities map to IEEE 1044-2009 categories at SARIF emission time. SARIF
 //!   formatting itself lives in the (future) `sarif` crate.
+//!
+//! # Example
+//!
+//! Implementing a minimal detector and registering it under the P1 constraint:
+//!
+//! ```
+//! use cntrdct_core::{
+//!     Citation, DetectContext, Detector, DetectorError, Finding, register_detector,
+//! };
+//!
+//! struct Demo;
+//!
+//! static CITES: &[Citation] = &[Citation {
+//!     key: "demo-2026",
+//!     authors: "Demo et al.",
+//!     title: "Demo paper",
+//!     venue: "Demo venue",
+//!     year: 2026,
+//!     doi: None,
+//!     url: None,
+//! }];
+//!
+//! impl Detector for Demo {
+//!     fn id(&self) -> &'static str { "demo" }
+//!     fn name(&self) -> &'static str { "Demo" }
+//!     fn citations(&self) -> &'static [Citation] { CITES }
+//!     fn supported_languages(&self) -> &'static [&'static str] { &["rust"] }
+//!     fn detect(&self, _: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
+//!         Ok(vec![])
+//!     }
+//! }
+//!
+//! register_detector(&Demo).unwrap();
+//! ```
+
+#![deny(missing_docs)]
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -17,33 +53,56 @@ use thiserror::Error;
 
 // ---------- Citation (P1) ----------
 
+/// A bibliographic reference attached to a detector.
+///
+/// Every `Detector::citations()` entry must resolve to an entry in the
+/// workspace `CITATIONS.md`. `register_detector` rejects detectors that
+/// return an empty slice (P1 enforcement).
 #[derive(Debug, Clone, Serialize)]
 pub struct Citation {
+    /// Stable identifier used to cross-reference `CITATIONS.md`.
     pub key: &'static str,
+    /// Authors of the cited work, in display order.
     pub authors: &'static str,
+    /// Title of the cited work.
     pub title: &'static str,
+    /// Publication venue (conference, journal, or standards body).
     pub venue: &'static str,
+    /// Publication year.
     pub year: u16,
+    /// Optional Digital Object Identifier.
     pub doi: Option<&'static str>,
+    /// Optional canonical URL for the work.
     pub url: Option<&'static str>,
 }
 
 // ---------- Finding ----------
 
+/// A source-code location associated with a finding.
 #[derive(Debug, Clone, Serialize)]
 pub struct Location {
+    /// Path to the file containing the location.
     pub file: PathBuf,
+    /// 1-based line number of the first character of the span.
     pub start_line: u32,
+    /// 1-based column number of the first character of the span.
     pub start_col: u32,
+    /// 1-based line number of the character immediately after the span.
     pub end_line: u32,
+    /// 1-based column number of the character immediately after the span.
     pub end_col: u32,
 }
 
+/// Detector-supplied severity. Mapped to IEEE 1044-2009 levels by the SARIF emitter (P5).
 #[derive(Debug, Clone, Copy, Serialize)]
 pub enum Severity {
+    /// Lowest level; informational signal that does not warrant action.
     Info,
+    /// Slightly higher than `Info`; flagged for awareness.
     Note,
+    /// Likely defect; should usually be addressed.
     Warning,
+    /// Definite defect; must be addressed.
     Error,
 }
 
@@ -57,93 +116,141 @@ pub enum Severity {
 /// Each unit variant serializes as its PascalCase name (e.g., `"Logic"`).
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum AnomalyClass {
+    /// Defect in the program's logic (e.g., contradictory branches).
     Logic,
+    /// Defect at an interface boundary (e.g., swapped arguments).
     Interface,
+    /// Defect in data shape or values.
     Data,
+    /// Defect in documentation or comments relative to behaviour.
     Documentation,
+    /// Performance regression or pessimisation.
     Performance,
+    /// Violation of a coding standard.
     Standards,
+    /// Anomaly that does not fit the other categories.
     Other,
 }
 
+/// Evidence supporting a `Finding`.
 #[derive(Debug, Clone, Serialize)]
 pub struct Evidence {
+    /// Citation keys referenced by the detector for this finding.
     pub citation_keys: Vec<&'static str>,
+    /// Detector-defined raw evidence payload (kept opaque to the core).
     pub raw: serde_json::Value,
 }
 
+/// A single detector finding before ranking.
 #[derive(Debug, Clone, Serialize)]
 pub struct Finding {
+    /// Identifier of the detector that produced this finding.
     pub detector_id: String,
+    /// Primary location the finding refers to.
     pub primary: Location,
+    /// Additional related locations (e.g., the sibling that drifted).
     pub related: Vec<Location>,
+    /// Human-readable description of the finding.
     pub message: String,
+    /// Detector-supplied severity (mapped at SARIF emission per P5).
     pub raw_severity: Severity,
     /// IEEE 1044-2009 anomaly classification supplied by the detector.
     pub anomaly_class: AnomalyClass,
+    /// Supporting evidence (citations + opaque payload).
     pub evidence: Evidence,
 }
 
 // ---------- Parser context ----------
 
+/// One source file presented to a detector run.
 #[derive(Debug, Clone)]
 pub struct ParsedFile {
+    /// Filesystem path of the source file.
     pub path: PathBuf,
+    /// Language identifier (e.g., `"rust"`).
     pub language: String,
+    /// File contents as UTF-8.
     pub source: String,
 }
 
+/// Aggregate statistics over the corpus passed to a detector run.
 #[derive(Debug, Default)]
 pub struct CorpusStats {
+    /// Number of files in the corpus.
     pub file_count: usize,
+    /// Sum of source lines across the corpus.
     pub total_loc: usize,
 }
 
+/// Detector configuration provided per-run.
 #[derive(Debug, Clone, Default)]
 pub struct DetectorConfig {
+    /// Preregistration identifier (P2). `Some` when the run is part of a
+    /// declared empirical study.
     pub preregistration_id: Option<String>,
+    /// Detector-defined options (kept opaque to the core).
     pub options: serde_json::Value,
 }
 
+/// Inputs handed to `Detector::detect`.
 #[derive(Debug)]
 pub struct DetectContext<'a> {
+    /// Files in scope for this detection run.
     pub files: &'a [ParsedFile],
+    /// Corpus-level statistics.
     pub stats: &'a CorpusStats,
+    /// Per-run configuration.
     pub config: &'a DetectorConfig,
 }
 
 // ---------- Errors ----------
 
+/// Errors returned by `Detector::detect` and registration.
 #[derive(Debug, Error)]
 pub enum DetectorError {
+    /// Source file failed to parse.
     #[error("parse error: {0}")]
     Parse(String),
+    /// I/O failure while reading sources.
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+    /// Configuration was rejected (e.g., P1 violation in `register_detector`).
     #[error("invalid configuration: {0}")]
     Config(String),
 }
 
 // ---------- Detector trait (Layer 1) ----------
 
+/// Layer 1 deterministic detector trait.
+///
+/// Implementations must be pure with respect to their inputs (P3): no LLM
+/// calls, no randomness, no I/O beyond what is supplied via `DetectContext`.
 pub trait Detector: Send + Sync {
+    /// Stable, machine-readable identifier (e.g., `"clone-drift"`).
     fn id(&self) -> &'static str;
+    /// Human-readable display name.
     fn name(&self) -> &'static str;
+    /// Bibliographic references justifying this detector (P1).
     fn citations(&self) -> &'static [Citation];
+    /// Languages this detector supports (e.g., `&["rust"]`).
     fn supported_languages(&self) -> &'static [&'static str];
+    /// Run the detector and return its findings.
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError>;
 }
 
 // ---------- Ranker trait (Layer 2) ----------
 
+/// A `Finding` enriched with Layer 2 ranking and optional Layer 3 adjudication.
 #[derive(Debug, Clone, Serialize)]
 pub struct RankedFinding {
+    /// The underlying detector finding.
     pub finding: Finding,
     /// `None` when no labelled corpus is available (v0). Becomes `Some(p)` once
     /// calibration data ships.
     pub posterior_tp: Option<f64>,
     /// `None` when no labelled corpus is available (v0).
     pub wilson_lower: Option<f64>,
+    /// Final ranking score used to order the output.
     pub rank_score: f64,
     /// Layer 3 LLM adjudication. `None` unless `--adjudicate` was requested
     /// AND the adjudicator successfully ran for this finding.
@@ -154,33 +261,49 @@ pub struct RankedFinding {
     pub adjudication: Option<AdjudicationResult>,
 }
 
+/// Layer 2 ranker trait.
 pub trait Ranker: Send + Sync {
+    /// Convert raw findings into ranked findings, in output order.
     fn rank(&self, findings: Vec<Finding>) -> Vec<RankedFinding>;
 }
 
 // ---------- Adjudicator trait (Layer 3) ----------
 
+/// Layer 3 adjudication verdict.
 #[derive(Debug, Clone, Copy, Serialize)]
 pub enum AdjudicationVerdict {
+    /// Adjudicator believes the finding is most likely a true positive.
     LikelyTruePositive,
+    /// Adjudicator believes the finding is most likely a false positive.
     LikelyFalsePositive,
+    /// Adjudicator could not commit to either direction.
     Uncertain,
 }
 
+/// Result of running the Layer 3 adjudicator on a single finding.
 #[derive(Debug, Clone, Serialize)]
 pub struct AdjudicationResult {
+    /// Verdict produced by the adjudicator.
     pub verdict: AdjudicationVerdict,
+    /// Adjudicator-reported confidence in `[0.0, 1.0]`.
     pub confidence: f64,
+    /// Free-form rationale supplied by the adjudicator.
     pub rationale: String,
+    /// Optional calibration tag (e.g., the prompt template version).
     pub calibration_tag: Option<String>,
 }
 
+/// Layer 3 adjudicator trait. The only layer permitted to invoke an LLM (P3).
 pub trait Adjudicator: Send + Sync {
+    /// Adjudicate a ranked finding, returning a verdict + rationale.
     fn adjudicate(&self, finding: &RankedFinding) -> Result<AdjudicationResult, DetectorError>;
 }
 
 // ---------- Registration helper (P1 enforcement) ----------
 
+/// Validate that a detector satisfies P1 (non-empty citations).
+///
+/// Returns `Err(DetectorError::Config)` if `d.citations()` is empty.
 pub fn register_detector(d: &dyn Detector) -> Result<(), DetectorError> {
     if d.citations().is_empty() {
         return Err(DetectorError::Config(format!(
