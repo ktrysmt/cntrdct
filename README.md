@@ -145,6 +145,12 @@ results.
 implementation. `ROADMAP.md` tracks engineering deliverables; the
 academic research tracks live under `projects/`.
 
+## Further reading
+
+- [The Linter that Cites Its Sources](https://ktrysmt.github.io/cntrdct/essays/citation-as-api/)
+  — position essay on what the P1-P5 design constraints mean in
+  practice, and the open question of citation decay.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
