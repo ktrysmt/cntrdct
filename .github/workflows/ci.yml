@@ -42,3 +42,8 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: test
         run: cargo test --workspace --all-targets
+      - name: examples smoke test
+        run: |
+          ./examples/01_scan.sh > /dev/null
+          ./examples/02_calibrate.sh > /dev/null
+          ./examples/03_adjudicate_mock.sh > /dev/null

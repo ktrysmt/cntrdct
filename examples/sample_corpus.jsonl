@@ -1,0 +1,6 @@
+{"detector_id":"clone-drift","repo":"demo","file":"a.rs","line":10,"verdict":"TruePositive","anomaly_class":"Logic"}
+{"detector_id":"clone-drift","repo":"demo","file":"b.rs","line":42,"verdict":"FalsePositive","anomaly_class":"Logic"}
+{"detector_id":"clone-drift","repo":"demo","file":"c.rs","line":7,"verdict":"TruePositive","anomaly_class":"Logic"}
+{"detector_id":"arg-swap","repo":"demo","file":"d.rs","line":3,"verdict":"TruePositive","anomaly_class":"Interface"}
+{"detector_id":"arg-swap","repo":"demo","file":"e.rs","line":91,"verdict":"FalsePositive","anomaly_class":"Interface"}
+{"detector_id":"comment-code","repo":"demo","file":"f.rs","line":12,"verdict":"TruePositive","anomaly_class":"Documentation"}
