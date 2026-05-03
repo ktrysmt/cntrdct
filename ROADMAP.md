@@ -231,7 +231,7 @@ T2-10. Parallel detection via rayon
 
 T2-11. cargo cntrdct subcommand
 
-- Status: `[ ]`
+- Status: `[x]`
 - Goal: the binary can be invoked as `cargo cntrdct scan` in
   addition to plain `cntrdct scan`.
 - Acceptance: a `cargo-cntrdct` shim (typically a renamed binary
