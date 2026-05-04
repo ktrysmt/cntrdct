@@ -14,6 +14,7 @@ members = [
     "crates/adjudicator-llm",
     "crates/corpus-fetch",
     "crates/config",
+    "crates/parsers",
     "crates/cli",
 ]
 
@@ -41,6 +42,7 @@ cntrdct-eval = { path = "crates/eval", version = "0.1.0" }
 cntrdct-adjudicator-llm = { path = "crates/adjudicator-llm", version = "0.1.0" }
 cntrdct-corpus-fetch = { path = "crates/corpus-fetch", version = "0.1.0" }
 cntrdct-config = { path = "crates/config", version = "0.1.0" }
+cntrdct-parsers = { path = "crates/parsers", version = "0.1.0" }
 cntrdct-detector-clone-drift = { path = "crates/detector-clone-drift", version = "0.1.0" }
 cntrdct-detector-arg-swap = { path = "crates/detector-arg-swap", version = "0.1.0" }
 cntrdct-detector-comment-code = { path = "crates/detector-comment-code", version = "0.1.0" }
