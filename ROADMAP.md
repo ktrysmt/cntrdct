@@ -381,7 +381,7 @@ M-5. Surface multi-language across tooling
 
 M-6. Citation policy for multi-language detectors
 
-- Status: `[ ]`
+- Status: `[x]`
 - Goal: write `docs/spec/citations-policy.md` codifying P1 for the
   multi-language case (each language a detector supports must carry
   at least one citation grounded in empirical work on that
