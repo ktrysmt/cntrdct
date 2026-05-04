@@ -323,7 +323,7 @@ M-1. Language abstraction foundation
 
 M-2. Pilot Python detector
 
-- Status: `[ ]`
+- Status: `[x]`
 - Goal: extend the simplest detector
   (`unreachable-after-terminator`) to Python. Divergent terminators
   for Python: `raise`, `sys.exit()`, `os._exit()`, `assert False`,
@@ -337,6 +337,14 @@ M-2. Pilot Python detector
   is extended to enforce the policy from M-6.
 - Effort: 1 week part-time.
 - Depends on: M-1.
+- Note: the literature survey
+  (`docs/surveys/unreachable-after-terminator-python-2026-05.md`)
+  did not surface a peer-reviewed Python application that satisfies
+  `citations-policy.md` clause (a)/(b)/(c). Per policy, the Python
+  extension ships with `LanguageCitationStatus::Unconfirmed` on each
+  Python finding; CITATIONS.md records the gap by pointing at the
+  survey notes. P1 itself remains satisfied by the two grandfathered
+  Rust citations.
 
 M-3. Cross-cutting detectors to Python
 

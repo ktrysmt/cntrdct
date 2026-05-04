@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use cntrdct_core::{
     register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
-    ParsedFile,
+    LanguageCitationStatus, ParsedFile,
 };
 use cntrdct_detector_unreachable_after_terminator::UnreachableAfterTerminator;
 
@@ -15,6 +15,14 @@ fn parsed(name: &str, src: &str) -> ParsedFile {
     ParsedFile {
         path: PathBuf::from(name),
         language: "rust".to_string(),
+        source: src.to_string(),
+    }
+}
+
+fn parsed_python(name: &str, src: &str) -> ParsedFile {
+    ParsedFile {
+        path: PathBuf::from(name),
+        language: "python".to_string(),
         source: src.to_string(),
     }
 }
@@ -242,6 +250,175 @@ fn t15_anomaly_class_is_logic() {
             AnomalyClass::Logic,
             "must classify as Logic per IEEE 1044-2009; got {:?}",
             f.anomaly_class
+        );
+    }
+}
+
+// ---------- M-2: Python pilot ----------
+//
+// Mirrors T1-T15 for Python where the construct exists. v0 has no
+// inline Python suppression mechanism, so the T6/T14 attribute-allow
+// scenarios are not portable; cntrdct.toml-based suppression is
+// covered by `crates/cli/tests/suppression.rs`.
+
+#[test]
+fn t16_python_return_followed_by_call() {
+    let src = "def f():\n    return\n    bar()\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(findings.len(), 1, "expected 1 finding, got {:#?}", findings);
+    let f = &findings[0];
+    assert_eq!(f.detector_id, "unreachable-after-terminator");
+    assert_eq!(
+        f.evidence.raw["terminator_kind"], "return",
+        "got: {}",
+        f.evidence.raw
+    );
+}
+
+#[test]
+fn t17_python_raise_followed_by_call() {
+    let src = "def f():\n    raise ValueError(\"x\")\n    bar()\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(findings.len(), 1, "got {:#?}", findings);
+    assert_eq!(
+        findings[0].evidence.raw["terminator_kind"], "raise",
+        "got: {}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t18_python_sys_exit_followed_by_call() {
+    let src = "import sys\ndef f():\n    sys.exit(1)\n    bar()\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(findings.len(), 1, "got {:#?}", findings);
+    assert_eq!(
+        findings[0].evidence.raw["terminator_kind"], "sys.exit",
+        "got: {}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t19_python_os_underscore_exit_followed_by_call() {
+    let src = "import os\ndef f():\n    os._exit(0)\n    bar()\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(findings.len(), 1, "got {:#?}", findings);
+    assert_eq!(
+        findings[0].evidence.raw["terminator_kind"], "os._exit",
+        "got: {}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t20_python_assert_false_followed_by_call() {
+    let src = "def f():\n    assert False\n    bar()\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(findings.len(), 1, "got {:#?}", findings);
+    assert_eq!(
+        findings[0].evidence.raw["terminator_kind"], "assert",
+        "got: {}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t21_python_continue_inside_for_loop() {
+    let src = "def f(xs):\n    for x in xs:\n        if x == 0:\n            continue\n            foo()\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(findings.len(), 1, "got {:#?}", findings);
+    assert_eq!(
+        findings[0].evidence.raw["terminator_kind"], "continue",
+        "got: {}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t22_python_only_first_follower_flagged_with_count() {
+    let src = "def f():\n    raise RuntimeError\n    foo()\n    bar()\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(findings.len(), 1, "only the first follower is flagged");
+    assert_eq!(
+        findings[0].evidence.raw["following_count"], 2,
+        "two statements follow: {}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t23_python_terminator_alone_no_finding() {
+    let src = "def f():\n    return\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert!(findings.is_empty(), "got {:#?}", findings);
+}
+
+#[test]
+fn t24_python_inner_block_terminator_does_not_pollute_outer() {
+    let src = "def f(cond):\n    if cond:\n        return\n    bar()\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert!(
+        findings.is_empty(),
+        "terminator inside inner if-block must not flag outer follower, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t25_python_assert_truthy_is_not_a_terminator() {
+    let src = "def f():\n    assert True\n    bar()\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert!(
+        findings.is_empty(),
+        "assert with non-False condition must not be a terminator, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t26_python_normal_call_is_not_a_terminator() {
+    let src = "def f():\n    foo()\n    bar()\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert!(findings.is_empty(), "got {:#?}", findings);
+}
+
+#[test]
+fn t27_python_findings_carry_unconfirmed_status() {
+    // Per `docs/spec/citations-policy.md`, the v0 Rust citations on
+    // this detector are grandfathered as Rust-grounded (FindBugs UR is
+    // a Java pattern, Engler bugs-as-deviant-behavior is C). The
+    // Python language extension survey did not yield a qualifying
+    // citation; per policy the language ships with
+    // `LanguageCitationStatus::Unconfirmed` on each emitted finding.
+    let src = "def f():\n    return\n    bar()\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert!(!findings.is_empty(), "prerequisite: must produce findings");
+    for f in &findings {
+        assert!(
+            matches!(
+                f.evidence.language_citation_status,
+                LanguageCitationStatus::Unconfirmed
+            ),
+            "Python finding must carry Unconfirmed status until a qualifying citation lands; got {:?}",
+            f.evidence.language_citation_status
+        );
+    }
+}
+
+#[test]
+fn t28_rust_findings_remain_confirmed() {
+    let src = "fn f() { return; bar(); }";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert!(!findings.is_empty(), "prerequisite: must produce findings");
+    for f in &findings {
+        assert!(
+            matches!(
+                f.evidence.language_citation_status,
+                LanguageCitationStatus::Confirmed
+            ),
+            "Rust finding must carry Confirmed status (grandfathered v0); got {:?}",
+            f.evidence.language_citation_status
         );
     }
 }

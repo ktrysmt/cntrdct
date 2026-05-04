@@ -56,6 +56,8 @@ pointing at the relevant `docs/surveys/` file.
   anomaly signals.
   Languages: Rust (grandfathered; original subjects were the Linux kernel and C
   systems code).
+- (unreachable-after-terminator Python coverage: unconfirmed; survey notes at
+  docs/surveys/unreachable-after-terminator-python-2026-05.md)
 
 ### config-interaction
 

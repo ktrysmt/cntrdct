@@ -2,6 +2,7 @@
 //! divergent statement inside the same block.
 //!
 //! Spec: `cntrdct/docs/spec/unreachable-after-terminator-v0.md`.
+//! Multi-language: `cntrdct/docs/spec/multilang-v0.md` (Pattern A).
 
 use cntrdct_core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
@@ -19,6 +20,15 @@ pub const TERMINATOR_MACROS: &[&str] = &[
 ];
 
 pub const SUPPRESSION_TOKEN: &str = "unreachable_code";
+
+/// Python call expressions whose invocation diverges control flow.
+///
+/// `sys.exit` and `sys.abort` raise `SystemExit`; `os._exit` terminates
+/// the process without unwinding; bare `exit` and `quit` are the
+/// interactive-shell builtins that also raise `SystemExit`. Any
+/// statement following a call to these in the same block is unreachable
+/// under straight-line execution.
+pub const PYTHON_EXIT_FUNCTIONS: &[&str] = &["sys.exit", "sys.abort", "os._exit", "exit", "quit"];
 
 static CITATIONS: &[Citation] = &[
     Citation {
@@ -66,17 +76,21 @@ impl Detector for UnreachableAfterTerminator {
     }
 
     fn supported_languages(&self) -> &'static [&'static str] {
-        &["rust"]
+        &["rust", "python"]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
         let mut findings: Vec<Finding> = ctx
             .files
             .par_iter()
-            .filter(|f| f.language == "rust")
+            .filter(|f| matches!(f.language.as_str(), "rust" | "python"))
             .flat_map_iter(|file| {
                 let mut local = Vec::new();
-                scan_file(file, &mut local);
+                match file.language.as_str() {
+                    "rust" => scan_rust(file, &mut local),
+                    "python" => scan_python(file, &mut local),
+                    _ => {}
+                }
                 local
             })
             .collect();
@@ -91,7 +105,9 @@ impl Detector for UnreachableAfterTerminator {
     }
 }
 
-fn scan_file(file: &ParsedFile, findings: &mut Vec<Finding>) {
+// ---------- Rust scan ----------
+
+fn scan_rust(file: &ParsedFile, findings: &mut Vec<Finding>) {
     let mut parser = tree_sitter::Parser::new();
     let lang = tree_sitter_rust::language();
     if parser.set_language(&lang).is_err() {
@@ -105,21 +121,21 @@ fn scan_file(file: &ParsedFile, findings: &mut Vec<Finding>) {
     if root.has_error() {
         return;
     }
-    walk(root, file, findings);
+    walk_rust(root, file, findings);
 }
 
-fn walk(node: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Finding>) {
+fn walk_rust(node: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Finding>) {
     if node.kind() == "block" {
-        analyze_block(node, file, findings);
+        analyze_rust_block(node, file, findings);
     }
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        walk(child, file, findings);
+        walk_rust(child, file, findings);
     }
 }
 
-fn analyze_block(block: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Finding>) {
-    if is_suppressed(block, &file.source) {
+fn analyze_rust_block(block: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Finding>) {
+    if is_rust_suppressed(block, &file.source) {
         return;
     }
 
@@ -127,24 +143,31 @@ fn analyze_block(block: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec
         let mut cursor = block.walk();
         block
             .children(&mut cursor)
-            .filter(|c| is_block_statement(*c))
+            .filter(|c| is_rust_block_statement(*c))
             .collect()
     };
 
     for (i, stmt) in stmts.iter().enumerate() {
-        if let Some(kind) = terminator_kind(*stmt, &file.source) {
+        if let Some(kind) = rust_terminator_kind(*stmt, &file.source) {
             let following = stmts.len() - i - 1;
             if following == 0 {
                 return;
             }
             let follower = stmts[i + 1];
-            findings.push(build_finding(file, follower, *stmt, kind, following));
+            findings.push(build_finding(
+                file,
+                follower,
+                *stmt,
+                kind,
+                following,
+                LanguageCitationStatus::Confirmed,
+            ));
             return;
         }
     }
 }
 
-fn is_block_statement(node: tree_sitter::Node) -> bool {
+fn is_rust_block_statement(node: tree_sitter::Node) -> bool {
     if !node.is_named() {
         return false;
     }
@@ -154,7 +177,7 @@ fn is_block_statement(node: tree_sitter::Node) -> bool {
     )
 }
 
-fn terminator_kind(stmt: tree_sitter::Node, source: &str) -> Option<&'static str> {
+fn rust_terminator_kind(stmt: tree_sitter::Node, source: &str) -> Option<&'static str> {
     if stmt.kind() != "expression_statement" {
         return None;
     }
@@ -164,25 +187,25 @@ fn terminator_kind(stmt: tree_sitter::Node, source: &str) -> Option<&'static str
         "return_expression" => Some("return"),
         "break_expression" => Some("break"),
         "continue_expression" => Some("continue"),
-        "macro_invocation" => macro_terminator_name(inner, source),
+        "macro_invocation" => rust_macro_terminator_name(inner, source),
         _ => None,
     }
 }
 
-fn macro_terminator_name(call: tree_sitter::Node, source: &str) -> Option<&'static str> {
+fn rust_macro_terminator_name(call: tree_sitter::Node, source: &str) -> Option<&'static str> {
     let macro_node = call.child_by_field_name("macro")?;
     let text = macro_node.utf8_text(source.as_bytes()).ok()?;
     let last = text.rsplit("::").next().unwrap_or(text);
     TERMINATOR_MACROS.iter().copied().find(|&m| m == last)
 }
 
-fn is_suppressed(node: tree_sitter::Node, source: &str) -> bool {
+fn is_rust_suppressed(node: tree_sitter::Node, source: &str) -> bool {
     let mut current = Some(node);
     while let Some(n) = current {
         let mut cursor = n.walk();
         for child in n.children(&mut cursor) {
             if matches!(child.kind(), "attribute_item" | "inner_attribute_item")
-                && attribute_contains(child, source, SUPPRESSION_TOKEN)
+                && rust_attribute_contains(child, source, SUPPRESSION_TOKEN)
             {
                 return true;
             }
@@ -190,7 +213,7 @@ fn is_suppressed(node: tree_sitter::Node, source: &str) -> bool {
         let mut sib = n.prev_named_sibling();
         while let Some(s) = sib {
             if s.kind() == "attribute_item" {
-                if attribute_contains(s, source, SUPPRESSION_TOKEN) {
+                if rust_attribute_contains(s, source, SUPPRESSION_TOKEN) {
                     return true;
                 }
                 sib = s.prev_named_sibling();
@@ -203,11 +226,140 @@ fn is_suppressed(node: tree_sitter::Node, source: &str) -> bool {
     false
 }
 
-fn attribute_contains(attr: tree_sitter::Node, source: &str, token: &str) -> bool {
+fn rust_attribute_contains(attr: tree_sitter::Node, source: &str, token: &str) -> bool {
     attr.utf8_text(source.as_bytes())
         .map(|t| t.contains(token))
         .unwrap_or(false)
 }
+
+// ---------- Python scan ----------
+//
+// Pattern A: the walk + post-terminator-statement detection is shared
+// with Rust at the algorithmic level; what differs is the AST node-kind
+// vocabulary and the terminator set. tree-sitter-python uses `block`
+// for indented bodies (function, class, if/for/while/with/try) the same
+// way tree-sitter-rust uses `block` for braced bodies, so the same
+// outer recursion structure applies.
+//
+// Suppression: Python has no syntactic equivalent of
+// `#[allow(unreachable_code)]`. v0 ships without an inline Python
+// suppression mechanism; project-level suppression via `cntrdct.toml`
+// (T2-7) still applies.
+
+fn scan_python(file: &ParsedFile, findings: &mut Vec<Finding>) {
+    let mut parser = tree_sitter::Parser::new();
+    let lang = tree_sitter_python::language();
+    if parser.set_language(&lang).is_err() {
+        return;
+    }
+    let tree = match parser.parse(&file.source, None) {
+        Some(t) => t,
+        None => return,
+    };
+    let root = tree.root_node();
+    if root.has_error() {
+        return;
+    }
+    walk_python(root, file, findings);
+}
+
+fn walk_python(node: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Finding>) {
+    if node.kind() == "block" {
+        analyze_python_block(node, file, findings);
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        walk_python(child, file, findings);
+    }
+}
+
+fn analyze_python_block(block: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Finding>) {
+    let stmts: Vec<tree_sitter::Node> = {
+        let mut cursor = block.walk();
+        block
+            .children(&mut cursor)
+            .filter(|c| is_python_block_statement(*c))
+            .collect()
+    };
+
+    for (i, stmt) in stmts.iter().enumerate() {
+        if let Some(kind) = python_terminator_kind(*stmt, &file.source) {
+            let following = stmts.len() - i - 1;
+            if following == 0 {
+                return;
+            }
+            let follower = stmts[i + 1];
+            findings.push(build_finding(
+                file,
+                follower,
+                *stmt,
+                kind,
+                following,
+                LanguageCitationStatus::Unconfirmed,
+            ));
+            return;
+        }
+    }
+}
+
+fn is_python_block_statement(node: tree_sitter::Node) -> bool {
+    if !node.is_named() {
+        return false;
+    }
+    // Module-level docstrings parse as `expression_statement` containing
+    // a `string`; we still treat them as statements. Comments are
+    // skipped because they cannot be reached by control flow.
+    !matches!(node.kind(), "comment")
+}
+
+fn python_terminator_kind(stmt: tree_sitter::Node, source: &str) -> Option<&'static str> {
+    match stmt.kind() {
+        "return_statement" => Some("return"),
+        "raise_statement" => Some("raise"),
+        "break_statement" => Some("break"),
+        "continue_statement" => Some("continue"),
+        "assert_statement" => python_assert_terminator(stmt),
+        "expression_statement" => python_expression_statement_terminator(stmt, source),
+        _ => None,
+    }
+}
+
+/// `assert False` (or `assert 0` / `assert None`) raises `AssertionError`
+/// unconditionally. Only the literal `False` form is treated as a
+/// terminator in v0; constant-folding `0` / `None` is out of scope.
+fn python_assert_terminator(stmt: tree_sitter::Node) -> Option<&'static str> {
+    let mut cursor = stmt.walk();
+    let cond = stmt.children(&mut cursor).find(|c| c.is_named())?;
+    if cond.kind() == "false" {
+        Some("assert")
+    } else {
+        None
+    }
+}
+
+fn python_expression_statement_terminator(
+    stmt: tree_sitter::Node,
+    source: &str,
+) -> Option<&'static str> {
+    let mut cursor = stmt.walk();
+    let inner = stmt.children(&mut cursor).find(|c| c.is_named())?;
+    if inner.kind() != "call" {
+        return None;
+    }
+    python_exit_call_kind(inner, source)
+}
+
+fn python_exit_call_kind(call: tree_sitter::Node, source: &str) -> Option<&'static str> {
+    let func = call.child_by_field_name("function")?;
+    let text = func.utf8_text(source.as_bytes()).ok()?;
+    let normalized = text.trim();
+    PYTHON_EXIT_FUNCTIONS
+        .iter()
+        .copied()
+        .find(|&name| name == normalized)
+}
+
+// ---------- Shared finding construction ----------
 
 fn build_finding(
     file: &ParsedFile,
@@ -215,6 +367,7 @@ fn build_finding(
     terminator: tree_sitter::Node,
     kind: &'static str,
     following_count: usize,
+    citation_status: LanguageCitationStatus,
 ) -> Finding {
     let primary = node_location(file, follower);
     let related = vec![node_location(file, terminator)];
@@ -236,7 +389,7 @@ fn build_finding(
                 "terminator_line": terminator_line,
                 "following_count": following_count,
             }),
-            language_citation_status: LanguageCitationStatus::Confirmed,
+            language_citation_status: citation_status,
         },
     }
 }
