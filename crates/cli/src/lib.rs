@@ -1039,6 +1039,7 @@ pub fn run_fetch(
     };
 
     let (raw_entries, rank_source) = read_crate_list_with_provenance(crates_list)?;
+    let license_hints = read_sidecar_licenses(crates_list)?;
     fs::create_dir_all(out_dir).map_err(|e| FetchRunError::Io {
         path: out_dir.to_path_buf(),
         source: e,
@@ -1099,6 +1100,7 @@ pub fn run_fetch(
         entries
             .par_iter()
             .map(|entry| {
+                let hint = license_hints.get(&entry.name).map(|s| s.as_str());
                 let r = fetch_one(
                     &sparse,
                     &tarball,
@@ -1106,6 +1108,7 @@ pub fn run_fetch(
                     out_dir,
                     allowlist,
                     extract_opts,
+                    hint,
                 );
                 match &r {
                     Ok(FetchOutcome::Fetched { row, .. }) => {
@@ -1181,7 +1184,8 @@ fn write_provenance(
         },
     });
     if !rank_source.is_empty() {
-        provenance["rank_source"] = serde_json::to_value(rank_source).expect("RankSource serialises");
+        provenance["rank_source"] =
+            serde_json::to_value(rank_source).expect("RankSource serialises");
     }
 
     let path = out_dir.join("provenance.json");
@@ -1301,12 +1305,73 @@ pub fn run_rank(dump_path: &Path, top: usize, output: Option<&Path>) -> Result<(
                 path: p.to_path_buf(),
                 source: e,
             })?;
+            // Sidecar TSV: <output>.licenses.tsv. The crates.io sparse
+            // index does not expose a license field, so `cntrdct fetch`
+            // reads this file (when it sits next to the crate list) to
+            // populate the license filter without round-tripping back to
+            // the dump or the crates.io API.
+            let mut licenses_tsv = String::from("name\tlicense\n");
+            for r in &ranking {
+                if let Some(lic) = &r.license {
+                    licenses_tsv.push_str(&format!("{}\t{}\n", r.name, lic));
+                }
+            }
+            let sidecar = sidecar_licenses_path(p);
+            fs::write(&sidecar, licenses_tsv).map_err(|e| FetchRunError::Io {
+                path: sidecar,
+                source: e,
+            })?;
         }
         None => {
             print!("{body}");
         }
     }
     Ok(())
+}
+
+/// Compute the sidecar licenses path next to a crate-list file.
+/// `crates.txt` → `crates.txt.licenses.tsv`.
+fn sidecar_licenses_path(crates_list: &Path) -> PathBuf {
+    let mut s = crates_list.as_os_str().to_owned();
+    s.push(".licenses.tsv");
+    PathBuf::from(s)
+}
+
+/// Read a sibling `<crates_list>.licenses.tsv` if it exists. The TSV must
+/// have a `name\tlicense` header; rows with empty license fields are
+/// dropped. Missing sidecar is not an error — the map is empty and the
+/// fetch loop falls back to whatever the sparse index returns (typically
+/// nothing, which yields `LicenseMissing` skips).
+fn read_sidecar_licenses(crates_list: &Path) -> Result<HashMap<String, String>, FetchRunError> {
+    let path = sidecar_licenses_path(crates_list);
+    if !path.exists() {
+        return Ok(HashMap::new());
+    }
+    let body = fs::read_to_string(&path).map_err(|e| FetchRunError::ReadList {
+        path: path.clone(),
+        source: e,
+    })?;
+    let mut out = HashMap::new();
+    for (idx, line) in body.lines().enumerate() {
+        if idx == 0 && line.starts_with("name\t") {
+            continue;
+        }
+        let trimmed = line.trim_end_matches('\r');
+        if trimmed.is_empty() {
+            continue;
+        }
+        let mut parts = trimmed.splitn(2, '\t');
+        let name = match parts.next() {
+            Some(s) if !s.is_empty() => s.to_string(),
+            _ => continue,
+        };
+        let license = match parts.next() {
+            Some(s) if !s.is_empty() => s.to_string(),
+            _ => continue,
+        };
+        out.insert(name, license);
+    }
+    Ok(out)
 }
 
 /// Optional rank-source pin extracted from a crate-list file's comment

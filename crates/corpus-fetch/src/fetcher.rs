@@ -44,6 +44,14 @@ pub enum FetchOutcome {
 }
 
 /// Run the full fetch pipeline for a single crate. See module docs.
+///
+/// `license_hint` lets the caller plumb in a license string from a
+/// side-channel (typically `cntrdct rank`'s sidecar `licenses.tsv`, joined
+/// from the crates.io DB dump's `default_versions` × `versions` tables).
+/// The crates.io sparse index does not expose a license field, so without
+/// this hint every real-world crate would skip with `LicenseMissing`. The
+/// hint is only consulted when `meta.license` from the sparse index is
+/// itself missing — never to override an index value.
 pub fn fetch_one<C1: HttpClient, C2: HttpClient>(
     sparse: &SparseIndexClient<C1>,
     tarball: &TarballClient<C2>,
@@ -51,6 +59,7 @@ pub fn fetch_one<C1: HttpClient, C2: HttpClient>(
     out_root: &Path,
     allowlist: &[&str],
     extract_opts: &ExtractOptions,
+    license_hint: Option<&str>,
 ) -> Result<FetchOutcome, FetchError> {
     let meta = match sparse.fetch_latest_non_yanked(crate_name) {
         Ok(Some(m)) => m,
@@ -69,12 +78,17 @@ pub fn fetch_one<C1: HttpClient, C2: HttpClient>(
         Err(e) => return Err(e),
     };
 
-    match license_decision(meta.license.as_deref(), allowlist) {
+    let effective_license = meta
+        .license
+        .clone()
+        .or_else(|| license_hint.map(|s| s.to_string()));
+
+    match license_decision(effective_license.as_deref(), allowlist) {
         LicenseDecision::Accepted => {}
         LicenseDecision::Rejected => {
             return Ok(FetchOutcome::Skipped {
                 name: crate_name.to_string(),
-                reason: SkipReason::LicenseRejected(meta.license.unwrap_or_default()),
+                reason: SkipReason::LicenseRejected(effective_license.unwrap_or_default()),
             });
         }
         LicenseDecision::Missing => {
@@ -95,7 +109,7 @@ pub fn fetch_one<C1: HttpClient, C2: HttpClient>(
         row: ManifestRow {
             name: meta.name,
             version: meta.version,
-            license: meta.license.unwrap_or_default(),
+            license: effective_license.unwrap_or_default(),
             downloads: None,
             sha256: meta.cksum,
         },
@@ -235,6 +249,7 @@ mod tests {
             tmp.path(),
             DEFAULT_LICENSE_ALLOWLIST,
             &ExtractOptions::default(),
+            None,
         )
         .unwrap();
 
@@ -277,6 +292,7 @@ mod tests {
             tmp.path(),
             DEFAULT_LICENSE_ALLOWLIST,
             &ExtractOptions::default(),
+            None,
         )
         .unwrap();
         match result {
@@ -309,6 +325,7 @@ mod tests {
             tmp.path(),
             DEFAULT_LICENSE_ALLOWLIST,
             &ExtractOptions::default(),
+            None,
         )
         .unwrap();
         assert!(matches!(
@@ -335,6 +352,7 @@ mod tests {
             tmp.path(),
             DEFAULT_LICENSE_ALLOWLIST,
             &ExtractOptions::default(),
+            None,
         )
         .unwrap();
         assert!(matches!(
@@ -364,6 +382,7 @@ mod tests {
             tmp.path(),
             DEFAULT_LICENSE_ALLOWLIST,
             &ExtractOptions::default(),
+            None,
         )
         .unwrap();
         assert!(matches!(
@@ -395,8 +414,116 @@ mod tests {
             tmp.path(),
             DEFAULT_LICENSE_ALLOWLIST,
             &ExtractOptions::default(),
+            None,
         )
         .unwrap_err();
         assert!(matches!(err, FetchError::ChecksumMismatch { .. }));
+    }
+
+    #[test]
+    fn license_hint_substitutes_when_sparse_index_omits_license() {
+        // crates.io's real sparse-index payload has no `license` field. Without
+        // a hint the orchestrator would skip every crate as LicenseMissing;
+        // with a hint pulled from the DB-dump sidecar the fetch proceeds.
+        let (bytes, digest) = make_crate("hinted-0.1.0", &[("src/lib.rs", b"x")]);
+        let idx = DualMock::new();
+        idx.expect_text(
+            &format!("{INDEX_BASE}/hi/nt/hinted"),
+            &sparse_record("hinted", "0.1.0", None, &digest, false),
+        );
+        let tar = DualMock::new();
+        tar.expect_bytes(
+            &format!("{STATIC_BASE}/crates/hinted/hinted-0.1.0.crate"),
+            bytes,
+        );
+
+        let (sparse, tarball) = build_clients(idx, tar);
+        let tmp = tempfile::tempdir().unwrap();
+        let result = fetch_one(
+            &sparse,
+            &tarball,
+            "hinted",
+            tmp.path(),
+            DEFAULT_LICENSE_ALLOWLIST,
+            &ExtractOptions::default(),
+            Some("MIT OR Apache-2.0"),
+        )
+        .unwrap();
+        match result {
+            FetchOutcome::Fetched { row, .. } => {
+                assert_eq!(row.license, "MIT OR Apache-2.0");
+            }
+            other => panic!("expected Fetched, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn license_hint_does_not_override_sparse_index_value() {
+        // If the index ever does carry a license (older mirrors, internal
+        // registries), it wins over the hint — the hint is a fallback only.
+        let (bytes, digest) = make_crate("kept-0.1.0", &[("src/lib.rs", b"x")]);
+        let idx = DualMock::new();
+        idx.expect_text(
+            &format!("{INDEX_BASE}/3/k/kept"),
+            &sparse_record("kept", "0.1.0", Some("MIT"), &digest, false),
+        );
+        let tar = DualMock::new();
+        tar.expect_bytes(&format!("{STATIC_BASE}/crates/kept/kept-0.1.0.crate"), bytes);
+
+        let (sparse, tarball) = build_clients(idx, tar);
+        let tmp = tempfile::tempdir().unwrap();
+        let result = fetch_one(
+            &sparse,
+            &tarball,
+            "kept",
+            tmp.path(),
+            DEFAULT_LICENSE_ALLOWLIST,
+            &ExtractOptions::default(),
+            Some("Apache-2.0"),
+        )
+        .unwrap();
+        match result {
+            FetchOutcome::Fetched { row, .. } => {
+                assert_eq!(row.license, "MIT", "sparse index value wins");
+            }
+            other => panic!("expected Fetched, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn license_hint_rejected_value_skips_without_downloading() {
+        // A hint that points at a disallowed license must skip BEFORE the
+        // tarball is fetched. We assert that by leaving the tarball mock
+        // empty: any download attempt would surface NotFound and the test
+        // would fail loudly.
+        let idx = DualMock::new();
+        idx.expect_text(
+            &format!("{INDEX_BASE}/3/g/gpl"),
+            &sparse_record("gpl", "0.1.0", None, "abc", false),
+        );
+        let tar = DualMock::new();
+
+        let (sparse, tarball) = build_clients(idx, tar);
+        let tmp = tempfile::tempdir().unwrap();
+        let result = fetch_one(
+            &sparse,
+            &tarball,
+            "gpl",
+            tmp.path(),
+            DEFAULT_LICENSE_ALLOWLIST,
+            &ExtractOptions::default(),
+            Some("GPL-3.0"),
+        )
+        .unwrap();
+        match result {
+            FetchOutcome::Skipped {
+                name,
+                reason: SkipReason::LicenseRejected(spdx),
+            } => {
+                assert_eq!(name, "gpl");
+                assert_eq!(spdx, "GPL-3.0");
+            }
+            other => panic!("expected LicenseRejected, got {other:?}"),
+        }
     }
 }

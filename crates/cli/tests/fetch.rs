@@ -228,7 +228,10 @@ fn provenance_json_omits_rank_source_when_no_metadata_in_list() {
 
     let body = std::fs::read_to_string(out.join("provenance.json")).unwrap();
     let v: serde_json::Value = serde_json::from_str(&body).unwrap();
-    assert!(v.get("rank_source").is_none(), "rank_source should be absent");
+    assert!(
+        v.get("rank_source").is_none(),
+        "rank_source should be absent"
+    );
 }
 
 #[test]

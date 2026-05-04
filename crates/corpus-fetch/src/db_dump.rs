@@ -40,11 +40,16 @@ use crate::FetchError;
 pub const DEFAULT_DB_DUMP_URL: &str = "https://static.crates.io/db-dump.tar.gz";
 
 /// One row of the (crate name, lifetime downloads) ranking produced by
-/// joining `crates.csv` against `crate_downloads.csv`.
+/// joining `crates.csv` against `crate_downloads.csv`. The `license` field
+/// is the SPDX expression of the crate's default version, joined through
+/// `default_versions.csv` × `versions.csv`. It is `None` when the dump
+/// omits one of those tables (older snapshots) or when the row's license
+/// column is empty.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CrateRanking {
     pub name: String,
     pub downloads: u64,
+    pub license: Option<String>,
 }
 
 /// Provenance metadata pulled from the dump's top-level `metadata.json`.
@@ -77,6 +82,8 @@ pub fn read_top_n_from_archive(
 
     let mut id_to_name: HashMap<u64, String> = HashMap::new();
     let mut id_to_downloads: HashMap<u64, u64> = HashMap::new();
+    let mut crate_id_to_default_version: HashMap<u64, u64> = HashMap::new();
+    let mut version_id_to_license: HashMap<u64, Option<String>> = HashMap::new();
 
     let entries = archive
         .entries()
@@ -99,6 +106,16 @@ pub fn read_top_n_from_archive(
             let mut buf = Vec::new();
             entry.read_to_end(&mut buf)?;
             parse_crate_downloads_csv(&buf, &mut id_to_downloads)?;
+        } else if path_str.ends_with("/data/default_versions.csv")
+            || path_str == "data/default_versions.csv"
+        {
+            let mut buf = Vec::new();
+            entry.read_to_end(&mut buf)?;
+            parse_default_versions_csv(&buf, &mut crate_id_to_default_version)?;
+        } else if path_str.ends_with("/data/versions.csv") || path_str == "data/versions.csv" {
+            let mut buf = Vec::new();
+            entry.read_to_end(&mut buf)?;
+            parse_versions_licenses_csv(&buf, &mut version_id_to_license)?;
         }
     }
 
@@ -113,10 +130,23 @@ pub fn read_top_n_from_archive(
         ));
     }
 
+    // License is best-effort: an older dump or a hand-crafted fixture may
+    // omit either of the version tables. In that case `license` stays None.
+    let license_for = |crate_id: u64| -> Option<String> {
+        crate_id_to_default_version
+            .get(&crate_id)
+            .and_then(|vid| version_id_to_license.get(vid).cloned())
+            .flatten()
+    };
+
     let mut combined: Vec<CrateRanking> = id_to_downloads
         .into_iter()
         .filter_map(|(id, downloads)| {
-            id_to_name.remove(&id).map(|name| CrateRanking { name, downloads })
+            id_to_name.remove(&id).map(|name| CrateRanking {
+                name,
+                downloads,
+                license: license_for(id),
+            })
         })
         .collect();
     combined.sort_by(|a, b| b.downloads.cmp(&a.downloads).then(a.name.cmp(&b.name)));
@@ -227,6 +257,74 @@ fn parse_crate_downloads_csv(
             ))
         })?;
         out.insert(id, downloads);
+    }
+    Ok(())
+}
+
+fn parse_default_versions_csv(
+    bytes: &[u8],
+    out: &mut HashMap<u64, u64>,
+) -> Result<(), FetchError> {
+    let mut reader = csv::Reader::from_reader(bytes);
+    let headers = reader
+        .headers()
+        .map_err(|e| FetchError::Malformed(format!("default_versions.csv: {e}")))?
+        .clone();
+    let crate_id_col = column_index(&headers, "crate_id")?;
+    let version_id_col = column_index(&headers, "version_id")?;
+    for record in reader.records() {
+        let record = record
+            .map_err(|e| FetchError::Malformed(format!("default_versions.csv row: {e}")))?;
+        let crate_id_raw = record.get(crate_id_col).ok_or_else(|| {
+            FetchError::Malformed("default_versions.csv: short row at crate_id".into())
+        })?;
+        let crate_id: u64 = crate_id_raw.parse().map_err(|_| {
+            FetchError::Malformed(format!(
+                "default_versions.csv: crate_id `{crate_id_raw}` is not a u64"
+            ))
+        })?;
+        let version_id_raw = record.get(version_id_col).ok_or_else(|| {
+            FetchError::Malformed("default_versions.csv: short row at version_id".into())
+        })?;
+        let version_id: u64 = version_id_raw.parse().map_err(|_| {
+            FetchError::Malformed(format!(
+                "default_versions.csv: version_id `{version_id_raw}` is not a u64"
+            ))
+        })?;
+        out.insert(crate_id, version_id);
+    }
+    Ok(())
+}
+
+fn parse_versions_licenses_csv(
+    bytes: &[u8],
+    out: &mut HashMap<u64, Option<String>>,
+) -> Result<(), FetchError> {
+    let mut reader = csv::Reader::from_reader(bytes);
+    let headers = reader
+        .headers()
+        .map_err(|e| FetchError::Malformed(format!("versions.csv: {e}")))?
+        .clone();
+    let id_col = column_index(&headers, "id")?;
+    let license_col = column_index(&headers, "license")?;
+    for record in reader.records() {
+        let record =
+            record.map_err(|e| FetchError::Malformed(format!("versions.csv row: {e}")))?;
+        let id_raw = record
+            .get(id_col)
+            .ok_or_else(|| FetchError::Malformed("versions.csv: short row at id".into()))?;
+        let id: u64 = id_raw.parse().map_err(|_| {
+            FetchError::Malformed(format!("versions.csv: id `{id_raw}` is not a u64"))
+        })?;
+        let lic_raw = record
+            .get(license_col)
+            .ok_or_else(|| FetchError::Malformed("versions.csv: short row at license".into()))?;
+        let license = if lic_raw.trim().is_empty() {
+            None
+        } else {
+            Some(lic_raw.to_string())
+        };
+        out.insert(id, license);
     }
     Ok(())
 }
@@ -394,6 +492,97 @@ mod tests {
         let top = read_top_n_from_archive(tmp.path(), 10).unwrap();
         assert_eq!(top.len(), 1);
         assert_eq!(top[0].name, "has_dl");
+    }
+
+    /// Build a fake db-dump archive that *also* includes `default_versions.csv`
+    /// and `versions.csv`, so the license-join path is exercised end-to-end.
+    fn make_dump_archive_with_licenses(
+        prefix: &str,
+        crates_rows: &[(u64, &str)],
+        downloads_rows: &[(u64, u64)],
+        // (crate_id, version_id)
+        default_versions: &[(u64, u64)],
+        // (version_id, license_str)
+        versions_licenses: &[(u64, &str)],
+    ) -> Vec<u8> {
+        let mut crates_csv = String::from("id,name,description\n");
+        for (id, name) in crates_rows {
+            crates_csv.push_str(&format!("{id},{name},\n"));
+        }
+        let mut downloads_csv = String::from("crate_id,downloads\n");
+        for (id, dl) in downloads_rows {
+            downloads_csv.push_str(&format!("{id},{dl}\n"));
+        }
+        let mut default_csv = String::from("crate_id,num_versions,version_id\n");
+        for (cid, vid) in default_versions {
+            default_csv.push_str(&format!("{cid},1,{vid}\n"));
+        }
+        // Real versions.csv is wide; we only need `id` and `license` columns
+        // to be parseable, so emit them with a dummy `num` between.
+        let mut versions_csv = String::from("id,num,license\n");
+        for (vid, lic) in versions_licenses {
+            versions_csv.push_str(&format!("{vid},0.0.0,\"{lic}\"\n"));
+        }
+
+        let buf = Vec::new();
+        let gz = GzEncoder::new(buf, Compression::default());
+        let mut tar = Builder::new(gz);
+        for (path_suffix, body) in [
+            ("data/crates.csv", crates_csv.as_bytes()),
+            ("data/crate_downloads.csv", downloads_csv.as_bytes()),
+            ("data/default_versions.csv", default_csv.as_bytes()),
+            ("data/versions.csv", versions_csv.as_bytes()),
+        ] {
+            let mut h = Header::new_gnu();
+            h.set_size(body.len() as u64);
+            h.set_mode(0o644);
+            h.set_cksum();
+            tar.append_data(&mut h, format!("{prefix}/{path_suffix}"), body)
+                .unwrap();
+        }
+        tar.into_inner().unwrap().finish().unwrap()
+    }
+
+    #[test]
+    fn license_is_joined_via_default_versions_and_versions_csv() {
+        let archive = make_dump_archive_with_licenses(
+            "2026-05-04-000000",
+            &[(1, "syn"), (2, "log"), (3, "tokio"), (4, "no_default")],
+            &[(1, 30), (2, 20), (3, 40), (4, 10)],
+            // crate 4 has no default_version row -> license stays None
+            &[(1, 101), (2, 102), (3, 103)],
+            // Empty license string for log -> None despite a default version row
+            &[(101, "MIT OR Apache-2.0"), (102, ""), (103, "MIT")],
+        );
+        let tmp = write_archive_to_temp(&archive);
+
+        let top = read_top_n_from_archive(tmp.path(), 10).unwrap();
+        let by_name: HashMap<&str, &CrateRanking> =
+            top.iter().map(|r| (r.name.as_str(), r)).collect();
+        assert_eq!(
+            by_name["syn"].license.as_deref(),
+            Some("MIT OR Apache-2.0")
+        );
+        assert_eq!(by_name["tokio"].license.as_deref(), Some("MIT"));
+        assert_eq!(by_name["log"].license, None, "empty string -> None");
+        assert_eq!(
+            by_name["no_default"].license, None,
+            "no default_versions row -> None"
+        );
+    }
+
+    #[test]
+    fn license_stays_none_when_version_tables_are_absent() {
+        // Original `make_dump_archive` only ships crates.csv + crate_downloads.csv
+        // (older snapshot shape). License must be None across the board.
+        let archive = make_dump_archive(
+            "2026-04-15-000000",
+            &[(1, "syn"), (2, "log")],
+            &[(1, 100), (2, 50)],
+        );
+        let tmp = write_archive_to_temp(&archive);
+        let top = read_top_n_from_archive(tmp.path(), 5).unwrap();
+        assert!(top.iter().all(|r| r.license.is_none()));
     }
 
     #[test]
