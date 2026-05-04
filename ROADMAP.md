@@ -286,6 +286,116 @@ T3-16. Telemetry-free assurance
   confirms `cntrdct scan` succeeds.
 - Effort: 1-2 days.
 
+## Multi-language track (M-series)
+
+Promotes cntrdct from a Rust-only linter to a multi-language one.
+Strategic rationale: the differentiator (peer-reviewed citations on
+every finding) is language-agnostic, and the commercial market for a
+single-language linter is bounded. Pilot language is Python; the
+architecture is built so subsequent languages (TypeScript, Go, Java)
+plug in without rework.
+
+This track interrupts Phase D — `P-2 pr-miner-rust detector` and
+`P-4 ranker recalibration` are deferred until M-series completes so
+new detectors are designed multi-language from day one rather than
+retrofitted.
+
+Constraint extension: P1 still binds. Each new language added to a
+detector requires at least one peer-reviewed citation grounded in
+empirical work on that target language; the existing Rust citation
+does not transfer automatically. See `docs/spec/citations-policy.md`.
+
+M-1. Language abstraction foundation
+
+- Status: `[ ]`
+- Goal: introduce a `cntrdct-parsers` crate that owns the
+  `Language` enum, the extension → language mapping, and a tree-sitter
+  Parser provider. Migrate `ParsedFile.language` from a free-form
+  `String` to the enum (or to a canonical-name set defined in
+  `cntrdct-core`). Update CLI file walker to discover all supported
+  languages, not just `.rs`.
+- Acceptance: `cntrdct scan ./mixed-repo` parses files of every
+  declared `Language` variant and produces a `ParsedFile` per file
+  with the correct `language` field. Every existing Rust test stays
+  green.
+- Effort: 1-2 weeks part-time.
+- Depends on: nothing.
+
+M-2. Pilot Python detector
+
+- Status: `[ ]`
+- Goal: extend the simplest detector
+  (`unreachable-after-terminator`) to Python. Divergent terminators
+  for Python: `raise`, `sys.exit()`, `os._exit()`, `assert False`,
+  `return` followed by code in the same block. Add Python fixture
+  cases under `benchmarks/corpus/files/` and at least one new
+  citation grounded in Python static-analysis prior art.
+- Acceptance: `cntrdct scan` over a Python source tree emits
+  `unreachable-after-terminator` findings; the seed corpus contains
+  ≥5 positive Python cases and ≥3 negative; the new citation key
+  resolves in `CITATIONS.md`; `crates/cli/tests/citations_consistency.rs`
+  is extended to enforce the policy from M-6.
+- Effort: 1 week part-time.
+- Depends on: M-1.
+
+M-3. Cross-cutting detectors to Python
+
+- Status: `[ ]`
+- Goal: extend the three cross-cutting detectors (`clone-drift`,
+  `arg-swap`, `comment-code`) to Python via internal `Language`
+  dispatch in their existing crates (parameterised, not duplicated
+  per language).
+- Acceptance: each detector accepts `ParsedFile`s of either
+  language, emits findings with the correct `detector_id`, and
+  carries a citation set that includes at least one Python-relevant
+  reference per detector (M-6 enforcement).
+- Effort: 1-2 weeks per detector, 3-6 weeks total part-time.
+- Depends on: M-1, M-2.
+
+M-4. Python β corpus
+
+- Status: `[ ]`
+- Goal: Python-side analogue of P-1. Either reuse `corpus-fetch`
+  with a Python source path or stand up a sibling crate
+  (`cntrdct-corpus-fetch-python`) backed by PyPI. Ship under
+  `benchmarks/wild-corpus-python/` with the same manifest format
+  (license, SHA-256, source crate / package).
+- Acceptance: `cntrdct eval benchmarks/wild-corpus-python` runs
+  cleanly with non-trivial precision/recall numbers on the Python
+  detectors.
+- Effort: 2-3 weeks part-time.
+- Depends on: M-2, M-3.
+
+M-5. Surface multi-language across tooling
+
+- Status: `[ ]`
+- Goal: extend the GitHub Action wrapper to accept multiple paths
+  with per-path language hints; extend `cntrdct.toml` with an
+  optional `[languages]` section to control discovery; verify SARIF
+  emitter handles non-Rust files unchanged.
+- Acceptance: a sample workflow scans a mixed Rust+Python repo,
+  surfaces findings from both languages as inline annotations and as
+  SARIF, and respects per-language suppression in `cntrdct.toml`.
+- Effort: 2-3 days part-time.
+- Depends on: M-2 (Python detector at minimum).
+
+M-6. Citation policy for multi-language detectors
+
+- Status: `[ ]`
+- Goal: write `docs/spec/citations-policy.md` codifying P1 for the
+  multi-language case (each language a detector supports must carry
+  at least one citation grounded in empirical work on that
+  language). Extend `crates/cli/tests/citations_consistency.rs` to
+  enforce the rule structurally — a detector whose
+  `supported_languages()` includes `Language::Python` must declare a
+  citation tagged as Python-relevant, and so on.
+- Acceptance: the policy doc is approved, the consistency test
+  fails on a deliberately under-cited fixture detector, and passes
+  on every shipped detector after M-2 / M-3 land their new
+  citations.
+- Effort: 1 day.
+- Depends on: M-1.
+
 ## Tier 4 — community (opens contribution funnel)
 
 T4-17. Issue templates
@@ -351,18 +461,29 @@ Phase C (Tier 2 in parallel with Practical track):
 13. P-3 SARIF validator integration
 14. T2-9 GitHub Action wrapper
 
-Phase D (Practical track items that depend on Phase C):
+Phase D (Multi-language; interrupts the original Practical-track
+sequence so new detectors are designed multi-language from day one):
 
-15. P-4 ranker recalibration
-16. P-2 pr-miner-rust detector
-17. P-5 v0.2.0-beta release
+15. M-6 citation policy doc (cheap; locks in the P1 extension first)
+16. M-1 language abstraction foundation
+17. M-2 pilot Python detector (`unreachable-after-terminator-py`)
+18. M-3 cross-cutting detectors to Python
+19. M-5 multi-language tooling surface
+20. M-4 Python β corpus
 
-Phase E (Tier 3 / 4 organically after launch):
+Phase E (Practical-track items, resumed once Phase D lands):
 
-18. T4-19 / T4-20 / T4-17 / T4-18 / T4-21 community scaffolding
-19. T3-13 mdBook
-20. T3-12 LSP server
-21. T3-14 / T3-15 / T3-16 polish
+21. P-4 ranker recalibration (now over Rust + Python corpora)
+22. P-2 pr-miner detector (multi-language from inception, supersedes
+    the original `pr-miner-rust` framing)
+23. P-5 v0.2.0-beta release
+
+Phase F (Tier 3 / 4 organically after launch):
+
+24. T4-19 / T4-20 / T4-17 / T4-18 / T4-21 community scaffolding
+25. T3-13 mdBook
+26. T3-12 LSP server
+27. T3-14 / T3-15 / T3-16 polish
 
 The split between Phase A (Tier 1, blocking) and later phases is the
 single most important boundary in this roadmap. Everything in Phase A
