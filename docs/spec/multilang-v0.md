@@ -132,9 +132,7 @@ dropped, identical to current `.rs`-only behaviour.
 
 ### F6 — Detector dispatch pattern
 
-Two patterns coexist:
-
-Pattern A — parameterised by language (cross-cutting concept):
+Default: Pattern A — one detector crate parameterised by language.
 
 ```rust
 impl Detector for ArgSwap {
@@ -155,18 +153,33 @@ impl Detector for ArgSwap {
 ```
 
 The per-language `scan_*` helpers are private to the detector crate.
+Differences in AST node kinds, terminator sets, doc-comment syntax,
+etc. are absorbed inside the dispatch arm; the public surface
+(`Detector` trait, citation set, registration) stays one entity per
+detector concept.
 
-Pattern B — separate detector crate per language (language-specific
-concept):
+This applies to `unreachable-after-terminator` as well: the
+divergent-terminator set (`return`/`panic!()`/`unreachable!()` in
+Rust; `raise`/`sys.exit`/`os._exit`/`assert False`/`return` in
+Python) is held in a per-language constant table inside the crate.
+The walk + post-terminator-statement detection is shared.
 
-`config-interaction` (Rust `#[cfg(...)]`) stays its own crate. A
-hypothetical Go-build-tag detector would be a new crate with its own
-`detector_id` (e.g. `build-tag-interaction-go`).
+Pattern B — separate detector crate — is reserved for the case where
+the bug pattern itself is single-language by definition. Specifically:
 
-Pattern A vs B is decided per detector at design time by asking:
-"is the bug pattern the same idea expressed in different syntaxes,
-or is it a structurally different anomaly?" The former → A, the
-latter → B.
+- `config-interaction` is the canonical example: it detects
+  contradictory pairs of Rust `#[cfg(...)]` attributes. The concept
+  is `cfg`, not "build-time configuration in general". Its
+  `supported_languages()` stays `&[Language::Rust]`.
+- A future Go-build-tag detector would be a separate crate with its
+  own `detector_id` (e.g. `build-tag-interaction-go`) — even though
+  conceptually similar to `config-interaction`, the AST mechanism
+  and the bug-pattern wording differ enough that conflating them
+  would muddy the citation set.
+
+The decision rule: "is this the same bug pattern in different
+syntaxes (→ A), or a different bug pattern that happens to belong
+to the same family (→ B)?"
 
 ### F7 — `supported_languages` return type
 
@@ -184,13 +197,12 @@ check delegated to `citations-policy.md` rules. See M-6.
 1. M-1 ships F1, F2, F3, F4-phase-4a, F5. No detector behaviour
    changes; existing tests continue to pass.
 2. M-6 ships citations-policy.md and the consistency test extension.
-3. M-2 ships the first Python detector (Pattern A applied to
-   `unreachable-after-terminator` is borderline — the divergent
-   terminator set differs significantly between Rust and Python, so
-   we may decide here to use Pattern B instead and create a separate
-   `unreachable-after-terminator-python` crate). This is the spec's
-   first stress-test; M-1's abstraction is revised if it doesn't
-   accommodate.
+3. M-2 ships the first Python detector — `unreachable-after-terminator`
+   extended via Pattern A. This is the spec's first stress-test for
+   the dispatch model; if Pattern A produces unreasonable
+   `match`-bloat the abstraction is revised, but Pattern B is not
+   the fallback (a single large match is preferable to two crates
+   that share a `detector_id`).
 4. F4 phase 4b lands together with M-3's first cross-cutting Python
    detector (likely `comment-code`, since Python docstrings are
    well-structured and the iComment / aComment lineage maps cleanly).
@@ -208,35 +220,29 @@ check delegated to `citations-policy.md` rules. See M-6.
 
 ## Risks and open questions
 
-R1. Pattern A vs B for `unreachable-after-terminator`: the divergent
-terminator set in Python (`raise`, `sys.exit`, `os._exit`,
-`assert False`) overlaps semantically with Rust's set but the AST
-node names are different and the detection logic touches different
-tree-sitter node kinds. If the Pattern A implementation forces
-unreasonable code-sharing, fall back to Pattern B and document the
-decision in M-2's spec addendum.
-
-R2. tree-sitter-python's grammar is more permissive about partial
+R1. tree-sitter-python's grammar is more permissive about partial
 parses than tree-sitter-rust. `if root.has_error()` may need
 language-specific tolerance — currently every detector skips files
 with parse errors silently. We may need a `recover_on_error: bool`
 toggle per language.
 
-R3. `cntrdct-parsers` becoming a transitive dependency of every
+R2. `cntrdct-parsers` becoming a transitive dependency of every
 detector crate means a tree-sitter version bump touches more
 packages than today. Pin tree-sitter at the workspace level (already
 the case via `[workspace.dependencies]`) and treat the bump as a
 single PR.
 
-R4. Per-language citations may not exist for every cross-cutting
+R3. Per-language citations may not exist for every cross-cutting
 detector. iComment was C; aComment was Java; PR-Miner (Li & Zhou)
 was C/C++; Rice et al. was Java/C++. None ran on Python natively.
-M-6's policy will require a specific Python-grounded citation; some
-detectors may need contemporary references (Pradel-Sen 2018 etc.)
-or domain-specific Python static-analysis surveys. Expect a survey
-budget per language.
+M-6's policy is best-effort (see citations-policy.md): the survey
+must happen and be recorded, but a missing per-language citation
+does not block the language extension. The detector still ships
+with its existing cross-cutting citation; the resulting metadata
+flag (`language_citation_status: "unconfirmed"`) tells SARIF
+consumers that this language's coverage is grounded indirectly.
 
-R5. The `corpus-fetch` crate (currently Rust-specific via the
+R4. The `corpus-fetch` crate (currently Rust-specific via the
 crates.io Sparse Index) does not generalise to PyPI directly. M-4
 will likely stand up `corpus-fetch-python` rather than parameterise
 the existing one — the source-of-truth APIs are too different.
@@ -254,10 +260,18 @@ the existing one — the source-of-truth APIs are too different.
 
 ## Approval
 
-This spec is approved when:
+Approved 2026-05-04 with the following decisions locked in:
 
-1. Pattern A vs B decision is recorded for each shipping detector.
-2. R4 (per-language citation feasibility) has been pre-surveyed for
-   the cross-cutting trio (`clone-drift`, `arg-swap`, `comment-code`)
-   and has at least one candidate citation each.
-3. ROADMAP M-1 has a green-light date.
+- Pattern A is the default. Pattern B is reserved for detectors
+  whose bug pattern is single-language by definition
+  (`config-interaction` is the only current example).
+- F4 phase 4b (the `ParsedFile.language: String → Language` change)
+  ships together with M-3's first cross-cutting Python detector and
+  bumps `cntrdct-core` to 0.2.0.
+- R3 (per-language citation availability) is handled per
+  `citations-policy.md`: best-effort survey with explicit
+  `language_citation_status` metadata when a primary citation is
+  unavailable, rather than blocking language support.
+
+Implementation can begin with M-6, then M-1, per the M-series
+sequencing in ROADMAP.
