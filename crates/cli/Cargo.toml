@@ -29,6 +29,7 @@ cntrdct-detector-arg-swap = { workspace = true }
 cntrdct-detector-comment-code = { workspace = true }
 cntrdct-detector-unreachable-after-terminator = { workspace = true }
 cntrdct-detector-config-interaction = { workspace = true }
+cntrdct-parsers = { workspace = true }
 cntrdct-sarif = { workspace = true }
 cntrdct-ranker = { workspace = true }
 cntrdct-calibration = { workspace = true }

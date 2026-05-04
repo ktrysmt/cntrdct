@@ -233,6 +233,7 @@ dependencies = [
  "cntrdct-detector-config-interaction",
  "cntrdct-detector-unreachable-after-terminator",
  "cntrdct-eval",
+ "cntrdct-parsers",
  "cntrdct-ranker",
  "cntrdct-sarif",
  "dirs",

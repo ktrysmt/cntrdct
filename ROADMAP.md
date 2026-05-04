@@ -307,7 +307,7 @@ does not transfer automatically. See `docs/spec/citations-policy.md`.
 
 M-1. Language abstraction foundation
 
-- Status: `[ ]`
+- Status: `[x]`
 - Goal: introduce a `cntrdct-parsers` crate that owns the
   `Language` enum, the extension → language mapping, and a tree-sitter
   Parser provider. Migrate `ParsedFile.language` from a free-form

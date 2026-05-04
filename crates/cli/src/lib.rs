@@ -20,6 +20,7 @@ use cntrdct_detector_comment_code::CommentCode;
 use cntrdct_detector_config_interaction::ConfigInteraction;
 use cntrdct_detector_unreachable_after_terminator::UnreachableAfterTerminator;
 use cntrdct_eval::{evaluate, load_manifest, EvalError, EvalReport};
+use cntrdct_parsers::{detect_language, Language};
 use cntrdct_ranker::{CalibratedRanker, UncalibratedRanker};
 use rayon::prelude::*;
 use std::collections::HashMap;
@@ -183,16 +184,16 @@ pub fn scan_full(path: &Path) -> Result<(Vec<Finding>, Vec<ParsedFile>), ScanErr
         return Err(ScanError::PathNotFound(path.to_path_buf()));
     }
 
-    let rust_paths = collect_rust_files(path);
+    let source_paths = collect_supported_files(path);
 
     // Read files in parallel. Unreadable files (permission errors, transient
     // races) are silently skipped, matching the previous serial behaviour.
-    let parsed: Vec<ParsedFile> = rust_paths
+    let parsed: Vec<ParsedFile> = source_paths
         .par_iter()
-        .filter_map(|p| {
+        .filter_map(|(p, lang)| {
             fs::read_to_string(p).ok().map(|source| ParsedFile {
                 path: p.clone(),
-                language: "rust".to_string(),
+                language: lang.canonical_name().to_string(),
                 source,
             })
         })
@@ -1361,12 +1362,16 @@ fn read_crate_list_with_provenance(
 
 // ---------- File discovery ----------
 
-fn collect_rust_files(path: &Path) -> Vec<PathBuf> {
-    let mut paths: Vec<PathBuf> = Vec::new();
+/// Walk `path` and return every file whose extension maps to a supported
+/// `Language` per `cntrdct_parsers::detect_language`. Files with unknown
+/// extensions are silently dropped, mirroring the previous `.rs`-only
+/// behaviour. Spec: `multilang-v0.md` F5.
+fn collect_supported_files(path: &Path) -> Vec<(PathBuf, Language)> {
+    let mut paths: Vec<(PathBuf, Language)> = Vec::new();
 
     if path.is_file() {
-        if has_rs_extension(path) {
-            paths.push(path.to_path_buf());
+        if let Some(lang) = detect_language(path) {
+            paths.push((path.to_path_buf(), lang));
         }
         return paths;
     }
@@ -1376,13 +1381,12 @@ fn collect_rust_files(path: &Path) -> Vec<PathBuf> {
             Ok(e) => e,
             Err(_) => continue,
         };
-        if entry.file_type().is_file() && has_rs_extension(entry.path()) {
-            paths.push(entry.path().to_path_buf());
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        if let Some(lang) = detect_language(entry.path()) {
+            paths.push((entry.path().to_path_buf(), lang));
         }
     }
     paths
-}
-
-fn has_rs_extension(path: &Path) -> bool {
-    path.extension().and_then(|s| s.to_str()) == Some("rs")
 }
