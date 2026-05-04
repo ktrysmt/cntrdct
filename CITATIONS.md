@@ -43,6 +43,8 @@ pointing at the relevant `docs/surveys/` file.
 - `tan-pldi-2011` — L. Tan, Y. Zhou, Y. Padioleau, "aComment: Mining Annotations from
   Comments and Code to Detect Interrupt-related Concurrency Bugs", PLDI 2011.
   Languages: Rust (grandfathered).
+- (comment-code Python coverage: unconfirmed; survey notes at
+  docs/surveys/comment-code-python-2026-05.md)
 
 ### unreachable-after-terminator
 

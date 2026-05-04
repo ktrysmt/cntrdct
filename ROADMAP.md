@@ -348,7 +348,7 @@ M-2. Pilot Python detector
 
 M-3. Cross-cutting detectors to Python
 
-- Status: `[ ]`
+- Status: `[~]`
 - Goal: extend the three cross-cutting detectors (`clone-drift`,
   `arg-swap`, `comment-code`) to Python via internal `Language`
   dispatch in their existing crates (parameterised, not duplicated
@@ -359,6 +359,18 @@ M-3. Cross-cutting detectors to Python
   reference per detector (M-6 enforcement).
 - Effort: 1-2 weeks per detector, 3-6 weeks total part-time.
 - Depends on: M-1, M-2.
+- Progress:
+  - `[x]` comment-code Python (M-3 first detector, lands together
+    with F4 phase 4b per `docs/spec/multilang-v0.md` migration
+    sequence). Patterns py-raises (doc claims raise but body lacks
+    `raise_statement`) and py-deprecated (doc claims deprecated
+    but no `@deprecated`-style decorator). Survey
+    (`docs/surveys/comment-code-python-2026-05.md`) returned no
+    qualifying Python citation; emits
+    `LanguageCitationStatus::Unconfirmed` per
+    `citations-policy.md`.
+  - `[ ]` arg-swap Python.
+  - `[ ]` clone-drift Python.
 
 M-4. Python β corpus
 

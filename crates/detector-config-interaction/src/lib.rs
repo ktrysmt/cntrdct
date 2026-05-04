@@ -72,15 +72,15 @@ impl Detector for ConfigInteraction {
         CITATIONS
     }
 
-    fn supported_languages(&self) -> &'static [&'static str] {
-        &["rust"]
+    fn supported_languages(&self) -> &'static [Language] {
+        &[Language::Rust]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
         let mut findings: Vec<Finding> = ctx
             .files
             .par_iter()
-            .filter(|f| f.language == "rust")
+            .filter(|f| f.language == Language::Rust)
             .flat_map_iter(|file| {
                 let mut local = Vec::new();
                 scan_file(file, &mut local);

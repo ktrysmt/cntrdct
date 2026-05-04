@@ -88,8 +88,8 @@ impl Detector for CloneDrift {
         CITATIONS
     }
 
-    fn supported_languages(&self) -> &'static [&'static str] {
-        &["rust"]
+    fn supported_languages(&self) -> &'static [Language] {
+        &[Language::Rust]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
@@ -100,7 +100,7 @@ impl Detector for CloneDrift {
         let all_fns: Vec<FnInfo> = ctx
             .files
             .par_iter()
-            .filter(|f| f.language == "rust")
+            .filter(|f| f.language == Language::Rust)
             .filter_map(extract_fns)
             .flatten()
             .collect();

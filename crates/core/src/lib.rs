@@ -38,7 +38,7 @@
 //!     fn id(&self) -> &'static str { "demo" }
 //!     fn name(&self) -> &'static str { "Demo" }
 //!     fn citations(&self) -> &'static [Citation] { CITES }
-//!     fn supported_languages(&self) -> &'static [&'static str] { &["rust"] }
+//!     fn supported_languages(&self) -> &'static [Language] { &[Language::Rust] }
 //!     fn detect(&self, _: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
 //!         Ok(vec![])
 //!     }
@@ -257,8 +257,10 @@ pub struct Finding {
 pub struct ParsedFile {
     /// Filesystem path of the source file.
     pub path: PathBuf,
-    /// Language identifier (e.g., `"rust"`).
-    pub language: String,
+    /// Language of the source file. Set by the file walker via
+    /// `cntrdct_parsers::detect_language` and consumed by detectors to
+    /// dispatch per-language scan logic.
+    pub language: Language,
     /// File contents as UTF-8.
     pub source: String,
 }
@@ -322,8 +324,8 @@ pub trait Detector: Send + Sync {
     fn name(&self) -> &'static str;
     /// Bibliographic references justifying this detector (P1).
     fn citations(&self) -> &'static [Citation];
-    /// Languages this detector supports (e.g., `&["rust"]`).
-    fn supported_languages(&self) -> &'static [&'static str];
+    /// Languages this detector supports (e.g., `&[Language::Rust]`).
+    fn supported_languages(&self) -> &'static [Language];
     /// Run the detector and return its findings.
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError>;
 }
@@ -430,8 +432,8 @@ mod tests {
         fn citations(&self) -> &'static [Citation] {
             &[]
         }
-        fn supported_languages(&self) -> &'static [&'static str] {
-            &["*"]
+        fn supported_languages(&self) -> &'static [Language] {
+            &[Language::Rust]
         }
         fn detect(&self, _: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
             Ok(vec![])
@@ -449,8 +451,8 @@ mod tests {
         fn citations(&self) -> &'static [Citation] {
             GOOD_CITES
         }
-        fn supported_languages(&self) -> &'static [&'static str] {
-            &["*"]
+        fn supported_languages(&self) -> &'static [Language] {
+            &[Language::Rust]
         }
         fn detect(&self, _: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
             Ok(vec![])

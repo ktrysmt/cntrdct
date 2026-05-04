@@ -79,8 +79,8 @@ impl Detector for ArgSwap {
         CITATIONS
     }
 
-    fn supported_languages(&self) -> &'static [&'static str] {
-        &["rust"]
+    fn supported_languages(&self) -> &'static [Language] {
+        &[Language::Rust]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
@@ -90,7 +90,7 @@ impl Detector for ArgSwap {
         let per_file_defs: Vec<(String, FnDef)> = ctx
             .files
             .par_iter()
-            .filter(|f| f.language == "rust")
+            .filter(|f| f.language == Language::Rust)
             .filter_map(extract_fn_defs)
             .flatten()
             .collect();
@@ -105,7 +105,7 @@ impl Detector for ArgSwap {
         let mut findings: Vec<Finding> = ctx
             .files
             .par_iter()
-            .filter(|f| f.language == "rust")
+            .filter(|f| f.language == Language::Rust)
             .filter_map(extract_call_sites)
             .flatten()
             .filter_map(|call| {

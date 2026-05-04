@@ -39,6 +39,13 @@
 {"file":"files/comment_code_009.rs","expected":[{"detector_id":"comment-code","line":8}]}
 {"file":"files/comment_code_010.rs","expected":[{"detector_id":"comment-code","line":8}]}
 //
+// comment-code (Python pilot — M-3)
+{"file":"files/comment_code_python_001.py","expected":[{"detector_id":"comment-code","line":4}]}
+{"file":"files/comment_code_python_002.py","expected":[{"detector_id":"comment-code","line":4}]}
+{"file":"files/comment_code_python_003.py","expected":[{"detector_id":"comment-code","line":4}]}
+{"file":"files/comment_code_python_004.py","expected":[{"detector_id":"comment-code","line":4}]}
+{"file":"files/comment_code_python_005.py","expected":[{"detector_id":"comment-code","line":4}]}
+//
 // config-interaction
 {"file":"files/config_interaction_001.rs","expected":[{"detector_id":"config-interaction","line":10}]}
 {"file":"files/config_interaction_002.rs","expected":[{"detector_id":"config-interaction","line":9}]}
@@ -82,3 +89,6 @@
 {"file":"files/unreachable_python_negative_001.py","expected":[]}
 {"file":"files/unreachable_python_negative_002.py","expected":[]}
 {"file":"files/unreachable_python_negative_003.py","expected":[]}
+{"file":"files/comment_code_python_negative_001.py","expected":[]}
+{"file":"files/comment_code_python_negative_002.py","expected":[]}
+{"file":"files/comment_code_python_negative_003.py","expected":[]}

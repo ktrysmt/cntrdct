@@ -282,19 +282,11 @@ fn no_detector_has_duplicate_citation_keys() {
     }
 }
 
-#[test]
-fn every_supported_language_is_a_known_canonical_name() {
-    for d in registered_detectors() {
-        for raw in d.supported_languages() {
-            assert!(
-                Language::from_canonical_name(raw).is_some(),
-                "Detector `{}` declares supported_languages entry `{}` which is not a recognised cntrdct_core::Language variant",
-                d.id(),
-                raw
-            );
-        }
-    }
-}
+// `every_supported_language_is_a_known_canonical_name` was retired in
+// F4-4b: `supported_languages()` now returns `&[Language]`, so every
+// entry is by construction a valid variant. The runtime invariant the
+// test enforced (string → enum mapping) no longer exists at the trait
+// boundary; the type system provides the same guarantee unconditionally.
 
 /// Fixture: a detector declaring Python support but no Python-grounded
 /// citation. Per `citations-policy.md`, this is an acceptable state: the
@@ -324,11 +316,11 @@ impl Detector for UnderCitedFixture {
     fn citations(&self) -> &'static [Citation] {
         UNDER_CITED_FIXTURE_CITATIONS
     }
-    fn supported_languages(&self) -> &'static [&'static str] {
+    fn supported_languages(&self) -> &'static [Language] {
         // Python is declared but no citation in this set is grounded in
         // Python. The policy permits this; the detector should still
         // register and emit findings with Unconfirmed status.
-        &["rust", "python"]
+        &[Language::Rust, Language::Python]
     }
     fn detect(&self, _: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
         Ok(vec![])
@@ -350,7 +342,7 @@ fn under_cited_fixture_has_python_without_python_citation() {
     // grounding to the fixture) breaks this assertion deliberately and
     // the spec rationale is re-examined.
     let langs = UnderCitedFixture.supported_languages();
-    assert!(langs.contains(&"python"));
+    assert!(langs.contains(&Language::Python));
     let any_python_citation = UNDER_CITED_FIXTURE_CITATIONS
         .iter()
         .any(|c| c.languages.contains(&Language::Python));

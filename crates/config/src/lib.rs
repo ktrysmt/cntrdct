@@ -23,7 +23,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use cntrdct_core::{Finding, ParsedFile, Severity};
+use cntrdct_core::{Finding, Language, ParsedFile, Severity};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use serde::Deserialize;
 use thiserror::Error;
@@ -172,7 +172,7 @@ pub struct AttributeSuppression {
 /// must appear immediately above the item in the same parse tree; nested or
 /// detached attributes are ignored.
 pub fn collect_attribute_suppressions(file: &ParsedFile) -> Vec<AttributeSuppression> {
-    if file.language != "rust" {
+    if file.language != Language::Rust {
         return vec![];
     }
     let mut parser = tree_sitter::Parser::new();
@@ -436,7 +436,7 @@ mod tests {
     fn parsed_file(name: &str, body: &str) -> ParsedFile {
         ParsedFile {
             path: PathBuf::from(name),
-            language: "rust".to_string(),
+            language: Language::Rust,
             source: body.to_string(),
         }
     }

@@ -7,14 +7,14 @@ use std::path::PathBuf;
 
 use cntrdct_core::{
     register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
-    ParsedFile,
+    Language, ParsedFile,
 };
 use cntrdct_detector_config_interaction::ConfigInteraction;
 
 fn parsed(name: &str, src: &str) -> ParsedFile {
     ParsedFile {
         path: PathBuf::from(name),
-        language: "rust".to_string(),
+        language: Language::Rust,
         source: src.to_string(),
     }
 }
@@ -139,12 +139,15 @@ fn t10_empty_input() {
 #[test]
 fn t11_non_rust_file_skipped() {
     let other = ParsedFile {
-        path: PathBuf::from("a.js"),
-        language: "javascript".to_string(),
-        source: "/* nothing */".to_string(),
+        path: PathBuf::from("a.py"),
+        language: Language::Python,
+        source: "# nothing\n".to_string(),
     };
     let findings = run(vec![other]);
-    assert!(findings.is_empty());
+    assert!(
+        findings.is_empty(),
+        "config-interaction supports only Rust; Python file must be skipped silently"
+    );
 }
 
 #[test]

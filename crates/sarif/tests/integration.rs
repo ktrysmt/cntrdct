@@ -54,8 +54,8 @@ impl Detector for FakeCloneDrift {
     fn citations(&self) -> &'static [Citation] {
         CD_CITATIONS
     }
-    fn supported_languages(&self) -> &'static [&'static str] {
-        &["rust"]
+    fn supported_languages(&self) -> &'static [Language] {
+        &[Language::Rust]
     }
     fn detect(&self, _: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
         Ok(vec![])
@@ -73,8 +73,8 @@ impl Detector for FakeArgSwap {
     fn citations(&self) -> &'static [Citation] {
         AS_CITATIONS
     }
-    fn supported_languages(&self) -> &'static [&'static str] {
-        &["rust"]
+    fn supported_languages(&self) -> &'static [Language] {
+        &[Language::Rust]
     }
     fn detect(&self, _: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
         Ok(vec![])

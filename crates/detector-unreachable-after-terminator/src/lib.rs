@@ -75,20 +75,20 @@ impl Detector for UnreachableAfterTerminator {
         CITATIONS
     }
 
-    fn supported_languages(&self) -> &'static [&'static str] {
-        &["rust", "python"]
+    fn supported_languages(&self) -> &'static [Language] {
+        &[Language::Rust, Language::Python]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
         let mut findings: Vec<Finding> = ctx
             .files
             .par_iter()
-            .filter(|f| matches!(f.language.as_str(), "rust" | "python"))
+            .filter(|f| matches!(f.language, Language::Rust | Language::Python))
             .flat_map_iter(|file| {
                 let mut local = Vec::new();
-                match file.language.as_str() {
-                    "rust" => scan_rust(file, &mut local),
-                    "python" => scan_python(file, &mut local),
+                match file.language {
+                    Language::Rust => scan_rust(file, &mut local),
+                    Language::Python => scan_python(file, &mut local),
                     _ => {}
                 }
                 local

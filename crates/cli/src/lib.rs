@@ -193,7 +193,7 @@ pub fn scan_full(path: &Path) -> Result<(Vec<Finding>, Vec<ParsedFile>), ScanErr
         .filter_map(|(p, lang)| {
             fs::read_to_string(p).ok().map(|source| ParsedFile {
                 path: p.clone(),
-                language: lang.canonical_name().to_string(),
+                language: *lang,
                 source,
             })
         })

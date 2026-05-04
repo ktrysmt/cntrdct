@@ -7,14 +7,14 @@ use std::path::PathBuf;
 
 use cntrdct_core::{
     register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
-    LanguageCitationStatus, ParsedFile,
+    Language, LanguageCitationStatus, ParsedFile,
 };
 use cntrdct_detector_unreachable_after_terminator::UnreachableAfterTerminator;
 
 fn parsed(name: &str, src: &str) -> ParsedFile {
     ParsedFile {
         path: PathBuf::from(name),
-        language: "rust".to_string(),
+        language: Language::Rust,
         source: src.to_string(),
     }
 }
@@ -22,7 +22,7 @@ fn parsed(name: &str, src: &str) -> ParsedFile {
 fn parsed_python(name: &str, src: &str) -> ParsedFile {
     ParsedFile {
         path: PathBuf::from(name),
-        language: "python".to_string(),
+        language: Language::Python,
         source: src.to_string(),
     }
 }
@@ -185,19 +185,12 @@ fn t10_empty_input_returns_empty() {
     assert!(findings.is_empty());
 }
 
-#[test]
-fn t11_non_rust_file_skipped() {
-    let file = ParsedFile {
-        path: PathBuf::from("a.js"),
-        language: "javascript".to_string(),
-        source: "function f() { return; foo(); }".to_string(),
-    };
-    let findings = run(vec![file]);
-    assert!(
-        findings.is_empty(),
-        "non-rust file must be skipped silently"
-    );
-}
+// T11 (was: non-rust file skipped) is no longer expressible after F4-4b.
+// `ParsedFile.language: Language` is `non_exhaustive` and closed; an
+// "unsupported language" cannot be constructed at compile time. The
+// language filter still runs, but its branches are now exhaustively
+// covered by the supported_languages() set. Robustness of mis-labelled
+// files is exercised indirectly when tree-sitter parsing fails.
 
 #[test]
 fn t12_todo_macro_terminator() {

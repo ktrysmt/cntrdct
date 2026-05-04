@@ -1,14 +1,27 @@
 //! comment-code detector — pattern-based comment/implementation mismatch.
 //!
 //! Spec: `cntrdct/docs/spec/comment-code-v0.md`.
+//! Multi-language: `cntrdct/docs/spec/multilang-v0.md` (Pattern A).
 //!
-//! Algorithm:
+//! Algorithm (Rust):
 //! 1. Parse each Rust file with tree-sitter; skip files with parse errors.
 //! 2. For each top-level `function_item`, gather the immediately preceding
 //!    `///` line-comment block into a single rendered doc string.
 //! 3. Apply three hardcoded checks (Pattern A/B/C) against the rendered text,
 //!    the function's return type text, body source, and attribute set.
 //! 4. Emit one Finding per match.
+//!
+//! Algorithm (Python):
+//! 1. Parse each Python file with tree-sitter-python; skip parse errors.
+//! 2. For each top-level `function_definition` (including those wrapped in
+//!    `decorated_definition`), extract the docstring as the first statement
+//!    of the function body when that statement is a bare string literal.
+//! 3. Apply two checks: py-raises (doc claims a raise but body has no
+//!    `raise_statement`) and py-deprecated (doc says deprecated but no
+//!    `@deprecated`-style decorator on the function).
+//! 4. Emit one Finding per match. Python findings carry
+//!    `LanguageCitationStatus::Unconfirmed` per
+//!    `docs/surveys/comment-code-python-2026-05.md`.
 
 use cntrdct_core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
@@ -83,18 +96,22 @@ impl Detector for CommentCode {
         CITATIONS
     }
 
-    fn supported_languages(&self) -> &'static [&'static str] {
-        &["rust"]
+    fn supported_languages(&self) -> &'static [Language] {
+        &[Language::Rust, Language::Python]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
         let mut findings: Vec<Finding> = ctx
             .files
             .par_iter()
-            .filter(|f| f.language == "rust")
+            .filter(|f| matches!(f.language, Language::Rust | Language::Python))
             .flat_map_iter(|file| {
                 let mut local = Vec::new();
-                collect_findings_in_file(file, &mut local);
+                match file.language {
+                    Language::Rust => collect_rust_findings(file, &mut local),
+                    Language::Python => collect_python_findings(file, &mut local),
+                    _ => {}
+                }
                 local
             })
             .collect();
@@ -110,7 +127,7 @@ impl Detector for CommentCode {
     }
 }
 
-fn collect_findings_in_file(file: &ParsedFile, out: &mut Vec<Finding>) {
+fn collect_rust_findings(file: &ParsedFile, out: &mut Vec<Finding>) {
     let mut parser = tree_sitter::Parser::new();
     if parser.set_language(&tree_sitter_rust::language()).is_err() {
         return;
@@ -275,6 +292,22 @@ fn make_finding(
     pattern: &'static str,
     trigger: &'static str,
 ) -> Finding {
+    make_finding_with_status(
+        file,
+        node,
+        pattern,
+        trigger,
+        LanguageCitationStatus::Confirmed,
+    )
+}
+
+fn make_finding_with_status(
+    file: &ParsedFile,
+    node: tree_sitter::Node,
+    pattern: &'static str,
+    trigger: &'static str,
+    status: LanguageCitationStatus,
+) -> Finding {
     Finding {
         detector_id: "comment-code".to_string(),
         primary: node_location(file, node),
@@ -291,9 +324,212 @@ fn make_finding(
                 "pattern": pattern,
                 "trigger": trigger,
             }),
-            language_citation_status: LanguageCitationStatus::Confirmed,
+            language_citation_status: status,
         },
     }
+}
+
+// ---------- Python scan (M-3 Pattern A) ----------
+//
+// The walk + docstring extraction + finding emission share the same
+// shape as the Rust path; what differs is the AST node-kind vocabulary,
+// the comment representation (docstrings live INSIDE the function body
+// as the first statement, not as preceding siblings), and the available
+// patterns. Python lacks Rust's static return-type signal, so the
+// Pattern A "Result/Option claim without matching return type" rule
+// does not transfer; py-raises substitutes by checking body-level
+// `raise_statement` presence (parallel to Rust's Pattern B). py-deprecated
+// mirrors Rust's Pattern C with `@deprecated` decorator detection.
+
+const PYTHON_RAISES_TRIGGERS: &[&str] = &["raises", "may raise", "throws"];
+
+fn collect_python_findings(file: &ParsedFile, out: &mut Vec<Finding>) {
+    let mut parser = tree_sitter::Parser::new();
+    if parser
+        .set_language(&tree_sitter_python::language())
+        .is_err()
+    {
+        return;
+    }
+    let Some(tree) = parser.parse(&file.source, None) else {
+        return;
+    };
+    let root = tree.root_node();
+    if root.has_error() {
+        return;
+    }
+
+    let mut cursor = root.walk();
+    for child in root.children(&mut cursor) {
+        match child.kind() {
+            "function_definition" => analyze_python_function(child, &[], file, out),
+            "decorated_definition" => {
+                let mut dcursor = child.walk();
+                let kids: Vec<tree_sitter::Node> = child.children(&mut dcursor).collect();
+                let decorators: Vec<tree_sitter::Node> = kids
+                    .iter()
+                    .filter(|c| c.kind() == "decorator")
+                    .copied()
+                    .collect();
+                if let Some(fn_def) = kids.iter().find(|c| c.kind() == "function_definition") {
+                    analyze_python_function(*fn_def, &decorators, file, out);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn analyze_python_function(
+    fn_def: tree_sitter::Node,
+    decorators: &[tree_sitter::Node],
+    file: &ParsedFile,
+    out: &mut Vec<Finding>,
+) {
+    let body = match fn_def.child_by_field_name("body") {
+        Some(b) => b,
+        None => return,
+    };
+    let doc = match extract_python_docstring(body, &file.source) {
+        Some(d) => d,
+        None => return,
+    };
+    let doc_lc = doc.to_lowercase();
+
+    if let Some(trigger) = python_pattern_raises(&doc_lc, body) {
+        out.push(make_finding_with_status(
+            file,
+            fn_def,
+            "py-raises",
+            trigger,
+            LanguageCitationStatus::Unconfirmed,
+        ));
+    }
+    if let Some(trigger) = python_pattern_deprecated(&doc_lc, decorators, &file.source) {
+        out.push(make_finding_with_status(
+            file,
+            fn_def,
+            "py-deprecated",
+            trigger,
+            LanguageCitationStatus::Unconfirmed,
+        ));
+    }
+}
+
+/// Extract the docstring text from a function `block` body, if the first
+/// statement is a bare string literal. Strips an optional Python string
+/// prefix (`r`, `b`, `f`, `u`, case-insensitive) and the surrounding
+/// quotes (triple or single, matched pair).
+fn extract_python_docstring(body_block: tree_sitter::Node, source: &str) -> Option<String> {
+    let mut cursor = body_block.walk();
+    let first = body_block.children(&mut cursor).find(|c| c.is_named())?;
+    if first.kind() != "expression_statement" {
+        return None;
+    }
+    let mut inner_cursor = first.walk();
+    let inner = first.children(&mut inner_cursor).find(|c| c.is_named())?;
+    if inner.kind() != "string" {
+        return None;
+    }
+    let raw = inner.utf8_text(source.as_bytes()).ok()?;
+    Some(strip_python_string_quotes(raw))
+}
+
+fn strip_python_string_quotes(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let after_prefix = trimmed
+        .trim_start_matches(|c: char| matches!(c, 'r' | 'R' | 'b' | 'B' | 'f' | 'F' | 'u' | 'U'));
+    if let Some(s) = after_prefix
+        .strip_prefix("\"\"\"")
+        .and_then(|s| s.strip_suffix("\"\"\""))
+    {
+        return s.to_string();
+    }
+    if let Some(s) = after_prefix
+        .strip_prefix("'''")
+        .and_then(|s| s.strip_suffix("'''"))
+    {
+        return s.to_string();
+    }
+    if let Some(s) = after_prefix
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+    {
+        return s.to_string();
+    }
+    if let Some(s) = after_prefix
+        .strip_prefix('\'')
+        .and_then(|s| s.strip_suffix('\''))
+    {
+        return s.to_string();
+    }
+    after_prefix.to_string()
+}
+
+fn python_pattern_raises(doc_lc: &str, body: tree_sitter::Node) -> Option<&'static str> {
+    let trigger = PYTHON_RAISES_TRIGGERS
+        .iter()
+        .find(|p| doc_lc.contains(*p))
+        .copied()?;
+    if body_contains_raise(body) {
+        return None;
+    }
+    Some(trigger)
+}
+
+fn body_contains_raise(node: tree_sitter::Node) -> bool {
+    if node.kind() == "raise_statement" {
+        return true;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if body_contains_raise(child) {
+            return true;
+        }
+    }
+    false
+}
+
+fn python_pattern_deprecated(
+    doc_lc: &str,
+    decorators: &[tree_sitter::Node],
+    source: &str,
+) -> Option<&'static str> {
+    if !doc_lc.contains("deprecated") {
+        return None;
+    }
+    if decorators
+        .iter()
+        .any(|d| decorator_is_deprecated(*d, source))
+    {
+        return None;
+    }
+    Some("deprecated")
+}
+
+/// Decide whether a `decorator` node names a `@deprecated`-style marker.
+/// Recognises the bare identifier `deprecated`, the dotted forms
+/// `warnings.deprecated`, `typing_extensions.deprecated`, and any other
+/// dotted path whose final segment is `deprecated` (e.g.
+/// `mypkg.compat.deprecated`). Decorator factories like
+/// `@deprecated("reason")` are accepted because the name path is taken
+/// before any `(`.
+fn decorator_is_deprecated(node: tree_sitter::Node, source: &str) -> bool {
+    let raw = match node.utf8_text(source.as_bytes()) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let stripped = raw
+        .trim_start()
+        .strip_prefix('@')
+        .unwrap_or(raw)
+        .trim_start();
+    let name_end = stripped
+        .find(|c: char| c == '(' || c.is_whitespace())
+        .unwrap_or(stripped.len());
+    let name_path = &stripped[..name_end];
+    let last = name_path.rsplit('.').next().unwrap_or(name_path);
+    last == "deprecated"
 }
 
 fn node_location(file: &ParsedFile, node: tree_sitter::Node) -> Location {

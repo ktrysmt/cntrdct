@@ -4,14 +4,14 @@ use std::path::PathBuf;
 
 use cntrdct_core::{
     register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
-    ParsedFile,
+    Language, ParsedFile,
 };
 use cntrdct_detector_arg_swap::ArgSwap;
 
 fn parsed(name: &str, src: &str) -> ParsedFile {
     ParsedFile {
         path: PathBuf::from(name),
-        language: "rust".to_string(),
+        language: Language::Rust,
         source: src.to_string(),
     }
 }
