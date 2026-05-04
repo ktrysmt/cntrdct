@@ -10,4 +10,16 @@ pub enum FetchError {
     Malformed(String),
     #[error("invalid crate name: {0}")]
     InvalidName(String),
+    #[error("tarball checksum mismatch: expected {expected}, got {actual}")]
+    ChecksumMismatch { expected: String, actual: String },
+    #[error("archive error: {0}")]
+    Archive(String),
+    #[error("io error: {0}")]
+    Io(String),
+}
+
+impl From<std::io::Error> for FetchError {
+    fn from(e: std::io::Error) -> Self {
+        FetchError::Io(e.to_string())
+    }
 }

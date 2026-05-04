@@ -80,12 +80,15 @@ pub fn index_path(name: &str) -> Result<String, FetchError> {
 
 /// HTTP transport seam.
 ///
-/// Implementors must turn a GET into a UTF-8 body or a [`FetchError`]. A 404
-/// response must be reported as [`FetchError::NotFound`] so the caller can
-/// distinguish "no such crate" from a transport failure — that distinction
-/// becomes part of the corpus manifest.
+/// Implementors must turn a GET into either a UTF-8 body (`get_text`, used
+/// for Sparse Index JSONL responses) or raw bytes (`get_bytes`, used for
+/// `.crate` tarball downloads). A 404 response must be reported as
+/// [`FetchError::NotFound`] so the caller can distinguish "no such crate"
+/// from a transport failure — that distinction becomes part of the corpus
+/// manifest.
 pub trait HttpClient: Send + Sync {
     fn get_text(&self, url: &str) -> Result<String, FetchError>;
+    fn get_bytes(&self, url: &str) -> Result<Vec<u8>, FetchError>;
 }
 
 /// Production HTTP client backed by `reqwest::blocking` with rustls.
@@ -130,6 +133,25 @@ impl HttpClient for ReqwestClient {
             return Err(FetchError::Http(format!("status {status} from {url}")));
         }
         resp.text().map_err(|e| FetchError::Http(e.to_string()))
+    }
+
+    fn get_bytes(&self, url: &str) -> Result<Vec<u8>, FetchError> {
+        let resp = self
+            .inner
+            .get(url)
+            .send()
+            .map_err(|e| FetchError::Http(e.to_string()))?;
+        let status = resp.status();
+        if status == reqwest::StatusCode::NOT_FOUND {
+            return Err(FetchError::NotFound(url.to_string()));
+        }
+        if !status.is_success() {
+            return Err(FetchError::Http(format!("status {status} from {url}")));
+        }
+        let bytes = resp
+            .bytes()
+            .map_err(|e| FetchError::Http(e.to_string()))?;
+        Ok(bytes.to_vec())
     }
 }
 
@@ -324,18 +346,16 @@ mod tests {
             for (i, (u, _)) in guard.iter().enumerate() {
                 if u == url {
                     let (_, r) = guard.remove(i);
-                    return match r {
-                        Ok(s) => Ok(s),
-                        Err(e) => Err(match e {
-                            FetchError::Http(m) => FetchError::Http(m),
-                            FetchError::NotFound(m) => FetchError::NotFound(m),
-                            FetchError::Malformed(m) => FetchError::Malformed(m),
-                            FetchError::InvalidName(m) => FetchError::InvalidName(m),
-                        }),
-                    };
+                    return r;
                 }
             }
             Err(FetchError::Http(format!("no mock for {url}")))
+        }
+
+        fn get_bytes(&self, _url: &str) -> Result<Vec<u8>, FetchError> {
+            // Sparse index tests never call get_bytes; tarball tests use a
+            // dedicated mock in `tarball.rs`.
+            unimplemented!("MockClient does not serve bytes")
         }
     }
 

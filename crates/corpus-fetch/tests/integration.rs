@@ -49,6 +49,10 @@ impl HttpClient for FixtureClient {
             None => Err(FetchError::NotFound(url.to_string())),
         }
     }
+
+    fn get_bytes(&self, _url: &str) -> Result<Vec<u8>, FetchError> {
+        unimplemented!("FixtureClient covers sparse-index only")
+    }
 }
 
 fn client() -> SparseIndexClient<FixtureClient> {
