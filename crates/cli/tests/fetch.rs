@@ -289,3 +289,106 @@ fn run_rank_writes_crate_list_to_output_file() {
     assert_eq!(lines[0], "serde 80000000");
     assert_eq!(lines[1], "rand 50000000");
 }
+
+#[test]
+fn run_rank_writes_sidecar_licenses_tsv_alongside_output() {
+    // Real crates.io sparse index does not expose a license field, so
+    // `cntrdct rank` is the only chance to capture licenses up-front from
+    // the dump. The fetcher reads the sibling `<output>.licenses.tsv` to
+    // inject the values it could not get from the index.
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+    use tar::{Builder, Header};
+
+    fn append(tar: &mut Builder<GzEncoder<Vec<u8>>>, path: &str, body: &str) {
+        let mut h = Header::new_gnu();
+        h.set_size(body.len() as u64);
+        h.set_mode(0o644);
+        h.set_cksum();
+        tar.append_data(&mut h, path, body.as_bytes()).unwrap();
+    }
+
+    let buf = Vec::new();
+    let gz = GzEncoder::new(buf, Compression::default());
+    let mut tar = Builder::new(gz);
+    append(
+        &mut tar,
+        "2026-05-04-000000/data/crates.csv",
+        "id,name,description\n1,serde,\n2,log,\n",
+    );
+    append(
+        &mut tar,
+        "2026-05-04-000000/data/crate_downloads.csv",
+        "crate_id,downloads\n1,80\n2,30\n",
+    );
+    append(
+        &mut tar,
+        "2026-05-04-000000/data/default_versions.csv",
+        "crate_id,num_versions,version_id\n1,1,101\n2,1,102\n",
+    );
+    append(
+        &mut tar,
+        "2026-05-04-000000/data/versions.csv",
+        "id,num,license\n101,1.0.0,\"MIT OR Apache-2.0\"\n102,0.4.0,\"MIT\"\n",
+    );
+    let archive = tar.into_inner().unwrap().finish().unwrap();
+
+    let tmp = tempfile::tempdir().unwrap();
+    let dump_path = tmp.path().join("db-dump.tar.gz");
+    std::fs::write(&dump_path, &archive).unwrap();
+    let output = tmp.path().join("crates.txt");
+
+    run_rank(&dump_path, 5, Some(&output)).unwrap();
+
+    let sidecar = tmp.path().join("crates.txt.licenses.tsv");
+    assert!(sidecar.exists(), "sidecar should be written next to output");
+    let body = std::fs::read_to_string(&sidecar).unwrap();
+    let lines: Vec<&str> = body.lines().collect();
+    assert_eq!(lines[0], "name\tlicense", "header expected");
+    let rest: std::collections::HashSet<&str> = lines[1..].iter().copied().collect();
+    assert!(rest.contains("serde\tMIT OR Apache-2.0"), "got: {rest:?}");
+    assert!(rest.contains("log\tMIT"), "got: {rest:?}");
+    assert_eq!(rest.len(), 2);
+}
+
+#[test]
+fn run_rank_writes_empty_sidecar_when_dump_lacks_version_tables() {
+    // Older snapshots ship only crates.csv + crate_downloads.csv; the rank
+    // path stays usable but the sidecar is just the header. This locks in
+    // the contract so a future change does not skip writing the file.
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+    use tar::{Builder, Header};
+
+    fn append(tar: &mut Builder<GzEncoder<Vec<u8>>>, path: &str, body: &str) {
+        let mut h = Header::new_gnu();
+        h.set_size(body.len() as u64);
+        h.set_mode(0o644);
+        h.set_cksum();
+        tar.append_data(&mut h, path, body.as_bytes()).unwrap();
+    }
+
+    let buf = Vec::new();
+    let gz = GzEncoder::new(buf, Compression::default());
+    let mut tar = Builder::new(gz);
+    append(
+        &mut tar,
+        "2026-04-15-000000/data/crates.csv",
+        "id,name,description\n1,serde,\n",
+    );
+    append(
+        &mut tar,
+        "2026-04-15-000000/data/crate_downloads.csv",
+        "crate_id,downloads\n1,80\n",
+    );
+    let archive = tar.into_inner().unwrap().finish().unwrap();
+    let tmp = tempfile::tempdir().unwrap();
+    let dump_path = tmp.path().join("db-dump.tar.gz");
+    std::fs::write(&dump_path, &archive).unwrap();
+    let output = tmp.path().join("crates.txt");
+
+    run_rank(&dump_path, 5, Some(&output)).unwrap();
+    let sidecar = tmp.path().join("crates.txt.licenses.tsv");
+    let body = std::fs::read_to_string(&sidecar).unwrap();
+    assert_eq!(body, "name\tlicense\n");
+}

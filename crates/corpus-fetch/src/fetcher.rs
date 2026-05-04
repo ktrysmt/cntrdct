@@ -464,7 +464,7 @@ mod tests {
         let (bytes, digest) = make_crate("kept-0.1.0", &[("src/lib.rs", b"x")]);
         let idx = DualMock::new();
         idx.expect_text(
-            &format!("{INDEX_BASE}/3/k/kept"),
+            &format!("{INDEX_BASE}/ke/pt/kept"),
             &sparse_record("kept", "0.1.0", Some("MIT"), &digest, false),
         );
         let tar = DualMock::new();
