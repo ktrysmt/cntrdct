@@ -5,7 +5,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use cntrdct_core::{AnomalyClass, Evidence, Finding, Location, Severity};
+use cntrdct_core::{AnomalyClass, Evidence, Finding, LanguageCitationStatus, Location, Severity};
 use cntrdct_eval::{evaluate, load_manifest, EvalError, ExpectedFinding, ManifestEntry};
 use tempfile::tempdir;
 
@@ -26,6 +26,7 @@ fn finding_at(detector_id: &str, file: &Path, line: u32) -> Finding {
         evidence: Evidence {
             citation_keys: vec!["test"],
             raw: serde_json::Value::Null,
+            language_citation_status: LanguageCitationStatus::Confirmed,
         },
     }
 }

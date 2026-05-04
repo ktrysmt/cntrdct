@@ -16,8 +16,8 @@
 use std::collections::HashMap;
 
 use cntrdct_core::{
-    AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Location,
-    ParsedFile, Severity,
+    AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
+    LanguageCitationStatus, Location, ParsedFile, Severity,
 };
 use rayon::prelude::*;
 
@@ -30,6 +30,7 @@ static CITATIONS: &[Citation] = &[
         year: 2005,
         doi: None,
         url: None,
+        languages: &[Language::Rust],
     },
     Citation {
         key: "rice-icse-2017",
@@ -39,6 +40,7 @@ static CITATIONS: &[Citation] = &[
         year: 2017,
         doi: None,
         url: None,
+        languages: &[Language::Rust],
     },
 ];
 
@@ -144,6 +146,7 @@ impl Detector for ArgSwap {
                                 "parameter_names": def.params.clone(),
                                 "argument_names": call.args.clone(),
                             }),
+                            language_citation_status: LanguageCitationStatus::Confirmed,
                         },
                     })
                 } else {

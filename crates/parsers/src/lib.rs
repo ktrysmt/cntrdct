@@ -3,73 +3,28 @@
 //!
 //! Spec: `cntrdct/docs/spec/multilang-v0.md`.
 //!
-//! Owns three things:
+//! Owns:
 //!
-//! 1. The [`Language`] enum (every variant cntrdct currently supports).
-//! 2. [`detect_language`] — extension → language mapping for the CLI
+//! 1. [`detect_language`] — extension → language mapping for the CLI
 //!    file walker and any other code that needs to assign a parser.
-//! 3. [`ParserProvider`] + [`parser_for`] — a thin wrapper around the
+//! 2. [`ParserProvider`] + [`parser_for`] — a thin wrapper around the
 //!    per-language tree-sitter language constructor so detectors stop
 //!    depending on `tree_sitter_rust` / `tree_sitter_python` directly.
 //!
-//! The crate is intentionally minimal. Per-language detector logic
-//! (terminator sets, doc-comment patterns, attribute syntax) lives in
-//! the detectors themselves; this crate only owns the language
-//! identity and the parsing entry point.
+//! [`Language`] itself lives in `cntrdct-core` so `Citation::languages`
+//! and `Evidence::language_citation_status` can reference it without
+//! pulling tree-sitter into the core dependency graph. This crate
+//! re-exports it for callers that only depend on `cntrdct-parsers`.
+//!
+//! Per-language detector logic (terminator sets, doc-comment patterns,
+//! attribute syntax) lives in the detectors themselves; this crate
+//! only owns the parsing entry point.
 
 #![deny(missing_docs)]
 
 use std::path::Path;
 
-use serde::{Deserialize, Serialize};
-
-/// Languages cntrdct can parse and analyse.
-///
-/// Marked `#[non_exhaustive]` so downstream `match` expressions must
-/// declare a default arm. New variants land one at a time as the
-/// M-series adds language support; rebuilds against this crate must
-/// continue to compile when a variant is added.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-#[non_exhaustive]
-pub enum Language {
-    /// Rust source (`.rs`).
-    Rust,
-    /// Python source (`.py`, `.pyi`).
-    Python,
-}
-
-impl Language {
-    /// Every variant defined today, in declaration order. Useful for
-    /// the CLI walker's default "discover everything" behaviour.
-    pub fn all() -> &'static [Language] {
-        &[Language::Rust, Language::Python]
-    }
-
-    /// Canonical lowercase name used in `ParsedFile.language` strings,
-    /// `cntrdct.toml` keys, and SARIF output.
-    ///
-    /// While `ParsedFile.language` remains a `String` (M-1 phase 4a),
-    /// detectors and config code should compare against this rather
-    /// than hand-rolled literals.
-    pub fn canonical_name(self) -> &'static str {
-        match self {
-            Language::Rust => "rust",
-            Language::Python => "python",
-        }
-    }
-
-    /// Inverse of [`canonical_name`]: parses the lowercase name back
-    /// into a variant. Returns `None` for any string that does not
-    /// name a currently-supported language.
-    pub fn from_canonical_name(name: &str) -> Option<Language> {
-        match name {
-            "rust" => Some(Language::Rust),
-            "python" => Some(Language::Python),
-            _ => None,
-        }
-    }
-}
+pub use cntrdct_core::Language;
 
 /// Map a path's extension to a [`Language`]. Returns `None` for
 /// extensions cntrdct does not analyse, including extension-less
@@ -132,6 +87,9 @@ pub fn parser_for(lang: Language) -> Box<dyn ParserProvider> {
     match lang {
         Language::Rust => Box::new(RustParserProvider),
         Language::Python => Box::new(PythonParserProvider),
+        // `Language` is `#[non_exhaustive]`. New variants must add a
+        // matching provider here before this crate compiles.
+        _ => unimplemented!("no ParserProvider registered for {:?}", lang),
     }
 }
 
@@ -139,31 +97,6 @@ pub fn parser_for(lang: Language) -> Box<dyn ParserProvider> {
 mod tests {
     use super::*;
     use std::path::PathBuf;
-
-    #[test]
-    fn all_listed_in_canonical_order() {
-        assert_eq!(Language::all(), &[Language::Rust, Language::Python]);
-    }
-
-    #[test]
-    fn canonical_name_round_trip() {
-        for &lang in Language::all() {
-            let name = lang.canonical_name();
-            assert_eq!(Language::from_canonical_name(name), Some(lang));
-        }
-    }
-
-    #[test]
-    fn from_canonical_name_rejects_unknown() {
-        assert_eq!(Language::from_canonical_name("rust"), Some(Language::Rust));
-        assert_eq!(
-            Language::from_canonical_name("python"),
-            Some(Language::Python)
-        );
-        assert_eq!(Language::from_canonical_name("Rust"), None);
-        assert_eq!(Language::from_canonical_name(""), None);
-        assert_eq!(Language::from_canonical_name("javascript"), None);
-    }
 
     #[test]
     fn detect_language_from_extension() {
@@ -215,21 +148,5 @@ mod tests {
             .parse("def main(): pass\n", None)
             .expect("parse python");
         assert!(!tree.root_node().has_error());
-    }
-
-    #[test]
-    fn language_serializes_as_canonical_lowercase() {
-        let json = serde_json::to_string(&Language::Rust).unwrap();
-        assert_eq!(json, "\"rust\"");
-        let json = serde_json::to_string(&Language::Python).unwrap();
-        assert_eq!(json, "\"python\"");
-    }
-
-    #[test]
-    fn language_deserializes_from_canonical_lowercase() {
-        let lang: Language = serde_json::from_str("\"rust\"").unwrap();
-        assert_eq!(lang, Language::Rust);
-        let lang: Language = serde_json::from_str("\"python\"").unwrap();
-        assert_eq!(lang, Language::Python);
     }
 }

@@ -4,7 +4,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use cntrdct_calibration::DetectorPrior;
-use cntrdct_core::{AnomalyClass, Evidence, Finding, Location, Ranker, Severity};
+use cntrdct_core::{
+    AnomalyClass, Evidence, Finding, LanguageCitationStatus, Location, Ranker, Severity,
+};
 use cntrdct_ranker::{rank, CalibratedRanker, UncalibratedRanker};
 
 fn loc(file: &str, line: u32) -> Location {
@@ -34,6 +36,7 @@ fn make_finding_for(detector_id: &str, file: &str, line: u32, related_count: usi
         evidence: Evidence {
             citation_keys: vec!["cordy-roy-icpc-2008"],
             raw: serde_json::Value::Null,
+            language_citation_status: LanguageCitationStatus::Confirmed,
         },
     }
 }

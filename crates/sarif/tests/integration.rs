@@ -4,7 +4,8 @@ use std::path::PathBuf;
 
 use cntrdct_core::{
     AdjudicationResult, AdjudicationVerdict, AnomalyClass, Citation, DetectContext, Detector,
-    DetectorError, Evidence, Finding, Location, RankedFinding, Severity,
+    DetectorError, Evidence, Finding, Language, LanguageCitationStatus, Location, RankedFinding,
+    Severity,
 };
 use cntrdct_sarif::{to_sarif, to_sarif_pretty, to_sarif_with_rules, to_sarif_with_rules_ranked};
 
@@ -17,6 +18,7 @@ static CD_CITATIONS: &[Citation] = &[
         year: 2008,
         doi: None,
         url: Some("https://example.invalid/nicad"),
+        languages: &[Language::Rust],
     },
     Citation {
         key: "bettenburg-msr-2009",
@@ -26,6 +28,7 @@ static CD_CITATIONS: &[Citation] = &[
         year: 2009,
         doi: None,
         url: None,
+        languages: &[Language::Rust],
     },
 ];
 
@@ -37,6 +40,7 @@ static AS_CITATIONS: &[Citation] = &[Citation {
     year: 2017,
     doi: None,
     url: None,
+    languages: &[Language::Rust],
 }];
 
 struct FakeCloneDrift;
@@ -102,6 +106,7 @@ fn make_finding_with_class(severity: Severity, class: AnomalyClass) -> Finding {
         evidence: Evidence {
             citation_keys: vec!["cordy-roy-icpc-2008", "bettenburg-msr-2009"],
             raw: serde_json::json!({"group_size": 5}),
+            language_citation_status: LanguageCitationStatus::Confirmed,
         },
     }
 }

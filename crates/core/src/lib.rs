@@ -17,7 +17,8 @@
 //!
 //! ```
 //! use cntrdct_core::{
-//!     Citation, DetectContext, Detector, DetectorError, Finding, register_detector,
+//!     Citation, DetectContext, Detector, DetectorError, Finding, Language,
+//!     register_detector,
 //! };
 //!
 //! struct Demo;
@@ -30,6 +31,7 @@
 //!     year: 2026,
 //!     doi: None,
 //!     url: None,
+//!     languages: &[Language::Rust],
 //! }];
 //!
 //! impl Detector for Demo {
@@ -51,6 +53,56 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use thiserror::Error;
 
+// ---------- Language (multi-language identity, M-1 / M-6) ----------
+
+/// Languages cntrdct can analyse.
+///
+/// Lives in `cntrdct-core` (rather than `cntrdct-parsers`) so the
+/// `Citation::languages` field and the `LanguageCitationStatus` flag
+/// on `Evidence` can reference it without dragging tree-sitter into
+/// the core dependency graph. `cntrdct-parsers` re-exports this type
+/// and adds the parser-provider machinery.
+///
+/// Marked `#[non_exhaustive]` so downstream `match` expressions must
+/// declare a default arm; new variants land one at a time as the
+/// M-series adds language support.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum Language {
+    /// Rust source (`.rs`).
+    Rust,
+    /// Python source (`.py`, `.pyi`).
+    Python,
+}
+
+impl Language {
+    /// Every variant defined today, in declaration order.
+    pub fn all() -> &'static [Language] {
+        &[Language::Rust, Language::Python]
+    }
+
+    /// Canonical lowercase name used in `ParsedFile.language` strings,
+    /// `cntrdct.toml` keys, and SARIF output.
+    pub fn canonical_name(self) -> &'static str {
+        match self {
+            Language::Rust => "rust",
+            Language::Python => "python",
+        }
+    }
+
+    /// Inverse of [`canonical_name`]: parses the lowercase name back
+    /// into a variant. Returns `None` for any string that does not
+    /// name a currently-supported language.
+    pub fn from_canonical_name(name: &str) -> Option<Language> {
+        match name {
+            "rust" => Some(Language::Rust),
+            "python" => Some(Language::Python),
+            _ => None,
+        }
+    }
+}
+
 // ---------- Citation (P1) ----------
 
 /// A bibliographic reference attached to a detector.
@@ -58,6 +110,12 @@ use thiserror::Error;
 /// Every `Detector::citations()` entry must resolve to an entry in the
 /// workspace `CITATIONS.md`. `register_detector` rejects detectors that
 /// return an empty slice (P1 enforcement).
+///
+/// `languages` declares which languages the citation is grounded in
+/// per `docs/spec/citations-policy.md`. An empty slice means the
+/// citation is general / methodological (Wilson lower bound papers,
+/// IEEE 1044-2009, etc.) and does not satisfy any per-language
+/// requirement on its own.
 #[derive(Debug, Clone, Serialize)]
 pub struct Citation {
     /// Stable identifier used to cross-reference `CITATIONS.md`.
@@ -74,6 +132,9 @@ pub struct Citation {
     pub doi: Option<&'static str>,
     /// Optional canonical URL for the work.
     pub url: Option<&'static str>,
+    /// Languages the citation is grounded in. Empty for general /
+    /// methodological references.
+    pub languages: &'static [Language],
 }
 
 // ---------- Finding ----------
@@ -132,6 +193,28 @@ pub enum AnomalyClass {
     Other,
 }
 
+/// Strength of the per-language citation grounding for a `Finding`.
+///
+/// Per `docs/spec/citations-policy.md`, every detector ships with at
+/// least one citation overall (P1, hard-gated). Per-language citation
+/// is best-effort: when the survey for a (detector, language) pair
+/// returns no qualifying paper, the language extension still ships
+/// and each emitted finding declares
+/// [`LanguageCitationStatus::Unconfirmed`] so SARIF consumers can
+/// weigh indirectly-grounded findings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LanguageCitationStatus {
+    /// At least one of the detector's citations is grounded in the
+    /// finding's source language per
+    /// `citations-policy.md` clauses (a), (b), or (c).
+    Confirmed,
+    /// All cited works ground a different language; the survey
+    /// returned no per-language match. The detector still applies
+    /// because the underlying concept transfers, but the grounding
+    /// is indirect.
+    Unconfirmed,
+}
+
 /// Evidence supporting a `Finding`.
 #[derive(Debug, Clone, Serialize)]
 pub struct Evidence {
@@ -139,6 +222,13 @@ pub struct Evidence {
     pub citation_keys: Vec<&'static str>,
     /// Detector-defined raw evidence payload (kept opaque to the core).
     pub raw: serde_json::Value,
+    /// Per-language citation grounding for this finding. Detectors
+    /// set this to [`LanguageCitationStatus::Confirmed`] when at
+    /// least one of their citations covers `Finding`'s source
+    /// language; [`LanguageCitationStatus::Unconfirmed`] when the
+    /// language is supported via concept transfer rather than a
+    /// language-specific citation.
+    pub language_citation_status: LanguageCitationStatus,
 }
 
 /// A single detector finding before ranking.
@@ -326,6 +416,7 @@ mod tests {
         year: 2026,
         doi: None,
         url: None,
+        languages: &[Language::Rust],
     }];
 
     struct Bad;
@@ -394,6 +485,7 @@ mod tests {
             evidence: Evidence {
                 citation_keys: vec!["test-2026"],
                 raw: serde_json::Value::Null,
+                language_citation_status: LanguageCitationStatus::Confirmed,
             },
         };
         let json = serde_json::to_string(&finding).expect("serializes");
@@ -421,6 +513,7 @@ mod tests {
             evidence: Evidence {
                 citation_keys: vec!["test-2026"],
                 raw: serde_json::Value::Null,
+                language_citation_status: LanguageCitationStatus::Confirmed,
             },
         }
     }

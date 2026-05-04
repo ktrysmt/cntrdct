@@ -3,8 +3,8 @@
 //! Spec: `cntrdct/docs/spec/sarif-v0.md`.
 
 use cntrdct_core::{
-    AdjudicationResult, AdjudicationVerdict, AnomalyClass, Citation, Detector, Finding, Location,
-    RankedFinding, Severity,
+    AdjudicationResult, AdjudicationVerdict, AnomalyClass, Citation, Detector, Finding,
+    LanguageCitationStatus, Location, RankedFinding, Severity,
 };
 use serde_json::{json, Map, Value};
 
@@ -170,6 +170,7 @@ fn finding_to_result(f: &Finding) -> Value {
         "properties": {
             "citationKeys": f.evidence.citation_keys,
             "anomalyClass": anomaly_class_to_str(f.anomaly_class),
+            "languageCitationStatus": language_citation_status_to_str(f.evidence.language_citation_status),
             "raw": f.evidence.raw
         }
     })
@@ -199,6 +200,21 @@ fn anomaly_class_to_str(c: AnomalyClass) -> &'static str {
         AnomalyClass::Performance => "Performance",
         AnomalyClass::Standards => "Standards",
         AnomalyClass::Other => "Other",
+    }
+}
+
+/// Per-language citation grounding flag, surfaced as a SARIF property.
+///
+/// Per `docs/spec/citations-policy.md`, `Confirmed` means at least one
+/// of the detector's citations is grounded in the finding's source
+/// language; `Unconfirmed` means the support transferred via concept
+/// rather than a language-specific citation. Consumers (downstream
+/// dashboards, reviewers) can choose to weight unconfirmed findings
+/// lower without changing the underlying detector's behaviour.
+fn language_citation_status_to_str(status: LanguageCitationStatus) -> &'static str {
+    match status {
+        LanguageCitationStatus::Confirmed => "Confirmed",
+        LanguageCitationStatus::Unconfirmed => "Unconfirmed",
     }
 }
 

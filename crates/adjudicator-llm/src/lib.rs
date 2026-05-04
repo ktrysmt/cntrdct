@@ -42,6 +42,10 @@ pub static ADJUDICATOR_CITATIONS: &[Citation] = &[Citation {
     year: 2025,
     doi: None,
     url: None,
+    // Layer 3 calibration is methodological — applies regardless of
+    // the source language. Empty languages slice marks it as a general
+    // / methodological reference per citations-policy.md.
+    languages: &[],
 }];
 
 // ---------- Errors ----------
@@ -377,7 +381,9 @@ pub struct MockResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cntrdct_core::{AnomalyClass, Evidence, Finding, Location, RankedFinding, Severity};
+    use cntrdct_core::{
+        AnomalyClass, Evidence, Finding, LanguageCitationStatus, Location, RankedFinding, Severity,
+    };
     use std::path::PathBuf;
     use std::sync::Mutex;
 
@@ -456,6 +462,7 @@ mod tests {
             evidence: Evidence {
                 citation_keys: vec!["cordy-roy-icpc-2008", "krinke-icsm-2007"],
                 raw: json!({"group_size": 4, "similarity_threshold": 0.5}),
+                language_citation_status: LanguageCitationStatus::Confirmed,
             },
         }
     }

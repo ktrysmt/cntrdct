@@ -4,8 +4,8 @@
 //! Spec: `cntrdct/docs/spec/config-interaction-v0.md`.
 
 use cntrdct_core::{
-    AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Location,
-    ParsedFile, Severity,
+    AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
+    LanguageCitationStatus, Location, ParsedFile, Severity,
 };
 use rayon::prelude::*;
 
@@ -19,6 +19,11 @@ static CITATIONS: &[Citation] = &[
         year: 2011,
         doi: Some("10.1145/1966445.1966451"),
         url: None,
+        // Pattern B: config-interaction is Rust-specific by definition
+        // (it scans `#[cfg(...)]` attributes). The cited Linux/C work
+        // grounds the broader concept; per the grandfather clause we
+        // mark it as Rust-grounded.
+        languages: &[Language::Rust],
     },
     Citation {
         key: "nadi-icse-2014",
@@ -28,6 +33,7 @@ static CITATIONS: &[Citation] = &[
         year: 2014,
         doi: Some("10.1145/2568225.2568283"),
         url: None,
+        languages: &[Language::Rust],
     },
 ];
 
@@ -183,6 +189,7 @@ fn analyze_item(item: tree_sitter::Node, file: &ParsedFile) -> Option<Finding> {
                 "attribute_lines": attribute_lines,
                 "additional_pairs": additional_pairs,
             }),
+            language_citation_status: LanguageCitationStatus::Confirmed,
         },
     })
 }

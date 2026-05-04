@@ -9,7 +9,9 @@ use std::path::PathBuf;
 
 use cntrdct_calibration::DetectorPrior;
 use cntrdct_cli::{calibrate, pick_ranker, rank_with_calibration, scan};
-use cntrdct_core::{AnomalyClass, Evidence, Finding, Location, RankedFinding, Severity};
+use cntrdct_core::{
+    AnomalyClass, Evidence, Finding, LanguageCitationStatus, Location, RankedFinding, Severity,
+};
 use tempfile::tempdir;
 
 const FN_BASE: &str = r#"
@@ -75,6 +77,7 @@ fn make_finding(detector_id: &str, related: usize) -> Finding {
         evidence: Evidence {
             citation_keys: vec!["cordy-roy-icpc-2008"],
             raw: serde_json::Value::Null,
+            language_citation_status: LanguageCitationStatus::Confirmed,
         },
     }
 }

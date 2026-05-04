@@ -4,8 +4,8 @@
 //! Spec: `cntrdct/docs/spec/unreachable-after-terminator-v0.md`.
 
 use cntrdct_core::{
-    AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Location,
-    ParsedFile, Severity,
+    AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
+    LanguageCitationStatus, Location, ParsedFile, Severity,
 };
 use rayon::prelude::*;
 
@@ -29,6 +29,7 @@ static CITATIONS: &[Citation] = &[
         year: 2004,
         doi: Some("10.1145/1052883.1052895"),
         url: None,
+        languages: &[Language::Rust],
     },
     Citation {
         key: "engler-sosp-2001",
@@ -38,6 +39,7 @@ static CITATIONS: &[Citation] = &[
         year: 2001,
         doi: Some("10.1145/502034.502041"),
         url: None,
+        languages: &[Language::Rust],
     },
 ];
 
@@ -234,6 +236,7 @@ fn build_finding(
                 "terminator_line": terminator_line,
                 "following_count": following_count,
             }),
+            language_citation_status: LanguageCitationStatus::Confirmed,
         },
     }
 }

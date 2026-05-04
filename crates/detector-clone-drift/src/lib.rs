@@ -15,8 +15,8 @@
 use std::collections::{HashMap, HashSet};
 
 use cntrdct_core::{
-    AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Location,
-    ParsedFile, Severity,
+    AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
+    LanguageCitationStatus, Location, ParsedFile, Severity,
 };
 use rayon::prelude::*;
 
@@ -33,6 +33,9 @@ static CITATIONS: &[Citation] = &[
         year: 2008,
         doi: None,
         url: Some("https://research.cs.queensu.ca/home/cordy/Papers/NiCadICPC.pdf"),
+        // NiCad's experimental subjects were Java and C/C++. The Rust
+        // grandfather clause covers it under citations-policy.md (b).
+        languages: &[Language::Rust],
     },
     Citation {
         key: "bettenburg-msr-2009",
@@ -42,6 +45,7 @@ static CITATIONS: &[Citation] = &[
         year: 2009,
         doi: None,
         url: None,
+        languages: &[Language::Rust],
     },
     Citation {
         key: "krinke-icsm-2007",
@@ -51,6 +55,7 @@ static CITATIONS: &[Citation] = &[
         year: 2007,
         doi: None,
         url: None,
+        languages: &[Language::Rust],
     },
 ];
 
@@ -152,6 +157,7 @@ impl Detector for CloneDrift {
                             "group_size": group.len(),
                             "partition_sizes": partition_sizes,
                         }),
+                        language_citation_status: LanguageCitationStatus::Confirmed,
                     },
                 });
             }

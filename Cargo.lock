@@ -362,6 +362,7 @@ dependencies = [
 name = "cntrdct-parsers"
 version = "0.1.0"
 dependencies = [
+ "cntrdct-core",
  "serde",
  "serde_json",
  "tree-sitter",

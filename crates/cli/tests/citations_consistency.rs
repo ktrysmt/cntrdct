@@ -21,7 +21,9 @@ use std::fs;
 use std::path::PathBuf;
 
 use cntrdct_adjudicator_llm::ADJUDICATOR_CITATIONS;
-use cntrdct_core::Detector;
+use cntrdct_core::{
+    register_detector, Citation, DetectContext, Detector, DetectorError, Finding, Language,
+};
 use cntrdct_detector_arg_swap::ArgSwap;
 use cntrdct_detector_clone_drift::CloneDrift;
 use cntrdct_detector_comment_code::CommentCode;
@@ -243,5 +245,117 @@ fn adjudicator_has_at_least_one_citation() {
     assert!(
         !adjudicator_keys().is_empty(),
         "Adjudicator returned no citations (Layer 3 P1 analogue violation)"
+    );
+}
+
+// ---------- M-6: per-language citation policy ----------
+//
+// Per `docs/spec/citations-policy.md`:
+//
+// - P1 itself is unchanged: every detector has at least one citation.
+//   `register_detector` enforces this and `no_detector_has_empty_citations`
+//   above asserts it.
+//
+// - The per-language citation requirement is SHOULD, not MUST. A detector
+//   may declare a language without any citation grounded in that language;
+//   the gap surfaces in `LanguageCitationStatus::Unconfirmed` on each
+//   emitted finding rather than blocking registration.
+//
+// The tests below document this contract in code: an under-cited fixture
+// detector still registers cleanly, a `supported_languages()` entry that
+// is not a recognised canonical name fails, and citations on a single
+// detector cannot share a `key` (catches retro-fit copy-paste).
+
+#[test]
+fn no_detector_has_duplicate_citation_keys() {
+    for d in registered_detectors() {
+        let keys: Vec<&'static str> = d.citations().iter().map(|c| c.key).collect();
+        let mut seen: BTreeSet<&'static str> = BTreeSet::new();
+        for key in &keys {
+            assert!(
+                seen.insert(*key),
+                "Detector `{}` lists citation key `{}` more than once",
+                d.id(),
+                key
+            );
+        }
+    }
+}
+
+#[test]
+fn every_supported_language_is_a_known_canonical_name() {
+    for d in registered_detectors() {
+        for raw in d.supported_languages() {
+            assert!(
+                Language::from_canonical_name(raw).is_some(),
+                "Detector `{}` declares supported_languages entry `{}` which is not a recognised cntrdct_core::Language variant",
+                d.id(),
+                raw
+            );
+        }
+    }
+}
+
+/// Fixture: a detector declaring Python support but no Python-grounded
+/// citation. Per `citations-policy.md`, this is an acceptable state: the
+/// detector continues to register cleanly because P1 (≥1 citation overall)
+/// is satisfied. Per-language coverage is best-effort and surfaces via
+/// `LanguageCitationStatus::Unconfirmed` at finding emission time.
+struct UnderCitedFixture;
+
+static UNDER_CITED_FIXTURE_CITATIONS: &[Citation] = &[Citation {
+    key: "fixture-citation-2026",
+    authors: "Fixture",
+    title: "Fixture",
+    venue: "Fixture",
+    year: 2026,
+    doi: None,
+    url: None,
+    languages: &[Language::Rust], // grounded in Rust only
+}];
+
+impl Detector for UnderCitedFixture {
+    fn id(&self) -> &'static str {
+        "fixture-under-cited"
+    }
+    fn name(&self) -> &'static str {
+        "Under-cited fixture"
+    }
+    fn citations(&self) -> &'static [Citation] {
+        UNDER_CITED_FIXTURE_CITATIONS
+    }
+    fn supported_languages(&self) -> &'static [&'static str] {
+        // Python is declared but no citation in this set is grounded in
+        // Python. The policy permits this; the detector should still
+        // register and emit findings with Unconfirmed status.
+        &["rust", "python"]
+    }
+    fn detect(&self, _: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
+        Ok(vec![])
+    }
+}
+
+#[test]
+fn under_cited_fixture_still_registers_per_should_policy() {
+    // P1 gate is satisfied (one citation present). Per-language gap is
+    // intentionally tolerated by the policy.
+    register_detector(&UnderCitedFixture)
+        .expect("under-cited fixture must still register under SHOULD policy");
+}
+
+#[test]
+fn under_cited_fixture_has_python_without_python_citation() {
+    // Document the test scenario structurally so a future change that
+    // accidentally tightens the policy (or accidentally adds Python
+    // grounding to the fixture) breaks this assertion deliberately and
+    // the spec rationale is re-examined.
+    let langs = UnderCitedFixture.supported_languages();
+    assert!(langs.contains(&"python"));
+    let any_python_citation = UNDER_CITED_FIXTURE_CITATIONS
+        .iter()
+        .any(|c| c.languages.contains(&Language::Python));
+    assert!(
+        !any_python_citation,
+        "fixture must lack a Python-grounded citation to model the SHOULD scenario"
     );
 }

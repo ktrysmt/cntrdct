@@ -11,8 +11,8 @@
 //! 4. Emit one Finding per match.
 
 use cntrdct_core::{
-    AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Location,
-    ParsedFile, Severity,
+    AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
+    LanguageCitationStatus, Location, ParsedFile, Severity,
 };
 use rayon::prelude::*;
 
@@ -25,6 +25,7 @@ static CITATIONS: &[Citation] = &[
         year: 2007,
         doi: None,
         url: None,
+        languages: &[Language::Rust],
     },
     Citation {
         key: "tan-pldi-2011",
@@ -34,6 +35,7 @@ static CITATIONS: &[Citation] = &[
         year: 2011,
         doi: None,
         url: None,
+        languages: &[Language::Rust],
     },
 ];
 
@@ -289,6 +291,7 @@ fn make_finding(
                 "pattern": pattern,
                 "trigger": trigger,
             }),
+            language_citation_status: LanguageCitationStatus::Confirmed,
         },
     }
 }

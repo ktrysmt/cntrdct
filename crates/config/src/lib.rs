@@ -428,7 +428,9 @@ fn build_globset(patterns: &[String]) -> Result<GlobSet, ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cntrdct_core::{AnomalyClass, Evidence, Finding, Location, Severity};
+    use cntrdct_core::{
+        AnomalyClass, Evidence, Finding, LanguageCitationStatus, Location, Severity,
+    };
     use std::path::PathBuf;
 
     fn parsed_file(name: &str, body: &str) -> ParsedFile {
@@ -456,6 +458,7 @@ mod tests {
             evidence: Evidence {
                 citation_keys: vec![],
                 raw: serde_json::Value::Null,
+                language_citation_status: LanguageCitationStatus::Confirmed,
             },
         }
     }
