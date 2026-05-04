@@ -233,11 +233,7 @@ fn overlap_skips_findings_outside_corpus_root() {
     std::fs::create_dir_all(outside.parent().unwrap()).unwrap();
     std::fs::write(&outside, "").unwrap();
 
-    let findings = json!([cntrdct_finding(
-        "clone-drift",
-        outside.to_str().unwrap(),
-        1
-    )]);
+    let findings = json!([cntrdct_finding("clone-drift", outside.to_str().unwrap(), 1)]);
     let findings_path = write_findings(tmp.path(), &findings);
     let clippy_dir = tmp.path().join("clippy");
     std::fs::create_dir_all(&clippy_dir).unwrap();

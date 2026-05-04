@@ -583,12 +583,11 @@ fn load_clippy_index(clippy_dir: &Path) -> Result<ClippyIndex, OverlapError> {
             path: path.clone(),
             source: e,
         })?;
-        let value: serde_json::Value = serde_json::from_str(&body).map_err(|e| {
-            OverlapError::Parse {
+        let value: serde_json::Value =
+            serde_json::from_str(&body).map_err(|e| OverlapError::Parse {
                 path: path.clone(),
                 source: e,
-            }
-        })?;
+            })?;
         let arr = match value.as_array() {
             Some(a) => a,
             None => continue,
@@ -683,20 +682,14 @@ pub fn run_clippy_harness(
     out_dir: &Path,
     accept_arbitrary_code: bool,
 ) -> Result<ClippyHarnessSummary, ClippyHarnessError> {
-    use cntrdct_corpus_fetch::{
-        extract_filtered, ExtractOptions, ReqwestClient, TarballClient,
-    };
+    use cntrdct_corpus_fetch::{extract_filtered, ExtractOptions, ReqwestClient, TarballClient};
 
     if !accept_arbitrary_code {
         return Err(ClippyHarnessError::ConsentRequired);
     }
 
-    eprintln!(
-        "WARNING: cntrdct clippy compiles third-party Rust source via cargo, which"
-    );
-    eprintln!(
-        "executes build.rs scripts and proc macros from those crates."
-    );
+    eprintln!("WARNING: cntrdct clippy compiles third-party Rust source via cargo, which");
+    eprintln!("executes build.rs scripts and proc macros from those crates.");
 
     let rows = cntrdct_corpus_fetch::read_manifest_rows(manifest_path)
         .map_err(|e| ClippyHarnessError::ManifestRead(e.to_string()))?;
@@ -848,11 +841,7 @@ pub fn run_aggregate(
             Ok(r) => r,
             Err(_) => continue,
         };
-        let crate_dir = match rel
-            .components()
-            .next()
-            .and_then(|c| c.as_os_str().to_str())
-        {
+        let crate_dir = match rel.components().next().and_then(|c| c.as_os_str().to_str()) {
             Some(s) => s.to_string(),
             None => continue,
         };
@@ -1048,7 +1037,7 @@ pub fn run_fetch(
         fetch_one, FetchOutcome, ReqwestClient, SkipReason, SparseIndexClient, TarballClient,
     };
 
-    let raw_entries = read_crate_list(crates_list)?;
+    let (raw_entries, rank_source) = read_crate_list_with_provenance(crates_list)?;
     fs::create_dir_all(out_dir).map_err(|e| FetchRunError::Io {
         path: out_dir.to_path_buf(),
         source: e,
@@ -1066,11 +1055,12 @@ pub fn run_fetch(
     };
 
     let entries: Vec<CrateListEntry> = if resume {
-        let already = cntrdct_corpus_fetch::read_manifest_names(&manifest_path)
-            .map_err(|e| FetchRunError::Io {
+        let already = cntrdct_corpus_fetch::read_manifest_names(&manifest_path).map_err(|e| {
+            FetchRunError::Io {
                 path: manifest_path.clone(),
                 source: e,
-            })?;
+            }
+        })?;
         let mut kept = Vec::with_capacity(raw_entries.len());
         for entry in raw_entries {
             if already.contains(&entry.name) {
@@ -1085,15 +1075,20 @@ pub fn run_fetch(
         raw_entries
     };
 
-    let sparse =
-        SparseIndexClient::new(ReqwestClient::new().map_err(|e| FetchRunError::HttpInit(e.to_string()))?);
-    let tarball =
-        TarballClient::new(ReqwestClient::new().map_err(|e| FetchRunError::HttpInit(e.to_string()))?);
+    let sparse = SparseIndexClient::new(
+        ReqwestClient::new().map_err(|e| FetchRunError::HttpInit(e.to_string()))?,
+    );
+    let tarball = TarballClient::new(
+        ReqwestClient::new().map_err(|e| FetchRunError::HttpInit(e.to_string()))?,
+    );
 
     // Per-crate work runs on the rayon pool. We collect outcomes back on the
     // main thread so the manifest serialises in input order — the manifest
     // file is append-only and not safe to write from multiple threads.
-    type FetchResult = (CrateListEntry, Result<FetchOutcome, cntrdct_corpus_fetch::FetchError>);
+    type FetchResult = (
+        CrateListEntry,
+        Result<FetchOutcome, cntrdct_corpus_fetch::FetchError>,
+    );
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(jobs.max(1))
         .build()
@@ -1159,7 +1154,38 @@ pub fn run_fetch(
         }
     }
 
+    write_provenance(out_dir, &rank_source, &summary)?;
+
     Ok(summary)
+}
+
+fn write_provenance(
+    out_dir: &Path,
+    rank_source: &RankSource,
+    summary: &FetchSummary,
+) -> Result<(), FetchRunError> {
+    let fetched_at_unix = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let mut provenance = serde_json::json!({
+        "fetched_at_unix": fetched_at_unix,
+        "cntrdct_corpus_fetch_version": env!("CARGO_PKG_VERSION"),
+        "fetch_summary": {
+            "fetched": summary.fetched,
+            "skipped": summary.skipped,
+            "errors": summary.errors,
+            "resume_skipped": summary.resume_skipped,
+        },
+    });
+    if !rank_source.is_empty() {
+        provenance["rank_source"] = serde_json::to_value(rank_source).expect("RankSource serialises");
+    }
+
+    let path = out_dir.join("provenance.json");
+    let body = serde_json::to_string_pretty(&provenance).expect("provenance JSON serialises");
+    fs::write(&path, body).map_err(|e| FetchRunError::Io { path, source: e })
 }
 
 fn skip_reason_tag(reason: &cntrdct_corpus_fetch::SkipReason) -> &'static str {
@@ -1194,11 +1220,7 @@ fn emit_fetched(progress: FetchProgress, name: &str, version: &str) {
     }
 }
 
-fn emit_skipped(
-    progress: FetchProgress,
-    name: &str,
-    reason: &cntrdct_corpus_fetch::SkipReason,
-) {
+fn emit_skipped(progress: FetchProgress, name: &str, reason: &cntrdct_corpus_fetch::SkipReason) {
     let tag = skip_reason_tag(reason);
     let spdx = skip_spdx(reason);
     match progress {
@@ -1249,14 +1271,17 @@ fn emit_resume_skip(progress: FetchProgress, name: &str) {
 
 /// Compute the top-N crates from a saved db-dump archive and emit a
 /// crate-list file (or stdout) usable by [`run_fetch`].
-pub fn run_rank(
-    dump_path: &Path,
-    top: usize,
-    output: Option<&Path>,
-) -> Result<(), FetchRunError> {
+pub fn run_rank(dump_path: &Path, top: usize, output: Option<&Path>) -> Result<(), FetchRunError> {
     let ranking = cntrdct_corpus_fetch::read_top_n_from_archive(dump_path, top)?;
+    let metadata = cntrdct_corpus_fetch::read_metadata_from_archive(dump_path)?;
     let mut body = String::new();
     body.push_str("# generated by `cntrdct rank`\n");
+    if let Some(ts) = &metadata.timestamp {
+        body.push_str(&format!("# dump-timestamp: {ts}\n"));
+    }
+    if let Some(hash) = &metadata.commit_hash {
+        body.push_str(&format!("# dump-commit-hash: {hash}\n"));
+    }
     body.push_str("# columns: name downloads\n");
     for r in &ranking {
         body.push_str(&format!("{} {}\n", r.name, r.downloads));
@@ -1283,24 +1308,55 @@ pub fn run_rank(
     Ok(())
 }
 
-fn read_crate_list(path: &Path) -> Result<Vec<CrateListEntry>, FetchRunError> {
+/// Optional rank-source pin extracted from a crate-list file's comment
+/// header (`# dump-timestamp: ...`, `# dump-commit-hash: ...`). Both
+/// fields are skipped during serialization when unset, so a manually
+/// authored crate list produces an empty `rank_source` block in the
+/// downstream `provenance.json`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
+pub struct RankSource {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dump_timestamp: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dump_commit_hash: Option<String>,
+}
+
+impl RankSource {
+    fn is_empty(&self) -> bool {
+        self.dump_timestamp.is_none() && self.dump_commit_hash.is_none()
+    }
+}
+
+fn read_crate_list_with_provenance(
+    path: &Path,
+) -> Result<(Vec<CrateListEntry>, RankSource), FetchRunError> {
     let body = fs::read_to_string(path).map_err(|e| FetchRunError::ReadList {
         path: path.to_path_buf(),
         source: e,
     })?;
-    let mut out = Vec::new();
+    let mut entries = Vec::new();
+    let mut rank_source = RankSource::default();
     for line in body.lines() {
         let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Some(comment) = trimmed.strip_prefix('#') {
+            let comment = comment.trim();
+            if let Some(v) = comment.strip_prefix("dump-timestamp:") {
+                rank_source.dump_timestamp = Some(v.trim().to_string());
+            } else if let Some(v) = comment.strip_prefix("dump-commit-hash:") {
+                rank_source.dump_commit_hash = Some(v.trim().to_string());
+            }
             continue;
         }
         let mut parts = trimmed.split_whitespace();
         // SAFETY: `trimmed` is non-empty here, so the first token always exists.
         let name = parts.next().expect("non-empty line").to_string();
         let downloads = parts.next().and_then(|s| s.parse::<u64>().ok());
-        out.push(CrateListEntry { name, downloads });
+        entries.push(CrateListEntry { name, downloads });
     }
-    Ok(out)
+    Ok((entries, rank_source))
 }
 
 // ---------- File discovery ----------

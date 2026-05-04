@@ -47,6 +47,21 @@ pub struct CrateRanking {
     pub downloads: u64,
 }
 
+/// Provenance metadata pulled from the dump's top-level `metadata.json`.
+///
+/// Both fields are optional because the dump format has shifted over the
+/// years and we want corpus-fetch to keep reading older snapshots that may
+/// lack one or the other key. A `None` `commit_hash` falls back to the
+/// `timestamp` for reproducibility — the timestamp is sufficient to refetch
+/// the same dump from crates.io's snapshot history.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
+pub struct DumpMetadata {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub commit_hash: Option<String>,
+}
+
 /// Stream the dump archive at `archive_path`, parse the two relevant CSV
 /// tables, and return the top `n` crates by lifetime downloads.
 ///
@@ -107,6 +122,53 @@ pub fn read_top_n_from_archive(
     combined.sort_by(|a, b| b.downloads.cmp(&a.downloads).then(a.name.cmp(&b.name)));
     combined.truncate(n);
     Ok(combined)
+}
+
+/// Read the dump's `metadata.json` (if any) and surface the recorded
+/// timestamp and crates.io commit hash for provenance pinning.
+///
+/// Returns a default `DumpMetadata` (both fields `None`) when the archive
+/// has no `metadata.json` entry; older dumps shipped without one. Schema
+/// drift is handled by trying each of `crates_io_commit_hash`,
+/// `commit_hash`, and `git_hash` in that order.
+pub fn read_metadata_from_archive(archive_path: &Path) -> Result<DumpMetadata, FetchError> {
+    let file = File::open(archive_path)?;
+    let gz = GzDecoder::new(file);
+    let mut archive = Archive::new(gz);
+
+    let entries = archive
+        .entries()
+        .map_err(|e| FetchError::Archive(e.to_string()))?;
+    for entry in entries {
+        let mut entry = entry.map_err(|e| FetchError::Archive(e.to_string()))?;
+        let path = entry
+            .path()
+            .map_err(|e| FetchError::Archive(e.to_string()))?
+            .into_owned();
+        let path_str = path.to_string_lossy();
+        if path_str.ends_with("/metadata.json") || path_str == "metadata.json" {
+            let mut buf = Vec::new();
+            entry.read_to_end(&mut buf)?;
+            return parse_metadata_json(&buf);
+        }
+    }
+    Ok(DumpMetadata::default())
+}
+
+fn parse_metadata_json(bytes: &[u8]) -> Result<DumpMetadata, FetchError> {
+    let v: serde_json::Value = serde_json::from_slice(bytes)
+        .map_err(|e| FetchError::Malformed(format!("metadata.json: {e}")))?;
+    let timestamp = v
+        .get("timestamp")
+        .and_then(|s| s.as_str())
+        .map(String::from);
+    let commit_hash = ["crates_io_commit_hash", "commit_hash", "git_hash"]
+        .iter()
+        .find_map(|k| v.get(*k).and_then(|s| s.as_str()).map(String::from));
+    Ok(DumpMetadata {
+        timestamp,
+        commit_hash,
+    })
 }
 
 fn parse_crates_csv(bytes: &[u8], out: &mut HashMap<u64, String>) -> Result<(), FetchError> {
@@ -414,6 +476,71 @@ mod tests {
             FetchError::Malformed(m) => assert!(m.contains("missing column: name"), "got: {m}"),
             other => panic!("expected Malformed, got {other:?}"),
         }
+    }
+
+    fn append_to_archive(
+        tar: &mut Builder<GzEncoder<Vec<u8>>>,
+        path: &str,
+        body: &[u8],
+    ) {
+        let mut h = Header::new_gnu();
+        h.set_size(body.len() as u64);
+        h.set_mode(0o644);
+        h.set_cksum();
+        tar.append_data(&mut h, path, body).unwrap();
+    }
+
+    #[test]
+    fn metadata_returns_timestamp_and_commit_hash() {
+        let buf = Vec::new();
+        let gz = GzEncoder::new(buf, Compression::default());
+        let mut tar = Builder::new(gz);
+        append_to_archive(
+            &mut tar,
+            "2026-04-15-000000/metadata.json",
+            br#"{"timestamp":"2026-04-15T00:00:00Z","crates_io_commit_hash":"abc123def"}"#,
+        );
+        let archive = tar.into_inner().unwrap().finish().unwrap();
+        let tmp = write_archive_to_temp(&archive);
+        let meta = read_metadata_from_archive(tmp.path()).unwrap();
+        assert_eq!(meta.timestamp.as_deref(), Some("2026-04-15T00:00:00Z"));
+        assert_eq!(meta.commit_hash.as_deref(), Some("abc123def"));
+    }
+
+    #[test]
+    fn metadata_falls_back_through_alternative_commit_keys() {
+        for key in ["commit_hash", "git_hash"] {
+            let buf = Vec::new();
+            let gz = GzEncoder::new(buf, Compression::default());
+            let mut tar = Builder::new(gz);
+            let body = format!("{{\"timestamp\":\"t\",\"{key}\":\"deadbeef\"}}");
+            append_to_archive(
+                &mut tar,
+                "2026-04-15-000000/metadata.json",
+                body.as_bytes(),
+            );
+            let archive = tar.into_inner().unwrap().finish().unwrap();
+            let tmp = write_archive_to_temp(&archive);
+            let meta = read_metadata_from_archive(tmp.path()).unwrap();
+            assert_eq!(meta.commit_hash.as_deref(), Some("deadbeef"), "key={key}");
+        }
+    }
+
+    #[test]
+    fn metadata_returns_default_when_archive_has_no_metadata_json() {
+        let buf = Vec::new();
+        let gz = GzEncoder::new(buf, Compression::default());
+        let mut tar = Builder::new(gz);
+        append_to_archive(
+            &mut tar,
+            "2026-04-15-000000/data/crates.csv",
+            b"id,name\n1,foo\n",
+        );
+        let archive = tar.into_inner().unwrap().finish().unwrap();
+        let tmp = write_archive_to_temp(&archive);
+        let meta = read_metadata_from_archive(tmp.path()).unwrap();
+        assert!(meta.timestamp.is_none());
+        assert!(meta.commit_hash.is_none());
     }
 
     #[test]

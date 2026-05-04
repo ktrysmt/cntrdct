@@ -91,14 +91,42 @@ pub trait HttpClient: Send + Sync {
     fn get_bytes(&self, url: &str) -> Result<Vec<u8>, FetchError>;
 }
 
+/// Default maximum number of retries for transient HTTP failures.
+pub const DEFAULT_MAX_RETRIES: u32 = 5;
+/// Default base delay used by the exponential-backoff schedule. The actual
+/// delay for attempt `n` is `base_delay * 2^min(n, 6)`, so the schedule
+/// caps at roughly `64 * base_delay`.
+pub const DEFAULT_BASE_DELAY: Duration = Duration::from_secs(1);
+
 /// Production HTTP client backed by `reqwest::blocking` with rustls.
+///
+/// Implements polite retry semantics around the GET path:
+/// - 429 / 503 / 504 responses are retried up to `max_retries` times.
+/// - The `Retry-After` header (seconds form, RFC 7231 §7.1.3) is honoured
+///   when present.
+/// - Transient `reqwest` connection / timeout errors retry on the same
+///   exponential schedule.
+/// - Non-retriable status codes (200 success, 404, other 4xx) and
+///   non-transient errors return immediately.
 #[derive(Debug)]
 pub struct ReqwestClient {
     inner: reqwest::blocking::Client,
+    max_retries: u32,
+    base_delay: Duration,
 }
 
 impl ReqwestClient {
     pub fn new() -> Result<Self, FetchError> {
+        Self::with_retry_policy(DEFAULT_MAX_RETRIES, DEFAULT_BASE_DELAY)
+    }
+
+    /// Build a client with a custom retry policy. Tests pass a sub-second
+    /// `base_delay` so the suite finishes quickly; production keeps the
+    /// 1-second default so we stay polite on crates.io's static endpoint.
+    pub fn with_retry_policy(
+        max_retries: u32,
+        base_delay: Duration,
+    ) -> Result<Self, FetchError> {
         let inner = reqwest::blocking::Client::builder()
             .timeout(Duration::from_secs(30))
             .user_agent(concat!(
@@ -108,8 +136,65 @@ impl ReqwestClient {
             ))
             .build()
             .map_err(|e| FetchError::Http(e.to_string()))?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner,
+            max_retries,
+            base_delay,
+        })
     }
+
+    /// Send a GET with retry. Returns the raw `reqwest::Response` so the
+    /// caller picks how to consume the body (text / bytes). Status filtering
+    /// (NotFound vs other failures) lives in `get_text` / `get_bytes`.
+    fn send_with_retry(&self, url: &str) -> Result<reqwest::blocking::Response, FetchError> {
+        let mut attempt: u32 = 0;
+        loop {
+            let result = self.inner.get(url).send();
+            match result {
+                Ok(resp) => {
+                    let status = resp.status().as_u16();
+                    let is_retriable = matches!(status, 429 | 503 | 504);
+                    if is_retriable && attempt < self.max_retries {
+                        let delay = retry_after_seconds(&resp)
+                            .map(Duration::from_secs)
+                            .unwrap_or_else(|| backoff_delay(attempt, self.base_delay));
+                        drop(resp);
+                        std::thread::sleep(delay);
+                        attempt += 1;
+                        continue;
+                    }
+                    return Ok(resp);
+                }
+                Err(e) if (e.is_timeout() || e.is_connect()) && attempt < self.max_retries => {
+                    let delay = backoff_delay(attempt, self.base_delay);
+                    std::thread::sleep(delay);
+                    attempt += 1;
+                    continue;
+                }
+                Err(e) => return Err(FetchError::Http(e.to_string())),
+            }
+        }
+    }
+}
+
+/// Parse `Retry-After` as seconds. The HTTP-date form is rare on
+/// machine-to-machine APIs and we deliberately do not handle it; callers
+/// fall back to the exponential-backoff schedule when this returns `None`.
+fn retry_after_seconds(resp: &reqwest::blocking::Response) -> Option<u64> {
+    resp.headers()
+        .get(reqwest::header::RETRY_AFTER)?
+        .to_str()
+        .ok()?
+        .parse::<u64>()
+        .ok()
+}
+
+/// `base * 2^min(attempt, 6)` — caps the multiplier so the delay never
+/// outgrows the timeout window. With the 1s default base, attempt 0 sleeps
+/// 1s, attempt 1 sleeps 2s, …, attempt 6+ sleeps 64s.
+fn backoff_delay(attempt: u32, base: Duration) -> Duration {
+    let exp = attempt.min(6);
+    base.saturating_mul(1u32 << exp)
 }
 
 impl Default for ReqwestClient {
@@ -120,11 +205,7 @@ impl Default for ReqwestClient {
 
 impl HttpClient for ReqwestClient {
     fn get_text(&self, url: &str) -> Result<String, FetchError> {
-        let resp = self
-            .inner
-            .get(url)
-            .send()
-            .map_err(|e| FetchError::Http(e.to_string()))?;
+        let resp = self.send_with_retry(url)?;
         let status = resp.status();
         if status == reqwest::StatusCode::NOT_FOUND {
             return Err(FetchError::NotFound(url.to_string()));
@@ -136,11 +217,7 @@ impl HttpClient for ReqwestClient {
     }
 
     fn get_bytes(&self, url: &str) -> Result<Vec<u8>, FetchError> {
-        let resp = self
-            .inner
-            .get(url)
-            .send()
-            .map_err(|e| FetchError::Http(e.to_string()))?;
+        let resp = self.send_with_retry(url)?;
         let status = resp.status();
         if status == reqwest::StatusCode::NOT_FOUND {
             return Err(FetchError::NotFound(url.to_string()));

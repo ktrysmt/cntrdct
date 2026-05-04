@@ -21,7 +21,8 @@ pub mod sparse_index;
 pub mod tarball;
 
 pub use db_dump::{
-    download_dump_streaming, read_top_n_from_archive, CrateRanking, DEFAULT_DB_DUMP_URL,
+    download_dump_streaming, read_metadata_from_archive, read_top_n_from_archive, CrateRanking,
+    DumpMetadata, DEFAULT_DB_DUMP_URL,
 };
 pub use error::FetchError;
 pub use extract::{extract_filtered, ExtractOptions, ExtractReport};

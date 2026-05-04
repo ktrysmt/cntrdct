@@ -278,6 +278,7 @@ version = "0.1.0"
 dependencies = [
  "csv",
  "flate2",
+ "mockito",
  "reqwest",
  "serde",
  "serde_json",
