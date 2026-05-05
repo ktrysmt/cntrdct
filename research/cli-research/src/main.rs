@@ -138,7 +138,12 @@ fn main() -> ExitCode {
             clippy_dir,
             corpus_root,
             out,
-        } => match cntrdct_research::run_overlap(&findings, &clippy_dir, &corpus_root, out.as_deref()) {
+        } => match cntrdct_research::run_overlap(
+            &findings,
+            &clippy_dir,
+            &corpus_root,
+            out.as_deref(),
+        ) {
             Ok(_) => ExitCode::SUCCESS,
             Err(e) => {
                 eprintln!("error: {}", e);

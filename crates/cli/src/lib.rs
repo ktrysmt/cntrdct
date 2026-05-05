@@ -308,7 +308,6 @@ pub fn run_eval(corpus_dir: &Path, manifest_path: &Path) -> Result<EvalReport, E
     Ok(evaluate(&manifest, &findings, corpus_dir))
 }
 
-
 // ---------- File discovery ----------
 
 /// Walk `path` and return every file whose extension maps to a supported

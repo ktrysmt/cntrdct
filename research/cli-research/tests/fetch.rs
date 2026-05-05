@@ -6,8 +6,8 @@
 //! tarball download is covered by the orchestrator tests in
 //! `cntrdct-corpus-fetch::fetcher::tests`, which use mock HTTP clients.
 
-use cntrdct_research::{run_fetch, run_rank, FetchProgress};
 use cntrdct_corpus_fetch::{ExtractOptions, DEFAULT_LICENSE_ALLOWLIST};
+use cntrdct_research::{run_fetch, run_rank, FetchProgress};
 
 #[test]
 fn empty_crate_list_returns_zero_summary_and_creates_out_dir() {
@@ -152,7 +152,10 @@ fn ndjson_progress_emits_parseable_json_lines_on_resume_path() {
         ])
         .output()
         .unwrap();
-    assert!(output.status.success(), "cntrdct-research fetch exited non-zero");
+    assert!(
+        output.status.success(),
+        "cntrdct-research fetch exited non-zero"
+    );
 
     let stderr = String::from_utf8(output.stderr).unwrap();
     let lines: Vec<&str> = stderr.lines().filter(|l| !l.is_empty()).collect();
