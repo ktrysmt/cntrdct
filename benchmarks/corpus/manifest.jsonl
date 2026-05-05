@@ -15,6 +15,13 @@
 {"file":"files/arg_swap_009.rs","expected":[{"detector_id":"arg-swap","line":14}]}
 {"file":"files/arg_swap_010.rs","expected":[{"detector_id":"arg-swap","line":14}]}
 //
+// arg-swap (Python pilot — M-3)
+{"file":"files/arg_swap_python_001.py","expected":[{"detector_id":"arg-swap","line":11}]}
+{"file":"files/arg_swap_python_002.py","expected":[{"detector_id":"arg-swap","line":11}]}
+{"file":"files/arg_swap_python_003.py","expected":[{"detector_id":"arg-swap","line":11}]}
+{"file":"files/arg_swap_python_004.py","expected":[{"detector_id":"arg-swap","line":14}]}
+{"file":"files/arg_swap_python_005.py","expected":[{"detector_id":"arg-swap","line":13}]}
+//
 // clone-drift
 {"file":"files/clone_drift_001.rs","expected":[{"detector_id":"clone-drift","line":41}]}
 {"file":"files/clone_drift_002.rs","expected":[{"detector_id":"clone-drift","line":47}]}
@@ -92,3 +99,6 @@
 {"file":"files/comment_code_python_negative_001.py","expected":[]}
 {"file":"files/comment_code_python_negative_002.py","expected":[]}
 {"file":"files/comment_code_python_negative_003.py","expected":[]}
+{"file":"files/arg_swap_python_negative_001.py","expected":[]}
+{"file":"files/arg_swap_python_negative_002.py","expected":[]}
+{"file":"files/arg_swap_python_negative_003.py","expected":[]}

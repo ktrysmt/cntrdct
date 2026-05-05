@@ -369,7 +369,14 @@ M-3. Cross-cutting detectors to Python
     qualifying Python citation; emits
     `LanguageCitationStatus::Unconfirmed` per
     `citations-policy.md`.
-  - `[ ]` arg-swap Python.
+  - `[x]` arg-swap Python. Top-level `function_definition` (incl.
+    `decorated_definition` and `async def`) plus bare-identifier
+    `call` extraction; rejects keyword arguments, splats, and
+    non-identifier expressions in v0. Survey
+    (`docs/surveys/arg-swap-python-2026-05.md`) accepts Allamanis,
+    Jackson-Flux, Brockschmidt (NeurIPS 2021, PyBugLab + PyPIBugs)
+    under clauses (a) and (c) of `citations-policy.md`; emits
+    `LanguageCitationStatus::Confirmed`.
   - `[ ]` clone-drift Python.
 
 M-4. Python β corpus

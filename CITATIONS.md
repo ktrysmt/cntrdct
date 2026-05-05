@@ -34,6 +34,12 @@ pointing at the relevant `docs/surveys/` file.
 - `rice-icse-2017` — A. Rice, E. Aftandilian, C. Jaspan, E. Johnston, M. Pradel,
   Y. Arroyo-Paredes, "Detecting Argument Selection Defects", ICSE 2017.
   Languages: Rust (grandfathered; original subjects were Java and C++).
+- `allamanis-neurips-2021` — M. Allamanis, H. Jackson-Flux, M. Brockschmidt,
+  "Self-Supervised Bug Detection and Repair", NeurIPS 2021. Introduces PyBugLab
+  (Python implementation) and PyPIBugs (curated 2,374-bug Python evaluation
+  corpus); argument swapping is one of four target bug classes.
+  Languages: Python (clause (a) and (c) per docs/spec/citations-policy.md;
+  see docs/surveys/arg-swap-python-2026-05.md).
 
 ### comment-code
 
