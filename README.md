@@ -143,7 +143,9 @@ results.
 
 `docs/spec/` contains the active specs that drove the TDD
 implementation. `ROADMAP.md` tracks engineering deliverables; the
-academic research tracks live under `projects/`.
+academic research tracks live under `research/projects/` inside the
+sibling `research/` cargo workspace, which is independent of the
+technical `crates/` workspace and never blocks technical CI.
 
 ## Further reading
 

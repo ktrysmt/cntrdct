@@ -23,10 +23,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - run: cargo fmt --all -- --check
+      - name: rustfmt (technical workspace)
+        run: cargo fmt --all -- --check
+      - name: rustfmt (research workspace)
+        working-directory: research
+        run: cargo fmt --all -- --check
 
   clippy-test:
-    name: clippy + test (${{ matrix.os }})
+    name: clippy + test (technical, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -47,6 +51,28 @@ jobs:
           ./examples/01_scan.sh > /dev/null
           ./examples/02_calibrate.sh > /dev/null
           ./examples/03_adjudicate_mock.sh > /dev/null
+
+  research-clippy-test:
+    name: clippy + test (research, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: research
+      - name: clippy (research workspace)
+        working-directory: research
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: test (research workspace)
+        working-directory: research
+        run: cargo test --workspace --all-targets
 
   licenses:
     name: cargo-deny licenses

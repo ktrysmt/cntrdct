@@ -3,9 +3,12 @@
 Last updated: 2026-05-03 (commit `6e1cf21`; Phase A complete)
 
 Engineering roadmap for shipping cntrdct as a usable open-source Rust
-tool. Separate from the academic research tracks under `projects/A_*`,
-`projects/B_*`, `projects/C_*` (see `projects/PLAN.md` for the strategic
-context that produced this roadmap).
+tool. Separate from the academic research tracks under
+`research/projects/A_*`, `research/projects/B_*`,
+`research/projects/C_*` (see `research/projects/PLAN.md` for the
+strategic context that produced this roadmap). The research-side
+workspace at `research/Cargo.toml` is independent of the technical
+workspace and never blocks technical CI.
 
 ## Status legend
 
