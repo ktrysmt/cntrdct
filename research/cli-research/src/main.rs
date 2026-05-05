@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 #[derive(Parser)]
 #[command(
     name = "cntrdct-research",
-    about = "Research / empirical-study CLI for cntrdct (corpus fetch, aggregate, overlap, clippy-harness, sample, rank)."
+    about = "Research / empirical-study CLI for cntrdct (corpus fetch, aggregate, overlap, clippy-harness, sample, stratified-sample, rank)."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -51,6 +51,23 @@ enum Commands {
         findings: PathBuf,
         #[arg(long, default_value_t = 30)]
         per_detector: usize,
+        #[arg(long, default_value_t = 0)]
+        seed: u64,
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Two-axis stratified sample: N findings per detector, capped per
+    /// crate to avoid one corpus crate dominating the sample. Requires
+    /// `--corpus-root` to extract the crate directory from each finding.
+    StratifiedSample {
+        #[arg(long)]
+        findings: PathBuf,
+        #[arg(long)]
+        corpus_root: PathBuf,
+        #[arg(long, default_value_t = 30)]
+        per_detector: usize,
+        #[arg(long, default_value_t = 3)]
+        max_per_crate: usize,
         #[arg(long, default_value_t = 0)]
         seed: u64,
         #[arg(long)]
@@ -156,6 +173,27 @@ fn main() -> ExitCode {
             seed,
             out,
         } => match cntrdct_research::run_sample(&findings, per_detector, seed, out.as_deref()) {
+            Ok(_) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("error: {}", e);
+                ExitCode::from(1)
+            }
+        },
+        Commands::StratifiedSample {
+            findings,
+            corpus_root,
+            per_detector,
+            max_per_crate,
+            seed,
+            out,
+        } => match cntrdct_research::run_stratified_sample(
+            &findings,
+            &corpus_root,
+            per_detector,
+            max_per_crate,
+            seed,
+            out.as_deref(),
+        ) {
             Ok(_) => ExitCode::SUCCESS,
             Err(e) => {
                 eprintln!("error: {}", e);

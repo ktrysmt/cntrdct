@@ -599,6 +599,116 @@ pub fn run_sample(
     Ok(sample)
 }
 
+/// Two-axis stratified random sample: detector × crate.
+///
+/// For each detector, group findings by the corpus crate directory
+/// (extracted by stripping `corpus_root` from `finding.primary.file`).
+/// From each (detector, crate) bucket, take up to `max_per_crate` at
+/// random. If the per-detector concatenation exceeds `per_detector`,
+/// down-sample to `per_detector`. All randomness is driven by a single
+/// seeded `fastrand::Rng` iterated in `BTreeMap` (detector, crate)
+/// order, so the output is reproducible for a fixed (input, seed, caps).
+///
+/// Findings whose `primary.file` does not resolve under `corpus_root`
+/// are skipped (mirrors `run_aggregate`). Findings without
+/// `detector_id` are grouped under `(unknown)` (mirrors `run_sample`).
+pub fn run_stratified_sample(
+    findings_path: &Path,
+    corpus_root: &Path,
+    per_detector: usize,
+    max_per_crate: usize,
+    seed: u64,
+    output: Option<&Path>,
+) -> Result<Vec<serde_json::Value>, AggregateError> {
+    use std::collections::BTreeMap;
+
+    let body = fs::read_to_string(findings_path).map_err(|e| AggregateError::Read {
+        path: findings_path.to_path_buf(),
+        source: e,
+    })?;
+    let value: serde_json::Value =
+        serde_json::from_str(&body).map_err(|e| AggregateError::Parse {
+            path: findings_path.to_path_buf(),
+            source: e,
+        })?;
+    let findings = value
+        .as_array()
+        .ok_or_else(|| AggregateError::NotArray {
+            path: findings_path.to_path_buf(),
+        })?
+        .clone();
+
+    let canonical_root = canonicalise_or(corpus_root);
+
+    let mut buckets: BTreeMap<(String, String), Vec<serde_json::Value>> = BTreeMap::new();
+    for f in findings {
+        let detector = f
+            .get("finding")
+            .and_then(|v| v.get("detector_id"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("(unknown)")
+            .to_string();
+        let file_str = match f
+            .get("finding")
+            .and_then(|v| v.get("primary"))
+            .and_then(|v| v.get("file"))
+            .and_then(|v| v.as_str())
+        {
+            Some(s) => s,
+            None => continue,
+        };
+        let path = canonicalise_or(Path::new(file_str));
+        let rel = match path.strip_prefix(&canonical_root) {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+        let crate_dir = match rel.components().next().and_then(|c| c.as_os_str().to_str()) {
+            Some(s) => s.to_string(),
+            None => continue,
+        };
+        buckets.entry((detector, crate_dir)).or_default().push(f);
+    }
+
+    let mut rng = fastrand::Rng::with_seed(seed);
+    let mut per_detector_pool: BTreeMap<String, Vec<serde_json::Value>> = BTreeMap::new();
+    for ((detector, _crate_dir), mut group) in buckets {
+        rng.shuffle(&mut group);
+        group.truncate(max_per_crate);
+        per_detector_pool.entry(detector).or_default().extend(group);
+    }
+
+    let mut sample: Vec<serde_json::Value> = Vec::new();
+    for (_detector, mut pool) in per_detector_pool {
+        if pool.len() > per_detector {
+            rng.shuffle(&mut pool);
+            pool.truncate(per_detector);
+        }
+        sample.extend(pool);
+    }
+
+    let buf = serde_json::to_string_pretty(&sample).expect("findings array reserialises cleanly");
+    match output {
+        Some(p) => {
+            if let Some(parent) = p.parent() {
+                if !parent.as_os_str().is_empty() {
+                    fs::create_dir_all(parent).map_err(|e| AggregateError::Io {
+                        path: parent.to_path_buf(),
+                        source: e,
+                    })?;
+                }
+            }
+            fs::write(p, buf).map_err(|e| AggregateError::Io {
+                path: p.to_path_buf(),
+                source: e,
+            })?;
+        }
+        None => {
+            println!("{buf}");
+        }
+    }
+    Ok(sample)
+}
+
 fn canonicalise_or(p: &Path) -> PathBuf {
     fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
 }
