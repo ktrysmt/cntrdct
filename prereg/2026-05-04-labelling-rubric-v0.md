@@ -24,7 +24,7 @@ TP 側へ寄る単独評価者の確証バイアスは、この phase の既知�
 ## 2. 入力と出力
 
 - 入力: `data/phase0/labelling.csv`（79 行。`labelling.json` から
-  `data/phase0/build_labelling_csv.py` で生成）
+  `scripts/phase0/build_labelling_csv.py` で生成）
 - 評価作業中のファイル: `data/phase0/labelling-rated.csv`
   （入力のコピーに `label`、`rubric_clause`、`notes` 列を記入したもの）
 - 最終出力: 本ルーブリックと同時にコミットされた
