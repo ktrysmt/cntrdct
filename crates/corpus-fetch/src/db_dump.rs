@@ -234,10 +234,7 @@ fn parse_crates_csv(bytes: &[u8], out: &mut HashMap<u64, String>) -> Result<(), 
     Ok(())
 }
 
-fn parse_crate_downloads_csv(
-    bytes: &[u8],
-    out: &mut HashMap<u64, u64>,
-) -> Result<(), FetchError> {
+fn parse_crate_downloads_csv(bytes: &[u8], out: &mut HashMap<u64, u64>) -> Result<(), FetchError> {
     let mut reader = csv::Reader::from_reader(bytes);
     let headers = reader
         .headers()
@@ -246,8 +243,8 @@ fn parse_crate_downloads_csv(
     let id_col = column_index(&headers, "crate_id")?;
     let downloads_col = column_index(&headers, "downloads")?;
     for record in reader.records() {
-        let record = record
-            .map_err(|e| FetchError::Malformed(format!("crate_downloads.csv row: {e}")))?;
+        let record =
+            record.map_err(|e| FetchError::Malformed(format!("crate_downloads.csv row: {e}")))?;
         let id_raw = record.get(id_col).ok_or_else(|| {
             FetchError::Malformed("crate_downloads.csv: short row at crate_id".into())
         })?;
@@ -269,10 +266,7 @@ fn parse_crate_downloads_csv(
     Ok(())
 }
 
-fn parse_default_versions_csv(
-    bytes: &[u8],
-    out: &mut HashMap<u64, u64>,
-) -> Result<(), FetchError> {
+fn parse_default_versions_csv(bytes: &[u8], out: &mut HashMap<u64, u64>) -> Result<(), FetchError> {
     let mut reader = csv::Reader::from_reader(bytes);
     let headers = reader
         .headers()
@@ -281,8 +275,8 @@ fn parse_default_versions_csv(
     let crate_id_col = column_index(&headers, "crate_id")?;
     let version_id_col = column_index(&headers, "version_id")?;
     for record in reader.records() {
-        let record = record
-            .map_err(|e| FetchError::Malformed(format!("default_versions.csv row: {e}")))?;
+        let record =
+            record.map_err(|e| FetchError::Malformed(format!("default_versions.csv row: {e}")))?;
         let crate_id_raw = record.get(crate_id_col).ok_or_else(|| {
             FetchError::Malformed("default_versions.csv: short row at crate_id".into())
         })?;
@@ -316,8 +310,7 @@ fn parse_versions_licenses_csv(
     let id_col = column_index(&headers, "id")?;
     let license_col = column_index(&headers, "license")?;
     for record in reader.records() {
-        let record =
-            record.map_err(|e| FetchError::Malformed(format!("versions.csv row: {e}")))?;
+        let record = record.map_err(|e| FetchError::Malformed(format!("versions.csv row: {e}")))?;
         let id_raw = record
             .get(id_col)
             .ok_or_else(|| FetchError::Malformed("versions.csv: short row at id".into()))?;
@@ -541,7 +534,12 @@ mod tests {
         let archive = make_dump_archive(
             "2026-04-15-000000",
             &[(1, "serde"), (2, "log"), (3, "rand"), (4, "tokio")],
-            &[(1, 80_000_000), (2, 50_000_000), (3, 30_000_000), (4, 100_000_000)],
+            &[
+                (1, 80_000_000),
+                (2, 50_000_000),
+                (3, 30_000_000),
+                (4, 100_000_000),
+            ],
         );
         let tmp = write_archive_to_temp(&archive);
 
@@ -662,10 +660,7 @@ mod tests {
         let top = read_top_n_from_archive(tmp.path(), 10).unwrap();
         let by_name: HashMap<&str, &CrateRanking> =
             top.iter().map(|r| (r.name.as_str(), r)).collect();
-        assert_eq!(
-            by_name["syn"].license.as_deref(),
-            Some("MIT OR Apache-2.0")
-        );
+        assert_eq!(by_name["syn"].license.as_deref(), Some("MIT OR Apache-2.0"));
         assert_eq!(by_name["tokio"].license.as_deref(), Some("MIT"));
         assert_eq!(by_name["log"].license, None, "empty string -> None");
         assert_eq!(
@@ -770,11 +765,7 @@ mod tests {
         }
     }
 
-    fn append_to_archive(
-        tar: &mut Builder<GzEncoder<Vec<u8>>>,
-        path: &str,
-        body: &[u8],
-    ) {
+    fn append_to_archive(tar: &mut Builder<GzEncoder<Vec<u8>>>, path: &str, body: &[u8]) {
         let mut h = Header::new_gnu();
         h.set_size(body.len() as u64);
         h.set_mode(0o644);
@@ -806,11 +797,7 @@ mod tests {
             let gz = GzEncoder::new(buf, Compression::default());
             let mut tar = Builder::new(gz);
             let body = format!("{{\"timestamp\":\"t\",\"{key}\":\"deadbeef\"}}");
-            append_to_archive(
-                &mut tar,
-                "2026-04-15-000000/metadata.json",
-                body.as_bytes(),
-            );
+            append_to_archive(&mut tar, "2026-04-15-000000/metadata.json", body.as_bytes());
             let archive = tar.into_inner().unwrap().finish().unwrap();
             let tmp = write_archive_to_temp(&archive);
             let meta = read_metadata_from_archive(tmp.path()).unwrap();

@@ -123,10 +123,7 @@ impl ReqwestClient {
     /// Build a client with a custom retry policy. Tests pass a sub-second
     /// `base_delay` so the suite finishes quickly; production keeps the
     /// 1-second default so we stay polite on crates.io's static endpoint.
-    pub fn with_retry_policy(
-        max_retries: u32,
-        base_delay: Duration,
-    ) -> Result<Self, FetchError> {
+    pub fn with_retry_policy(max_retries: u32, base_delay: Duration) -> Result<Self, FetchError> {
         let inner = reqwest::blocking::Client::builder()
             .timeout(Duration::from_secs(30))
             .user_agent(concat!(
@@ -225,9 +222,7 @@ impl HttpClient for ReqwestClient {
         if !status.is_success() {
             return Err(FetchError::Http(format!("status {status} from {url}")));
         }
-        let bytes = resp
-            .bytes()
-            .map_err(|e| FetchError::Http(e.to_string()))?;
+        let bytes = resp.bytes().map_err(|e| FetchError::Http(e.to_string()))?;
         Ok(bytes.to_vec())
     }
 }
@@ -340,7 +335,10 @@ mod tests {
     #[test]
     fn index_path_rejects_path_traversal() {
         assert!(matches!(index_path(""), Err(FetchError::InvalidName(_))));
-        assert!(matches!(index_path("../etc"), Err(FetchError::InvalidName(_))));
+        assert!(matches!(
+            index_path("../etc"),
+            Err(FetchError::InvalidName(_))
+        ));
         assert!(matches!(index_path("a/b"), Err(FetchError::InvalidName(_))));
         assert!(matches!(index_path("a b"), Err(FetchError::InvalidName(_))));
         assert!(matches!(index_path("a.b"), Err(FetchError::InvalidName(_))));
@@ -367,7 +365,8 @@ mod tests {
 
     #[test]
     fn parse_jsonl_handles_missing_optional_license() {
-        let body = r#"{"name":"a","vers":"0.1.0","deps":[],"cksum":"x","features":{},"yanked":false}"#;
+        let body =
+            r#"{"name":"a","vers":"0.1.0","deps":[],"cksum":"x","features":{},"yanked":false}"#;
         let recs = parse_jsonl(body).unwrap();
         assert_eq!(recs[0].license, None);
     }
@@ -443,8 +442,7 @@ mod tests {
             "https://example.test/se/rd/serde",
             "{\"name\":\"serde\",\"vers\":\"1.0.0\",\"deps\":[],\"cksum\":\"x\",\"features\":{},\"yanked\":false,\"license\":\"MIT OR Apache-2.0\"}",
         );
-        let client =
-            SparseIndexClient::new(mock).with_base_url("https://example.test");
+        let client = SparseIndexClient::new(mock).with_base_url("https://example.test");
         let versions = client.fetch_versions("serde").unwrap();
         assert_eq!(versions.len(), 1);
         assert_eq!(versions[0].name, "serde");
@@ -457,8 +455,7 @@ mod tests {
             "https://example.test/3/l/log",
             "{\"name\":\"log\",\"vers\":\"0.4.0\",\"deps\":[],\"cksum\":\"x\",\"features\":{},\"yanked\":false,\"license\":\"MIT OR Apache-2.0\"}",
         );
-        let client =
-            SparseIndexClient::new(mock).with_base_url("https://example.test/");
+        let client = SparseIndexClient::new(mock).with_base_url("https://example.test/");
         let versions = client.fetch_versions("log").unwrap();
         assert_eq!(versions.len(), 1);
     }
@@ -470,8 +467,7 @@ mod tests {
             "https://example.test/no/pe/nope-crate",
             FetchError::NotFound("https://example.test/no/pe/nope-crate".to_string()),
         );
-        let client =
-            SparseIndexClient::new(mock).with_base_url("https://example.test");
+        let client = SparseIndexClient::new(mock).with_base_url("https://example.test");
         let err = client.fetch_versions("nope-crate").unwrap_err();
         assert!(matches!(err, FetchError::NotFound(_)));
     }
@@ -485,8 +481,7 @@ mod tests {
              {\"name\":\"abc\",\"vers\":\"0.2.0\",\"deps\":[],\"cksum\":\"y\",\"features\":{},\"yanked\":false}\n\
              {\"name\":\"abc\",\"vers\":\"0.3.0\",\"deps\":[],\"cksum\":\"z\",\"features\":{},\"yanked\":true}",
         );
-        let client =
-            SparseIndexClient::new(mock).with_base_url("https://example.test");
+        let client = SparseIndexClient::new(mock).with_base_url("https://example.test");
         let latest = client.fetch_latest_non_yanked("abc").unwrap().unwrap();
         assert_eq!(latest.version, "0.2.0");
     }
@@ -498,8 +493,7 @@ mod tests {
             "https://example.test/3/a/abc",
             "{\"name\":\"abc\",\"vers\":\"0.1.0\",\"deps\":[],\"cksum\":\"x\",\"features\":{},\"yanked\":true}",
         );
-        let client =
-            SparseIndexClient::new(mock).with_base_url("https://example.test");
+        let client = SparseIndexClient::new(mock).with_base_url("https://example.test");
         let latest = client.fetch_latest_non_yanked("abc").unwrap();
         assert!(latest.is_none());
     }
@@ -507,8 +501,7 @@ mod tests {
     #[test]
     fn fetch_versions_invalid_name_returns_invalid_name_error() {
         let mock = MockClient::new();
-        let client =
-            SparseIndexClient::new(mock).with_base_url("https://example.test");
+        let client = SparseIndexClient::new(mock).with_base_url("https://example.test");
         let err = client.fetch_versions("../etc/passwd").unwrap_err();
         assert!(matches!(err, FetchError::InvalidName(_)));
     }

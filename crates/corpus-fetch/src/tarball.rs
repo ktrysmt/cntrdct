@@ -211,10 +211,7 @@ mod tests {
     fn fetch_verified_rejects_mismatched_cksum() {
         let payload = b"fixture-payload".to_vec();
         let mock = ByteMock::new();
-        mock.expect(
-            "https://example.test/crates/foo/foo-0.1.0.crate",
-            payload,
-        );
+        mock.expect("https://example.test/crates/foo/foo-0.1.0.crate", payload);
         let tc = TarballClient::new(mock).with_base_url("https://example.test");
         let err = tc.fetch_verified("foo", "0.1.0", "deadbeef").unwrap_err();
         match err {
@@ -234,7 +231,9 @@ mod tests {
             FetchError::NotFound("missing".to_string()),
         );
         let tc = TarballClient::new(mock).with_base_url("https://example.test");
-        let err = tc.fetch_verified("missing", "0.1.0", "doesnt-matter").unwrap_err();
+        let err = tc
+            .fetch_verified("missing", "0.1.0", "doesnt-matter")
+            .unwrap_err();
         assert!(matches!(err, FetchError::NotFound(_)));
     }
 }

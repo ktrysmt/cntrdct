@@ -29,7 +29,7 @@ pub use error::FetchError;
 pub use extract::{extract_filtered, ExtractOptions, ExtractReport};
 pub use fetcher::{fetch_one, FetchOutcome, SkipReason};
 pub use license::{
-    license_decision, license_acceptable, LicenseDecision, DEFAULT_LICENSE_ALLOWLIST,
+    license_acceptable, license_decision, LicenseDecision, DEFAULT_LICENSE_ALLOWLIST,
 };
 pub use manifest::{
     append_row, read_manifest_names, read_manifest_rows, write_header, write_row, ManifestRow,

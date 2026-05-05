@@ -48,9 +48,7 @@ pub fn write_row<W: Write>(w: &mut W, row: &ManifestRow) -> io::Result<()> {
         row.name,
         row.version,
         row.license,
-        row.downloads
-            .map(|d| d.to_string())
-            .unwrap_or_default(),
+        row.downloads.map(|d| d.to_string()).unwrap_or_default(),
         row.sha256,
     )
 }
@@ -179,7 +177,13 @@ pub fn append_row(path: &Path, row: &ManifestRow) -> io::Result<()> {
 mod tests {
     use super::*;
 
-    fn row(name: &str, version: &str, license: &str, downloads: Option<u64>, sha: &str) -> ManifestRow {
+    fn row(
+        name: &str,
+        version: &str,
+        license: &str,
+        downloads: Option<u64>,
+        sha: &str,
+    ) -> ManifestRow {
         ManifestRow {
             name: name.to_string(),
             version: version.to_string(),
@@ -204,7 +208,13 @@ mod tests {
         let mut buf = Vec::new();
         write_row(
             &mut buf,
-            &row("serde", "1.0.2", "MIT OR Apache-2.0", Some(1_234_567), "abc"),
+            &row(
+                "serde",
+                "1.0.2",
+                "MIT OR Apache-2.0",
+                Some(1_234_567),
+                "abc",
+            ),
         )
         .unwrap();
         assert_eq!(
@@ -233,7 +243,10 @@ mod tests {
         let path = tmp.path().join("manifest.csv");
         append_row(&path, &row("a", "0.1.0", "MIT", None, "h1")).unwrap();
         let body = std::fs::read_to_string(&path).unwrap();
-        assert_eq!(body, "crate,version,license,downloads,sha256\na,0.1.0,MIT,,h1\n");
+        assert_eq!(
+            body,
+            "crate,version,license,downloads,sha256\na,0.1.0,MIT,,h1\n"
+        );
     }
 
     #[test]

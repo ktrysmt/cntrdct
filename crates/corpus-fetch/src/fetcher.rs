@@ -166,10 +166,7 @@ mod tests {
                 .push((url.to_string(), body.to_string()));
         }
         fn expect_bytes(&self, url: &str, body: Vec<u8>) {
-            self.bytes
-                .lock()
-                .unwrap()
-                .push((url.to_string(), body));
+            self.bytes.lock().unwrap().push((url.to_string(), body));
         }
     }
 
@@ -207,7 +204,13 @@ mod tests {
         )
     }
 
-    fn sparse_record(name: &str, version: &str, license: Option<&str>, cksum: &str, yanked: bool) -> String {
+    fn sparse_record(
+        name: &str,
+        version: &str,
+        license: Option<&str>,
+        cksum: &str,
+        yanked: bool,
+    ) -> String {
         let lic = match license {
             Some(s) => format!(",\"license\":\"{s}\""),
             None => String::new(),
@@ -468,7 +471,10 @@ mod tests {
             &sparse_record("kept", "0.1.0", Some("MIT"), &digest, false),
         );
         let tar = DualMock::new();
-        tar.expect_bytes(&format!("{STATIC_BASE}/crates/kept/kept-0.1.0.crate"), bytes);
+        tar.expect_bytes(
+            &format!("{STATIC_BASE}/crates/kept/kept-0.1.0.crate"),
+            bytes,
+        );
 
         let (sparse, tarball) = build_clients(idx, tar);
         let tmp = tempfile::tempdir().unwrap();

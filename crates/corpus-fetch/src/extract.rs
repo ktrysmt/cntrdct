@@ -107,13 +107,10 @@ pub fn extract_filtered(
             }
         };
 
-        let top = rel
-            .components()
-            .next()
-            .and_then(|c| match c {
-                Component::Normal(s) => s.to_str(),
-                _ => None,
-            });
+        let top = rel.components().next().and_then(|c| match c {
+            Component::Normal(s) => s.to_str(),
+            _ => None,
+        });
         if let Some(t) = top {
             if opts.exclude_dirs.iter().any(|d| d == t) {
                 report.skipped_dir += 1;

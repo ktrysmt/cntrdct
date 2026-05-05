@@ -244,8 +244,14 @@ mod tests {
 
     #[test]
     fn with_clause_uses_base_license() {
-        assert!(license_acceptable("Apache-2.0 WITH LLVM-exception", allow()));
-        assert!(!license_acceptable("GPL-3.0 WITH Classpath-exception-2.0", allow()));
+        assert!(license_acceptable(
+            "Apache-2.0 WITH LLVM-exception",
+            allow()
+        ));
+        assert!(!license_acceptable(
+            "GPL-3.0 WITH Classpath-exception-2.0",
+            allow()
+        ));
     }
 
     #[test]
