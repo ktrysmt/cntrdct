@@ -37,22 +37,33 @@ P-1. β corpus collection (real-world Rust crates)
   Track A's empirical study.
 - Depends on: a fetcher (also useful for Track A).
 
-P-2. pr-miner-rust detector
+P-2. pr-miner detector (multi-language)
 
-- Status: `[ ]`
+- Status: `[~]`
 - Goal: a sixth Layer 1 detector that mines implicit programming
   rules within a crate (e.g. "function `foo` is always called before
   `bar`") and flags violations. Cites Li & Zhou (FSE 2005) faithfully
   rather than a simplified single-pattern lift.
-- Acceptance: `docs/spec/pr-miner-rust-v0.md` exists and is approved,
+- Acceptance: `docs/spec/pr-miner-v0.md` exists and is approved,
   the detector crate ships with an integration test suite mirroring
   the spec's test plan, `crates/cli/tests/citations_consistency.rs`
   is green with the new detector registered, and the seed corpus
-  contains at least 8 positive cases for the new detector.
+  contains at least 8 positive cases per supported language for the
+  new detector. Renamed from `pr-miner-rust` per Phase E note —
+  multi-language from inception.
 - Effort: 3-6 weeks part-time. Heavier than the existing five
   detectors because the detection rule is statistical (frequent
   itemset mining or a similar approximation) rather than syntactic.
 - Depends on: nothing strictly; can be done in parallel with P-1.
+- Progress:
+  - `[x]` Spec draft `docs/spec/pr-miner-v0.md` (Apriori with
+    `MAX_ITEMSET_SIZE = 2`, multi-language Pattern A dispatch,
+    two-step migration: Rust v0.0 → +Python v0.1, ≥8 positives per
+    language). Awaiting approval before implementation.
+  - `[ ]` Survey `docs/surveys/pr-miner-python-{date}.md`.
+  - `[ ]` `cntrdct-detector-pr-miner` crate (Rust v0.0).
+  - `[ ]` Python dispatch + corpus + citation (v0.1).
+  - `[ ]` Corpus shape extension (≥8 positives per language).
 
 P-3. SARIF output validation in CI
 
