@@ -9,9 +9,29 @@ branding:
 
 inputs:
   path:
-    description: "Path to scan (file or directory)."
+    description: >
+      Path to scan (file or directory). Used when `paths` is empty; ignored
+      otherwise. The legacy single-path form preserved for backwards
+      compatibility — new workflows should prefer `paths`.
     required: false
     default: "."
+  paths:
+    description: >
+      Multi-line list of paths to scan. Each line is `<path>` or
+      `<path>:<lang_csv>` where the optional `:<lang_csv>` restricts the
+      scan of THAT path to the listed languages (canonical names; current
+      universe: `rust`, `python`).  When `paths` is set, `path` is ignored
+      and `config:` must NOT be set together with any per-path language
+      hint — the per-path hint is implemented by synthesising a temporary
+      `cntrdct.toml` for that scan, so a user-supplied config would
+      conflict.  Spec: M-5 (`docs/spec/multilang-v0.md`).
+      Example:
+        paths: |
+          rust-src
+          python-src:python
+          shared:rust,python
+    required: false
+    default: ""
   version:
     description: >
       cntrdct release tag to install (e.g. v0.2.0). The literal "latest"
@@ -111,6 +131,7 @@ runs:
       shell: bash
       env:
         SCAN_PATH: ${{ inputs.path }}
+        SCAN_PATHS: ${{ inputs.paths }}
         OUTPUT_MODE: ${{ inputs.output }}
         SARIF_FILE: ${{ inputs.sarif-file }}
         CFG_PATH: ${{ inputs.config }}
@@ -122,31 +143,93 @@ runs:
         set -euo pipefail
         export PATH="${{ steps.install.outputs.bin_dir }}:$PATH"
 
-        args=(scan "${SCAN_PATH}")
-        if [[ "${NO_CALIBRATION}" == "true" ]]; then
-          args+=(--no-calibration)
-        fi
-        if [[ -n "${CFG_PATH}" ]]; then
-          args+=(--config "${CFG_PATH}")
-        fi
-        if [[ "${ADJUDICATE}" == "true" ]]; then
-          args+=(--adjudicate --adjudicate-top "${ADJUDICATE_TOP}")
+        # Build the per-scan list. SCAN_PATHS is the new multi-line input;
+        # falling back to SCAN_PATH (single-path legacy) when empty.
+        entries=()
+        if [[ -n "${SCAN_PATHS}" ]]; then
+          while IFS= read -r raw; do
+            line="${raw## }"
+            line="${line%% }"
+            [[ -z "${line}" ]] && continue
+            entries+=("${line}")
+          done <<< "${SCAN_PATHS}"
+        else
+          entries+=("${SCAN_PATH}")
         fi
 
-        json_tmp=$(mktemp)
-        cntrdct "${args[@]}" --format json > "${json_tmp}"
-        echo "json findings cached at ${json_tmp}" >&2
-        echo "json_path=${json_tmp}" >> "$GITHUB_OUTPUT"
+        # Reject the explicitly-disallowed combo: user `config:` together
+        # with any per-path language hint. Per-path hints synthesise a
+        # private cntrdct.toml, which would conflict with a user-supplied
+        # one. Documented in action.yml `inputs.paths`.
+        if [[ -n "${CFG_PATH}" ]]; then
+          for entry in "${entries[@]}"; do
+            if [[ "${entry}" == *":"* ]]; then
+              echo "::error::cannot combine `config:` input with a per-path language hint (`${entry}`); pick one"
+              exit 1
+            fi
+          done
+        fi
+
+        per_path_jsons=()
+        per_path_sarifs=()
+        for entry in "${entries[@]}"; do
+          # Split entry into `<path>` and `<lang_csv>` (the part after the
+          # last colon, if any). Paths containing `:` themselves are
+          # unsupported; users with such paths can fall back to the legacy
+          # `path:` input.
+          if [[ "${entry}" == *":"* ]]; then
+            scan_path="${entry%:*}"
+            lang_csv="${entry##*:}"
+          else
+            scan_path="${entry}"
+            lang_csv=""
+          fi
+
+          args=(scan "${scan_path}")
+          if [[ "${NO_CALIBRATION}" == "true" ]]; then
+            args+=(--no-calibration)
+          fi
+          if [[ "${ADJUDICATE}" == "true" ]]; then
+            args+=(--adjudicate --adjudicate-top "${ADJUDICATE_TOP}")
+          fi
+
+          if [[ -n "${lang_csv}" ]]; then
+            cfg_tmp=$(mktemp)
+            python3 "${ACTION_DIR}/scripts/prepare_config.py" \
+              "${lang_csv}" "${cfg_tmp}"
+            args+=(--config "${cfg_tmp}")
+          elif [[ -n "${CFG_PATH}" ]]; then
+            args+=(--config "${CFG_PATH}")
+          fi
+
+          json_tmp=$(mktemp)
+          cntrdct "${args[@]}" --format json > "${json_tmp}"
+          per_path_jsons+=("${json_tmp}")
+
+          if [[ "${OUTPUT_MODE}" == "sarif" ]]; then
+            sarif_tmp=$(mktemp)
+            cntrdct "${args[@]}" --format sarif > "${sarif_tmp}"
+            per_path_sarifs+=("${sarif_tmp}")
+          fi
+        done
+
+        # Single merged JSON file consumed by annotate / count / enforce.
+        merged_json=$(mktemp)
+        python3 "${ACTION_DIR}/scripts/merge_json.py" "${per_path_jsons[@]}" \
+          > "${merged_json}"
+        echo "merged json findings cached at ${merged_json}" >&2
+        echo "json_path=${merged_json}" >> "$GITHUB_OUTPUT"
 
         case "${OUTPUT_MODE}" in
           json)
-            cat "${json_tmp}"
+            cat "${merged_json}"
             ;;
           sarif)
-            cntrdct "${args[@]}" --format sarif > "${SARIF_FILE}"
+            python3 "${ACTION_DIR}/scripts/merge_sarif.py" \
+              "${SARIF_FILE}" "${per_path_sarifs[@]}"
             ;;
           annotations)
-            python3 "${ACTION_DIR}/scripts/annotate.py" < "${json_tmp}" || true
+            python3 "${ACTION_DIR}/scripts/annotate.py" < "${merged_json}" || true
             ;;
           *)
             echo "::error::unknown output mode: ${OUTPUT_MODE}"
@@ -154,7 +237,7 @@ runs:
             ;;
         esac
 
-        count=$(python3 "${ACTION_DIR}/scripts/count.py" < "${json_tmp}")
+        count=$(python3 "${ACTION_DIR}/scripts/count.py" < "${merged_json}")
         echo "finding_count=${count}" >> "$GITHUB_OUTPUT"
 
     - name: enforce fail-on policy

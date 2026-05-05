@@ -19,6 +19,21 @@ pub struct ExpectedFinding {
 pub struct ManifestEntry {
     pub file: PathBuf,
     pub expected: Vec<ExpectedFinding>,
+    /// Upstream source URL (PyPI / GitHub release tarball / paper appendix
+    /// link, etc.). Optional — synthetic seed-corpus entries omit this.
+    /// Spec: M-4 (`docs/spec/multilang-v0.md`), reuses the same field for
+    /// the future P-1 Rust β corpus per ROADMAP.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    /// SPDX license expression of the upstream source. Optional for the
+    /// same reason as `source`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub license: Option<String>,
+    /// SHA-256 of the file's content as committed under `files/`. Lets
+    /// CI re-verify integrity without re-downloading the upstream
+    /// tarball. Optional for synthetic fixtures.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

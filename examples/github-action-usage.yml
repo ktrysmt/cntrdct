@@ -1,13 +1,15 @@
-# Example: how a downstream Rust project would call the cntrdct GitHub
-# Action on every PR. Drop a copy of this file into
+# Example: how a downstream project would call the cntrdct GitHub Action
+# on every PR. Drop a copy of this file into
 # `.github/workflows/cntrdct.yml` in your own repo.
 #
-# Two commonly-useful jobs:
+# Three commonly-useful jobs:
 # - `inline-annotations`: surface findings as inline diff comments on the PR.
 # - `sarif-upload`: upload SARIF for the GitHub code-scanning tab so issues
 #   show up in Security > Code scanning.
+# - `mixed-rust-python`: scan a multi-language repo with per-path language
+#   hints (M-5 surface).
 #
-# Both run on ubuntu-latest. The action installs the matching pre-built
+# All run on ubuntu-latest. The action installs the matching pre-built
 # binary from the latest cntrdct release; pin `version: vX.Y.Z` for
 # reproducible runs.
 
@@ -49,3 +51,23 @@ jobs:
       - uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ steps.scan.outputs.sarif-file }}
+
+  mixed-rust-python:
+    name: cntrdct (mixed Rust + Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ktrysmt/cntrdct/.github/actions/scan@main
+        with:
+          # `paths` is multi-line.  Each line is `<path>` or
+          # `<path>:<lang_csv>`; the optional `:<lang_csv>` restricts that
+          # path's scan to the listed canonical language names (current
+          # universe: rust, python).  Per-path hints synthesise an
+          # ephemeral cntrdct.toml internally and so cannot be combined
+          # with the `config:` input — pick one.
+          paths: |
+            crates
+            python-sdk:python
+            shared:rust,python
+          output: annotations
+          fail-on: warning

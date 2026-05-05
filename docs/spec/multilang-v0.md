@@ -255,8 +255,27 @@ the existing one — the source-of-truth APIs are too different.
 - Detector crates do not need a major bump; their public API stays
   the same trait surface.
 - `cntrdct.toml` schema gets an additive `[languages]` section in
-  M-5; older configs continue to work.
-- SARIF emitter is unchanged.
+  M-5; older configs continue to work. The section is keyed by
+  canonical language name and supports two fields per entry:
+  - `enabled: bool` — when `false`, the file walker skips files of
+    that language at discovery time.
+  - `suppress: [String]` — detector IDs whose findings are dropped
+    when the finding's primary file is in this language. Equivalent
+    to `[detectors.<id>] enabled = false` but scoped to one language.
+- The GitHub Action wrapper (`.github/actions/scan/`) gains a
+  multi-line `paths:` input where each line is `<path>` or
+  `<path>:<lang_csv>`. The optional `:<lang_csv>` synthesises an
+  ephemeral `cntrdct.toml` that enables only the listed languages
+  for that path's scan. Mutually exclusive with the user-supplied
+  `config:` input — the action errors out if both are set with a
+  per-path hint, since the synthesised file would conflict with the
+  user's. Default lang-universe is hard-coded in
+  `prepare_config.py` and updated in lockstep with
+  `cntrdct-parsers::Language::all()`.
+- SARIF emitter is unchanged. Multi-path scans merge SARIF
+  documents by concatenating the `runs[]` array
+  (`merge_sarif.py`); SARIF natively supports multiple runs per
+  document so no rule-table normalisation is required.
 
 ## Approval
 

@@ -396,7 +396,7 @@ M-3. Cross-cutting detectors to Python
 
 M-4. Python β corpus
 
-- Status: `[ ]`
+- Status: `[x]`
 - Goal: Python-side analogue of P-1. Either reuse `corpus-fetch`
   with a Python source path or stand up a sibling crate
   (`cntrdct-corpus-fetch-python`) backed by PyPI. Ship under
@@ -407,10 +407,31 @@ M-4. Python β corpus
   detectors.
 - Effort: 2-3 weeks part-time.
 - Depends on: M-2, M-3.
+- Delivered (v0):
+  - `scripts/fetch_python_corpus.py` — a stdlib-only PyPI fetcher
+    (no third-party deps, no Rust crate). Pins
+    `(package, version, file_path)` triples, downloads each sdist,
+    verifies the tarball SHA-256 against PyPI's reported digest,
+    extracts listed members, prepends a 3-line provenance header,
+    writes to `benchmarks/wild-corpus-python/files/`. Idempotent;
+    re-runs produce byte-identical output.
+  - `cntrdct-eval` `ManifestEntry` extended with optional
+    `source` / `license` / `sha256` fields. Existing seed-corpus
+    manifest entries continue to parse unchanged (the new fields
+    are `#[serde(default)]`).
+  - 11-file v0 wild corpus from five packages (six, attrs, click,
+    idna, charset-normalizer) with hand-labelled TP / FP triage in
+    `benchmarks/wild-corpus-python/manifest.jsonl`.
+  - `cntrdct eval benchmarks/wild-corpus-python` reports
+    overall precision = 0.05, recall = 1.00, F1 = 0.10
+    (per-detector breakdown in `benchmarks/wild-corpus-python/README.md`).
+    Non-trivial precision is the M-4 acceptance signal — the
+    near-1.0 numbers from the seed corpus would not have been.
+  - Limitations and expansion path documented in the corpus README.
 
 M-5. Surface multi-language across tooling
 
-- Status: `[ ]`
+- Status: `[x]`
 - Goal: extend the GitHub Action wrapper to accept multiple paths
   with per-path language hints; extend `cntrdct.toml` with an
   optional `[languages]` section to control discovery; verify SARIF
@@ -420,6 +441,22 @@ M-5. Surface multi-language across tooling
   SARIF, and respects per-language suppression in `cntrdct.toml`.
 - Effort: 2-3 days part-time.
 - Depends on: M-2 (Python detector at minimum).
+- Delivered:
+  - `cntrdct.toml` `[languages.<canonical>]` section landed with
+    fields `enabled: bool` (walker discovery control) and
+    `suppress: [String]` (per-language detector suppression). Schema
+    in `crates/config/src/lib.rs`; integration tests in
+    `crates/cli/tests/multilang_config.rs`.
+  - GitHub Action wrapper `paths:` input accepts a multi-line list
+    where each entry is `<path>` or `<path>:<lang_csv>`. Per-path
+    language hints synthesise an ephemeral `cntrdct.toml` via
+    `.github/actions/scan/scripts/prepare_config.py`; multi-path
+    merging happens through `merge_json.py` (JSON / annotations) and
+    `merge_sarif.py` (SARIF `runs[]` concat).
+  - SARIF mixed-language path verified by
+    `sarif_emitter_handles_mixed_rust_and_python_unchanged` in the
+    integration test above.
+  - Sample workflow updated in `examples/github-action-usage.yml`.
 
 M-6. Citation policy for multi-language detectors
 

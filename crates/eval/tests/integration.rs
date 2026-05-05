@@ -107,6 +107,9 @@ fn entry(file: &str, expected: Vec<(&str, u32)>) -> ManifestEntry {
                 line,
             })
             .collect(),
+        source: None,
+        license: None,
+        sha256: None,
     }
 }
 

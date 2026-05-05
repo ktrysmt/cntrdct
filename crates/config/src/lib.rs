@@ -73,6 +73,19 @@ pub struct Config {
     /// Path-based include / exclude globs.
     #[serde(default)]
     pub paths: PathRules,
+    /// Per-language overrides keyed by canonical language name
+    /// (e.g. `"rust"`, `"python"`). Spec: M-5 (`docs/spec/multilang-v0.md`).
+    ///
+    /// Two effects:
+    /// - `enabled = false` causes the file walker to skip files of that
+    ///   language (discovery control).
+    /// - `suppress = ["<id>", ...]` drops findings whose primary file is in
+    ///   this language and whose `detector_id` is in the list. Equivalent
+    ///   in spirit to `[detectors.<id>] enabled = false` but scoped to a
+    ///   single language so a detector can stay on for Rust while being
+    ///   silenced on Python (or vice versa).
+    #[serde(default)]
+    pub languages: HashMap<String, LanguageOverride>,
 }
 
 /// Per-detector overrides.
@@ -86,6 +99,27 @@ pub struct DetectorOverride {
     /// Remap the detector's `raw_severity` on every emitted finding.
     #[serde(default)]
     pub severity: Option<SeverityName>,
+}
+
+/// Per-language overrides.
+///
+/// Section is optional; absent / empty means "every language enabled, no
+/// per-language suppression". Unknown language keys are accepted but
+/// ineffective — the walker only consults the override for languages
+/// `cntrdct-parsers` already knows about, so a typo (e.g. `[languages.ruby]`)
+/// does not silently disable scanning. (Detection of typos is out of scope
+/// for v0; consider a `cntrdct check` lint later.)
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LanguageOverride {
+    /// `Some(false)` instructs the file walker to skip files of this language.
+    /// `None` and `Some(true)` are both treated as enabled.
+    #[serde(default)]
+    pub enabled: Option<bool>,
+    /// Detector IDs whose findings are dropped on files of this language.
+    /// Empty / absent = no per-language suppression.
+    #[serde(default)]
+    pub suppress: Vec<String>,
 }
 
 /// Path-based filter rules.
@@ -150,6 +184,26 @@ impl Config {
             return Ok(None);
         }
         Self::load_from(&candidate).map(Some)
+    }
+
+    /// `true` if the file walker should scan files of `lang`. Defaults to
+    /// `true` when no override is present (the implicit "everything on"
+    /// stance — explicit opt-out is required to disable a language).
+    pub fn language_enabled(&self, lang: Language) -> bool {
+        self.languages
+            .get(lang.canonical_name())
+            .and_then(|o| o.enabled)
+            .unwrap_or(true)
+    }
+
+    /// `true` if the supplied `detector_id` is listed under
+    /// `[languages.<canonical>] suppress = [...]` for `lang`. Returns
+    /// `false` when no such override exists.
+    pub fn language_suppresses_detector(&self, lang: Language, detector_id: &str) -> bool {
+        self.languages
+            .get(lang.canonical_name())
+            .map(|o| o.suppress.iter().any(|d| d == detector_id))
+            .unwrap_or(false)
     }
 }
 
@@ -362,6 +416,9 @@ pub fn apply(
         .map(|f| (f.path.clone(), collect_attribute_suppressions(f)))
         .collect();
 
+    let language_by_path: HashMap<PathBuf, Language> =
+        files.iter().map(|f| (f.path.clone(), f.language)).collect();
+
     let mut out = Vec::with_capacity(findings.len());
     for mut finding in findings {
         // Path filter.
@@ -376,6 +433,17 @@ pub fn apply(
         // Detector enable.
         if let Some(over) = config.detectors.get(&finding.detector_id) {
             if matches!(over.enabled, Some(false)) {
+                continue;
+            }
+        }
+
+        // Per-language suppression. The lookup goes through the
+        // `language_by_path` map built from the supplied `files` slice
+        // — callers that pass an empty `files` slice get no per-language
+        // filtering (this matches the historical `apply(&cfg, &[], …)` test
+        // shape, which we keep working for the suppression-free case).
+        if let Some(lang) = language_by_path.get(primary) {
+            if config.language_suppresses_detector(*lang, &finding.detector_id) {
                 continue;
             }
         }
@@ -569,6 +637,99 @@ mod tests {
         let out = apply(&cfg, &[], vec![in_src.clone(), out_src]).unwrap();
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].primary.file, in_src.primary.file);
+    }
+
+    #[test]
+    fn languages_section_default_enables_every_language() {
+        let cfg = Config::default();
+        assert!(cfg.language_enabled(Language::Rust));
+        assert!(cfg.language_enabled(Language::Python));
+    }
+
+    #[test]
+    fn languages_section_disables_python() {
+        let cfg: Config = toml::from_str(
+            r#"
+            [languages.python]
+            enabled = false
+            "#,
+        )
+        .unwrap();
+        assert!(cfg.language_enabled(Language::Rust));
+        assert!(!cfg.language_enabled(Language::Python));
+    }
+
+    #[test]
+    fn languages_section_explicit_enable_true_is_identity() {
+        let cfg: Config = toml::from_str(
+            r#"
+            [languages.rust]
+            enabled = true
+            "#,
+        )
+        .unwrap();
+        assert!(cfg.language_enabled(Language::Rust));
+    }
+
+    #[test]
+    fn per_language_suppress_drops_findings_only_in_that_language() {
+        let cfg: Config = toml::from_str(
+            r#"
+            [languages.python]
+            suppress = ["clone-drift"]
+            "#,
+        )
+        .unwrap();
+        let py = ParsedFile {
+            path: PathBuf::from("a.py"),
+            language: Language::Python,
+            source: String::new(),
+        };
+        let rs = ParsedFile {
+            path: PathBuf::from("a.rs"),
+            language: Language::Rust,
+            source: String::new(),
+        };
+        let f_py = finding_at("clone-drift", "a.py", 1);
+        let f_rs = finding_at("clone-drift", "a.rs", 1);
+        let out = apply(&cfg, &[py, rs], vec![f_py, f_rs]).unwrap();
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].primary.file, PathBuf::from("a.rs"));
+    }
+
+    #[test]
+    fn per_language_suppress_does_not_affect_other_detectors() {
+        let cfg: Config = toml::from_str(
+            r#"
+            [languages.python]
+            suppress = ["clone-drift"]
+            "#,
+        )
+        .unwrap();
+        let py = ParsedFile {
+            path: PathBuf::from("a.py"),
+            language: Language::Python,
+            source: String::new(),
+        };
+        let f_other = finding_at("arg-swap", "a.py", 1);
+        let out = apply(&cfg, &[py], vec![f_other.clone()]).unwrap();
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].detector_id, "arg-swap");
+    }
+
+    #[test]
+    fn language_suppresses_detector_helper() {
+        let cfg: Config = toml::from_str(
+            r#"
+            [languages.python]
+            suppress = ["clone-drift", "arg-swap"]
+            "#,
+        )
+        .unwrap();
+        assert!(cfg.language_suppresses_detector(Language::Python, "clone-drift"));
+        assert!(cfg.language_suppresses_detector(Language::Python, "arg-swap"));
+        assert!(!cfg.language_suppresses_detector(Language::Python, "comment-code"));
+        assert!(!cfg.language_suppresses_detector(Language::Rust, "clone-drift"));
     }
 
     #[test]

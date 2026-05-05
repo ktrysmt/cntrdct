@@ -100,94 +100,100 @@ fn main() -> ExitCode {
             adjudicate,
             adjudicate_top,
             config,
-        } => match cntrdct_cli::scan_full(&path) {
-            Ok((raw_findings, parsed_files)) => {
-                let findings = match cntrdct_cli::apply_suppression(
-                    config.as_deref(),
-                    &path,
-                    &parsed_files,
-                    raw_findings,
-                ) {
-                    Ok(f) => f,
-                    Err(e) => {
-                        eprintln!("error: {}", e);
-                        return ExitCode::from(1);
-                    }
-                };
+        } => {
+            let cfg = match cntrdct_cli::load_config(config.as_deref(), &path) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("error: {}", e);
+                    return ExitCode::from(1);
+                }
+            };
+            match cntrdct_cli::scan_full_with_config(&path, &cfg) {
+                Ok((raw_findings, parsed_files)) => {
+                    let findings = match cntrdct_config::apply(&cfg, &parsed_files, raw_findings) {
+                        Ok(f) => f,
+                        Err(e) => {
+                            eprintln!("error: {}", e);
+                            return ExitCode::from(1);
+                        }
+                    };
 
-                let mut ranked = match cntrdct_cli::rank_with_calibration(
-                    findings,
-                    no_calibration,
-                    priors.as_deref(),
-                ) {
-                    Ok(r) => r,
-                    Err(e) => {
-                        eprintln!("error: {}", e);
-                        return ExitCode::from(1);
-                    }
-                };
+                    let mut ranked = match cntrdct_cli::rank_with_calibration(
+                        findings,
+                        no_calibration,
+                        priors.as_deref(),
+                    ) {
+                        Ok(r) => r,
+                        Err(e) => {
+                            eprintln!("error: {}", e);
+                            return ExitCode::from(1);
+                        }
+                    };
 
-                if adjudicate {
-                    match cntrdct_cli::read_anthropic_api_key() {
-                        Some(key) => match cntrdct_cli::build_default_adjudicator(key) {
-                            Ok(mut adj) => {
-                                if let Ok(url) = std::env::var("ANTHROPIC_API_URL_OVERRIDE") {
-                                    adj = adj.with_url(url);
-                                }
-                                if let Err(e) =
-                                    cntrdct_cli::adjudicate_top_n(&mut ranked, &adj, adjudicate_top)
-                                {
-                                    eprintln!(
+                    if adjudicate {
+                        match cntrdct_cli::read_anthropic_api_key() {
+                            Some(key) => match cntrdct_cli::build_default_adjudicator(key) {
+                                Ok(mut adj) => {
+                                    if let Ok(url) = std::env::var("ANTHROPIC_API_URL_OVERRIDE") {
+                                        adj = adj.with_url(url);
+                                    }
+                                    if let Err(e) = cntrdct_cli::adjudicate_top_n(
+                                        &mut ranked,
+                                        &adj,
+                                        adjudicate_top,
+                                    ) {
+                                        eprintln!(
                                         "note: adjudication failed; continuing without verdicts ({})",
                                         e
                                     );
+                                    }
                                 }
-                            }
-                            Err(e) => {
-                                eprintln!(
+                                Err(e) => {
+                                    eprintln!(
                                     "note: adjudicator init failed; continuing without verdicts ({})",
                                     e
                                 );
-                            }
-                        },
-                        None => {
-                            eprintln!(
+                                }
+                            },
+                            None => {
+                                eprintln!(
                                 "note: --adjudicate requested but ANTHROPIC_API_KEY not set; skipping adjudication"
                             );
+                            }
                         }
                     }
-                }
 
-                let output = match format {
-                    OutputFormat::Json => serde_json::to_string_pretty(&ranked)
-                        .expect("ranked findings serialize cleanly"),
-                    OutputFormat::Sarif => {
-                        // Mirror the detector set registered by `cntrdct_cli::scan`
-                        // so the rules taxonomy in the SARIF output matches the
-                        // detectors that produced the findings.
-                        let clone_drift = CloneDrift::new();
-                        let arg_swap = ArgSwap::new();
-                        let comment_code = CommentCode::new();
-                        let unreachable = UnreachableAfterTerminator::new();
-                        let config_interaction = ConfigInteraction::new();
-                        let detectors: Vec<&dyn Detector> = vec![
-                            &clone_drift,
-                            &arg_swap,
-                            &comment_code,
-                            &unreachable,
-                            &config_interaction,
-                        ];
-                        cntrdct_sarif::to_sarif_with_rules_pretty_ranked(&ranked, &detectors)
-                    }
-                };
-                println!("{}", output);
-                ExitCode::SUCCESS
+                    let output = match format {
+                        OutputFormat::Json => serde_json::to_string_pretty(&ranked)
+                            .expect("ranked findings serialize cleanly"),
+                        OutputFormat::Sarif => {
+                            // Mirror the detector set registered by `cntrdct_cli::scan`
+                            // so the rules taxonomy in the SARIF output matches the
+                            // detectors that produced the findings.
+                            let clone_drift = CloneDrift::new();
+                            let arg_swap = ArgSwap::new();
+                            let comment_code = CommentCode::new();
+                            let unreachable = UnreachableAfterTerminator::new();
+                            let config_interaction = ConfigInteraction::new();
+                            let detectors: Vec<&dyn Detector> = vec![
+                                &clone_drift,
+                                &arg_swap,
+                                &comment_code,
+                                &unreachable,
+                                &config_interaction,
+                            ];
+                            cntrdct_sarif::to_sarif_with_rules_pretty_ranked(&ranked, &detectors)
+                        }
+                    };
+                    println!("{}", output);
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: {}", e);
+                    ExitCode::from(1)
+                }
             }
-            Err(e) => {
-                eprintln!("error: {}", e);
-                ExitCode::from(1)
-            }
-        },
+        }
         Commands::Eval {
             corpus_dir,
             manifest,

@@ -66,13 +66,29 @@ pub fn scan(path: &Path) -> Result<Vec<Finding>, ScanError> {
 }
 
 /// Like [`scan`] but also returns the parsed files. Callers that want to run
-/// the suppression filter (`cntrdct_config::apply`) need both.
+/// the suppression filter (`cntrdct_config::apply`) need both. Equivalent to
+/// [`scan_full_with_config`] called with the default (empty) config.
 pub fn scan_full(path: &Path) -> Result<(Vec<Finding>, Vec<ParsedFile>), ScanError> {
+    scan_full_with_config(path, &cntrdct_config::Config::default())
+}
+
+/// Like [`scan_full`] but consults `config.languages` to decide which
+/// languages the file walker discovers. A `[languages.<canonical>]` table
+/// with `enabled = false` causes the walker to skip files of that language;
+/// every other language stays enabled. Spec: M-5
+/// (`docs/spec/multilang-v0.md`).
+pub fn scan_full_with_config(
+    path: &Path,
+    config: &cntrdct_config::Config,
+) -> Result<(Vec<Finding>, Vec<ParsedFile>), ScanError> {
     if !path.exists() {
         return Err(ScanError::PathNotFound(path.to_path_buf()));
     }
 
-    let source_paths = collect_supported_files(path);
+    let source_paths: Vec<(PathBuf, Language)> = collect_supported_files(path)
+        .into_iter()
+        .filter(|(_, lang)| config.language_enabled(*lang))
+        .collect();
 
     // Read files in parallel. Unreadable files (permission errors, transient
     // races) are silently skipped, matching the previous serial behaviour.
@@ -148,12 +164,25 @@ pub fn apply_suppression(
     files: &[ParsedFile],
     findings: Vec<Finding>,
 ) -> Result<Vec<Finding>, cntrdct_config::ConfigError> {
-    let config = if let Some(p) = config_override {
-        cntrdct_config::Config::load_from(p)?
-    } else {
-        cntrdct_config::Config::discover_in(scan_root)?.unwrap_or_default()
-    };
+    let config = load_config(config_override, scan_root)?;
     cntrdct_config::apply(&config, files, findings)
+}
+
+/// Resolve the active config: prefer `--config <path>` when supplied,
+/// otherwise fall back to `<scan_root>/cntrdct.toml` discovery, otherwise
+/// return `Config::default()`. Pulled out of `apply_suppression` so callers
+/// (notably `main.rs`) can load the config exactly once and feed it to both
+/// `scan_full_with_config` and `cntrdct_config::apply` without re-reading
+/// the file. Spec: M-5 (`docs/spec/multilang-v0.md`).
+pub fn load_config(
+    config_override: Option<&Path>,
+    scan_root: &Path,
+) -> Result<cntrdct_config::Config, cntrdct_config::ConfigError> {
+    if let Some(p) = config_override {
+        cntrdct_config::Config::load_from(p)
+    } else {
+        Ok(cntrdct_config::Config::discover_in(scan_root)?.unwrap_or_default())
+    }
 }
 
 // ---------- Calibration discovery ----------
