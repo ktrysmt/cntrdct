@@ -4,7 +4,7 @@
 //! both a network and a working rustup toolchain, both of which the
 //! workspace's CI does not currently guarantee for arbitrary crates.
 
-use cntrdct_cli::{parse_clippy_diagnostics, run_clippy_harness, ClippyHarnessError};
+use cntrdct_research::{parse_clippy_diagnostics, run_clippy_harness, ClippyHarnessError};
 
 const SAMPLE_STDOUT: &[u8] = br#"{"reason":"compiler-artifact","package_id":"foo 0.1.0","manifest_path":"/tmp/Cargo.toml"}
 {"reason":"compiler-message","package_id":"foo 0.1.0","manifest_path":"/tmp/Cargo.toml","target":{"name":"foo"},"message":{"rendered":"warning: needless borrow","children":[],"code":{"code":"clippy::needless_borrow","explanation":null},"level":"warning","message":"needless borrow","spans":[{"file_name":"src/lib.rs","line_start":42,"column_start":1}]}}

@@ -6,7 +6,7 @@
 //! tarball download is covered by the orchestrator tests in
 //! `cntrdct-corpus-fetch::fetcher::tests`, which use mock HTTP clients.
 
-use cntrdct_cli::{run_fetch, run_rank, FetchProgress};
+use cntrdct_research::{run_fetch, run_rank, FetchProgress};
 use cntrdct_corpus_fetch::{ExtractOptions, DEFAULT_LICENSE_ALLOWLIST};
 
 #[test]
@@ -139,7 +139,7 @@ fn ndjson_progress_emits_parseable_json_lines_on_resume_path() {
     let list = tmp.path().join("crates.txt");
     std::fs::write(&list, "serde\nlog\n").unwrap();
 
-    let bin = env!("CARGO_BIN_EXE_cntrdct");
+    let bin = env!("CARGO_BIN_EXE_cntrdct-research");
     let output = std::process::Command::new(bin)
         .args([
             "fetch",
@@ -152,7 +152,7 @@ fn ndjson_progress_emits_parseable_json_lines_on_resume_path() {
         ])
         .output()
         .unwrap();
-    assert!(output.status.success(), "cntrdct fetch exited non-zero");
+    assert!(output.status.success(), "cntrdct-research fetch exited non-zero");
 
     let stderr = String::from_utf8(output.stderr).unwrap();
     let lines: Vec<&str> = stderr.lines().filter(|l| !l.is_empty()).collect();

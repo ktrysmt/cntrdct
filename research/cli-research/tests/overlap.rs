@@ -4,7 +4,7 @@
 //! `<clippy_dir>/<crate>-<ver>.clippy.json` directory. No network, no
 //! cargo, no real Rust toolchain.
 
-use cntrdct_cli::run_overlap;
+use cntrdct_research::run_overlap;
 use serde_json::json;
 
 fn cntrdct_finding(detector: &str, file: &str, line: u32) -> serde_json::Value {
@@ -141,7 +141,7 @@ fn overlap_counts_intersections_and_emits_long_format_csv() {
     assert_eq!(rows.len(), 4);
     assert_eq!(
         rows[0],
-        cntrdct_cli::OverlapRow {
+        cntrdct_research::OverlapRow {
             detector: "arg-swap".into(),
             clippy_lint: "clippy::needless_borrow".into(),
             count: 1
@@ -149,7 +149,7 @@ fn overlap_counts_intersections_and_emits_long_format_csv() {
     );
     assert_eq!(
         rows[1],
-        cntrdct_cli::OverlapRow {
+        cntrdct_research::OverlapRow {
             detector: "arg-swap".into(),
             clippy_lint: "clippy::unused_unit".into(),
             count: 1
@@ -157,7 +157,7 @@ fn overlap_counts_intersections_and_emits_long_format_csv() {
     );
     assert_eq!(
         rows[2],
-        cntrdct_cli::OverlapRow {
+        cntrdct_research::OverlapRow {
             detector: "clone-drift".into(),
             clippy_lint: "clippy::needless_borrow".into(),
             count: 2
@@ -165,7 +165,7 @@ fn overlap_counts_intersections_and_emits_long_format_csv() {
     );
     assert_eq!(
         rows[3],
-        cntrdct_cli::OverlapRow {
+        cntrdct_research::OverlapRow {
             detector: "clone-drift".into(),
             clippy_lint: "clippy::unused_unit".into(),
             count: 1

@@ -1,0 +1,36 @@
+[package]
+name = "cntrdct-research"
+description = "Research / empirical-study CLI: fetch, aggregate, overlap, clippy-harness, sample, rank."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "cntrdct-research"
+path = "src/main.rs"
+
+[dependencies]
+cntrdct-corpus-fetch = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+rayon = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+tempfile = "3"
+fastrand = "2"
+
+[dev-dependencies]
+tempfile = "3"
+mockito = "1"
+flate2 = "1"
+tar = "0.4"
+serde_json = { workspace = true }

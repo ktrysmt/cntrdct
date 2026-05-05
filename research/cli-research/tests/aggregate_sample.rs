@@ -6,7 +6,7 @@
 //! `finding.primary.file`); the full schema validation lives in the core
 //! crate's serde tests.
 
-use cntrdct_cli::{run_aggregate, run_sample};
+use cntrdct_research::{run_aggregate, run_sample};
 use serde_json::json;
 
 fn write_findings(dir: &std::path::Path, findings: &serde_json::Value) -> std::path::PathBuf {

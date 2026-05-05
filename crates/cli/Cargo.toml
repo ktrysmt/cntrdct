@@ -36,7 +36,6 @@ cntrdct-calibration = { workspace = true }
 cntrdct-adjudicator-llm = { workspace = true }
 cntrdct-eval = { workspace = true }
 cntrdct-config = { workspace = true }
-cntrdct-corpus-fetch = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tempfile = "3"
@@ -45,12 +44,9 @@ clap = { version = "4", features = ["derive"] }
 walkdir = "2"
 dirs = "5"
 rayon = { workspace = true }
-fastrand = "2"
 
 [dev-dependencies]
 tempfile = "3"
 mockito = "1"
 rayon = { workspace = true }
-flate2 = "1"
-tar = "0.4"
 serde_json = { workspace = true }
