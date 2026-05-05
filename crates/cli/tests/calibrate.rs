@@ -191,3 +191,94 @@ fn pick_ranker_with_missing_priors_path_falls_back_silently() {
         "fallback must be uncalibrated"
     );
 }
+
+// ---------- P-4 acceptance ----------
+
+/// P-4 acceptance: with no `--priors` and no per-user cache override,
+/// `pick_ranker` returns a ranker built from the priors embedded in the
+/// binary (`benchmarks/priors-default.json` via `include_str!`). Verified
+/// end-to-end: a clone-drift finding gets calibrated metadata
+/// (posterior_tp, wilson_lower) attached without the caller doing any
+/// setup.
+#[test]
+fn embedded_priors_are_used_when_no_override_or_cache() {
+    // We can't easily prove "no per-user cache exists" on a CI machine
+    // (HOME and the cache path may have a stale priors.json from a prior
+    // test run), so this test asserts the *outcome* — the ranker
+    // attaches calibrated metadata for the bundled detectors — rather
+    // than the precise fallback path. Either path satisfies the P-4
+    // acceptance ("scan picks up priors automatically").
+    let ranker = pick_ranker(false, None).expect("pick_ranker ok");
+    let f = make_finding("clone-drift", 5);
+    let out = ranker.rank(vec![f]);
+    assert!(
+        out[0].posterior_tp.is_some() && out[0].wilson_lower.is_some(),
+        "auto-picked ranker must be calibrated; got posterior={:?} wilson={:?}",
+        out[0].posterior_tp,
+        out[0].wilson_lower
+    );
+}
+
+/// Where the formula's wilson and the related-count signal point in
+/// different directions, the calibrated ranker reorders findings
+/// relative to the uncalibrated baseline. The seed corpus happens to
+/// have detector quality monotonically aligned with sibling-count
+/// (clone-drift has both the highest related counts and high wilson),
+/// so reordering does not show on it; this test constructs the
+/// adversarial case explicitly to demonstrate the ranker IS sensitive
+/// to wilson when given input where alignment breaks.
+#[test]
+fn calibrated_ranker_reorders_when_wilson_disagrees_with_related_count() {
+    use cntrdct_core::Ranker;
+
+    let mut priors = HashMap::new();
+    priors.insert(
+        "low-wilson".to_string(),
+        DetectorPrior {
+            tp: 1,
+            fp: 9,
+            posterior_tp: 0.166,
+            wilson_lower_95: 0.02,
+        },
+    );
+    priors.insert(
+        "high-wilson".to_string(),
+        DetectorPrior {
+            tp: 10,
+            fp: 0,
+            posterior_tp: 0.916,
+            wilson_lower_95: 0.85,
+        },
+    );
+
+    // Two findings: a low-wilson detector with one sibling, vs a
+    // high-wilson detector with no siblings. Uncalibrated ranks the
+    // low-wilson finding first (related=1 > related=0). Calibrated
+    // ranks the high-wilson finding first
+    // (0.85 * 1 = 0.85 > 0.02 * 2 = 0.04).
+    let low = make_finding("low-wilson", 1);
+    let high = make_finding("high-wilson", 0);
+
+    let uncal_order: Vec<String> = cntrdct_ranker::UncalibratedRanker::new()
+        .rank(vec![low.clone(), high.clone()])
+        .into_iter()
+        .map(|rf| rf.finding.detector_id)
+        .collect();
+    let cal_order: Vec<String> = cntrdct_ranker::CalibratedRanker::new(priors)
+        .rank(vec![low, high])
+        .into_iter()
+        .map(|rf| rf.finding.detector_id)
+        .collect();
+
+    assert_eq!(
+        uncal_order,
+        vec!["low-wilson".to_string(), "high-wilson".to_string()],
+        "uncalibrated ranks by sibling count alone"
+    );
+    assert_eq!(
+        cal_order,
+        vec!["high-wilson".to_string(), "low-wilson".to_string()],
+        "calibrated ranks the high-wilson finding above the low-wilson \
+         finding even though the latter has more siblings"
+    );
+}

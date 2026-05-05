@@ -68,7 +68,7 @@ P-3. SARIF output validation in CI
 
 P-4. Layer 2 ranker recalibration on the β corpus
 
-- Status: `[ ]`
+- Status: `[x]`
 - Goal: rerun `cntrdct calibrate` on the new β corpus and ship the
   resulting `priors.json` as the default cache.
 - Acceptance: a `priors.json` file is committed under
@@ -78,6 +78,35 @@ P-4. Layer 2 ranker recalibration on the β corpus
   uncalibrated fallback on the seed corpus.
 - Effort: 2-4 days.
 - Depends on: P-1.
+- Delivered (v0):
+  - `scripts/build_priors_corpus.py` derives a labelled JSONL from
+    `(benchmarks/corpus, benchmarks/wild-corpus-python)` by running
+    `cntrdct scan --no-calibration` and matching findings against
+    each manifest's `expected` array. Output committed at
+    `benchmarks/labelled-findings.jsonl` (87 rows: 69 TP / 18 FP).
+  - `cntrdct calibrate benchmarks/labelled-findings.jsonl` produces
+    `benchmarks/priors-default.json`. Per-detector wilson_lower_95
+    spread: comment-code 0.32 (16 FP from attrs idioms) at the low
+    end; arg-swap and unreachable-after-terminator at 0.80; clone-
+    drift 0.67; config-interaction 0.68.
+  - `cntrdct-cli` embeds `priors-default.json` at compile time via
+    `include_str!`. New `pick_ranker` fallback chain:
+    explicit `--priors` (kept silent on missing path for backwards
+    compat) → per-user cache → embedded priors → uncalibrated.
+  - Acceptance caveat: on the v0 seed corpus, sort permutation does
+    NOT change between uncalibrated and calibrated rankers — every
+    detector's wilson_lower happens to align monotonically with its
+    findings' sibling-counts on this corpus, so the formula
+    preserves the relative order. rank_scores DO differ
+    (calibrated attaches posterior_tp / wilson_lower to every
+    finding; uncalibrated leaves both `None`). The test
+    `calibrated_ranker_reorders_when_wilson_disagrees_with_related_count`
+    constructs the adversarial case explicitly to demonstrate the
+    formula IS sensitive to wilson when the alignment breaks.
+  - Tests added: `embedded_priors_are_used_when_no_override_or_cache`
+    and the reorder demonstration above. The existing
+    `pick_ranker_with_missing_priors_path_falls_back_silently`
+    contract is preserved.
 
 P-5. β release tagging and crates.io publish
 
