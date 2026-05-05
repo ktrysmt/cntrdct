@@ -16,6 +16,11 @@
 //! Adding a new detector therefore REQUIRES a fresh, dated prereg (or an
 //! amendment) before the test suite turns green again — which is the whole
 //! point of preregistration.
+//!
+//! Sibling artefacts (labelling rubrics, prereg addenda) live alongside the
+//! formal prereg in the same directory but follow different schemas — they
+//! reference the parent rather than restate it. They are skipped by name
+//! pattern so the consistency check stays focused on full preregistrations.
 
 use std::collections::BTreeSet;
 use std::ffi::OsStr;
@@ -83,6 +88,13 @@ fn list_prereg_markdown() -> Vec<PathBuf> {
         .filter_map(Result::ok)
         .map(|entry| entry.path())
         .filter(|p| p.extension().and_then(OsStr::to_str) == Some("md"))
+        .filter(|p| {
+            let stem = p.file_stem().and_then(OsStr::to_str).unwrap_or_default();
+            // Sibling artefacts live next to the formal prereg but follow a
+            // different schema; skip them so `latest_prereg()` keeps pointing
+            // at the most recent full preregistration.
+            !stem.contains("-rubric-") && !stem.contains("-addendum")
+        })
         .collect();
     files.sort();
     files
