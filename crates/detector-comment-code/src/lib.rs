@@ -437,8 +437,7 @@ fn extract_python_docstring(body_block: tree_sitter::Node, source: &str) -> Opti
 
 fn strip_python_string_quotes(raw: &str) -> String {
     let trimmed = raw.trim();
-    let after_prefix = trimmed
-        .trim_start_matches(|c: char| matches!(c, 'r' | 'R' | 'b' | 'B' | 'f' | 'F' | 'u' | 'U'));
+    let after_prefix = trimmed.trim_start_matches(['r', 'R', 'b', 'B', 'f', 'F', 'u', 'U']);
     if let Some(s) = after_prefix
         .strip_prefix("\"\"\"")
         .and_then(|s| s.strip_suffix("\"\"\""))
