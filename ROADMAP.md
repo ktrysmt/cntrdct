@@ -348,7 +348,7 @@ M-2. Pilot Python detector
 
 M-3. Cross-cutting detectors to Python
 
-- Status: `[~]`
+- Status: `[x]`
 - Goal: extend the three cross-cutting detectors (`clone-drift`,
   `arg-swap`, `comment-code`) to Python via internal `Language`
   dispatch in their existing crates (parameterised, not duplicated
@@ -377,7 +377,19 @@ M-3. Cross-cutting detectors to Python
     Jackson-Flux, Brockschmidt (NeurIPS 2021, PyBugLab + PyPIBugs)
     under clauses (a) and (c) of `citations-policy.md`; emits
     `LanguageCitationStatus::Confirmed`.
-  - `[ ]` clone-drift Python.
+  - `[x]` clone-drift Python. Top-level `function_definition`
+    (including `decorated_definition` wrappers and `async def`)
+    extraction with NiCad-style normalization (identifier and
+    literal placeholders, comments stripped, n-gram clustering with
+    Jaccard >= 0.5, partition-by-exact-form drift signal). New
+    `MIN_FN_TOKENS = 22` size guard filters trivially short
+    utility functions whose drift signal is too noisy in practice.
+    Survey (`docs/surveys/clone-drift-python-2026-05.md`) accepts
+    Assi, Hassan, Zou (ACM TOSEM 2025, DOI 10.1145/3721125) — an
+    independent peer-reviewed application of NiCad and SourcererCC
+    to nine open-source Python deep-learning frameworks — under
+    clause (b) of `citations-policy.md`; emits
+    `LanguageCitationStatus::Confirmed`.
 
 M-4. Python β corpus
 

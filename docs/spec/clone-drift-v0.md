@@ -20,7 +20,11 @@ skipped without error. Empty input returns `Ok(vec![])`.
 ### F2 — Function extraction
 
 Extracts every top-level `fn` definition from each ParsedFile. Functions inside
-`impl`, `trait`, or `mod` blocks are out of scope for v0.
+`impl`, `trait`, or `mod` blocks are out of scope for v0. Functions whose
+normalized AST token sequence is shorter than `MIN_FN_TOKENS` are dropped
+before clustering; their drift signal is too noisy to act on. This guard
+mirrors the minimum-size filters in industrial NiCad and SourcererCC
+pipelines.
 
 ### F3 — Type-3 clone grouping
 
@@ -121,6 +125,13 @@ in β.
 - `SIMILARITY_THRESHOLD = 0.5`
 - `NGRAM_SIZE = 3`
 - `MIN_GROUP_SIZE = 3`
+- `MIN_FN_TOKENS = 22` — minimum normalized AST token count for a
+  function to participate in clustering. Filters out trivially short
+  utility functions (one-line returns, single `pass`, two-statement
+  helpers) whose drift signal is too noisy to act on. Industrial NiCad
+  / SourcererCC pipelines apply equivalent minimum-size gates; we
+  expose ours as a tunable on the same surface as
+  `SIMILARITY_THRESHOLD`.
 
 Exposed as `pub const` in `cntrdct-detector-clone-drift` for tuning without API
 change. Real-world calibration belongs to Layer 2 (ranker), not these constants.

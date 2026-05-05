@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use cntrdct_core::{
     register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
-    Language, ParsedFile,
+    Language, LanguageCitationStatus, ParsedFile,
 };
 use cntrdct_detector_clone_drift::CloneDrift;
 
@@ -14,6 +14,14 @@ fn parsed(name: &str, src: &str) -> ParsedFile {
     ParsedFile {
         path: PathBuf::from(name),
         language: Language::Rust,
+        source: src.to_string(),
+    }
+}
+
+fn parsed_py(name: &str, src: &str) -> ParsedFile {
+    ParsedFile {
+        path: PathBuf::from(name),
+        language: Language::Python,
         source: src.to_string(),
     }
 }
@@ -276,6 +284,135 @@ fn t_anomaly_class_is_logic_for_every_finding() {
             f.anomaly_class
         );
     }
+}
+
+// ---------- Python pilot (M-3) ----------
+
+const FN_PY_BASE: &str = r#"
+def process(items):
+    out = []
+    for it in items:
+        if it > 0:
+            out.append(it * 2)
+    return out
+"#;
+
+const FN_PY_DRIFTED: &str = r#"
+def process(items):
+    out = []
+    for it in items:
+        if it > 0 and it < 100:
+            out.append(it * 2)
+    return out
+"#;
+
+#[test]
+fn t11_python_drift_detected_4_identical_plus_1_modified() {
+    let files = vec![
+        parsed_py("a.py", FN_PY_BASE),
+        parsed_py("b.py", FN_PY_BASE),
+        parsed_py("c.py", FN_PY_BASE),
+        parsed_py("d.py", FN_PY_BASE),
+        parsed_py("e.py", FN_PY_DRIFTED),
+    ];
+    let findings = run(files);
+    assert_eq!(
+        findings.len(),
+        1,
+        "expected 1 Python drift finding, got {}: {:#?}",
+        findings.len(),
+        findings
+    );
+    assert_eq!(findings[0].primary.file, PathBuf::from("e.py"));
+    assert_eq!(findings[0].related.len(), 4);
+    assert_eq!(findings[0].detector_id, "clone-drift");
+}
+
+#[test]
+fn t12_python_findings_emit_confirmed_status() {
+    let files = vec![
+        parsed_py("a.py", FN_PY_BASE),
+        parsed_py("b.py", FN_PY_BASE),
+        parsed_py("c.py", FN_PY_BASE),
+        parsed_py("d.py", FN_PY_BASE),
+        parsed_py("e.py", FN_PY_DRIFTED),
+    ];
+    let findings = run(files);
+    assert!(
+        !findings.is_empty(),
+        "prerequisite: must produce findings to assert language_citation_status"
+    );
+    for f in &findings {
+        assert_eq!(
+            f.evidence.language_citation_status,
+            LanguageCitationStatus::Confirmed,
+            "Python clone-drift findings must emit Confirmed (assi-tosem-2025)",
+        );
+        assert!(
+            f.evidence.citation_keys.contains(&"assi-tosem-2025"),
+            "Python findings must carry assi-tosem-2025 in citation_keys; got {:?}",
+            f.evidence.citation_keys,
+        );
+    }
+}
+
+#[test]
+fn t13_rust_findings_still_emit_confirmed_status() {
+    let files = vec![
+        parsed("a.rs", FN_BASE),
+        parsed("b.rs", FN_BASE),
+        parsed("c.rs", FN_BASE),
+        parsed("d.rs", FN_BASE),
+        parsed("e.rs", FN_DRIFTED),
+    ];
+    let findings = run(files);
+    assert!(
+        !findings.is_empty(),
+        "T13 prerequisite: must produce findings"
+    );
+    for f in &findings {
+        assert_eq!(
+            f.evidence.language_citation_status,
+            LanguageCitationStatus::Confirmed,
+            "Rust clone-drift findings must remain Confirmed (grandfathered v0)",
+        );
+        assert!(
+            !f.evidence.citation_keys.contains(&"assi-tosem-2025"),
+            "Rust findings must NOT carry the Python-only assi-tosem-2025 key; got {:?}",
+            f.evidence.citation_keys,
+        );
+    }
+}
+
+#[test]
+fn t14_mixed_scan_does_not_cross_match_languages() {
+    // Rust and Python pipelines must run in isolation. Same-shape fns
+    // in different languages must not group together.
+    let files = vec![
+        parsed("a.rs", FN_BASE),
+        parsed("b.rs", FN_BASE),
+        parsed_py("c.py", FN_PY_BASE),
+        parsed_py("d.py", FN_PY_BASE),
+        parsed_py("e.py", FN_PY_DRIFTED),
+    ];
+    let findings = run(files);
+    // No Rust drift: only 2 Rust fns, < MIN_GROUP_SIZE.
+    // No Python cross-pollination: only 3 Python fns visible to the Python
+    // pipeline; partition is 2 + 1 → drift signal triggers on e.py.
+    assert_eq!(
+        findings.len(),
+        1,
+        "expected exactly one Python finding, no Rust cross-match: {:#?}",
+        findings,
+    );
+    assert_eq!(findings[0].primary.file, PathBuf::from("e.py"));
+    assert!(
+        findings[0]
+            .related
+            .iter()
+            .all(|loc| loc.file.extension().and_then(|s| s.to_str()) == Some("py")),
+        "Python finding's related set must contain only .py files",
+    );
 }
 
 #[test]

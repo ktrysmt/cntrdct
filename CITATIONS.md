@@ -25,6 +25,14 @@ pointing at the relevant `docs/surveys/` file.
 - `krinke-icsm-2007` — J. Krinke, "A Study of Consistent and Inconsistent Changes to
   Code Clones", ICSM 2007.
   Languages: Rust (grandfathered).
+- `assi-tosem-2025` — M. Assi, S. Hassan, Y. Zou, "Unraveling Code Clone Dynamics in
+  Deep Learning Frameworks", ACM TOSEM 2025. DOI 10.1145/3721125. Independent
+  peer-reviewed application of NiCad and SourcererCC to nine open-source Python
+  deep-learning frameworks (TensorFlow, Paddle, PyTorch, Aesara, Ray, MXNet, Keras,
+  Jax, BentoML); reports clone-coverage evolution and bug-fixing activity in
+  cloned fragments across release histories.
+  Languages: Python (clause (b) per docs/spec/citations-policy.md;
+  see docs/surveys/clone-drift-python-2026-05.md).
 
 ### arg-swap
 

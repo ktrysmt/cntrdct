@@ -28,6 +28,13 @@ use rayon::prelude::*;
 pub const SIMILARITY_THRESHOLD: f64 = 0.5;
 pub const NGRAM_SIZE: usize = 3;
 pub const MIN_GROUP_SIZE: usize = 3;
+/// Functions whose normalized AST token sequence is shorter than this
+/// threshold are excluded from clustering. Drift signals on trivially
+/// short bodies (single return, single pass) are too noisy to be
+/// useful in practice; industrial NiCad / SourcererCC pipelines apply
+/// equivalent minimum-size gates. Tunable per the same exposure model
+/// as `SIMILARITY_THRESHOLD`.
+pub const MIN_FN_TOKENS: usize = 22;
 
 static CITATIONS: &[Citation] = &[
     Citation {
@@ -40,7 +47,9 @@ static CITATIONS: &[Citation] = &[
         url: Some("https://research.cs.queensu.ca/home/cordy/Papers/NiCadICPC.pdf"),
         // NiCad's experimental subjects were Java and C/C++. The Rust
         // grandfather clause covers it under citations-policy.md (b).
-        // Python coverage: unconfirmed; see docs/surveys/clone-drift-python-2026-05.md.
+        // Python coverage: confirmed via assi-tosem-2025 (NiCad applied
+        // to nine Python DL frameworks). See
+        // docs/surveys/clone-drift-python-2026-05.md.
         languages: &[Language::Rust, Language::Python],
     },
     Citation {
@@ -62,6 +71,22 @@ static CITATIONS: &[Citation] = &[
         doi: None,
         url: None,
         languages: &[Language::Rust, Language::Python],
+    },
+    Citation {
+        key: "assi-tosem-2025",
+        authors: "M. Assi, S. Hassan, Y. Zou",
+        title: "Unraveling Code Clone Dynamics in Deep Learning Frameworks",
+        venue: "ACM TOSEM",
+        year: 2025,
+        doi: Some("10.1145/3721125"),
+        url: Some("https://dl.acm.org/doi/10.1145/3721125"),
+        // Independent peer-reviewed application of NiCad to nine Python
+        // DL frameworks (TensorFlow, Paddle, PyTorch, Aesara, Ray, MXNet,
+        // Keras, Jax, BentoML); satisfies citations-policy.md clause (b)
+        // for cordy-roy-icpc-2008 on Python and the inconsistent-change
+        // framing on Python for bettenburg-msr-2009 / krinke-icsm-2007.
+        // See docs/surveys/clone-drift-python-2026-05.md.
+        languages: &[Language::Python],
     },
 ];
 
@@ -104,11 +129,24 @@ impl Detector for CloneDrift {
             ctx,
             Language::Rust,
             extract_rust_fns,
+            LanguageCitationStatus::Confirmed,
+            &[
+                "cordy-roy-icpc-2008",
+                "bettenburg-msr-2009",
+                "krinke-icsm-2007",
+            ],
         ));
         findings.extend(run_detect_for_language(
             ctx,
             Language::Python,
             extract_python_fns,
+            LanguageCitationStatus::Confirmed,
+            &[
+                "cordy-roy-icpc-2008",
+                "bettenburg-msr-2009",
+                "krinke-icsm-2007",
+                "assi-tosem-2025",
+            ],
         ));
 
         findings.sort_by(|a, b| {
@@ -126,6 +164,8 @@ fn run_detect_for_language(
     ctx: &DetectContext,
     lang: Language,
     extract_fns_fn: fn(&ParsedFile) -> Option<Vec<FnInfo>>,
+    citation_status: LanguageCitationStatus,
+    citation_keys: &'static [&'static str],
 ) -> Vec<Finding> {
     // Per-file parsing dominates this detector's runtime; clustering and
     // partitioning that follow are intrinsically cross-file and stay
@@ -137,6 +177,7 @@ fn run_detect_for_language(
         .filter(|f| f.language == lang)
         .filter_map(extract_fns_fn)
         .flatten()
+        .filter(|info| info.normalized.len() >= MIN_FN_TOKENS)
         .collect();
 
     if all_fns.len() < MIN_GROUP_SIZE {
@@ -181,17 +222,13 @@ fn run_detect_for_language(
                 raw_severity: Severity::Warning,
                 anomaly_class: AnomalyClass::Logic,
                 evidence: Evidence {
-                    citation_keys: vec![
-                        "cordy-roy-icpc-2008",
-                        "bettenburg-msr-2009",
-                        "krinke-icsm-2007",
-                    ],
+                    citation_keys: citation_keys.to_vec(),
                     raw: serde_json::json!({
                         "similarity_threshold": SIMILARITY_THRESHOLD,
                         "group_size": group.len(),
                         "partition_sizes": partition_sizes,
                     }),
-                    language_citation_status: LanguageCitationStatus::Confirmed,
+                    language_citation_status: citation_status,
                 },
             });
         }
