@@ -1,16 +1,21 @@
 //! clone-drift detector — Type-3 clone groups with Type-2 partition drift signal.
 //!
-//! Spec: `cntrdct/docs/spec/clone-drift-v0.md`.
+//! Spec: `cntrdct/docs/spec/clone-drift-v0.md`; Python via `multilang-v0.md` Pattern A.
 //!
-//! Algorithm:
-//! 1. Parse each ParsedFile (rust only) with tree-sitter, collect top-level fns.
+//! Algorithm (shared):
+//! 1. Parse each ParsedFile for the target language with tree-sitter, collect top-level fns.
 //! 2. Normalize each fn to a sequence of AST node kinds with identifiers and
 //!    literals replaced by placeholder tokens.
 //! 3. Build n-gram sets and compute pairwise Jaccard similarity.
 //! 4. Cluster fns with similarity >= SIMILARITY_THRESHOLD via union-find.
 //! 5. Within each cluster of size >= MIN_GROUP_SIZE, partition by exact normalized
 //!    form. Emit Finding for any size-1 partition coexisting with a size>=2
-//!    partition.
+//!    partition. Each language runs in isolation; Rust fns never mix with Python.
+//!
+//! Language-specific details:
+//! - Rust: `function_item` only; normalization handles Rust token kinds.
+//! - Python: `function_definition` (including `decorated_definition` wrappers);
+//!   top-level only. Normalization handles Python token kinds.
 
 use std::collections::{HashMap, HashSet};
 
@@ -35,7 +40,8 @@ static CITATIONS: &[Citation] = &[
         url: Some("https://research.cs.queensu.ca/home/cordy/Papers/NiCadICPC.pdf"),
         // NiCad's experimental subjects were Java and C/C++. The Rust
         // grandfather clause covers it under citations-policy.md (b).
-        languages: &[Language::Rust],
+        // Python coverage: unconfirmed; see docs/surveys/clone-drift-python-2026-05.md.
+        languages: &[Language::Rust, Language::Python],
     },
     Citation {
         key: "bettenburg-msr-2009",
@@ -45,7 +51,7 @@ static CITATIONS: &[Citation] = &[
         year: 2009,
         doi: None,
         url: None,
-        languages: &[Language::Rust],
+        languages: &[Language::Rust, Language::Python],
     },
     Citation {
         key: "krinke-icsm-2007",
@@ -55,7 +61,7 @@ static CITATIONS: &[Citation] = &[
         year: 2007,
         doi: None,
         url: None,
-        languages: &[Language::Rust],
+        languages: &[Language::Rust, Language::Python],
     },
 ];
 
@@ -89,79 +95,21 @@ impl Detector for CloneDrift {
     }
 
     fn supported_languages(&self) -> &'static [Language] {
-        &[Language::Rust]
+        &[Language::Rust, Language::Python]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
-        // Per-file parsing dominates this detector's runtime; clustering and
-        // partitioning that follow are intrinsically cross-file and stay
-        // serial. The parallel collect preserves source order because rayon's
-        // collect from an indexed parallel iterator is deterministic.
-        let all_fns: Vec<FnInfo> = ctx
-            .files
-            .par_iter()
-            .filter(|f| f.language == Language::Rust)
-            .filter_map(extract_fns)
-            .flatten()
-            .collect();
-
-        if all_fns.len() < MIN_GROUP_SIZE {
-            return Ok(vec![]);
-        }
-
-        let groups = cluster(&all_fns);
         let mut findings: Vec<Finding> = Vec::new();
-
-        for group in &groups {
-            if group.len() < MIN_GROUP_SIZE {
-                continue;
-            }
-            let parts = partition(group, &all_fns);
-            let has_majority = parts.iter().any(|p| p.len() >= 2);
-            if !has_majority {
-                continue;
-            }
-            let largest = parts
-                .iter()
-                .max_by_key(|p| p.len())
-                .expect("non-empty parts");
-
-            for p in &parts {
-                if p.len() != 1 {
-                    continue;
-                }
-                let drifted_idx = p[0];
-                let drifted = &all_fns[drifted_idx];
-                let related: Vec<Location> = largest
-                    .iter()
-                    .filter(|&&i| i != drifted_idx)
-                    .map(|&i| all_fns[i].location.clone())
-                    .collect();
-                let related_count = related.len();
-                let partition_sizes: Vec<usize> = parts.iter().map(|x| x.len()).collect();
-                findings.push(Finding {
-                    detector_id: "clone-drift".to_string(),
-                    primary: drifted.location.clone(),
-                    related,
-                    message: format!("function diverged from {} similar siblings", related_count),
-                    raw_severity: Severity::Warning,
-                    anomaly_class: AnomalyClass::Logic,
-                    evidence: Evidence {
-                        citation_keys: vec![
-                            "cordy-roy-icpc-2008",
-                            "bettenburg-msr-2009",
-                            "krinke-icsm-2007",
-                        ],
-                        raw: serde_json::json!({
-                            "similarity_threshold": SIMILARITY_THRESHOLD,
-                            "group_size": group.len(),
-                            "partition_sizes": partition_sizes,
-                        }),
-                        language_citation_status: LanguageCitationStatus::Confirmed,
-                    },
-                });
-            }
-        }
+        findings.extend(run_detect_for_language(
+            ctx,
+            Language::Rust,
+            extract_rust_fns,
+        ));
+        findings.extend(run_detect_for_language(
+            ctx,
+            Language::Python,
+            extract_python_fns,
+        ));
 
         findings.sort_by(|a, b| {
             a.primary
@@ -174,7 +122,85 @@ impl Detector for CloneDrift {
     }
 }
 
-fn extract_fns(file: &ParsedFile) -> Option<Vec<FnInfo>> {
+fn run_detect_for_language(
+    ctx: &DetectContext,
+    lang: Language,
+    extract_fns_fn: fn(&ParsedFile) -> Option<Vec<FnInfo>>,
+) -> Vec<Finding> {
+    // Per-file parsing dominates this detector's runtime; clustering and
+    // partitioning that follow are intrinsically cross-file and stay
+    // serial. The parallel collect preserves source order because rayon's
+    // collect from an indexed parallel iterator is deterministic.
+    let all_fns: Vec<FnInfo> = ctx
+        .files
+        .par_iter()
+        .filter(|f| f.language == lang)
+        .filter_map(extract_fns_fn)
+        .flatten()
+        .collect();
+
+    if all_fns.len() < MIN_GROUP_SIZE {
+        return vec![];
+    }
+
+    let groups = cluster(&all_fns);
+    let mut findings: Vec<Finding> = Vec::new();
+
+    for group in &groups {
+        if group.len() < MIN_GROUP_SIZE {
+            continue;
+        }
+        let parts = partition(group, &all_fns);
+        let has_majority = parts.iter().any(|p| p.len() >= 2);
+        if !has_majority {
+            continue;
+        }
+        let largest = parts
+            .iter()
+            .max_by_key(|p| p.len())
+            .expect("non-empty parts");
+
+        for p in &parts {
+            if p.len() != 1 {
+                continue;
+            }
+            let drifted_idx = p[0];
+            let drifted = &all_fns[drifted_idx];
+            let related: Vec<Location> = largest
+                .iter()
+                .filter(|&&i| i != drifted_idx)
+                .map(|&i| all_fns[i].location.clone())
+                .collect();
+            let related_count = related.len();
+            let partition_sizes: Vec<usize> = parts.iter().map(|x| x.len()).collect();
+            findings.push(Finding {
+                detector_id: "clone-drift".to_string(),
+                primary: drifted.location.clone(),
+                related,
+                message: format!("function diverged from {} similar siblings", related_count),
+                raw_severity: Severity::Warning,
+                anomaly_class: AnomalyClass::Logic,
+                evidence: Evidence {
+                    citation_keys: vec![
+                        "cordy-roy-icpc-2008",
+                        "bettenburg-msr-2009",
+                        "krinke-icsm-2007",
+                    ],
+                    raw: serde_json::json!({
+                        "similarity_threshold": SIMILARITY_THRESHOLD,
+                        "group_size": group.len(),
+                        "partition_sizes": partition_sizes,
+                    }),
+                    language_citation_status: LanguageCitationStatus::Confirmed,
+                },
+            });
+        }
+    }
+
+    findings
+}
+
+fn extract_rust_fns(file: &ParsedFile) -> Option<Vec<FnInfo>> {
     let mut parser = tree_sitter::Parser::new();
     let lang = tree_sitter_rust::language();
     parser.set_language(&lang).ok()?;
@@ -189,7 +215,7 @@ fn extract_fns(file: &ParsedFile) -> Option<Vec<FnInfo>> {
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
         if child.kind() == "function_item" {
-            let normalized = normalize(child);
+            let normalized = normalize_rust(child);
             let ngrams = build_ngrams(&normalized, NGRAM_SIZE);
             let location = node_location(file, child);
             fns.push(FnInfo {
@@ -202,13 +228,13 @@ fn extract_fns(file: &ParsedFile) -> Option<Vec<FnInfo>> {
     Some(fns)
 }
 
-fn normalize(node: tree_sitter::Node) -> Vec<String> {
+fn normalize_rust(node: tree_sitter::Node) -> Vec<String> {
     let mut out = Vec::new();
-    walk_normalize(node, &mut out);
+    walk_normalize_rust(node, &mut out);
     out
 }
 
-fn walk_normalize(node: tree_sitter::Node, out: &mut Vec<String>) {
+fn walk_normalize_rust(node: tree_sitter::Node, out: &mut Vec<String>) {
     if !node.is_named() {
         return;
     }
@@ -240,8 +266,88 @@ fn walk_normalize(node: tree_sitter::Node, out: &mut Vec<String>) {
     out.push(kind.to_string());
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        walk_normalize(child, out);
+        walk_normalize_rust(child, out);
     }
+}
+
+fn normalize_python(node: tree_sitter::Node) -> Vec<String> {
+    let mut out = Vec::new();
+    walk_normalize_python(node, &mut out);
+    out
+}
+
+fn walk_normalize_python(node: tree_sitter::Node, out: &mut Vec<String>) {
+    if !node.is_named() {
+        return;
+    }
+    let kind = node.kind();
+    if kind == "comment" {
+        return;
+    }
+
+    let leaf_token = match kind {
+        "identifier" => Some("IDENT"),
+        "integer" => Some("LIT_INT"),
+        "float" => Some("LIT_FLOAT"),
+        "string" => Some("LIT_STR"),
+        "true" | "false" => Some("LIT_BOOL"),
+        _ => None,
+    };
+
+    if let Some(rep) = leaf_token {
+        out.push(rep.to_string());
+        return;
+    }
+
+    out.push(kind.to_string());
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        walk_normalize_python(child, out);
+    }
+}
+
+fn extract_python_fns(file: &ParsedFile) -> Option<Vec<FnInfo>> {
+    let mut parser = tree_sitter::Parser::new();
+    parser.set_language(&tree_sitter_python::language()).ok()?;
+    let tree = parser.parse(&file.source, None)?;
+    let root = tree.root_node();
+
+    if root.has_error() {
+        return None;
+    }
+
+    let mut fns = Vec::new();
+    let mut cursor = root.walk();
+    for child in root.children(&mut cursor) {
+        match child.kind() {
+            "function_definition" => {
+                let normalized = normalize_python(child);
+                let ngrams = build_ngrams(&normalized, NGRAM_SIZE);
+                let location = node_location(file, child);
+                fns.push(FnInfo {
+                    location,
+                    normalized,
+                    ngrams,
+                });
+            }
+            "decorated_definition" => {
+                let mut dcursor = child.walk();
+                let kids: Vec<tree_sitter::Node> = child.children(&mut dcursor).collect();
+                if let Some(fn_def) = kids.iter().find(|c| c.kind() == "function_definition") {
+                    let normalized = normalize_python(*fn_def);
+                    let ngrams = build_ngrams(&normalized, NGRAM_SIZE);
+                    let location = node_location(file, *fn_def);
+                    fns.push(FnInfo {
+                        location,
+                        normalized,
+                        ngrams,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+    Some(fns)
 }
 
 fn build_ngrams(seq: &[String], n: usize) -> HashSet<Vec<String>> {
