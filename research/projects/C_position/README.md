@@ -136,11 +136,11 @@ since the project decided against a personal-blog channel:
 - Public URL (after Pages is enabled in repository settings):
   `https://ktrysmt.github.io/cntrdct/essays/citation-as-api/`
 
-The earlier scratch file `projects/C_position/blog-draft-v0.md` is
+The earlier scratch file `research/projects/C_position/blog-draft-v0.md` is
 superseded and can be removed. To delete:
 
 ```sh
-rm projects/C_position/blog-draft-v0.md
+rm research/projects/C_position/blog-draft-v0.md
 ```
 
 ## Next concrete steps

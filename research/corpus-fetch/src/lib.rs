@@ -1,7 +1,7 @@
 //! crates.io Sparse Index client and license filter.
 //!
 //! This crate is the first piece of the Track A empirical-study fetcher
-//! (see `projects/A_1000_crate/README.md`). Scope of this module: given a
+//! (see `research/projects/A_1000_crate/README.md`). Scope of this module: given a
 //! crate name, fetch the per-version metadata that the Sparse Index serves,
 //! and decide whether a given SPDX license expression is acceptable for the
 //! analysis corpus. Tarball download and on-disk extraction are handled by

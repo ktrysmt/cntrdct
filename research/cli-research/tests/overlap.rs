@@ -1,4 +1,4 @@
-//! Tests for `cntrdct overlap`.
+//! Tests for `cntrdct-research overlap`.
 //!
 //! Exercises the full pipeline against synthetic findings.json + a tiny
 //! `<clippy_dir>/<crate>-<ver>.clippy.json` directory. No network, no

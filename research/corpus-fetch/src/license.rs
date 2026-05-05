@@ -2,7 +2,7 @@
 //!
 //! The empirical study restricts the corpus to permissively licensed crates so
 //! that the resulting findings can be redistributed alongside the paper. The
-//! allowlist mirrors `projects/A_1000_crate/README.md`: MIT, Apache-2.0,
+//! allowlist mirrors `research/projects/A_1000_crate/README.md`: MIT, Apache-2.0,
 //! BSD-3-Clause, ISC. The workspace `deny.toml` accepts a wider list for
 //! transitive build dependencies, but corpus inclusion is intentionally
 //! narrower because corpus crates are read and republished as evidence.

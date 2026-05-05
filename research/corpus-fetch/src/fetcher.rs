@@ -46,7 +46,7 @@ pub enum FetchOutcome {
 /// Run the full fetch pipeline for a single crate. See module docs.
 ///
 /// `license_hint` lets the caller plumb in a license string from a
-/// side-channel (typically `cntrdct rank`'s sidecar `licenses.tsv`, joined
+/// side-channel (typically `cntrdct-research rank`'s sidecar `licenses.tsv`, joined
 /// from the crates.io DB dump's `default_versions` × `versions` tables).
 /// The crates.io sparse index does not expose a license field, so without
 /// this hint every real-world crate would skip with `LicenseMissing`. The

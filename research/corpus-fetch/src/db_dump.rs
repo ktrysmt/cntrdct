@@ -19,7 +19,7 @@
 //!   per crate).
 //!
 //! Joining the two on `id` yields the (name, downloads) ranking that drives
-//! the `cntrdct rank` subcommand. The dump weighs about 1 GB compressed and
+//! the `cntrdct-research rank` subcommand. The dump weighs about 1 GB compressed and
 //! is read in a single linear pass; per-pass memory peaks at the size of the
 //! two CSV tables (a few hundred MB), which is the simplest design that
 //! still works on a developer laptop. If the dump ever outgrows RAM, the

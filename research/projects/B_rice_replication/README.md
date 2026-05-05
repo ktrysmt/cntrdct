@@ -111,7 +111,7 @@ Total: 3-5 months part-time.
 Re-read Rice et al. (ICSE 2017) and write a 2-page "replication
 specification" that lists, for each metric in the original paper,
 either the Rust-applicable analogue or the substitution rule. Save as
-`projects/B_rice_replication/replication-spec-v0.md`. This document
+`research/projects/B_rice_replication/replication-spec-v0.md`. This document
 becomes the contract under which the replication runs and is the
 single most leveraged artefact in this track.
 

@@ -5,7 +5,7 @@
 //! corpus filter rules — by default, regular files with the `.rs` extension,
 //! sized at or below 50 KB, and not located under `tests/`, `target/`,
 //! `examples/`, or `benches/` (these mirror the v0 guidance in
-//! `projects/A_1000_crate/README.md`).
+//! `research/projects/A_1000_crate/README.md`).
 //!
 //! The leading `<crate>-<version>/` component is stripped before resolving
 //! the destination path, so callers pass the per-crate output directory

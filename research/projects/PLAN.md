@@ -111,10 +111,10 @@ details.
 
 ## Cross-references
 
-- `projects/A_1000_crate/README.md` — empirical study track.
-- `projects/B_rice_replication/README.md` — Rice 2017 replication
+- `research/projects/A_1000_crate/README.md` — empirical study track.
+- `research/projects/B_rice_replication/README.md` — Rice 2017 replication
   track.
-- `projects/C_position/README.md` — position paper track.
+- `research/projects/C_position/README.md` — position paper track.
 - `prereg/2026-05-03-osf-prereg.md` — internal governance prereg.
 - `docs/spec/` — per-detector specs (canonical TDD entry points).
 - `CITATIONS.md` — Layer 1-4 prior-art bibliography.

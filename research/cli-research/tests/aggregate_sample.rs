@@ -1,4 +1,4 @@
-//! Integration tests for `cntrdct aggregate` and `cntrdct sample`.
+//! Integration tests for `cntrdct-research aggregate` and `cntrdct-research sample`.
 //!
 //! Both subcommands read a JSON `Vec<RankedFinding>` and produce per-study
 //! artefacts. Tests construct synthetic findings with the minimal subset of
