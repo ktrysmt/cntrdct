@@ -35,9 +35,17 @@ use std::time::Duration;
 use flate2::read::GzDecoder;
 use tar::Archive;
 
+use crate::sparse_index::{backoff_delay, retry_after_seconds};
 use crate::FetchError;
 
 pub const DEFAULT_DB_DUMP_URL: &str = "https://static.crates.io/db-dump.tar.gz";
+
+/// Default retry budget for the dump download. The dump is ~1 GB; a single
+/// transient failure mid-stream costs minutes of wasted bandwidth, so the
+/// default is set low enough that callers fail fast rather than hammering
+/// the static endpoint, but high enough that a flaky link or a brief 503
+/// doesn't abort the whole pipeline.
+pub const DEFAULT_DUMP_MAX_RETRIES: u32 = 3;
 
 /// One row of the (crate name, lifetime downloads) ranking produced by
 /// joining `crates.csv` against `crate_downloads.csv`. The `license` field
@@ -340,12 +348,40 @@ fn column_index(headers: &csv::StringRecord, name: &str) -> Result<usize, FetchE
 /// memory. The dump is ~1 GB; reading it whole would be wasteful even when
 /// it fits.
 ///
+/// Retries on transient HTTP failures (429, 503, 504, connect / timeout
+/// errors, mid-stream body interruptions) with exponential backoff.
+/// `Retry-After` headers are honoured. Permanent failures (404, other 4xx)
+/// short-circuit. Each retry deletes the partial output file before
+/// restarting from byte zero — `Range`-based resume is a deliberate
+/// non-goal until corpus runs hit the multi-attempt threshold often enough
+/// to justify the complexity.
+///
 /// Lives outside the [`crate::HttpClient`] trait on purpose — adding a
 /// streaming method to the trait would force every mock in the suite to
 /// grow a method none of the other tests need. The CLI calls this helper
 /// directly with a `reqwest::blocking::Client`; tests skip it and instead
 /// drive [`read_top_n_from_archive`] against a fixture archive on disk.
 pub fn download_dump_streaming(url: &str, out_path: &Path) -> Result<u64, FetchError> {
+    download_dump_streaming_with_retry(
+        url,
+        out_path,
+        DEFAULT_DUMP_MAX_RETRIES,
+        crate::sparse_index::DEFAULT_BASE_DELAY,
+    )
+}
+
+/// Variant of [`download_dump_streaming`] with a configurable retry policy.
+///
+/// Tests pass a sub-second `base_delay` to keep the suite fast; production
+/// uses the 1-second default to stay polite on the static endpoint. Setting
+/// `max_retries == 0` disables retry and matches the previous single-shot
+/// behaviour.
+pub fn download_dump_streaming_with_retry(
+    url: &str,
+    out_path: &Path,
+    max_retries: u32,
+    base_delay: Duration,
+) -> Result<u64, FetchError> {
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(60 * 30))
         .user_agent(concat!(
@@ -356,28 +392,95 @@ pub fn download_dump_streaming(url: &str, out_path: &Path) -> Result<u64, FetchE
         .build()
         .map_err(|e| FetchError::Http(e.to_string()))?;
 
-    let mut resp = client
-        .get(url)
-        .send()
-        .map_err(|e| FetchError::Http(e.to_string()))?;
-    let status = resp.status();
-    if status == reqwest::StatusCode::NOT_FOUND {
-        return Err(FetchError::NotFound(url.to_string()));
-    }
-    if !status.is_success() {
-        return Err(FetchError::Http(format!("status {status} from {url}")));
-    }
-
     if let Some(parent) = out_path.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent)?;
         }
     }
-    let mut file = File::create(out_path)?;
-    let bytes = resp
-        .copy_to(&mut file)
-        .map_err(|e| FetchError::Http(e.to_string()))?;
-    Ok(bytes)
+
+    let mut attempt: u32 = 0;
+    loop {
+        match try_download_once(&client, url, out_path) {
+            Ok(bytes) => return Ok(bytes),
+            Err(DumpAttemptError::Permanent(err)) => return Err(err),
+            Err(DumpAttemptError::Transient { error, retry_after }) => {
+                if attempt >= max_retries {
+                    return Err(error);
+                }
+                // Drop any partial output so the next attempt starts clean.
+                // Ignore the unlink result: a missing file (the request
+                // failed before File::create succeeded) is the success case.
+                let _ = std::fs::remove_file(out_path);
+                let delay = retry_after
+                    .map(Duration::from_secs)
+                    .unwrap_or_else(|| backoff_delay(attempt, base_delay));
+                std::thread::sleep(delay);
+                attempt += 1;
+            }
+        }
+    }
+}
+
+enum DumpAttemptError {
+    Permanent(FetchError),
+    Transient {
+        error: FetchError,
+        retry_after: Option<u64>,
+    },
+}
+
+fn try_download_once(
+    client: &reqwest::blocking::Client,
+    url: &str,
+    out_path: &Path,
+) -> Result<u64, DumpAttemptError> {
+    let send_result = client.get(url).send();
+    let mut resp = match send_result {
+        Ok(resp) => resp,
+        Err(e) if e.is_timeout() || e.is_connect() => {
+            return Err(DumpAttemptError::Transient {
+                error: FetchError::Http(e.to_string()),
+                retry_after: None,
+            });
+        }
+        Err(e) => {
+            return Err(DumpAttemptError::Permanent(FetchError::Http(e.to_string())));
+        }
+    };
+
+    let status = resp.status();
+    if status == reqwest::StatusCode::NOT_FOUND {
+        return Err(DumpAttemptError::Permanent(FetchError::NotFound(
+            url.to_string(),
+        )));
+    }
+    let status_code = status.as_u16();
+    if matches!(status_code, 429 | 503 | 504) {
+        let retry_after = retry_after_seconds(&resp);
+        return Err(DumpAttemptError::Transient {
+            error: FetchError::Http(format!("status {status} from {url}")),
+            retry_after,
+        });
+    }
+    if !status.is_success() {
+        return Err(DumpAttemptError::Permanent(FetchError::Http(format!(
+            "status {status} from {url}"
+        ))));
+    }
+
+    let mut file = match File::create(out_path) {
+        Ok(f) => f,
+        Err(e) => return Err(DumpAttemptError::Permanent(FetchError::from(e))),
+    };
+    match resp.copy_to(&mut file) {
+        Ok(bytes) => Ok(bytes),
+        // A mid-stream interruption surfaces here; treat as transient so the
+        // retry loop can clean up the partial file and try again.
+        Err(e) => Err(DumpAttemptError::Transient {
+            error: FetchError::Http(e.to_string()),
+            retry_after: None,
+        }),
+    }
 }
 
 #[cfg(test)]

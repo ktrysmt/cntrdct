@@ -180,7 +180,7 @@ impl ReqwestClient {
 /// Parse `Retry-After` as seconds. The HTTP-date form is rare on
 /// machine-to-machine APIs and we deliberately do not handle it; callers
 /// fall back to the exponential-backoff schedule when this returns `None`.
-fn retry_after_seconds(resp: &reqwest::blocking::Response) -> Option<u64> {
+pub(crate) fn retry_after_seconds(resp: &reqwest::blocking::Response) -> Option<u64> {
     resp.headers()
         .get(reqwest::header::RETRY_AFTER)?
         .to_str()
@@ -192,7 +192,7 @@ fn retry_after_seconds(resp: &reqwest::blocking::Response) -> Option<u64> {
 /// `base * 2^min(attempt, 6)` — caps the multiplier so the delay never
 /// outgrows the timeout window. With the 1s default base, attempt 0 sleeps
 /// 1s, attempt 1 sleeps 2s, …, attempt 6+ sleeps 64s.
-fn backoff_delay(attempt: u32, base: Duration) -> Duration {
+pub(crate) fn backoff_delay(attempt: u32, base: Duration) -> Duration {
     let exp = attempt.min(6);
     base.saturating_mul(1u32 << exp)
 }
