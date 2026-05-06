@@ -200,22 +200,64 @@ research output from the position taken in this essay.
 ## 7. Related work
 
 Lint authoring practices have been studied empirically (see Sadowski
-et al. on Tricorder, FindBugs / SpotBugs deployment papers). Citation
-practices in software documentation are studied by the community
-around badging and replication packages. Static analyser benchmarks
-(MUBench, Defects4J) discuss reproducibility but do not enforce
-citation. Tools that embed reproducibility (NiCad, Infer's open-source
-release with associated papers) come closest to the discipline we
-describe, but neither makes citation a startup-time precondition. We
-are not aware of a static analyser that fails to register a detector
-without a non-empty citation slice.
+et al. on Tricorder, the FindBugs / SpotBugs deployment papers).
+Citation practices in software documentation are studied by the
+community around badging and replication packages. Static analyser
+benchmarks (MUBench, Defects4J) discuss reproducibility but do not
+enforce citation. The most useful framing is to ask, of every
+general-purpose static analyser we know of, three questions:
 
-To do (Stage 2 expansion): full bibliography survey, comparison table
-covering Tricorder, SpotBugs, Infer, NiCad, semgrep, Coverity. Each
-row should record whether the tool (a) ships a bibliography at all,
-(b) ties bibliography to specific detection rules, (c) enforces the
-tie at build / startup time. Expect cntrdct to be the only "yes" on
-all three.
+- (a) Does the tool ship a bibliography at all — that is, do users
+  receive references to peer-reviewed prior art alongside the
+  binary?
+- (b) Is the bibliography tied to specific detection rules — can a
+  user look up which paper backs which lint?
+- (c) Is the tie enforced at build or startup time — does a missing
+  citation prevent the detector from running?
+
+The table records the answer for six widely deployed analysers plus
+cntrdct, with a representative citation for each tool's pedigree.
+
+| Tool | Citation | (a) bibliography? | (b) per-rule? | (c) enforced? |
+| --- | --- | --- | --- | --- |
+| Tricorder | Sadowski, van Gogh, Jaspan, Soederberg, Winter, ICSE 2015. | Partial — platform paper documents the analyser ecosystem; deployed tool surfaces per-analyser docs but not per-analyser citations. | No — integration is at the analyser-binding level. | No — the platform binds analyses, not their bibliographies. |
+| SpotBugs (FindBugs successor) | Hovemeyer & Pugh, OOPSLA 2004. | Indirect — bug-pattern docs cite CWE entries and SEI CERT rules, not academic prior art. | No. | No. |
+| Infer | Calcagno et al., NFM 2015. | Partial — project lists publications at the org level; per-checker pages (e.g., the Pulse checker) do not embed citations. | No. | No. |
+| NiCad | Cordy & Roy, ICPC 2008. | Yes — the tool is the artefact of a single peer-reviewed paper, so citing the tool effectively cites the paper. | Yes (degenerate: the tool implements one detector, so the tie is 1:1). | No — the runtime does not check a citation field. |
+| Semgrep | Semgrep documentation; no canonical peer-reviewed paper. | No — the rule schema has no references field; community rule packs cite OWASP / CWE / blog posts. | No. | No. |
+| Coverity | Bessey et al., CACM 2010. | No (commercial) — the published paper documents the company's productisation history rather than a per-checker bibliography. | No. | No. |
+| cntrdct | This essay. | Yes — `CITATIONS.md` lists at least one peer-reviewed entry per Layer 1 detector, plus methodological references for the ranker (Layer 2) and adjudicator (Layer 3). | Yes — every `Citation::key` in the source code matches an entry in `CITATIONS.md`, joined by `crates/cli/tests/citations_consistency.rs`. | Yes — `register_detector` rejects implementations whose `citations()` returns an empty slice, and an orphaned bibliography entry is a build failure. |
+
+Three observations follow from the table.
+
+The closest existing analogue is NiCad. NiCad is honest about the
+discipline being a 1:1 tie, but it sidesteps the harder problem of a
+multi-detector tool's per-detector citation bookkeeping because it
+has only one detector. The contribution of the position taken here
+is that the same discipline survives a multi-detector tool: each
+detector carries its own non-empty citation slice, and the
+bibliography file is audited against the source rather than left as
+a courtesy artefact.
+
+The pattern across commercial analysers (Coverity, plus the
+non-academic positions of Semgrep) is a deliberate trade against
+citation enforcement in favour of detector recall and time-to-result
+on commercial codebases. The trade is rational when the user is
+paying for triaged findings, not for evidence. The position taken in
+this essay is that the trade looks different when the analyser's
+findings are read by AI agents, by reviewers under review-fatigue
+load, or by auditors who must produce evidence for an external
+party. In those contexts, evidentiary defensibility is the property
+the user actually wanted; the trade should flip.
+
+The remaining academically-rooted tools (Tricorder, SpotBugs,
+Infer, NiCad) all could have made citation enforcement a startup
+precondition and chose not to. There is no technological obstacle:
+all four projects already maintain academic publications, and three
+of them ship as multi-detector platforms whose authors clearly know
+which paper backs which detector. The decision to leave the binding
+implicit is design freedom, not constraint. cntrdct makes the
+opposite choice and accepts the cost.
 
 ## 8. Threats to position and non-goals
 
@@ -262,9 +304,9 @@ suggestions.
   Essays accepts both shapes; the choice affects the abstract.
 - Add a 1-page architecture diagram of cntrdct's Layer 1-4
   composition, with the type-level citation gate annotated.
-- Flesh out the related-work table promised in section 7.
-- Word count target: 4000-6000. Current draft is about 2500. Most of
-  the gap is in section 7 (related work) and section 6 (C5 expansion).
+- Word count target: 4000-6000. Current draft is about 2900 (section 7
+  was filled in this revision; the remaining gap is dominated by
+  section 6 (C5 expansion) and the architecture diagram noted above).
 - Consider adding a sixth claim: "the discipline produces a corpus,
   not just a tool" — pointing at the Phase 1 labelling artefacts
   that fall out of running the analyser.
