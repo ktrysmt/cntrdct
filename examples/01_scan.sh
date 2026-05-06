@@ -16,9 +16,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+OUT=$(mktemp -t cntrdct_scan.XXXXXX.json)
+trap 'rm -f "$OUT"' EXIT
+
 cargo run --quiet --bin cntrdct -- \
     scan benchmarks/corpus/files \
     --format json \
-    --no-calibration \
-    | head -c 4000
+    --no-calibration > "$OUT"
+
+head -c 4000 "$OUT"
 echo

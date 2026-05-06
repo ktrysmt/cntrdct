@@ -14,7 +14,7 @@ deterministic and network-free.
 
 In scope:
 
-- A new crate `crates/adjudicator-llm` exposing `AnthropicAdjudicator<C: HttpClient>`
+- A new module `src/adjudicator.rs` exposing `AnthropicAdjudicator<C: HttpClient>`
 - Anthropic Messages API integration via `reqwest::blocking` (rustls)
 - A `--adjudicate` CLI flag on `cntrdct scan` plus `--adjudicate-top <N>`
 - Extension of `RankedFinding` with `adjudication: Option<AdjudicationResult>`

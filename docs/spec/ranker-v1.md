@@ -20,9 +20,10 @@ Reference algorithms:
 
 ## Crates
 
-- `crates/calibration` — pure data layer; no detector / tree-sitter deps
-- `crates/ranker` — gains `CalibratedRanker`; keeps `UncalibratedRanker`
-- `crates/cli` — gains `cntrdct calibrate` subcommand and ranker auto-pick
+- `src/calibration.rs` — pure data layer; no detector / tree-sitter deps
+- `src/ranker.rs` — gains `CalibratedRanker`; keeps `UncalibratedRanker`
+- `src/{lib,main}.rs` — gain the `cntrdct calibrate` subcommand and
+  ranker auto-pick
 
 ## Functional requirements
 

@@ -2,7 +2,7 @@
 
 Per design constraint P1, every detector MUST reference at least one peer-reviewed
 publication or established benchmark. Each citation key here matches `Citation::key`
-declared in `crates/core/src/lib.rs`.
+declared in `src/core.rs`.
 
 The optional `Languages:` line records which languages each citation is grounded
 in per `docs/spec/citations-policy.md`. Existing v0 entries are grandfathered as

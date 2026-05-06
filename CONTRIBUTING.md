@@ -13,11 +13,15 @@ their tooling read first.
 The repository hosts two independent cargo workspaces. The boundary
 between them is load-bearing.
 
-Technical workspace (root):
+Technical package (root):
 
-- Manifest: `Cargo.toml`, members under `crates/*`
+- Manifest: `Cargo.toml` (single `[package]`)
 - Lockfile: `Cargo.lock`
 - Build artefacts: `target/`
+- Source: `src/{lib.rs,main.rs,cargo_subcommand.rs}` plus per-layer
+  modules (`core`, `parsers`, `config`, `sarif`, `calibration`,
+  `ranker`, `eval`, `adjudicator`, `detectors::*`).
+- Tests: `tests/*.rs`. Fixtures: `fixtures/*`.
 - Binaries: `cntrdct` and `cargo-cntrdct`
 - Subcommands: `scan`, `calibrate`, `eval`
 - Scope: shippable detector / linter product, preregistered
@@ -35,23 +39,24 @@ Research workspace (`research/`):
 
 Boundary contract:
 
-- No `path = "../research/..."` in `crates/*`, no `path = "../crates/..."`
-  in `research/*`.
-- The two workspaces resolve independently and have separate
+- No `path = "research/..."` in the root `Cargo.toml`; no
+  `path = "../src/..."` (or any other technical-side path) in
+  `research/*`.
+- The two projects resolve independently and have separate
   `Cargo.lock` files.
 - Promotion from research to technical is not `git mv`. Re-implement
-  under `crates/*` and prefix the commit `promote(<area>): ...`.
+  under `src/` and prefix the commit `promote(<area>): ...`.
 
 ## Local dev loop
 
-Run the gates for the workspace that owns the file you edited. If a
+Run the gates for the project that owns the file you edited. If a
 PR spans both, run both.
 
 Technical (from repo root):
 
 ```sh
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
+cargo test --all-targets
+cargo clippy --all-targets -- -D warnings
 cargo fmt --all -- --check
 ```
 
@@ -89,15 +94,17 @@ flow is:
    `docs/surveys/<detector>-<lang>-<YYYY-MM>.md` recording the survey
    effort and have the detector emit
    `LanguageCitationStatus::Unconfirmed` for that language.
-4. Implement the detector under `crates/detector-<id>/`. Register it
-   in `cntrdct` (the CLI crate). Wire its citations into the static `Citation`
-   array; `register_detector` rejects detectors with empty
-   `citations()`.
+4. Implement the detector at `src/detectors/<id>.rs` (or
+   `src/detectors/<id>/mod.rs` if the implementation needs multiple
+   files; pr_miner is the precedent). Register it in `src/lib.rs` (the
+   `pub mod detectors;` declaration auto-discovers the file) and add
+   the constructor call in `scan_full_with_config`. Wire its citations
+   into the static `Citation` array; `register_detector` rejects
+   detectors with empty `citations()`.
 5. Add at least 8 positive cases and 3 negative cases per supported
    language under `benchmarks/corpus/files/`. Update
-   `crates/cli/tests/corpus_shape.rs` if you introduce a new
-   detector-id slot. Update
-   `crates/cli/tests/citations_consistency.rs` so the new detector's
+   `tests/corpus_shape.rs` if you introduce a new detector-id slot.
+   Update `tests/citations_consistency.rs` so the new detector's
    citation keys resolve.
 6. Open the PR. Use the PR template; tick the citation, corpus, and
    gate checkboxes.

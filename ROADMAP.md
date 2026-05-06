@@ -70,7 +70,7 @@ P-2. pr-miner detector (multi-language)
   rather than a simplified single-pattern lift.
 - Acceptance: `docs/spec/pr-miner-v0.md` exists and is approved,
   the detector crate ships with an integration test suite mirroring
-  the spec's test plan, `crates/cli/tests/citations_consistency.rs`
+  the spec's test plan, `tests/citations_consistency.rs`
   is green with the new detector registered, and the seed corpus
   contains at least 8 positive cases per supported language for the
   new detector. Renamed from `pr-miner-rust` per Phase E note —
@@ -111,10 +111,9 @@ P-2. pr-miner detector (multi-language)
     per the survey conclusion). Eight Python positives + three negatives
     added under `pr_miner_python_*.py`. Python-side test plan
     (T2, T3, T8, T13, T15) covered: T2/T3/T8/T13 in
-    `crates/detector-pr-miner/tests/integration.rs`, T15 in
-    `crates/cli/tests/suppression.rs`.
+    `tests/detector_pr_miner.rs`, T15 in `tests/suppression.rs`.
   - `[x]` Corpus shape extension (≥8 positives per language).
-    `crates/cli/tests/corpus_shape.rs::pr_miner_corpus_meets_per_language_positives`
+    `tests/corpus_shape.rs::pr_miner_corpus_meets_per_language_positives`
     asserts the per-language requirement on top of the existing
     detector-global ≥ 8 commitment from the OSF prereg.
 
@@ -175,27 +174,31 @@ P-4. Layer 2 ranker recalibration on the β corpus
 P-5. β release tagging and crates.io publish
 
 - Status: `[~]`
-- Goal: tag the workspace as `v0.2.0-beta.0`, publish all crates to
-  crates.io, push a GitHub Release with pre-built binaries.
+- Goal: tag as `v0.2.0-beta.0`, publish `cntrdct` to crates.io, push a
+  GitHub Release with pre-built binaries.
 - Acceptance: `cargo install cntrdct` works on a clean machine,
   the release page on GitHub shows binaries for at least
   Linux x86_64 / macOS aarch64 / macOS x86_64.
 - Effort: 1 week including bug-fix iterations.
 - Depends on: T1-1, T1-2, T1-3, T2-8.
 - Phase 1 (local prep) progress:
-  - `[x]` Workspace version bumped to `0.2.0-beta.0` (workspace.package
-    + 15 workspace.dependencies entries).
+  - `[x]` Workspace version bumped to `0.2.0-beta.0`.
   - `[x]` CLI crate renamed `cntrdct-cli` → `cntrdct` so `cargo install
     cntrdct` resolves correctly. Lib name follows (`cntrdct_cli` →
-    `cntrdct`); call sites in `crates/cli/src/{main,cargo_subcommand}.rs`,
-    `crates/cli/tests/*`, `.github/workflows/{ci,release}.yml`,
-    `docs/spec/{cli,eval,ranker,adjudicator}-*.md`,
-    `benchmarks/README.md`, `CONTRIBUTING.md`, `README.md` updated to
-    match.
+    `cntrdct`).
+  - `[x]` 15-crate workspace consolidated into a single package.
+    `crates/<X>/src/lib.rs` → `src/<X>.rs`;
+    `crates/detector-<id>/` → `src/detectors/<id>.rs` (or
+    `src/detectors/<id>/mod.rs`); `crates/cli/{src,tests}/...` →
+    repo-root `src/...` and `tests/...`;
+    `crates/calibration/fixtures/` → `fixtures/`. External API
+    surface narrows from 15 publishable crates to 1, and one docs.rs
+    page replaces the previous fan-out. P3 (LLM gating) is preserved
+    by module boundary: only `src/adjudicator.rs` references reqwest.
 - Phase 2-4 (remote, user-driven, mostly irreversible): commit + push
-  the prep, tag `v0.2.0-beta.0` to fire `release.yml`, then run
-  `cargo publish` for the 15 crates in dependency order. Handoff notes
-  with the exact command sequence accompany the prep commit.
+  the prep, tag `v0.2.0-beta.0` to fire `release.yml`, then run a
+  single `cargo publish`. Handoff notes with the exact command
+  sequence accompany the prep commit.
 
 ## Tier 1 — usable OSS (blocking for first announcement)
 
@@ -216,11 +219,10 @@ T1-1. GitHub Actions CI
 T1-2. crates.io metadata for every crate
 
 - Status: `[x]`
-- Goal: each `crates/*/Cargo.toml` has the metadata required for
+- Goal: the root `Cargo.toml` carries the metadata required for
   crates.io publish (`description`, `repository`, `keywords`,
   `categories`, `readme`, `license`).
-- Acceptance: `cargo publish --dry-run -p <crate>` succeeds for
-  every workspace member.
+- Acceptance: `cargo publish --dry-run` succeeds.
 - Effort: half a day.
 - Depends on: nothing.
 
@@ -443,7 +445,7 @@ M-2. Pilot Python detector
 - Acceptance: `cntrdct scan` over a Python source tree emits
   `unreachable-after-terminator` findings; the seed corpus contains
   ≥5 positive Python cases and ≥3 negative; the new citation key
-  resolves in `CITATIONS.md`; `crates/cli/tests/citations_consistency.rs`
+  resolves in `CITATIONS.md`; `tests/citations_consistency.rs`
   is extended to enforce the policy from M-6.
 - Effort: 1 week part-time.
 - Depends on: M-1.
@@ -552,8 +554,8 @@ M-5. Surface multi-language across tooling
   - `cntrdct.toml` `[languages.<canonical>]` section landed with
     fields `enabled: bool` (walker discovery control) and
     `suppress: [String]` (per-language detector suppression). Schema
-    in `crates/config/src/lib.rs`; integration tests in
-    `crates/cli/tests/multilang_config.rs`.
+    in `src/config.rs`; integration tests in
+    `tests/multilang_config.rs`.
   - GitHub Action wrapper `paths:` input accepts a multi-line list
     where each entry is `<path>` or `<path>:<lang_csv>`. Per-path
     language hints synthesise an ephemeral `cntrdct.toml` via
@@ -571,7 +573,7 @@ M-6. Citation policy for multi-language detectors
 - Goal: write `docs/spec/citations-policy.md` codifying P1 for the
   multi-language case (each language a detector supports must carry
   at least one citation grounded in empirical work on that
-  language). Extend `crates/cli/tests/citations_consistency.rs` to
+  language). Extend `tests/citations_consistency.rs` to
   enforce the rule structurally — a detector whose
   `supported_languages()` includes `Language::Python` must declare a
   citation tagged as Python-relevant, and so on.

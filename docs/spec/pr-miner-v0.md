@@ -186,7 +186,7 @@ and the transactions among themselves before mining to keep BTree
 ### N2 — Citation (P1)
 
 Enforced by `register_detector` and the per-language extension at
-`crates/cli/tests/citations_consistency.rs`.
+`tests/citations_consistency.rs`.
 
 ### N3 — No side effects
 
@@ -285,7 +285,7 @@ language` to honour the M-6 / citations-policy.md framing:
 - ≥ 3 negatives per language: functions that participate in mined
   rules and DO satisfy them.
 
-`crates/cli/tests/corpus_shape.rs` is extended to count the new
+`tests/corpus_shape.rs` is extended to count the new
 detector and require ≥ 8 positives. The OSF prereg's "≥ 8 positives
 per detector" commitment continues to hold; we add a new dated
 `prereg/YYYY-MM-DD-osf-prereg.md` if extending the per-detector
@@ -404,7 +404,7 @@ FM-A drives the bulk of the FP count and is what depresses
 ## v1 mitigations under consideration
 
 R6. Per-language stop-list of constructors / builtins. Maintain
-`crates/detector-pr-miner/src/stoplist_<lang>.rs` listing items that
+`src/detectors/pr_miner/stoplist_<lang>.rs` listing items that
 should be dropped from the transaction set before mining (e.g. Rust:
 `Err`, `Ok`, `Some`, `None`, `Box::new`, `Vec::new`, `String::from`,
 `Default::default`; Python: `isinstance`, `TypeError`, `ValueError`,
@@ -447,9 +447,9 @@ schema bump.
 - `cntrdct-core` unchanged. The `Detector` trait surface already
   accommodates the new detector; `register_detector` continues to
   enforce P1.
-- `cntrdct-detector-pr-miner` ships as a new workspace crate at
-  v0.1.0.
-- `crates/cli` registers the new detector and bumps to v0.3.0
+- The pr_miner detector ships as a new module under
+  `src/detectors/pr_miner/` at v0.1.0.
+- `src/lib.rs` registers the new detector and bumps to v0.3.0
   alongside the v0.1 Python extension.
 - `cntrdct.toml` schema unchanged. `[detectors.pr-miner]` works
   via the existing per-detector override surface.

@@ -27,7 +27,8 @@ cd "$(dirname "$0")/.."
 
 PORT="${PORT:-18081}"
 MOCK_LOG=$(mktemp -t cntrdct_mock.XXXXXX.log)
-trap 'kill "$MOCK_PID" 2>/dev/null || true; rm -f "$MOCK_LOG"' EXIT
+SCAN_OUT=$(mktemp -t cntrdct_scan.XXXXXX.json)
+trap 'kill "$MOCK_PID" 2>/dev/null || true; rm -f "$MOCK_LOG" "$SCAN_OUT"' EXIT
 
 python3 - <<'PY' "$PORT" >"$MOCK_LOG" 2>&1 &
 import json, sys
@@ -84,6 +85,7 @@ ANTHROPIC_API_URL_OVERRIDE="http://127.0.0.1:${PORT}/v1/messages" \
         --format json \
         --no-calibration \
         --adjudicate \
-        --adjudicate-top 2 \
-    | head -c 6000
+        --adjudicate-top 2 > "$SCAN_OUT"
+
+head -c 6000 "$SCAN_OUT"
 echo

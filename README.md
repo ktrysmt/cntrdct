@@ -27,7 +27,7 @@ curl -fsSL https://raw.githubusercontent.com/ktrysmt/cntrdct/main/scripts/instal
 # Or, from source.
 git clone https://github.com/ktrysmt/cntrdct.git
 cd cntrdct
-cargo install --path crates/cli
+cargo install --path .
 
 # Scan any Rust path. Default output is JSON to stdout.
 cntrdct scan ./src
@@ -125,22 +125,27 @@ a scan and have the top findings summarised in chat. The skill performs
 no detection itself (P3); it only orchestrates the binary and renders
 results.
 
-## Workspace layout
+## Module layout
 
-| crate | role |
+cntrdct ships as a single crate. Internals are organised under
+`src/<module>.rs` (or `src/<module>/mod.rs` for multi-file modules):
+
+| module | role |
 |---|---|
 | `core` | shared traits (`Detector`, `Ranker`, `Adjudicator`), `Finding`/`RankedFinding` types, P1 enforcement |
-| `detector-clone-drift` | Layer 1 — Type-3 near-miss clone drift |
-| `detector-arg-swap` | Layer 1 — argument-order defects |
-| `detector-comment-code` | Layer 1 — doc/code mismatch |
-| `detector-unreachable-after-terminator` | Layer 1 — unreachable code after divergent terminator |
-| `detector-config-interaction` | Layer 1 — contradictory cfg attribute pair on a single item |
+| `parsers` | `Language` enum, extension mapping, tree-sitter providers |
+| `detectors::clone_drift` | Layer 1 — Type-3 near-miss clone drift |
+| `detectors::arg_swap` | Layer 1 — argument-order defects |
+| `detectors::comment_code` | Layer 1 — doc/code mismatch |
+| `detectors::unreachable_after_terminator` | Layer 1 — unreachable code after divergent terminator |
+| `detectors::config_interaction` | Layer 1 — contradictory cfg attribute pair on a single item |
+| `detectors::pr_miner` | Layer 1 — frequent-itemset rule violation (Li & Zhou, FSE 2005) |
 | `ranker` | Layer 2 — `UncalibratedRanker`, `CalibratedRanker` |
 | `calibration` | Layer 2 data layer — corpus loader, Wilson bound, Laplace posterior |
-| `adjudicator-llm` | Layer 3 — Anthropic Messages adjudicator with `HttpClient` seam |
+| `adjudicator` | Layer 3 — Anthropic Messages adjudicator with `HttpClient` seam |
 | `sarif` | Layer 4 — SARIF 2.1.0 emitter |
 | `eval` | precision/recall/F1 evaluation harness against a labelled corpus |
-| `cli` | binary + library glue |
+| `config` | `cntrdct.toml` and in-source suppression |
 
 ## Design notes
 
@@ -148,7 +153,7 @@ results.
 implementation. `ROADMAP.md` tracks engineering deliverables; the
 academic research tracks live under `research/projects/` inside the
 sibling `research/` cargo workspace, which is independent of the
-technical `crates/` workspace and never blocks technical CI.
+technical package at the repo root and never blocks technical CI.
 
 ## Further reading
 

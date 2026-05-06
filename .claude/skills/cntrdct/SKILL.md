@@ -33,7 +33,7 @@ Run `command -v cntrdct` via Bash.
 - If exit non-zero, also check `~/.cargo/bin/cntrdct` via `test -x ~/.cargo/bin/cntrdct`.
 - If still missing, tell the user:
 
-  > `cntrdct` binary not found. Install with `cargo install --path crates/cli`
+  > `cntrdct` binary not found. Install with `cargo install --path .`
   > from the cntrdct repository, or `cargo install cntrdct` once a release ships.
 
   Stop. Do not attempt to run scans.

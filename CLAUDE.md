@@ -1,23 +1,34 @@
 # Repository guide for Claude Code
 
-This repository hosts TWO independent cargo workspaces. The boundary between
+This repository hosts TWO independent cargo projects. The boundary between
 them is load-bearing — confusing the two produces broken builds and silent
 contract drift. Read this file before editing or running gates.
 
-## Workspaces
+## Layout
 
-### Technical workspace (root)
+### Technical package (root)
 
-- Manifest: `Cargo.toml` (members under `crates/*`)
+- Manifest: `Cargo.toml` (single `[package]`, no `[workspace]`)
 - Lockfile: `Cargo.lock`
 - Build artefacts: `target/`
+- Source: `src/{lib.rs,main.rs,cargo_subcommand.rs}` plus modules
+  `core`, `parsers`, `config`, `sarif`, `calibration`, `ranker`, `eval`,
+  `adjudicator`, and `detectors::{arg_swap,clone_drift,comment_code,
+  config_interaction,pr_miner,unreachable_after_terminator}`.
+- Tests: `tests/*.rs` (one file per integration scope).
+- Fixtures: `fixtures/*` (referenced by `tests/calibration_lib.rs`).
 - Binaries: `cntrdct` (main) and `cargo-cntrdct` (shim that lets
-  `cargo cntrdct ...` work; same code path as `cntrdct ...`)
-- Subcommands: `scan`, `calibrate`, `eval`
+  `cargo cntrdct ...` work; same code path as `cntrdct ...`).
+- Subcommands: `scan`, `calibrate`, `eval`.
 - Scope: shippable detector / linter product, preregistered evaluation,
   citation policy, multi-language detector ports.
 - Owns at repo root: `prereg/`, `docs/surveys/`, `CITATIONS.md`,
   `ROADMAP.md`, `benchmarks/`, `examples/`, `scripts/`.
+- History: was a 15-crate workspace (`crates/{core,parsers,config,sarif,
+  calibration,ranker,eval,adjudicator-llm,detector-*,cli}`) until
+  v0.2.0-beta.0 prep collapsed everything into one package. If you find
+  a reference to `crates/<X>/src/lib.rs`, the equivalent is
+  `src/<X>.rs` (or `src/detectors/<id>.rs` for detectors).
 
 ### Research workspace (`research/`)
 
@@ -34,17 +45,17 @@ contract drift. Read this file before editing or running gates.
 
 ## Boundary contract (do not violate)
 
-1. **No cross-workspace path dependencies.** `crates/*` MUST NOT use
-   `path = "../research/..."` and `research/*` MUST NOT use
-   `path = "../crates/..."`. Intra-workspace path deps are fine
-   (e.g. `research/cli-research` depending on `path = "../corpus-fetch"`
-   inside the same `research/` workspace). CI does not enforce the
-   cross-workspace ban structurally; the discipline is on us.
-2. **No shared `Cargo.lock`.** Each workspace resolves independently.
+1. **No cross-project path dependencies.** Root `Cargo.toml` MUST NOT
+   reference `path = "research/..."` and `research/*` MUST NOT reference
+   `path = "../src/..."` or any other technical-side path. Intra-workspace
+   path deps are fine inside `research/` (e.g. `research/cli-research`
+   depending on `path = "../corpus-fetch"`). CI does not enforce the
+   cross-project ban structurally; the discipline is on us.
+2. **No shared `Cargo.lock`.** Each project resolves independently.
 3. **Promotion is explicit and manual.** Moving a research artefact into
    the technical product is NOT `git mv`. Re-implement it under
-   `crates/*` (or extend an existing technical crate) and prefix the
-   commit `promote(<area>): ...`. The two workspaces are NOT a staging
+   `src/` (or extend an existing technical module) and prefix the
+   commit `promote(<area>): ...`. The two projects are NOT a staging
    pipeline; do not assume research code will eventually flow into
    technical.
 4. **CLI surface is split.** `cntrdct` exposes only `scan`, `calibrate`,
@@ -55,16 +66,16 @@ contract drift. Read this file before editing or running gates.
 
 ## Working in the right context
 
-When you edit a file, run gates for the workspace that owns it. When a
-change spans both workspaces, run gates for both.
+When you edit a file, run gates for the project that owns it. When a
+change spans both projects, run gates for both.
 
 ```sh
-# Technical (run from repo root)
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
+# Technical package (run from repo root)
+cargo test --all-targets
+cargo clippy --all-targets -- -D warnings
 cargo fmt --all -- --check
 
-# Research (run from research/)
+# Research workspace (run from research/)
 cd research
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
@@ -84,33 +95,38 @@ required set is what realises the independence in practice.
 
 Before editing, locate the file:
 
-- Path under `crates/*` -> technical workspace, gate from repo root.
+- Path under `src/`, `tests/`, `examples/`, `benchmarks/`, `docs/`,
+  `prereg/`, or any repo-root file (`Cargo.toml`, `README.md`, etc.) ->
+  technical package, gate from repo root.
 - Path under `research/*` -> research workspace, gate from `research/`.
-- A research-track change should not modify `crates/*` and vice versa,
-  unless the change is an explicit `promote(<area>): ...` commit.
-- Stale paths from before the workspace split no longer exist:
-  `crates/corpus-fetch/*` moved to `research/corpus-fetch/*`, and the
-  research halves of `crates/cli/src/{lib,main}.rs` plus
-  `crates/cli/tests/{fetch,aggregate_sample,clippy_harness,overlap}.rs`
-  moved into `research/cli-research/`. If a parallel session shows you
-  edits against the old paths, re-target them before committing.
+- A research-track change should not touch the technical surface and
+  vice versa, unless the change is an explicit `promote(<area>): ...`
+  commit.
+- Stale paths from prior layouts:
+  - `crates/<X>/src/lib.rs` -> `src/<X>.rs`
+  - `crates/detector-<id>/src/lib.rs` -> `src/detectors/<id>.rs` (or
+    `src/detectors/<id>/mod.rs` for multi-file detectors like pr_miner)
+  - `crates/cli/{src,tests}/...` -> `src/...` and `tests/...` at root
+  - `crates/<X>/tests/integration.rs` -> `tests/<X>_lib.rs` (lib-scope)
+    or `tests/detector_<id>.rs` (detector-scope)
+  - `crates/calibration/fixtures/example_corpus.jsonl` -> `fixtures/example_corpus.jsonl`
+  If a parallel session shows you edits against the old paths,
+  re-target them before committing.
 
 When proposing or implementing a promotion:
 
-- Do not `git mv`. Re-implement under `crates/*` so the technical
-  product's history reflects deliberate intake, not an accidental
-  workspace shuffle.
+- Do not `git mv`. Re-implement under `src/` so the technical product's
+  history reflects deliberate intake, not an accidental shuffle.
 - Use commit prefix `promote(<area>): <summary>`.
-- Verify both workspaces still pass their gates after the promotion.
+- Verify both projects still pass their gates after the promotion.
 
 ## Commit conventions
 
 - Conventional Commits prefixes are in use: `feat(scope)`, `fix(scope)`,
   `chore(scope)`, `docs(scope)`, `ci`, `test(scope)`.
-- Use `promote(<area>)` for research-to-technical promotions (new since
-  the workspace split).
+- Use `promote(<area>)` for research-to-technical promotions.
 - Append `!` after the scope for breaking changes
-  (e.g. `chore(workspace)!: split research crates`).
+  (e.g. `chore(release)!: collapse 15 crates into single package`).
 
 ## Preregistration discipline (technical workspace)
 
@@ -121,7 +137,7 @@ When proposing or implementing a promotion:
   never edit a frozen file in place. The consistency test picks the
   alphabetically last `*.md` in `prereg/`, so ISO date prefixes sort
   to the latest revision automatically.
-- The consistency test at `crates/cli/tests/prereg_consistency.rs`
+- The consistency test at `tests/prereg_consistency.rs`
   picks the alphabetically last `*.md` in `prereg/` as the canonical
   preregistration. Sibling artefacts (rubrics, addenda) must be
   filtered there if they do not follow the OSF schema.
