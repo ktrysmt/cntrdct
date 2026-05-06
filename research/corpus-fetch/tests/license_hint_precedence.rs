@@ -15,91 +15,13 @@
 //! fetcher's internals cannot quietly change the ordering without a
 //! public-API test failure.
 
-use std::collections::HashMap;
-use std::sync::Mutex;
-
 use cntrdct_corpus_fetch::{
-    fetch_one, sha256_hex, ExtractOptions, FetchError, FetchOutcome, HttpClient, SkipReason,
-    SparseIndexClient, TarballClient, DEFAULT_LICENSE_ALLOWLIST,
+    fetch_one, ExtractOptions, FetchOutcome, SkipReason, SparseIndexClient, TarballClient,
+    DEFAULT_LICENSE_ALLOWLIST,
 };
-use flate2::write::GzEncoder;
-use flate2::Compression;
-use tar::{Builder, Header};
 
-const INDEX_BASE: &str = "https://idx.test";
-const STATIC_BASE: &str = "https://static.test";
-
-/// HashMap-backed mock that serves both text (sparse index) and bytes
-/// (tarball). Mirrors the helper introduced in `tests/resume_orphan.rs`;
-/// duplicated rather than shared to keep each integration test
-/// self-contained, matching the existing convention under `tests/`.
-struct DualFixtureClient {
-    text: Mutex<HashMap<String, String>>,
-    bytes: Mutex<HashMap<String, Vec<u8>>>,
-}
-
-impl DualFixtureClient {
-    fn new() -> Self {
-        Self {
-            text: Mutex::new(HashMap::new()),
-            bytes: Mutex::new(HashMap::new()),
-        }
-    }
-    fn add_text(&self, url: &str, body: String) {
-        self.text.lock().unwrap().insert(url.to_string(), body);
-    }
-    fn add_bytes(&self, url: &str, body: Vec<u8>) {
-        self.bytes.lock().unwrap().insert(url.to_string(), body);
-    }
-}
-
-impl HttpClient for DualFixtureClient {
-    fn get_text(&self, url: &str) -> Result<String, FetchError> {
-        match self.text.lock().unwrap().get(url) {
-            Some(body) => Ok(body.clone()),
-            None => Err(FetchError::NotFound(url.to_string())),
-        }
-    }
-    fn get_bytes(&self, url: &str) -> Result<Vec<u8>, FetchError> {
-        match self.bytes.lock().unwrap().get(url) {
-            Some(body) => Ok(body.clone()),
-            None => Err(FetchError::NotFound(url.to_string())),
-        }
-    }
-}
-
-fn make_crate(top_dir: &str, files: &[(&str, &[u8])]) -> (Vec<u8>, String) {
-    let buf = Vec::new();
-    let gz = GzEncoder::new(buf, Compression::default());
-    let mut tar = Builder::new(gz);
-    for (path, contents) in files {
-        let full = format!("{top_dir}/{path}");
-        let mut header = Header::new_gnu();
-        header.set_size(contents.len() as u64);
-        header.set_mode(0o644);
-        header.set_cksum();
-        tar.append_data(&mut header, &full, *contents).unwrap();
-    }
-    let bytes = tar.into_inner().unwrap().finish().unwrap();
-    let digest = sha256_hex(&bytes);
-    (bytes, digest)
-}
-
-fn sparse_record(
-    name: &str,
-    version: &str,
-    license: Option<&str>,
-    cksum: &str,
-    yanked: bool,
-) -> String {
-    let lic = match license {
-        Some(s) => format!(",\"license\":\"{s}\""),
-        None => String::new(),
-    };
-    format!(
-        "{{\"name\":\"{name}\",\"vers\":\"{version}\",\"deps\":[],\"cksum\":\"{cksum}\",\"features\":{{}},\"yanked\":{yanked}{lic}}}"
-    )
-}
+mod common;
+use common::{make_crate, sparse_record, DualFixtureClient, INDEX_BASE, STATIC_BASE};
 
 #[test]
 fn case_a_index_license_wins_over_contradicting_hint() {
