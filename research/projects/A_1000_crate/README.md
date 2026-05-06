@@ -42,6 +42,74 @@ What is missing:
 - A statistical analysis script (Python / R) for Wilson intervals,
   Cohen's kappa across raters, agreement scores.
 
+## Current status (2026-05-06)
+
+Most of the "what is missing" list above has been addressed since
+the original sketch. The Phase 1 harness is implementation-ready
+modulo the gating user decisions captured in `PLAN.md` (USR-1
+rubric §0 confirmation, USR-2 failure-modes promotion, plus
+rater-2 recruitment).
+
+Frozen-on-promote artefacts (currently DRAFT under this directory):
+
+- `rubric-v1-draft.md` — per-detector TP / FP / Uncertain rubric;
+  three-stage adjudication ladder (round 1 blind, round 2
+  discussion, round 3 third-rater tiebreak); §0 lists the user
+  decisions pending before promote.
+- `failure-modes-v1.md` — controlled-vocabulary FP taxonomy
+  (5 detectors, 4-6 modes each, plus shared mode
+  `cross-file-context-resolved`). Vocabulary calibrated against
+  the P-1 wild corpus per `wild-corpus-failure-modes-dry-run.md`.
+- `wild-corpus-failure-modes-dry-run.md` — pre-promote audit of
+  the v1 vocabulary against 124 hand-labelled FPs from
+  `benchmarks/wild-corpus/`. Coverage 100% after two additions
+  (`cross-crate-pool-mismatch`, `parameter-contract-misread`).
+
+Shipped Phase 1 tooling under `scripts/`:
+
+- `phase1_kappa_wilson.py` — Cohen's κ across two raters plus
+  per-detector precision with Wilson 95% CI.
+- `phase1_precision.py` — per-detector precision from
+  `consensus_label` (round 2/3 output) with Wilson 95% CI.
+- `phase1_failure_modes_aggregate.py` — per-detector cross-tab
+  of FP failure modes plus a flat list of `other` rows for
+  v1.x candidate identification.
+- `phase1_failure_modes.py` — `FAILURE_MODES_BY_DETECTOR`
+  controlled-vocabulary module shared by the aggregator.
+- `build_phase1_csv.py` — produces a blind labelling CSV
+  (anchor columns physically absent) plus a sidecar
+  `phase1-context.json` (anchor columns retained for round-2
+  adjudicator only). Implements §6 of the rubric.
+- `validate_phase1_csv.py` — pre-flight validator for the
+  Phase 1 CSV (R0-R9 structural and consistency rules);
+  catches issues before the kappa / precision / aggregator
+  tools run.
+
+Cross-cutting research-side tooling (under `research/cli-research/`):
+
+- `cntrdct-research stratified-sample` — detector × crate
+  two-axis stratified sampling over a `findings.json` file
+  (per-detector cap and per-crate cap configurable). Feeds
+  `build_phase1_csv.py`.
+
+Test count: 76 Phase 1 Python tests, all passing.
+
+Open questions originally listed below have been resolved:
+
+- "Two raters or one?" — two raters per rubric v1.
+- "Do we include `tests/`?" — excluded per Track A convention
+  (tokei SLOC denominator and rubric §2 input definition).
+- "Does Layer 3 LLM adjudication get used for labelling?" —
+  no, per `prereg/2026-05-05-osf-prereg-phase0-addendum.md` §2
+  ("the LLM cross-check is intentionally deferred"); LLM is
+  used in the β protocol for cross-check only, not for
+  primary labelling.
+
+The remaining open question is corpus filtering policy for
+generated code (build.rs output, derive expansion). Current
+working answer: rely on the wild-corpus fetcher's `@generated`
+marker check (per `benchmarks/wild-corpus/README.md`).
+
 ## Method outline
 
 Phase 0 — pilot (1-2 weekends).

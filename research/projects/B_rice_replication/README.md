@@ -40,6 +40,37 @@ What is missing:
   with bootstrap intervals to acknowledge low precision in the
   estimate.)
 
+## Current status (2026-05-06)
+
+Step 1 (formalise replication scope) has produced two artefacts:
+
+- `replication-spec-v0.md` — DRAFT scaffold. Contains 12
+  `[verify Rice §X]` placeholders that are unresolved without
+  paper access. Tracked as USR-3 in `PLAN.md`. Once resolved by
+  a reader with paper access, the scaffold is promoted to
+  `replication-spec-v1.md` with a `Supersedes:` header pointing
+  at v0; v0 is retained verbatim as the audit trail of "what was
+  claimed before reading the paper".
+- `replication-spec-v1.1-rust-analyzer.md` — DRAFT addendum
+  fixing the optional rust-analyzer-based type filter sketched
+  in v0 §4.1. Specifies LSP-over-stdio integration (over
+  ra_ap_* direct invocation), display-string equivalence
+  predicate with documented normalisation, and per-corpus
+  type-distinct fraction with Wilson 95% CI as the headline
+  output. Composes with v1 once v1 lands.
+
+Step 2 (corpus assembly) is unblocked: the Track A fetcher
+(`scripts/fetch_rust_corpus.py` at repo root) is reusable.
+
+Steps 3-5 wait on USR-3 (paper read + v1 promote). Once v1 lands,
+the technical-side patch series specified in v1.1 §5 begins:
+
+1. `feat(detector-arg-swap)`: RICE_TRACE trace path.
+2. `feat(corpus)`: 5 type-distinct seed fixtures.
+3. `promote(track-b)`: `cntrdct-research rice-types` LSP client.
+4. `promote(track-b)`: `cntrdct-research rice-aggregate` (also
+   covers the v0 §9 deferred aggregator scope).
+
 ## Method outline
 
 Step 1 — formalise replication scope.
