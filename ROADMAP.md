@@ -1,6 +1,8 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-03 (commit `6e1cf21`; Phase A complete)
+Last updated: 2026-05-06 (T4-17, T4-18, T4-19 landed; community
+scaffolding minus the formal CoC, which is deferred until external
+contributor activity warrants it)
 
 Engineering roadmap for shipping cntrdct as a usable open-source Rust
 tool. Separate from the academic research tracks under
@@ -570,33 +572,52 @@ M-6. Citation policy for multi-language detectors
 
 T4-17. Issue templates
 
-- Status: `[ ]`
+- Status: `[x]`
 - Goal: `.github/ISSUE_TEMPLATE/{bug_report,feature_request,detector_proposal}.md`.
   The detector proposal template should require a citation field
   upfront so contributors internalise P1 from the first interaction.
 - Effort: half a day.
+- Delivered: three Markdown templates landed; `detector_proposal.md`
+  enforces citation key, citations-policy clause check, IEEE 1044-2009
+  anomaly class, and the ≥ 8 positives-per-language commitment at
+  proposal time.
 
 T4-18. PR template
 
-- Status: `[ ]`
+- Status: `[x]`
 - Goal: `.github/PULL_REQUEST_TEMPLATE.md` with checkboxes for
   citations updated, corpus cases added, tests passing.
 - Effort: an hour.
+- Delivered: template covers Conventional Commit prefix, DCO
+  sign-off, the technical / research workspace boundary, the
+  detector / corpus checklist, and per-workspace gate boxes
+  (`cargo test --workspace` / clippy / fmt).
 
 T4-19. CONTRIBUTING.md
 
-- Status: `[ ]`
+- Status: `[x]`
 - Goal: a contributor guide covering detector authoring (link to
   the per-detector spec template), corpus case authoring, the
   citation format, the DCO-or-CLA decision, and the local dev
   loop (`cargo test --workspace`, `cargo clippy`, `cargo fmt`).
 - Effort: half a day.
+- Delivered: `CONTRIBUTING.md` at repo root. Documents the two
+  workspaces and the `promote(<area>)` rule, the detector authoring
+  flow (proposal → spec → CITATIONS.md → implementation → corpus),
+  the citation key format, Conventional Commits, DCO via
+  `git commit -s` (no CLA), and the PR review expectations.
 
 T4-20. Code of Conduct
 
 - Status: `[ ]`
 - Goal: `CODE_OF_CONDUCT.md` based on Contributor Covenant 2.1.
 - Effort: 15 minutes.
+- Note: deferred until external contributor activity or GitHub
+  Discussions warrants the operational overhead (running an
+  enforcement contact and triage path). At adoption time the file
+  will be a short pointer to the canonical Contributor Covenant URL
+  rather than an inline copy. `CONTRIBUTING.md` carries an interim
+  conduct paragraph until then.
 
 T4-21. Roadmap discussion pinned
 
