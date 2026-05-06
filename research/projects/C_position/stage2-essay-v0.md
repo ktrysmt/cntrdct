@@ -61,6 +61,38 @@ discipline in action. The aim is to give a reader who has never seen
 the codebase enough to either accept the position or pose a concrete
 counter-example.
 
+### 1.1 Architecture at a glance
+
+The discipline described above maps onto a four-layer architecture.
+Layer 1 holds the deterministic detectors with their bound
+citations. Layer 2 turns detector outputs into a ranking using
+empirical priors. Layer 3 isolates any LLM-mediated adjudication.
+Layer 4 produces SARIF for downstream consumers. The diagram fixes
+the direction of dependency and the position of the type-level
+citation gate.
+
+```mermaid
+flowchart TD
+    L1["Layer 1: 検出器群<br>5 検出器すべてが register_detector で<br>非空 citations() を起動時に強制"]
+    L2["Layer 2: ランカー<br>検出器ごとの経験的事前分布で<br>決定論的にスコア付け"]
+    L3["Layer 3: アジュディケータ<br>LLM はここに封じ込め、<br>モデル世代から分離可能"]
+    L4["Layer 4: SARIF と重要度<br>IEEE 1044-2009 重要度にマップ"]
+    L1 -->|"決定論的 / 事前分布駆動"| L2
+    L2 --> L3
+    L3 --> L4
+```
+
+The arrows are one-way. No layer above can influence the layer
+below; in particular, the adjudicator at Layer 3 cannot suppress a
+detector at Layer 1, which is what makes the model-version
+isolation argument in claim C2 work. The type-level citation gate
+is the constraint on entry to Layer 1: a detector that does not
+return a non-empty `citations()` slice never reaches the runtime.
+The four claims that follow each pin a specific feature of this
+shape — the gate (C1), the strict downward arrows (C2), the
+empirical scoring at Layer 2 (C3), and the composition of all
+three into outside-auditable claims (C4).
+
 ## 2. Claim C1: type-level citation enforcement is not cosmetic
 
 Citation enforcement is often imagined as documentation: a `--cite`
@@ -179,23 +211,146 @@ codebase but vulnerable to drift in its citation graph. We have no
 satisfying answer to what an evidence-bound tool should do when its
 citation graph decays. We sketch three plausible directions.
 
-Citation freshness as metadata. Each `Citation` could carry a
-publication year and a maintainer-curated freshness rating; the ranker
-could discount findings whose backing citation has been flagged stale.
-The cost is editorial: someone has to track the literature.
+### 6.1 Citation freshness as metadata
 
-Conflicting-citation resolution. When a later paper contradicts an
-earlier one cited by a detector, the detector could either be retired,
-re-grounded against the later paper, or split into two detectors with
-explicit competing-evidence semantics. The choice is detector-specific.
+The simplest direction is to enrich the existing `Citation` struct
+(`crates/core/src/lib.rs:120`) with a freshness rating that the
+ranker consults during posterior computation. The struct already
+carries a `year: u16` field; extending it with a curator-maintained
+`freshness: FreshnessRating` enum — say, a three-valued
+`Current`, `Watch`, `Stale` — would let the calibration crate
+scale the per-detector prior down when the backing citation is on
+watch or has been declared stale, and cause `cntrdct scan` to
+attach a deprecation marker to findings whose evidence base has
+been flagged. The implementation cost is small. The cost that
+dominates is curatorial: someone has to track the literature.
 
-A meta-detector on citation staleness. Cntrdct could carry a Layer 0
-detector whose findings are not about source code at all, but about
-its own bibliography's age and citation graph. Each scan would emit a
-finding when a backing paper has had no follow-up citations in N
-years, suggesting the area has gone fallow. We are not aware of any
-existing analyser that does this; it would be the first concrete
-research output from the position taken in this essay.
+The closest analogue is reference-rot in academic publishing. Klein
+et al. (PLOS ONE 2014) found that roughly one in five scholarly
+articles published between 1997 and 2012 contained a reference URL
+that no longer resolved or had silently drifted in content; for
+software-engineering analysers whose bibliographies cite both
+peer-reviewed papers and project pages, the figure is plausibly
+higher. An industrial analogue is the way MDN and TC39 mark
+deprecated or superseded specifications: an explicit field that
+downstream consumers can consult, maintained editorially by a
+small group.
+
+The failure mode is a tension with claim C3. The empirical-priors
+discipline says per-detector confidence should track labelled
+data, not maintainer opinion. A `freshness` field smuggles
+editorial judgment back into the ranker, which is the precise
+behaviour C3 was designed to forbid. The mitigation — making
+freshness an external input file that the user can override or
+recompute from a corpus — is plausible but adds a second prior
+file with its own provenance problem. The direction looks
+tractable in implementation and problematic in discipline; we list
+it first because it is the most likely path the project would take
+under deadline pressure, and the most likely to dilute the
+existing constraints if attempted without care.
+
+### 6.2 Conflicting-citation resolution
+
+A more ambitious direction is to make the analyser a first-class
+participant in evidence conflict. Today, `register_detector`
+(`crates/core/src/lib.rs`) accepts a single non-empty `Citation`
+slice per detector and treats every entry as supporting evidence.
+When a later paper contradicts an earlier one that backs a
+detector, the maintainer's options are to retire the detector,
+silently swap the backing citation, or accept the contradiction
+without comment. None of those map to the publication conventions
+of evidence-based fields outside software. The proposal is to admit
+a `CitationStance` enum on each `Citation` entry — `Supports`,
+`ContradictsPrior`, `SupersedesPrior` — plus a `supersedes:
+&'static [&'static str]` cross-reference to other citation keys.
+The calibration path in `crates/calibration/src/lib.rs` would then
+weight the prior by stance: contradicting evidence pulls the
+posterior toward zero; superseding evidence overrides the
+predecessor; the per-detector confidence is no longer a function
+of a single paper.
+
+The natural analogue is the GRADE framework in evidence-based
+medicine, which formalises how a systematic review combines
+heterogeneous primary studies. Cochrane Collaboration review
+protocols rely on a named statistic, I², that quantifies
+between-study heterogeneity and dictates whether a meta-analysis
+is warranted at all. Software-engineering analysers have no such
+machinery; the field treats each detector's primary citation as
+definitive even when later work argues otherwise.
+
+The failure mode is competence. Detector authors are software
+engineers; meta-analysts are statisticians, and the population is
+near-disjoint. Worse, the weighting scheme — recency, venue,
+citation count, replication status — is itself unfalsifiable in
+the sense C3 makes precise. No labelled corpus tells us "venue X
+papers outweigh venue Y papers by factor k". A serious version of
+this direction would need to commit to a weighting scheme up
+front, treat that commitment as part of the preregistered
+methodology, and accept that the methodology will be argued with;
+otherwise the analyser quietly inherits whatever weights the
+maintainer happened to favour, which is C3's failure mode in a new
+costume.
+
+### 6.3 A meta-detector on citation staleness
+
+The third direction inverts the usual relationship: the analyser
+becomes a finding-emitter against its own bibliography. We add a
+new crate, `crates/detector-citation-staleness/`, whose detection
+target is the workspace `CITATIONS.md` and the per-detector
+`Citation` slices read out of `crates/core/src/lib.rs`. At scan
+time, the meta-detector emits a Layer 0 finding for any citation
+whose `year` field is older than N years and which has had no
+follow-up citation in a maintainer-curated index of the
+literature. The SARIF emitter (`crates/sarif/`) tags these with a
+distinguishing rule identifier so users can suppress them
+selectively; the default severity is `note`, not `warning`, so the
+meta-detector annotates rather than gates.
+
+The closest software-engineering analogue is dependency aging. Cox
+"Surviving Software Dependencies" (CACM 2019) argued for treating
+dependencies as a maintained surface rather than a one-time
+choice; the OpenSSF Scorecard project operationalises this by
+emitting "this project has not been updated in N months" signals
+on package repositories. A meta-detector on citation staleness is
+the same pattern lifted from code dependencies to evidence
+dependencies: the analyser's bibliography is itself a maintained
+surface, and its decay is something a tool can surface
+deterministically rather than something a curator must remember to
+audit.
+
+The failure mode is recursive. The threshold N — five years? ten?
+— is a maintainer choice, not an empirical one, which threatens
+to recreate exactly the kind of unfalsifiable knob that C3 was
+designed to forbid. The interesting move is to refuse the
+maintainer preference and instead ship N as a calibrated prior. A
+small labelled corpus of "this 2003 paper is still load-bearing"
+versus "this 2003 paper was superseded by a 2018 follow-up" turns
+the threshold into a falsifiable parameter that yields to
+evidence. That promotion turns the staleness meta-detector into a
+research artefact in its own right: a Phase-2-style empirical
+study whose subject is the analyser's own evidence graph rather
+than a user codebase.
+
+### 6.4 Which direction is most promising
+
+If forced to pick one of the three to ship, it is 6.3. The case is
+partly aesthetic — we are not aware of any deployed static
+analyser that audits its own bibliography, and the absence is
+itself evidence that the move is non-obvious — but the more
+substantive case is that 6.3 is the only direction whose failure
+mode resolves into a research artefact rather than a methodological
+burden. Direction 6.1 produces an editorial knob; direction 6.2
+produces a competence problem; direction 6.3 produces a
+calibration question whose resolution looks structurally identical
+to the empirical-priors discipline already defended in claim C3.
+The discipline composes with itself.
+
+We do not commit to 6.3 as this paper's research contribution. The
+Stage 2 essay's job is to surface the open question and weigh the
+directions; commitment is for a follow-up paper that ships a
+labelled staleness corpus and a calibrated threshold. What the
+choice of 6.3 does signal is which direction we believe is worth
+a Phase 2 corpus and which two are not.
 
 ## 7. Related work
 
@@ -299,14 +454,21 @@ suggestions.
 
 ## Open notes for Stage 2 expansion
 
-- Decide whether C5's three directions become the paper's research
-  contribution, or remain framed as open questions. SPLASH Onward!
-  Essays accepts both shapes; the choice affects the abstract.
-- Add a 1-page architecture diagram of cntrdct's Layer 1-4
-  composition, with the type-level citation gate annotated.
-- Word count target: 4000-6000. Current draft is about 2900 (section 7
-  was filled in this revision; the remaining gap is dominated by
-  section 6 (C5 expansion) and the architecture diagram noted above).
+- Section 6 has been expanded into four subsections (6.1-6.4) with
+  cited adjacent-research analogues and an explicit failure mode
+  per direction. Section 6.4 nominates 6.3 (a meta-detector on
+  citation staleness) as the most promising research output without
+  committing to it as the paper's named contribution; the
+  abstract still frames C5 as an open question. If reviewers push
+  for a stronger commitment, promote 6.3 in the abstract and §1
+  closing.
+- Architecture diagram added at section 1.1 (Mermaid, vertical
+  layout, Japanese node labels). Annotates the type-level citation
+  gate at Layer 1, the deterministic prior-driven edge to Layer 2,
+  and Layer 3 as the LLM-confined adjudicator.
+- Word count target: 4000-6000. Current draft is about 4075 words,
+  inside the target range. Further expansion is optional and
+  driven by reviewer feedback rather than by deadline.
 - Consider adding a sixth claim: "the discipline produces a corpus,
   not just a tool" — pointing at the Phase 1 labelling artefacts
   that fall out of running the analyser.
