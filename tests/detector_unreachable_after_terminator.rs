@@ -247,6 +247,204 @@ fn t15_anomaly_class_is_logic() {
     }
 }
 
+// ---------- F4b: cfg-gated terminator suppression ----------
+//
+// The wild Rust β corpus exposed a 10/10-FP pattern where the
+// detector misread `#[cfg(...)] return ...;` as an unconditional
+// terminator. F4b in `docs/spec/unreachable-after-terminator-v0.md`
+// muts cfg-gated terminators; the cases below pin the contract.
+
+#[test]
+fn t29_cfg_attribute_on_terminator_suppresses() {
+    let src = r#"
+fn f() -> i32 {
+    #[cfg(unix)]
+    return 1;
+    other_impl()
+}
+"#;
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert!(
+        findings.is_empty(),
+        "cfg-gated terminator must not fire, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t30_cfg_not_attribute_on_terminator_suppresses() {
+    let src = r#"
+fn f() {
+    #[cfg(not(test))]
+    panic!("prod-only abort");
+    let _x = 1;
+}
+"#;
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert!(
+        findings.is_empty(),
+        "cfg(not(...)) is still a cfg gate, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t31_complementary_cfg_pair_no_finding() {
+    // The canonical wild-corpus β idiom: complementary cfg-gated
+    // returns. Both branches are NEVER simultaneously present in
+    // any compiled binary; the v0 detector misread them as
+    // sequential statements (10/10 FP on benchmarks/wild-corpus).
+    let src = r#"
+fn f() -> i32 {
+    #[cfg(feature = "preserve_order")]
+    return self_swap_remove();
+    #[cfg(not(feature = "preserve_order"))]
+    return self_map_remove();
+}
+"#;
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert!(
+        findings.is_empty(),
+        "complementary cfg pair must produce no findings, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t32_cfg_attr_does_not_suppress() {
+    // cfg_attr conditionally applies an inner attribute; the
+    // statement itself runs unconditionally. So a cfg_attr-tagged
+    // terminator is still a terminator and the follower is still
+    // unreachable.
+    let src = r#"
+fn f() {
+    #[cfg_attr(test, cold)]
+    return;
+    bar();
+}
+"#;
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "cfg_attr is not cfg; the terminator is unconditional, got {:#?}",
+        findings
+    );
+    assert_eq!(
+        findings[0].evidence.raw["terminator_kind"], "return",
+        "got: {}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t33_cfg_with_panic_macro_terminator_suppresses() {
+    let src = r#"
+fn f() {
+    #[cfg(target_os = "windows")]
+    panic!("windows path not supported");
+    let _x = 1;
+}
+"#;
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert!(
+        findings.is_empty(),
+        "F4b applies to macro terminators too, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t34_cfg_on_follower_does_not_suppress_unconditional_terminator() {
+    // The terminator is unconditional; the follower is gated. In
+    // any build where the follower's cfg evaluates true, the
+    // follower IS unreachable. We retain the finding (limitation
+    // documented in spec F4b).
+    let src = r#"
+fn f() {
+    return;
+    #[cfg(test)]
+    debug();
+}
+"#;
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "unconditional terminator + cfg-gated follower still fires, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t35_hoisted_fn_item_after_return_is_not_unreachable() {
+    // F4c: items declared inside a block are hoisted, so a nested
+    // `fn` after a terminator is not executable code-after-terminator.
+    // This is the exact shape that surfaced in semver__identifier.rs:377.
+    let src = r#"
+fn outer() {
+    return helper();
+
+    #[cold]
+    fn helper() {}
+}
+"#;
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert!(
+        findings.is_empty(),
+        "F4c: nested fn after return is hoisted, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t36_other_item_kinds_after_return_are_not_unreachable() {
+    // Mirror of t35 for the remaining hoisted item kinds we exclude.
+    let src = r#"
+fn outer() {
+    return;
+
+    const C: u32 = 1;
+    static S: u32 = 2;
+    use std::fmt;
+    struct Inner;
+    enum E { A }
+    type T = u32;
+    mod m {}
+    impl Inner {}
+    trait Tr {}
+}
+"#;
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert!(
+        findings.is_empty(),
+        "F4c: hoisted items after return must not fire, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t37_executable_stmt_after_hoisted_item_still_fires() {
+    // Items between a terminator and a real executable statement must
+    // not mask the executable-stmt detection. The terminator at line 1
+    // of the body is still followed by a `bar()` call once items are
+    // skipped; we want exactly 1 finding pointing at `bar()`.
+    let src = r#"
+fn outer() {
+    return;
+    fn helper() {}
+    bar();
+}
+"#;
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "executable stmt after hoisted item must still flag, got {:#?}",
+        findings
+    );
+}
+
 // ---------- M-2: Python pilot ----------
 //
 // Mirrors T1-T15 for Python where the construct exists. v0 has no

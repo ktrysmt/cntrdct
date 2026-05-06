@@ -5,17 +5,23 @@
     "posterior_tp": 0.9411764705882353,
     "wilson_lower_95": 0.7961107336956521
   },
+  "clone-drift": {
+    "tp": 8,
+    "fp": 5,
+    "posterior_tp": 0.6,
+    "wilson_lower_95": 0.3552248097226855
+  },
+  "comment-code": {
+    "tp": 15,
+    "fp": 2,
+    "posterior_tp": 0.8421052631578947,
+    "wilson_lower_95": 0.6566315750229009
+  },
   "config-interaction": {
     "tp": 8,
     "fp": 0,
     "posterior_tp": 0.9,
     "wilson_lower_95": 0.6755843804891231
-  },
-  "unreachable-after-terminator": {
-    "tp": 15,
-    "fp": 10,
-    "posterior_tp": 0.5925925925925926,
-    "wilson_lower_95": 0.4073912778512734
   },
   "pr-miner": {
     "tp": 16,
@@ -23,16 +29,10 @@
     "posterior_tp": 0.425,
     "wilson_lower_95": 0.2785227481181953
   },
-  "comment-code": {
+  "unreachable-after-terminator": {
     "tp": 15,
-    "fp": 18,
-    "posterior_tp": 0.45714285714285713,
-    "wilson_lower_95": 0.298426891258915
-  },
-  "clone-drift": {
-    "tp": 16,
-    "fp": 121,
-    "posterior_tp": 0.1223021582733813,
-    "wilson_lower_95": 0.07317839887053719
+    "fp": 0,
+    "posterior_tp": 0.9411764705882353,
+    "wilson_lower_95": 0.7961107336956521
   }
 }

@@ -227,6 +227,87 @@ P-5. β release tagging and crates.io publish
   single `cargo publish`. Handoff notes with the exact command
   sequence accompany the prep commit.
 
+P-6. v0 → v0.1 detector quality fixes (wild β FP reduction pass)
+
+- Status: `[x]`
+- Goal: cut the wild β corpus FP count for the three high-volume
+  detectors that fired noisily on top-by-downloads packages
+  (`unreachable-after-terminator`, `comment-code`, `clone-drift`),
+  preserving v0 prior-art citations.
+- Acceptance: wild Rust β FPs drop from 124 to ≤ 30; wild Python β
+  FPs drop from 19 to ≤ 5; `prereg/2026-05-04-labelling-rubric-v0.md`
+  re-application produces no new TPs missed by the post-fix
+  detectors; embedded priors recomputed against the relabelled
+  corpus; gates green.
+- Delivered (2026-05-07):
+  - `unreachable-after-terminator` F4b: cfg-gated terminator
+    suppression. `src/detectors/unreachable_after_terminator.rs`
+    `is_cfg_gated_statement` / `attribute_item_is_cfg`. Closed
+    10/10 wild Rust β FPs of the
+    `#[cfg(...)] return ...; #[cfg(not(...))] return ...;` shape.
+  - `unreachable-after-terminator` F4c: hoisted item suppression.
+    `src/detectors/unreachable_after_terminator.rs:217`
+    `is_rust_block_statement` filters `function_item`,
+    `mod_item`, `impl_item`, etc. Closed the residual
+    `semver__identifier.rs:377` FP.
+  - `comment-code` F5b: Python factory-shape suppression for
+    `:raises:` directives. `src/detectors/comment_code.rs`
+    `body_returns_call_expression`. Closed 14/14
+    `attrs_validators.py` FPs.
+  - `comment-code` F5c: Python parameter-level
+    `.. deprecated::` peeking, including indented continuation
+    lines. `src/detectors/comment_code.rs` `python_pattern_deprecated`
+    rewritten with `classify_deprecated_directive`. Closed 2/2
+    `attrs_make.py` FPs.
+  - `clone-drift` F5b: scope-bounded clustering via path-only
+    inference. `src/detectors/clone_drift.rs` `scope_id`,
+    `scope_from_provenance`, `scope_from_cargo_layout`,
+    `scope_from_underscore_basename`. Closed 34 cross-crate FPs
+    on the wild Rust β corpus.
+  - `clone-drift` F5c: within-scope tightening (strict-majority +
+    near-duplicate gates). `src/detectors/clone_drift.rs`
+    `emit_findings_for_scope` adds `largest * 2 > group` and
+    `dominant_jaccard ≥ NEAR_DUPLICATE_THRESHOLD = 0.7`. Closed
+    75 of 78 within-scope FPs (parser-combinator family shapes
+    in nom, winnow, regex_syntax, etc.).
+  - `cntrdct calibrate` byte-stable output. `src/lib.rs::calibrate`
+    serialises priors through a sorted `BTreeMap` so
+    `benchmarks/priors-default.json` is reproducible across runs.
+  - Wild β corpus relabelled per
+    `prereg/2026-05-04-labelling-rubric-v0.md`. Rust manifest
+    unchanged (no TPs before or after); Python manifest's
+    `charset_normalizer_utils.py:27` reclassified TP → FP per
+    rubric §5.1 FP-1.
+  - Embedded priors recomputed (`benchmarks/priors-default.json`):
+    clone-drift Wilson lower 0.073 → 0.355,
+    unreachable-after-terminator 0.407 → 0.796, comment-code
+    0.298 → 0.657.
+  - New prereg `prereg/2026-05-07-osf-prereg.md` supersedes
+    `prereg/2026-05-06-osf-prereg.md`.
+  - Final wild β FP counts: Rust 24 (down from 124, 80.6 %
+    reduction), Python 4 (down from 19, 78.9 % reduction).
+- Effort: half a day.
+- Depends on: P-1 (wild β corpus exists), P-4 (priors pipeline
+  exists).
+
+P-7. clone-drift within-scope residual cleanup
+
+- Status: `[ ]`
+- Goal: close the 3 residual Rust clone-drift FPs after P-6
+  (syn parse-API family at `syn__lib.rs:961`, tracing-subscriber
+  `*_is_none` twins at `tracing_subscriber__layer_mod.rs:1547`,
+  uuid `encode_*` formatter family at `uuid__fmt.rs:280`) and the
+  2 Python residuals (`charset_normalizer_utils.py:70` and `:194`).
+- Plan: investigate token-length-balance filter, type-annotation-
+  aware normalisation, or `MIN_FN_TOKENS` bump tuned per language;
+  pick the smallest change that clears all 5 residuals without
+  losing existing test fixtures.
+- Acceptance: wild β clone-drift FP count → 0 in both Rust and
+  Python; existing `tests/detector_clone_drift.rs` t1–t28 all
+  pass; spec records the new tunable / filter under F5d.
+- Effort: half a day.
+- Depends on: P-6.
+
 ## Tier 1 — usable OSS (blocking for first announcement)
 
 T1-1. GitHub Actions CI

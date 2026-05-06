@@ -35,6 +35,13 @@ pub const MIN_GROUP_SIZE: usize = 3;
 /// equivalent minimum-size gates. Tunable per the same exposure model
 /// as `SIMILARITY_THRESHOLD`.
 pub const MIN_FN_TOKENS: usize = 22;
+/// F5c-ii: a drifted-clone candidate must be a near-duplicate of the
+/// dominant exemplar. Generic-family resemblance (Jaccard 0.5..0.8)
+/// is not a drift signal; the bug pattern requires the singleton to
+/// differ from the cluster's canonical form by only a small number
+/// of tokens. 0.85 keeps small (1-3 token) drifts and rejects
+/// structural variants that share only the surface n-gram skeleton.
+pub const NEAR_DUPLICATE_THRESHOLD: f64 = 0.7;
 
 static CITATIONS: &[Citation] = &[
     Citation {
@@ -167,50 +174,103 @@ fn run_detect_for_language(
     citation_status: LanguageCitationStatus,
     citation_keys: &'static [&'static str],
 ) -> Vec<Finding> {
-    // Per-file parsing dominates this detector's runtime; clustering and
-    // partitioning that follow are intrinsically cross-file and stay
-    // serial. The parallel collect preserves source order because rayon's
-    // collect from an indexed parallel iterator is deterministic.
-    let all_fns: Vec<FnInfo> = ctx
+    // F5b: extract FnInfos paired with their per-file scope key so
+    // clustering can run independently per scope. Per-file parsing
+    // dominates runtime; the parallel collect preserves source order
+    // because rayon's collect from an indexed parallel iterator is
+    // deterministic.
+    let per_file: Vec<(String, Vec<FnInfo>)> = ctx
         .files
         .par_iter()
         .filter(|f| f.language == lang)
-        .filter_map(extract_fns_fn)
-        .flatten()
-        .filter(|info| info.normalized.len() >= MIN_FN_TOKENS)
+        .filter_map(|file| {
+            extract_fns_fn(file).map(|fns| {
+                let filtered: Vec<FnInfo> = fns
+                    .into_iter()
+                    .filter(|info| info.normalized.len() >= MIN_FN_TOKENS)
+                    .collect();
+                (scope_id(file), filtered)
+            })
+        })
         .collect();
 
-    if all_fns.len() < MIN_GROUP_SIZE {
-        return vec![];
+    // Bucket by scope. BTreeMap for deterministic iteration order so
+    // findings come out in stable order across runs.
+    let mut buckets: std::collections::BTreeMap<String, Vec<FnInfo>> =
+        std::collections::BTreeMap::new();
+    for (scope, fns) in per_file {
+        buckets.entry(scope).or_default().extend(fns);
     }
 
-    let groups = cluster(&all_fns);
+    let mut findings: Vec<Finding> = Vec::new();
+    for fns in buckets.values() {
+        if fns.len() < MIN_GROUP_SIZE {
+            continue;
+        }
+        findings.extend(emit_findings_for_scope(fns, citation_status, citation_keys));
+    }
+
+    findings
+}
+
+fn emit_findings_for_scope(
+    fns: &[FnInfo],
+    citation_status: LanguageCitationStatus,
+    citation_keys: &'static [&'static str],
+) -> Vec<Finding> {
+    let groups = cluster(fns);
     let mut findings: Vec<Finding> = Vec::new();
 
     for group in &groups {
         if group.len() < MIN_GROUP_SIZE {
             continue;
         }
-        let parts = partition(group, &all_fns);
-        let has_majority = parts.iter().any(|p| p.len() >= 2);
-        if !has_majority {
-            continue;
-        }
+        let parts = partition(group, fns);
         let largest = parts
             .iter()
             .max_by_key(|p| p.len())
             .expect("non-empty parts");
+        // F5c-i: a drifted-clone signal requires the dominant exact-form
+        // partition to cover a strict majority of the cluster. Without
+        // this guard, parser-combinator-style libraries (e.g. nom) where
+        // a loosely-Jaccard-similar group of 100+ functions sub-partitions
+        // into many small variants emit one finding per singleton; none
+        // are bugs, all are intentional family members. A strict majority
+        // (`2 * largest > group`) is the textbook clone-with-drift shape
+        // (Bettenburg et al., MSR 2009; Krinke, ICSM 2007).
+        if largest.len() * 2 <= group.len() {
+            continue;
+        }
+        if largest.len() < 2 {
+            continue;
+        }
+
+        let dominant_exemplar_idx = largest[0];
+        let dominant_exemplar = &fns[dominant_exemplar_idx];
 
         for p in &parts {
             if p.len() != 1 {
                 continue;
             }
             let drifted_idx = p[0];
-            let drifted = &all_fns[drifted_idx];
+            let drifted = &fns[drifted_idx];
+            // F5c-ii: drift candidate must be a near-duplicate of the
+            // dominant exemplar. Cluster membership only requires
+            // pairwise Jaccard >= SIMILARITY_THRESHOLD (0.5) with at
+            // least one other group member, which is too loose: a
+            // structurally different function can be transitively
+            // pulled into the cluster. The bug pattern (one of N
+            // copies missed an update) requires the singleton to
+            // differ from the canonical form by a small number of
+            // tokens, i.e. Jaccard(singleton, dominant) very high.
+            let dominant_jaccard = jaccard(&drifted.ngrams, &dominant_exemplar.ngrams);
+            if dominant_jaccard < NEAR_DUPLICATE_THRESHOLD {
+                continue;
+            }
             let related: Vec<Location> = largest
                 .iter()
                 .filter(|&&i| i != drifted_idx)
-                .map(|&i| all_fns[i].location.clone())
+                .map(|&i| fns[i].location.clone())
                 .collect();
             let related_count = related.len();
             let partition_sizes: Vec<usize> = parts.iter().map(|x| x.len()).collect();
@@ -225,8 +285,12 @@ fn run_detect_for_language(
                     citation_keys: citation_keys.to_vec(),
                     raw: serde_json::json!({
                         "similarity_threshold": SIMILARITY_THRESHOLD,
+                        "near_duplicate_threshold": NEAR_DUPLICATE_THRESHOLD,
                         "group_size": group.len(),
                         "partition_sizes": partition_sizes,
+                        "dominant_jaccard": dominant_jaccard,
+                        "drifted_len": drifted.normalized.len(),
+                        "dominant_len": dominant_exemplar.normalized.len(),
                     }),
                     language_citation_status: citation_status,
                 },
@@ -235,6 +299,82 @@ fn run_detect_for_language(
     }
 
     findings
+}
+
+/// F5b scope key for `file`, computed without filesystem I/O.
+///
+/// Rule order, first match wins:
+///
+/// 1. Provenance header (`// Source: ...` or `# Source: ...`) in the
+///    file's first ~512 bytes. The full URL becomes the scope key
+///    so two files extracted from the same tarball / .crate share
+///    a key automatically.
+/// 2. Cargo project layout. Path components like `<crate>/src/...`,
+///    `<crate>/tests/...`, `<crate>/examples/...` split into
+///    per-crate scopes. The substring up to the matched separator
+///    is the scope key. A leading `src/` / `tests/` / `examples/`
+///    (no parent component) yields the empty scope, which is the
+///    correct shared key for a single-crate scan.
+/// 3. Filename `__` separator (the wild β corpus's secondary
+///    convention when provenance is missing).
+/// 4. Parent directory of the file as a string. Bare filenames with
+///    no parent yield the empty scope (preserves backward-compat
+///    with existing test fixtures using bare names).
+fn scope_id(file: &ParsedFile) -> String {
+    if let Some(s) = scope_from_provenance(&file.source) {
+        return s;
+    }
+    if let Some(s) = scope_from_cargo_layout(&file.path) {
+        return s;
+    }
+    if let Some(s) = scope_from_underscore_basename(&file.path) {
+        return s;
+    }
+    file.path
+        .parent()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+fn scope_from_provenance(source: &str) -> Option<String> {
+    let head: String = source.chars().take(512).collect();
+    for line in head.lines() {
+        let t = line.trim_start();
+        if let Some(url) = t
+            .strip_prefix("// Source: ")
+            .or_else(|| t.strip_prefix("# Source: "))
+        {
+            let url = url.trim();
+            if !url.is_empty() {
+                return Some(format!("provenance::{url}"));
+            }
+        }
+    }
+    None
+}
+
+fn scope_from_cargo_layout(path: &std::path::Path) -> Option<String> {
+    let s = path.to_string_lossy();
+    for sep in ["/src/", "/tests/", "/examples/"] {
+        if let Some(idx) = s.find(sep) {
+            return Some(s[..idx].to_string());
+        }
+    }
+    for prefix in ["src/", "tests/", "examples/"] {
+        if s.starts_with(prefix) {
+            return Some(String::new());
+        }
+    }
+    None
+}
+
+fn scope_from_underscore_basename(path: &std::path::Path) -> Option<String> {
+    let basename = path.file_name()?.to_string_lossy();
+    let (prefix, rest) = basename.split_once("__")?;
+    if prefix.is_empty() || rest.is_empty() {
+        return None;
+    }
+    Some(format!("underscore::{prefix}"))
 }
 
 fn extract_rust_fns(file: &ParsedFile) -> Option<Vec<FnInfo>> {

@@ -148,6 +148,13 @@ fn analyze_rust_block(block: tree_sitter::Node, file: &ParsedFile, findings: &mu
 
     for (i, stmt) in stmts.iter().enumerate() {
         if let Some(kind) = rust_terminator_kind(*stmt, &file.source) {
+            // F4b: a cfg-gated statement is conditional and does NOT
+            // qualify as a terminator. Skip and keep scanning so the
+            // canonical complementary-cfg-pair idiom (each branch is
+            // its own cfg-gated return) produces no finding.
+            if is_cfg_gated_statement(*stmt, &file.source) {
+                continue;
+            }
             let following = stmts.len() - i - 1;
             if following == 0 {
                 return;
@@ -166,13 +173,79 @@ fn analyze_rust_block(block: tree_sitter::Node, file: &ParsedFile, findings: &mu
     }
 }
 
+/// True when `stmt` is preceded (within its block) by one or more
+/// `#[cfg(...)]` attribute_items. `cfg_attr(...)` does NOT count: that
+/// form conditionally applies an inner attribute while the statement
+/// itself runs unconditionally.
+fn is_cfg_gated_statement(stmt: tree_sitter::Node, source: &str) -> bool {
+    let mut sib = stmt.prev_named_sibling();
+    while let Some(s) = sib {
+        if s.kind() != "attribute_item" {
+            break;
+        }
+        if attribute_item_is_cfg(s, source) {
+            return true;
+        }
+        sib = s.prev_named_sibling();
+    }
+    false
+}
+
+/// True when an `attribute_item`'s first identifier (after `#[` or `#![`)
+/// is exactly `cfg`. Distinguishes `#[cfg(...)]` from the unrelated
+/// `#[cfg_attr(...)]` form.
+fn attribute_item_is_cfg(attr: tree_sitter::Node, source: &str) -> bool {
+    let raw = match attr.utf8_text(source.as_bytes()) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let after_open = raw
+        .trim_start()
+        .strip_prefix("#![")
+        .or_else(|| raw.trim_start().strip_prefix("#["));
+    let Some(after_open) = after_open else {
+        return false;
+    };
+    let trimmed = after_open.trim_start();
+    let first_ident: String = trimmed
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .collect();
+    first_ident == "cfg"
+}
+
 fn is_rust_block_statement(node: tree_sitter::Node) -> bool {
     if !node.is_named() {
         return false;
     }
+    // F4c: item declarations inside a block are hoisted by the
+    // compiler — they do not execute in source order, so a `fn`
+    // (or any other item) appearing after a `return` is NOT
+    // unreachable code. Filter all item kinds plus the existing
+    // attribute/comment exclusions and the no-op empty statement.
     !matches!(
         node.kind(),
-        "inner_attribute_item" | "attribute_item" | "line_comment" | "block_comment"
+        "inner_attribute_item"
+            | "attribute_item"
+            | "line_comment"
+            | "block_comment"
+            | "empty_statement"
+            | "function_item"
+            | "function_signature_item"
+            | "mod_item"
+            | "foreign_mod_item"
+            | "struct_item"
+            | "union_item"
+            | "enum_item"
+            | "type_item"
+            | "const_item"
+            | "static_item"
+            | "trait_item"
+            | "impl_item"
+            | "use_declaration"
+            | "extern_crate_declaration"
+            | "associated_type"
+            | "macro_definition"
     )
 }
 

@@ -72,6 +72,84 @@ For each drifted function:
 
 Findings sorted by `(primary.file, primary.start_line)` lexicographically.
 
+### F5b — Scope-bounded clustering (added 2026-05-07)
+
+Clone-drift v0 originally pooled every function in the scan into a single
+clustering namespace. The wild Rust β corpus exposed this as the dominant
+FP source: 112 of 124 findings were cross-crate "siblings" — functions
+whose AST normal form happened to match a function in an unrelated crate.
+F5b restricts F3 / F5 to operate within a single scope at a time, defined
+per file with a path-only inference (no filesystem I/O, preserving N3).
+
+Scope key, first match wins:
+
+1. Provenance header. If the file's first ~512 bytes contain a `// Source:`
+   line referencing `https://static.crates.io/crates/<name>/...` (the
+   wild β corpus convention; see `benchmarks/wild-corpus/README.md`), the
+   scope key is `cratesio::<name>`. Equivalent forms for the Python wild
+   corpus (`# Source: https://files.pythonhosted.org/.../packages/.../`)
+   yield `pypi::<package>` keys.
+2. Cargo project layout. If the path contains a `/src/` segment, the
+   scope key is the substring up to and including the directory
+   immediately before `/src/`. The same rule applies to `/tests/` and
+   `/examples/` segments. Multi-crate workspaces (`crates/foo/src/...`,
+   `crates/bar/src/...`) split into per-crate scopes naturally.
+3. Filename `__` separator. If the file basename contains `__`, the
+   scope key is the part before the first `__`. This is the wild β
+   corpus's secondary fallback when the provenance header is missing.
+4. Parent directory. Scope key is the file's parent path as a string,
+   or the empty string when the file has no parent component.
+
+Scopes never mix: clustering and partitioning run independently per
+scope. F4 normalization, MIN_FN_TOKENS, MIN_GROUP_SIZE, and the
+SIMILARITY_THRESHOLD all apply within a scope. The Finding shape
+(F6) is unchanged.
+
+Acceptance: on benchmarks/wild-corpus the cross-crate clustering
+collapses; per-crate genuine drift findings remain. The narrowing
+trades some recall (a single-crate clone group below MIN_GROUP_SIZE
+within its scope no longer cross-pools to reach the threshold) for a
+substantial precision gain on real-world code.
+
+### F5c — Drift-signal tightening (added 2026-05-07)
+
+F5b cut cross-scope FPs but left within-scope library-shape variants
+flagged at high volume — 78 of the remaining 78 Rust wild-β findings
+were intentional parser-combinator / formatter family members in
+crates such as nom, syn, tracing-subscriber, and uuid. F5c adds two
+inner gates that together carve out the textbook "drifted clone"
+shape (Bettenburg et al., MSR 2009; Krinke, ICSM 2007) and discard
+the family-of-variants shape.
+
+(F5c-i) Strict-majority gate. The dominant exact-form partition must
+cover a strict majority of the cluster, i.e.
+`largest.len() * 2 > group.len()`. A 24-of-164 dominant partition
+(nom-shape) does NOT qualify; a 9-of-10 dominant partition (the bug
+pattern of "one of N copies missed an update") does.
+
+(F5c-ii) Near-duplicate gate. The drifted singleton must have
+Jaccard ≥ NEAR_DUPLICATE_THRESHOLD with the dominant exemplar's
+n-grams. Cluster membership requires only pairwise Jaccard ≥
+SIMILARITY_THRESHOLD with at least one neighbour, which lets a
+structurally different function be transitively pulled in (e.g.
+`encode_braced` joining `encode_simple` / `encode_hyphenated` in
+uuid). The bug pattern requires the singleton to differ from the
+canonical form by a small number of tokens; NEAR_DUPLICATE_THRESHOLD
+(default 0.7) operationalises that.
+
+Both gates are applied in `emit_findings_for_scope`. The ordering
+is (i) before (ii) so that obvious family-of-variants shapes short-
+circuit before the per-singleton Jaccard recompute. Evidence is
+extended with `dominant_jaccard`, `near_duplicate_threshold`,
+`drifted_len`, and `dominant_len` for downstream calibration.
+
+Acceptance: on benchmarks/wild-corpus the within-scope FP count
+drops from 78 to 3 (96% reduction). The 3 residuals (syn parse-API
+family, tracing-subscriber `*_is_none` twins, uuid `encode_*`
+formatter family) are designed library shapes; they have the same
+shape as a real drift but are not bugs. They are documented as v0
+limitations and labelled FP in the wild-corpus manifest.
+
 ### F8 — Anomaly class
 
 Every Finding emitted by clone-drift sets `anomaly_class = AnomalyClass::Logic`
@@ -118,11 +196,21 @@ in β.
 | T7 | T1 input | every Finding's `evidence.citation_keys` ⊇ one of the recognized keys |
 | T8 | T1 input run twice | identical `Vec<Finding>` |
 | T9 | empty input | 0 Findings, no error |
+| T20 | 4 identical fns under `crateA/src/*.rs` + 1 drifted under `crateB/src/*.rs` | 0 Findings (different scopes, F5b) |
+| T21 | 4 identical fns + 1 drifted, all with `// Source: https://static.crates.io/crates/foo/...` provenance | 1 Finding (same scope) |
+| T22 | 4 identical fns provenance-tagged `foo`, 1 provenance-tagged `bar` | 0 Findings (different cratesio scopes) |
+| T23 | 4 identical `foo__a.rs`/`foo__b.rs`/... + 1 drifted `bar__e.rs` (no provenance) | 0 Findings (different `__`-prefix scopes) |
+| T24 | T1 fixture (bare names, no path / provenance) | 1 Finding (all share parent-dir scope; backward-compatible) |
+| T25 | 4-fn cluster split [2, 1, 1] (no strict majority) | 0 Findings (F5c-i) |
+| T26 | 4-fn cluster split [3, 1] (strict majority + small drift) | 1 Finding |
+| T27 | 5-fn cluster, dominant pair + 1 structurally different singleton | 0 Findings (F5c-ii: dominant_jaccard < NEAR_DUPLICATE_THRESHOLD) |
+| T28 | T1 fixture | every Finding's `evidence.raw` carries `dominant_jaccard` and `near_duplicate_threshold` |
 | T10 | one fn with parse error + valid drift fixture | invalid one skipped, drift still detected |
 
 ## Tunable constants (v0 defaults)
 
-- `SIMILARITY_THRESHOLD = 0.5`
+- `SIMILARITY_THRESHOLD = 0.5` — pairwise Jaccard cutoff for cluster
+  membership.
 - `NGRAM_SIZE = 3`
 - `MIN_GROUP_SIZE = 3`
 - `MIN_FN_TOKENS = 22` — minimum normalized AST token count for a
@@ -132,6 +220,13 @@ in β.
   / SourcererCC pipelines apply equivalent minimum-size gates; we
   expose ours as a tunable on the same surface as
   `SIMILARITY_THRESHOLD`.
+- `NEAR_DUPLICATE_THRESHOLD = 0.7` — F5c-ii Jaccard cutoff between a
+  drifted singleton and the dominant exemplar. Higher than
+  `SIMILARITY_THRESHOLD` because cluster membership is a
+  transitive-chain property, while the drift signal is a direct
+  near-clone property. Empirically tuned so the Python pilot drift
+  fixture (Jaccard 0.78) clears it while structural variants such
+  as nom@1309 (0.53) and nom@1330 (0.66) do not.
 
 Exposed as `pub const` in `cntrdct-detector-clone-drift` for tuning without API
 change. Real-world calibration belongs to Layer 2 (ranker), not these constants.

@@ -433,3 +433,267 @@ fn t10_skip_parse_errors_safely() {
     );
     assert_eq!(findings[0].primary.file, PathBuf::from("drift.rs"));
 }
+
+// ---------- F5b: scope-bounded clustering ----------
+//
+// The wild Rust β corpus exposed cross-crate clustering as the
+// dominant FP source (112/124). F5b restricts cluster + partition
+// to a single scope at a time. The cases below pin the four scope
+// inference rules: (1) provenance header, (2) Cargo `/src/` layout,
+// (3) filename `__` separator, (4) parent-directory fallback.
+
+fn pf(path: &str, src: &str) -> ParsedFile {
+    ParsedFile {
+        path: PathBuf::from(path),
+        language: Language::Rust,
+        source: src.to_string(),
+    }
+}
+
+fn pf_with_source(path: &str, header: &str, body: &str) -> ParsedFile {
+    let mut s = String::new();
+    s.push_str(header);
+    if !header.ends_with('\n') {
+        s.push('\n');
+    }
+    s.push_str(body);
+    pf(path, &s)
+}
+
+#[test]
+fn t20_cargo_src_layout_separates_crates() {
+    // Each crate's files live under `<crate>/src/`. The drift sits in
+    // crateB; the four base copies sit in crateA. F5b must NOT cluster
+    // them together — different scopes.
+    let files = vec![
+        pf("crateA/src/a.rs", FN_BASE),
+        pf("crateA/src/b.rs", FN_BASE),
+        pf("crateA/src/c.rs", FN_BASE),
+        pf("crateA/src/d.rs", FN_BASE),
+        pf("crateB/src/e.rs", FN_DRIFTED),
+    ];
+    let findings = run(files);
+    assert!(
+        findings.is_empty(),
+        "scopes split by Cargo src layout must not cross-cluster, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t21_same_provenance_clusters_within_scope() {
+    // All five files share `// Source: .../crates/foo/...` provenance
+    // -> same scope. The drift surfaces normally.
+    let header = "// Source: https://static.crates.io/crates/foo/foo-1.0.0.crate";
+    let files = vec![
+        pf_with_source("benchmarks/wild-corpus/files/foo__a.rs", header, FN_BASE),
+        pf_with_source("benchmarks/wild-corpus/files/foo__b.rs", header, FN_BASE),
+        pf_with_source("benchmarks/wild-corpus/files/foo__c.rs", header, FN_BASE),
+        pf_with_source("benchmarks/wild-corpus/files/foo__d.rs", header, FN_BASE),
+        pf_with_source("benchmarks/wild-corpus/files/foo__e.rs", header, FN_DRIFTED),
+    ];
+    let findings = run(files);
+    assert_eq!(
+        findings.len(),
+        1,
+        "same-provenance scope must surface drift, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t22_different_provenance_no_cross_cluster() {
+    // Same flat dir but two crates' provenance — must NOT cluster.
+    let foo_h = "// Source: https://static.crates.io/crates/foo/foo-1.0.0.crate";
+    let bar_h = "// Source: https://static.crates.io/crates/bar/bar-1.0.0.crate";
+    let files = vec![
+        pf_with_source("benchmarks/wild-corpus/files/foo__a.rs", foo_h, FN_BASE),
+        pf_with_source("benchmarks/wild-corpus/files/foo__b.rs", foo_h, FN_BASE),
+        pf_with_source("benchmarks/wild-corpus/files/foo__c.rs", foo_h, FN_BASE),
+        pf_with_source("benchmarks/wild-corpus/files/foo__d.rs", foo_h, FN_BASE),
+        pf_with_source("benchmarks/wild-corpus/files/bar__e.rs", bar_h, FN_DRIFTED),
+    ];
+    let findings = run(files);
+    assert!(
+        findings.is_empty(),
+        "different cratesio scopes must not cluster, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t23_filename_underscore_prefix_separates_scopes() {
+    // No provenance header, but the basename `__` separator carries
+    // the crate name. Different prefixes -> different scopes.
+    let files = vec![
+        pf("files/foo__a.rs", FN_BASE),
+        pf("files/foo__b.rs", FN_BASE),
+        pf("files/foo__c.rs", FN_BASE),
+        pf("files/foo__d.rs", FN_BASE),
+        pf("files/bar__e.rs", FN_DRIFTED),
+    ];
+    let findings = run(files);
+    assert!(
+        findings.is_empty(),
+        "different `__`-prefix scopes must not cluster, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t24_bare_names_share_parent_dir_scope_backcompat() {
+    // T1 with bare names (no path / provenance / __ separator).
+    // All files share the empty-parent scope; existing behaviour
+    // is preserved exactly.
+    let files = vec![
+        parsed("a.rs", FN_BASE),
+        parsed("b.rs", FN_BASE),
+        parsed("c.rs", FN_BASE),
+        parsed("d.rs", FN_BASE),
+        parsed("e.rs", FN_DRIFTED),
+    ];
+    let findings = run(files);
+    assert_eq!(
+        findings.len(),
+        1,
+        "bare-name backcompat must preserve T1 behaviour, got {:#?}",
+        findings
+    );
+}
+
+// ---------- F5c: within-scope tightening (added 2026-05-07) ----------
+
+const FN_VARIANT_C: &str = r#"
+fn parse_value(input: &str) -> Result<i32, String> {
+    let trimmed = input.trim().trim_start_matches('+');
+    let value = trimmed.parse::<i32>().map_err(|e| e.to_string())?;
+    Ok(value)
+}
+"#;
+
+const FN_VARIANT_D: &str = r#"
+fn parse_value(input: &str) -> Result<i32, String> {
+    let trimmed = input.trim().trim_end_matches('-');
+    let value = trimmed.parse::<i32>().map_err(|e| e.to_string())?;
+    Ok(value)
+}
+"#;
+
+#[test]
+fn t25_no_drift_on_no_clear_majority() {
+    // F5c-i: a cluster of size 4 split into [2, 1, 1] has the largest
+    // partition at 50% — not a strict majority. The two singletons
+    // could each "look drifted" against the dominant pair, but in a
+    // family-of-variants pattern the dominant is not actually a
+    // majority. We must NOT fire.
+    let files = vec![
+        parsed("a.rs", FN_VARIANT_A),
+        parsed("b.rs", FN_VARIANT_A),
+        parsed("c.rs", FN_VARIANT_C),
+        parsed("d.rs", FN_VARIANT_D),
+    ];
+    let findings = run(files);
+    assert!(
+        findings.is_empty(),
+        "F5c-i: 4-fn cluster split [2, 1, 1] has no strict majority, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t26_drift_fires_when_strict_majority_holds() {
+    // Sanity check: 3-vs-1 split is strict majority (3*2=6 > 4),
+    // and the singleton differs from the dominant by a small drift
+    // that keeps Jaccard >= NEAR_DUPLICATE_THRESHOLD.
+    let files = vec![
+        parsed("a.rs", FN_BASE),
+        parsed("b.rs", FN_BASE),
+        parsed("c.rs", FN_BASE),
+        parsed("d.rs", FN_DRIFTED),
+    ];
+    let findings = run(files);
+    assert_eq!(
+        findings.len(),
+        1,
+        "F5c-i: strict-majority [3, 1] still fires, got {:#?}",
+        findings
+    );
+}
+
+const FN_FAMILY_HEAD: &str = r#"
+fn process(items: Vec<i32>) -> Vec<i32> {
+    let mut result = Vec::new();
+    for item in items {
+        if item > 0 {
+            result.push(item * 2);
+        }
+    }
+    result
+}
+"#;
+
+const FN_FAMILY_STRUCTURAL_VARIANT: &str = r#"
+fn process(items: Vec<i32>, threshold: i32, ctx: &Context, scale: i32) -> Vec<i32> {
+    let mut result = Vec::with_capacity(items.len());
+    let validator = ctx.validator_for(threshold);
+    for (idx, item) in items.into_iter().enumerate() {
+        match validator.check(item, idx) {
+            Ok(_) if item > threshold => result.push(item * scale),
+            Ok(_) => {}
+            Err(e) => {
+                ctx.log_error(idx, &e);
+                continue;
+            }
+        }
+    }
+    result
+}
+"#;
+
+#[test]
+fn t27_no_drift_on_low_dominant_jaccard() {
+    // F5c-ii: a function pulled into a cluster transitively (Jaccard
+    // >= 0.5 with one neighbour) but which differs structurally from
+    // the dominant exemplar (Jaccard < NEAR_DUPLICATE_THRESHOLD)
+    // is NOT a drift. This is the residual parser-combinator /
+    // designed-family-variant case.
+    let files = vec![
+        parsed("a.rs", FN_FAMILY_HEAD),
+        parsed("b.rs", FN_FAMILY_HEAD),
+        parsed("c.rs", FN_FAMILY_HEAD),
+        parsed("d.rs", FN_FAMILY_HEAD),
+        parsed("e.rs", FN_FAMILY_STRUCTURAL_VARIANT),
+    ];
+    let findings = run(files);
+    assert!(
+        findings.is_empty(),
+        "F5c-ii: structural variant (low Jaccard with dominant) must not fire, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t28_evidence_carries_dominant_jaccard() {
+    let files = vec![
+        parsed("a.rs", FN_BASE),
+        parsed("b.rs", FN_BASE),
+        parsed("c.rs", FN_BASE),
+        parsed("d.rs", FN_BASE),
+        parsed("e.rs", FN_DRIFTED),
+    ];
+    let findings = run(files);
+    assert_eq!(findings.len(), 1);
+    let raw = &findings[0].evidence.raw;
+    assert!(
+        raw.get("dominant_jaccard")
+            .and_then(|v| v.as_f64())
+            .is_some(),
+        "F5c: evidence.raw must include dominant_jaccard, got {raw}"
+    );
+    assert!(
+        raw.get("near_duplicate_threshold")
+            .and_then(|v| v.as_f64())
+            .is_some(),
+        "F5c: evidence.raw must include near_duplicate_threshold, got {raw}"
+    );
+}

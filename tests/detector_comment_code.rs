@@ -397,3 +397,240 @@ fn t20_python_class_method_not_top_level_skipped() {
         findings
     );
 }
+
+// ---------- F5b: Python `:raises:` factory suppression ----------
+//
+// Wild Python β corpus exposed 14/14 FPs in attrs.validators where the
+// factory shape `def f(...): ... return _Validator(...)` carried a
+// `:raises X:` doc that describes the RETURNED validator's behavior.
+// The v0 detector misread these as function-level claims.
+
+#[test]
+fn t21_python_raises_factory_with_value_return_suppressed() {
+    // The canonical attrs.validators shape: returns a constructed
+    // helper object; doc `:raises:` describes that helper's behavior.
+    let src = r#"
+class _InstanceOfValidator:
+    pass
+
+def instance_of(type):
+    """
+    A validator that raises a TypeError when called with the wrong type.
+
+    :raises TypeError: With a human readable error message.
+    """
+    return _InstanceOfValidator()
+"#;
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert!(
+        findings.is_empty(),
+        "factory + :raises: + value return must be suppressed, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t22_python_raises_with_no_return_still_fires() {
+    // Control: doc claims raises but body has neither raise nor a
+    // value-returning statement. v0 behavior preserved.
+    let src = r#"
+def f(x):
+    """:raises ValueError: when x is bad."""
+    print(x)
+"#;
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "no body raise + no value return = still a finding, got {:#?}",
+        findings
+    );
+    assert_eq!(
+        findings[0].evidence.raw["pattern"], "py-raises",
+        "got: {}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t23_python_raises_with_return_none_still_fires() {
+    // Bare `return` and explicit `return None` are NOT factory shape.
+    // The doc's `:raises:` claim still mismatches the body.
+    let src_bare = r#"
+def f(x):
+    """:raises ValueError: when x is bad."""
+    print(x)
+    return
+"#;
+    let src_none = r#"
+def f(x):
+    """:raises ValueError: when x is bad."""
+    print(x)
+    return None
+"#;
+    for (label, src) in [("bare", src_bare), ("None", src_none)] {
+        let findings = run(vec![parsed_python("a.py", src)]);
+        assert_eq!(
+            findings.len(),
+            1,
+            "{label}: return-without-value is not factory shape, got {:#?}",
+            findings
+        );
+    }
+}
+
+#[test]
+fn t24_python_raises_factory_nested_def_return_does_not_count() {
+    // A return inside a NESTED `def` belongs to that inner scope.
+    // The outer factory still has no value-returning statement; the
+    // suppression should NOT apply (and the trigger fires).
+    let src = r#"
+def f(x):
+    """:raises ValueError: when x is bad."""
+    def inner():
+        return 1
+    print(x)
+"#;
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "nested-def return must not trigger factory suppression, got {:#?}",
+        findings
+    );
+}
+
+// ---------- F5c: Python `.. deprecated::` directive subject ----------
+
+#[test]
+fn t25_python_deprecated_directive_emphasized_param_suppressed() {
+    // Wild β corpus shape: attrs's attrib() docstring contains
+    // `.. deprecated:: VERSION *paramname*` directives that
+    // deprecate a parameter, not the function. The function itself
+    // remains supported and undecorated.
+    let src = r#"
+def attrib(default=None, cmp=None):
+    """
+    Create a new attribute on a class.
+
+    .. deprecated:: 17.4.0 *convert*
+    .. deprecated:: 19.2.0 *cmp* Removal on or after 2021-06-01.
+    .. versionchanged:: 21.1.0 *cmp* undeprecated
+    """
+    return None
+"#;
+    let findings = run(vec![parsed_python("a.py", src)]);
+    let dep: Vec<_> = findings
+        .iter()
+        .filter(|f| f.evidence.raw["pattern"] == "py-deprecated")
+        .collect();
+    assert!(
+        dep.is_empty(),
+        "all `.. deprecated::` directives are parameter-level (emphasized body); must be suppressed, got {:#?}",
+        dep
+    );
+}
+
+#[test]
+fn t26_python_deprecated_directive_with_prose_body_still_fires() {
+    // Function-level signal: directive body is prose, not emphasis.
+    let src = r#"
+def f():
+    """
+    Do a thing.
+
+    .. deprecated:: 1.0
+       This function will be removed in v2.0.
+    """
+    return None
+"#;
+    let findings = run(vec![parsed_python("a.py", src)]);
+    let dep: Vec<_> = findings
+        .iter()
+        .filter(|f| f.evidence.raw["pattern"] == "py-deprecated")
+        .collect();
+    assert_eq!(
+        dep.len(),
+        1,
+        "bare `.. deprecated::` directive (no emphasis on body line) must fire, got {:#?}",
+        dep
+    );
+}
+
+#[test]
+fn t27_python_mixed_deprecated_directives_function_level_wins() {
+    // If ANY function-level `.. deprecated::` directive coexists
+    // with parameter-level ones, fire (function IS deprecated).
+    let src = r#"
+def f(old_param=None):
+    """
+    Do a thing.
+
+    .. deprecated:: 1.0
+    .. deprecated:: 2.0 *old_param*
+    """
+    return None
+"#;
+    let findings = run(vec![parsed_python("a.py", src)]);
+    let dep: Vec<_> = findings
+        .iter()
+        .filter(|f| f.evidence.raw["pattern"] == "py-deprecated")
+        .collect();
+    assert_eq!(
+        dep.len(),
+        1,
+        "function-level signal must override parameter-level, got {:#?}",
+        dep
+    );
+}
+
+#[test]
+fn t28b_python_deprecated_directive_with_indented_literal_continuation_suppressed() {
+    // Wild β corpus: attrs's `attrs()` docstring has a
+    // `.. deprecated:: 18.2.0` whose body lives on the next indented
+    // line, opening with reST literal markup (``__lt__``). This is
+    // an item-level (method-behavior) deprecation, not function-level.
+    let src = r#"
+def attrs():
+    """
+    Build a class.
+
+    .. deprecated:: 18.2.0
+       ``__lt__``, ``__le__``, ``__gt__``, and ``__ge__`` now raise
+       a `DeprecationWarning` if compared subclass-to-subclass.
+    """
+    return None
+"#;
+    let findings = run(vec![parsed_python("a.py", src)]);
+    let dep: Vec<_> = findings
+        .iter()
+        .filter(|f| f.evidence.raw["pattern"] == "py-deprecated")
+        .collect();
+    assert!(
+        dep.is_empty(),
+        "directive with literal-markup continuation body must be parameter/item-level, got {:#?}",
+        dep
+    );
+}
+
+#[test]
+fn t28_python_deprecated_prose_only_still_fires() {
+    // No `.. deprecated::` directive at all; the word appears in
+    // free-form prose. v0 behavior preserved.
+    let src = r#"
+def f():
+    """This function is deprecated. Use g() instead."""
+    return None
+"#;
+    let findings = run(vec![parsed_python("a.py", src)]);
+    let dep: Vec<_> = findings
+        .iter()
+        .filter(|f| f.evidence.raw["pattern"] == "py-deprecated")
+        .collect();
+    assert_eq!(
+        dep.len(),
+        1,
+        "prose-only deprecation still fires per v0, got {:#?}",
+        dep
+    );
+}

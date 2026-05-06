@@ -72,6 +72,78 @@ Trigger: rendered doc string contains the substring `deprecated`.
 Constraint: the function does NOT have an attribute whose name path begins
 with `deprecated` (e.g. `#[deprecated]`, `#[deprecated(note = "...")]`).
 
+### F5b — Python `:raises:` factory suppression (added 2026-05-07)
+
+Applies to the Python `py-raises` pattern. The v0 detector fires when a
+docstring trigger phrase (`raises`, `may raise`, `throws`) is present and
+the function body contains no `raise_statement`. Empirically this misreads
+factory-shaped functions whose docstring `:raises:` field describes the
+returned object's behavior, not the factory's.
+
+Suppression: the trigger is suppressed when:
+
+1. The body has no `raise_statement` (the existing F-condition).
+2. At least one `return_statement` in the body returns a `call`
+   expression directly (e.g. `return _Validator(x)`). Bare `return`,
+   `return None`, and returns of non-call expressions (literals,
+   identifiers, slices, subscripts) do NOT qualify. Returns inside
+   nested `function_definition`, `class_definition`,
+   `decorated_definition`, or `lambda` are ignored because those
+   returns belong to the inner scope.
+
+The "returns a call" signal discriminates factory functions
+(validators / decorators / partial functions, all of which wrap a
+constructor call) from direct-claim functions. `return buf[:4]`-style
+helpers are subscript expressions, not calls, and continue to fire
+when their docstring claims a raise that the body does not perform.
+
+Known limitation (FN risk): a function with prose like "Raises X" that
+delegates to another function via `return foo(x)` will be suppressed
+even when the prose claim is a direct function-level statement. We
+accept this in v0; the wild β corpus has zero such cases. A future
+revision may layer in a Sphinx field-marker check (`:raises`,
+`:raise`, `:except`, `:exception`) as a tightening signal if needed.
+
+Rationale: in the wild Python β corpus, attrs's `validators` module
+exposes 14 factory functions of the shape
+
+```python
+def instance_of(type):
+    """:raises TypeError: ..."""
+    return _InstanceOfValidator(type)
+```
+
+where the `:raises:` field documents the returned validator's `__call__`
+behavior, not the factory's. v0 reported 14/14 false positives on this
+pattern. F5b is the narrowest fix that closes them.
+
+### F5c — Python `.. deprecated::` directive subject (added 2026-05-07)
+
+Applies to the Python `py-deprecated` pattern. The v0 detector fires when
+the docstring contains the substring `deprecated` and no `@deprecated`-style
+decorator is attached to the function. Empirically this misreads
+`reST` `.. deprecated:: VERSION *param*` directives that deprecate a
+parameter (or item), not the function.
+
+Suppression: the docstring is scanned line-by-line for `.. deprecated::`
+directive lines. A directive is classified by its body (text after the
+version token):
+
+- Body empty, or starts with neither `*` nor `` ` `` → function-level.
+- Body starts with `*` (reST emphasis) or `` ` `` (reST literal) →
+  parameter / item-level.
+
+If at least one function-level `.. deprecated::` directive exists, the
+trigger fires (even if other parameter-level directives are also present).
+If only parameter-level directives exist, the trigger is suppressed. If no
+`.. deprecated::` directive exists at all, v0's prose-only behavior is
+preserved (trigger fires when the substring is present and no decorator).
+
+Rationale: attrs's `attrib()` and `attrs()` functions document parameter
+deprecation via `.. deprecated:: VERSION *param*` directives in the same
+docstring that documents the (still-supported) function. Both functions
+were 2/2 false positives on this pattern in the wild Python β corpus.
+
 ### F6 — Finding shape
 
 Each detected mismatch produces one Finding:

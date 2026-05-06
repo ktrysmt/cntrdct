@@ -93,9 +93,11 @@ with `expected: []`.
   Huffman lookup tables, files < 500 bytes, and any file whose first
   200 bytes contain `@generated`.
 
-## Labelling triage (v0, 2026-05-06)
+## Labelling triage (v0.1, 2026-05-07)
 
-Total: 270 files, 124 cntrdct findings.
+Total: 270 files, 24 cntrdct findings post-FP-reduction (was 124
+before F4b/F4c/F5b/F5c on 2026-05-06; see `prereg/2026-05-07-...`
+for the supersession trail).
 
 Decision rule for `expected`: a finding is a true positive (TP) iff
 a competent reviewer SHOULD investigate it as a possible bug.
@@ -104,15 +106,18 @@ Idiomatic patterns the detector misreads as bugs are false positives
 
 ### TP (0)
 
-The triage produced zero true positives. Every finding fell into
-one of the three idiom-misread categories below.
+The triage produced zero true positives. Every remaining finding
+falls into the three residual idiom-misread categories below; the
+high-volume cfg-gated, cross-crate, and Sphinx-`:raises:` patterns
+that previously dominated have been closed at the detector level.
 
-### FP (124)
+### FP (24)
 
-#### unreachable-after-terminator (10/10 FP)
+#### unreachable-after-terminator (0/0 FP)
 
-All ten findings flag the same Rust idiom: cfg-gated alternative
-returns / panics, e.g.:
+The detector no longer fires on this corpus. F4b
+(spec/unreachable-after-terminator-v0.md) closes the cfg-gated
+alternative-return pattern that produced all ten previous findings:
 
 ```rust
 #[cfg(feature = "preserve_order")]
@@ -121,48 +126,68 @@ return self.swap_remove(key);
 return self.map.remove(key);
 ```
 
-Exactly one branch is active per cfg evaluation; both lines are
-NOT simultaneously present in any compiled binary. The detector's
-AST walk treats them as if they were sequential statements.
-Locations: `clap_builder__output_help_template.rs:1120`,
-`semver__identifier.rs:377`, `serde_json__map.rs:168`,
-`serde_json__map.rs:191`, `serde_json__map.rs:954`,
-`serde_json__map.rs:1017`, `syn__item.rs:2648`,
-`tracing_subscriber__fmt_fmt_layer.rs:343`,
-`tracing_subscriber__fmt_format_json.rs:497`,
-`winnow__error.rs:322`. Two of the ten use the
-`unreachable!()` / `panic!()` macro as the terminator (the macro
-itself is the dead-code-elimination marker).
+F4c additionally suppresses hoisted item declarations after a
+terminator (`semver__identifier.rs:377` was the canonical case: a
+nested `unsafe fn decode_len_cold(...)` declared after `return
+unsafe { decode_len_cold(ptr) };`).
 
 #### comment-code (2/2 FP)
 
-Both findings fire on `parking_lot_core__parking_lot.rs` at lines
-736 and 892. The doc comments document the `validate` / `callback`
-parameter's contract ("must not panic"). The detector reads the
-function-level docstring's "panic" mention as a CLAIM that this
-function panics under some condition; the surrounding text is
-actually a constraint on the caller-supplied closure. The pattern
-is the Rust analogue of the attrs `:raises:` factory pattern that
-showed up as 14 FPs in the M-4 Python wild corpus.
+Both findings still fire on `parking_lot_core__parking_lot.rs` at
+lines 736 and 892. The doc comments document the `validate` /
+`callback` parameter's contract ("must not panic"). The detector
+reads the function-level docstring's "panic" mention as a CLAIM
+that this function panics under some condition; the surrounding
+text is actually a constraint on the caller-supplied closure.
+Closing this on the Rust side is deferred to v0.x; the analogous
+Python pattern (`:raises:` parameter-level documentation) was
+closed by F5b/F5c (comment-code) on the Python pilot.
 
-#### clone-drift (112/112 FP)
+#### clone-drift (3/3 FP)
 
-Every clone-drift finding reports "function diverged from 24
-similar siblings" — the global similarity pool caps at 25 (1
-primary + 24 related per `MAX_RELATED`). The pool spans the entire
-corpus across crate boundaries; the "siblings" of a `nom`
-combinator include `syn` parse helpers and `serde_json`
-constructors purely on signature shape (e.g.
-`pub fn x(input) -> Result<Output>`). Cross-crate divergence in a
-shape-shared pool is not bug-suspect — each crate has its own
-conventions and a parser combinator is supposed to look like a
-parser combinator.
+F5b restricts clustering to within-scope (per-crate via path-only
+inference); F5c adds two within-scope tightening gates. The 3
+residuals are designed library shapes that locally satisfy the
+drift signal but are not bugs:
 
-The 112 findings concentrate on parser-combinator / iterator-
-combinator libraries where the detector's shape similarity is
-maximally fooled: nom (37), winnow (28), itertools (21),
-regex_syntax (7), memchr (5), base64 (6), serde_json (5), and
-single-finding outliers in 14 other files.
+- `syn__lib.rs:961` — `parse_str` is the third member of a
+  designed `parse` / `parse2` / `parse_str` API family.
+- `tracing_subscriber__layer_mod.rs:1547` — `subscriber_is_none`
+  is the deliberate twin of `layer_is_none` / a third
+  `*_is_none` helper in `filter_layer_filters_mod.rs`.
+- `uuid__fmt.rs:280` — `encode_braced` is structurally larger
+  than its `encode_simple` / `encode_hyphenated` siblings (it
+  builds an inner `Braced` struct), but the n-gram skeleton is
+  similar enough to satisfy the cluster-membership floor.
+
+The previous within-scope cohort of 78 findings (parser-combinator
+families in nom, winnow, regex_syntax, etc.) was closed by F5c-i's
+strict-majority filter and F5c-ii's near-duplicate gate. Prior to
+F5b, an additional 34 findings clustered cross-crate; those were
+closed by scope bounding.
+
+#### pr-miner (19/19 FP)
+
+The pr-miner detector did not run on the v0 corpus (was shipped
+later). All 19 wild findings are intentional patterns:
+
+- error-constructor functions that always return `Err` by design
+  (`flate2__mem.rs` `decompress_failed` / `decompress_need_dict`
+  / `compress_failed`, `serde_json__read.rs:864` `error`,
+  `serde__private_de.rs:28` `missing_field`).
+- functions that delegate to a `Result`-returning helper without
+  a literal `Ok(...)` constructor (`chrono__format_parse.rs:20,33`
+  `set_weekday_with_*`, `chrono__format_parsed.rs:1176`
+  `resolve_week_date` via `.ok_or(...)`, `regex_syntax__unicode.rs`
+  `script` / `script_extension` / `gc` / `general_category` family).
+- input-shape-validating parsers (`uuid__parser.rs:151,171,181`
+  `try_parse` / `parse_braced` / `parse_urn` returning `Err` on
+  bad shape, otherwise delegating to `parse_hyphenated`).
+- void-return functions whose `Err(...)` mentions are pattern-
+  matches or state-construction calls, not Result returns
+  (`mio__sys_windows_named_pipe.rs:940` `write_done`).
+
+Tightening pr-miner to recognise these shapes is deferred to v0.x.
 
 ### FN (0)
 
@@ -176,42 +201,49 @@ deferred to future iterations of the corpus (see "Limitations").
 cntrdct eval benchmarks/wild-corpus
 ```
 
-Current numbers (2026-05-06, against the v0 corpus):
+Current numbers (2026-05-07, against the v0.1 corpus after the
+F4b/F4c/F5b/F5c FP reduction pass):
 
-| Detector                        | TP | FP  | FN | Precision | Recall | F1  |
-|---------------------------------|----|-----|----|-----------|--------|-----|
-| clone-drift                     | 0  | 112 | 0  | 0.00      | 0.00   | 0.0 |
-| comment-code                    | 0  | 2   | 0  | 0.00      | 0.00   | 0.0 |
-| unreachable-after-terminator    | 0  | 10  | 0  | 0.00      | 0.00   | 0.0 |
-| Overall                         | 0  | 124 | 0  | 0.00      | 0.00   | 0.0 |
+| Detector                        | TP | FP | FN | Precision | Recall | F1  |
+|---------------------------------|----|----|----|-----------|--------|-----|
+| clone-drift                     | 0  | 3  | 0  | 0.00      | 0.00   | 0.0 |
+| comment-code                    | 0  | 2  | 0  | 0.00      | 0.00   | 0.0 |
+| pr-miner                        | 0  | 19 | 0  | 0.00      | 0.00   | 0.0 |
+| Overall                         | 0  | 24 | 0  | 0.00      | 0.00   | 0.0 |
 
 Detectors that did not fire on this corpus (`arg-swap`,
-`pr-miner` once shipped) are absent from the table — eval emits one
-row only for detectors that produced findings.
+`config-interaction`, `unreachable-after-terminator`) are absent
+from the table — eval emits one row only for detectors that
+produced findings.
 
-These numbers are intentionally not flattering. The seed corpus
-under `benchmarks/corpus/` reports near-perfect numbers because
-every file is constructed to exhibit the target pattern; the wild
-corpus exposes the detectors' weaknesses on idiomatic Rust library
-code that wasn't written with cntrdct in mind. Both are useful —
-the seed catches regressions, the wild reveals where the detectors
-need work. Concretely:
+These numbers reflect a corpus that is sparse on real bugs by
+design — the top-100-by-downloads list is heavily reviewed code.
+The seed corpus under `benchmarks/corpus/` reports near-perfect
+numbers because every file is constructed to exhibit the target
+pattern; the wild corpus's role is to expose detector weaknesses
+on idiomatic Rust library code that wasn't written with cntrdct
+in mind. Both are useful — the seed catches regressions, the
+wild reveals where the detectors still need work.
 
-- `unreachable-after-terminator` v0 has no cfg-attribute model.
-  Modelling cfg gates is a v0.x candidate.
+The remaining v0.1 weaknesses on this corpus:
+
 - `comment-code` v0 misreads "callback must not panic" as a
   function-level panic claim. Disambiguating the subject of a
   panic claim (this function vs caller-supplied closure) is a v0.x
   candidate.
-- `clone-drift` v0 with `MAX_RELATED = 24` and a global sibling
-  pool reports cross-crate "divergences" that are not meaningful.
-  Restricting the pool to intra-crate or intra-file siblings, or
-  raising the support threshold, is a v0.x candidate.
+- `clone-drift` v0.1 still flags 3 designed-library-shape variants
+  (syn parse-API family, tracing-subscriber `*_is_none` twins,
+  uuid `encode_*` formatter family). Tightening MIN_FN_TOKENS or
+  adding a token-length-balance filter is a v0.x candidate.
+- `pr-miner` v0 has no model for error-constructor functions or
+  delegating wrappers. Recognising `fn x() -> Result<T> { Err(...) }`
+  as an intentional shape (one-statement body) and `.ok_or()` as a
+  Result-construction call is a v0.x candidate.
 
-These three weaknesses are now P-4-visible: the labelled findings
-feed `scripts/build_priors_corpus.py` and the next calibration run
-will assign correspondingly low `posterior_tp` / `wilson_lower_95`
-to all three detectors on Rust wild code.
+These weaknesses are now P-4-visible: the labelled findings feed
+`scripts/build_priors_corpus.py` and the calibration run assigns
+correspondingly low `posterior_tp` / `wilson_lower_95` to the
+three detectors that still fire on Rust wild code.
 
 ## Limitations (v0)
 

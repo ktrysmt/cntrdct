@@ -383,7 +383,12 @@ pub fn calibrate(corpus_path: &Path, output_path: &Path) -> Result<usize, Calibr
             source: e,
         })?;
     }
-    let body = serde_json::to_string_pretty(&priors)?;
+    // Sort keys so the serialized priors file is byte-stable across runs.
+    // compute_priors returns a HashMap (insertion order undefined), and
+    // priors-default.json is checked into the repo: a non-deterministic
+    // serialization would produce spurious diffs every recalibration.
+    let sorted: std::collections::BTreeMap<&String, &DetectorPrior> = priors.iter().collect();
+    let body = serde_json::to_string_pretty(&sorted)?;
     fs::write(output_path, body).map_err(|e| CalibrateError::Io {
         path: output_path.to_path_buf(),
         source: e,

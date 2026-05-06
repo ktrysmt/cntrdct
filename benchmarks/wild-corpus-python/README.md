@@ -53,39 +53,71 @@ The maintainer then re-runs `cntrdct scan` over the corpus, triages new
 findings, and updates `manifest.jsonl` by hand. Use
 `--manifest-skeleton` to emit a starter skeleton with `expected: []`.
 
-## Labelling triage (v0, 2026-05-06)
+## Labelling triage (v0.1, 2026-05-07)
 
-Total: 11 files, 19 cntrdct findings.
+Total: 11 files, 4 cntrdct findings post-FP-reduction (was 19 before
+F5b/F5c on 2026-05-06; see `prereg/2026-05-07-...` for the
+supersession trail).
 
 Decision rule for `expected`: a finding is a true positive (TP) iff a
 competent reviewer SHOULD investigate it as a possible bug. Idiomatic
 patterns the detector misreads as bugs are false positives (FP).
 
-### TP (1)
+### TP (0)
 
-- `charset_normalizer_utils.py:27 clone-drift` — `is_accentuated`
-  diverges meaningfully from its `is_X(character) -> bool` siblings
-  (eight OR conditions vs the family's typical one or two). Worth a
-  reviewer's eye to confirm the divergence is intentional.
+The previous triage labelled `charset_normalizer_utils.py:27
+clone-drift` as TP (`is_accentuated` having eight OR conditions
+diverged from its `is_X(character) -> bool` siblings). On strict
+re-application of `prereg/2026-05-04-labelling-rubric-v0.md` §5.1
+FP-1 ("primary and related share only the syntactic shape; their
+conceptual roles differ"), `is_accentuated` is an accent-property
+detector while its single-predicate siblings are script / category
+detectors — different conceptual roles. The label is downgraded to
+FP. The fix-4 F5c near-duplicate gate also no longer fires on
+this position post-relabelling, so it does not appear in the
+current finding set.
 
-### FP (18)
+### FP (4)
 
-- `charset_normalizer_utils.py:70` and `:194 clone-drift`. `is_latin`
-  and `is_arabic_isolated_form` are simple sibling members of the
-  family; the divergence is the substring being matched. Not
-  bug-suspect.
-- `attrs_make.py:93` and `:1197 comment-code`. The `attrib()` and
-  `attrs()` functions' docstrings contain `.. deprecated::` directives
-  that mark *parameters* as deprecated, not the function. The detector
-  reads "deprecated" in the docstring as a function-level claim and
-  fires when the function isn't decorated.
-- `attrs_validators.py:128, 243, 320, 364, 411, 451, 493, 505, 517,
-  529, 560, 591, 630, 688 comment-code` (14 findings). Each is a
-  factory function returning a callable validator. The docstring's
-  `:raises:` clause documents the behavior of the *returned validator*
-  per the attrs idiom, but the factory body itself just constructs and
-  returns the validator without raising. The detector flags the
-  mismatch; the pattern is intentional.
+#### clone-drift (2/2 FP)
+
+- `charset_normalizer_utils.py:70` (`is_latin`) — single-predicate
+  sibling, differs from the dominant exact form by carrying a
+  `: str` type annotation on `description`. F5c-ii's near-duplicate
+  Jaccard 0.78 clears the 0.7 threshold so the singleton still
+  fires, but the rubric tags it FP-2 (style-only difference).
+- `charset_normalizer_utils.py:194` (`is_arabic_isolated_form`) —
+  compound predicate (`"ARABIC" in name AND "ISOLATED FORM" in
+  name`), conceptually a stricter subset of `is_arabic`. FP-1
+  (different conceptual role).
+
+#### pr-miner (2/2 FP)
+
+- `click_utils.py:326,338` — `get_binary_stream` / `get_text_stream`
+  raise `TypeError` on dict-lookup miss. They have no `isinstance`
+  check because the parameter is type-annotated `Literal['stdin',
+  'stdout', 'stderr']`. The "12 of 14 similar functions call both"
+  signal flags the asymmetry; the asymmetry is intentional.
+
+#### comment-code (closed at detector level)
+
+The 16 attrs `:raises:` factory FPs (`attrs_validators.py` cluster)
+and the 2 `.. deprecated::` parameter-level FPs
+(`attrs_make.py:93,1197`) were closed by F5b (factory-shape
+suppression) and F5c (parameter-level deprecation peeking) on the
+comment-code detector. Spec details:
+`docs/spec/comment-code-v0.md` F5b/F5c.
+
+#### clone-drift (closed at detector level)
+
+The 2 single-predicate-vs-compound-predicate FPs that remain are
+the residual after F5c-i's strict-majority gate filtered out the
+parser-combinator-shape FPs. They survive because the
+charset_normalizer family has a strict majority and all three
+remaining candidates are near-duplicates of the dominant form.
+Tightening this requires either bumping `MIN_FN_TOKENS` (would lose
+real small-fn drift signals on the Rust pilot) or adding a
+type-annotation-aware normalisation step (deferred to v0.x).
 
 ### FN (0)
 
@@ -99,31 +131,39 @@ deferred to future iterations of the corpus (see "Limitations").
 cntrdct eval benchmarks/wild-corpus-python
 ```
 
-Current numbers (2026-05-06, against the v0 corpus):
+Current numbers (2026-05-07, against the v0.1 corpus after the
+F5b/F5c FP reduction pass and rubric-strict relabelling):
 
 | Detector       | TP | FP | FN | Precision | Recall | F1  |
 |----------------|----|----|----|-----------|--------|-----|
-| clone-drift    | 1  | 2  | 0  | 0.33      | 1.00   | 0.5 |
-| comment-code   | 0  | 16 | 0  | 0.00      | 0.00   | 0.0 |
-| Overall        | 1  | 18 | 0  | 0.05      | 1.00   | 0.1 |
+| clone-drift    | 0  | 2  | 0  | 0.00      | 0.00   | 0.0 |
+| pr-miner       | 0  | 2  | 0  | 0.00      | 0.00   | 0.0 |
+| Overall        | 0  | 4  | 0  | 0.00      | 0.00   | 0.0 |
 
-These numbers are intentionally not flattering. The seed corpus under
-`benchmarks/corpus/` reports near-perfect numbers because every file
-is constructed to exhibit the target pattern; the wild corpus exposes
-the detectors' weaknesses on idiomatic Python code that wasn't written
-with cntrdct in mind. Both are useful — the seed catches regressions,
-the wild reveals where the detectors need work.
+Detectors that did not fire on this corpus (`arg-swap`,
+`config-interaction`, `comment-code`, `unreachable-after-terminator`)
+are absent from the table — eval emits one row only for detectors
+that produced findings.
+
+These numbers reflect a corpus that is sparse on real bugs by
+design. The seed corpus under `benchmarks/corpus/` reports
+near-perfect numbers because every file is constructed to exhibit
+the target pattern; the wild corpus's role is to expose detector
+weaknesses on idiomatic Python code that wasn't written with
+cntrdct in mind. Both are useful — the seed catches regressions,
+the wild reveals where the detectors still need work.
 
 ## Limitations (v0)
 
 - Tiny corpus: 11 files. Single-package weight (one bad file pattern)
   shifts metrics noticeably. Treat numbers as directional, not
   absolute.
-- No `arg-swap` or `unreachable-after-terminator` findings yet — the
-  selected packages happen not to exhibit those patterns. Recall
-  signal for those detectors is therefore zero by default. Future
-  iterations should add packages that contain known instances or
-  inject a small set of targeted real-world fixtures.
+- No `arg-swap`, `comment-code`, `config-interaction`, or
+  `unreachable-after-terminator` findings — the selected packages
+  happen not to exhibit those patterns. Recall signal for those
+  detectors is therefore zero by default. Future iterations should
+  add packages that contain known instances or inject a small set
+  of targeted real-world fixtures.
 - No FN entries: every expected entry happens to be matched. To make
   recall non-trivial we need to label specific upstream-known bugs
   the detector misses, which requires bug-tracker spelunking.

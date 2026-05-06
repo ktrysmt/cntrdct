@@ -472,6 +472,18 @@ fn python_pattern_raises(doc_lc: &str, body: tree_sitter::Node) -> Option<&'stat
     if body_contains_raise(body) {
         return None;
     }
+    // F5b: factory-shape suppression. The body is treated as a
+    // factory when both:
+    //   (i) the body has no `raise_statement` (already checked above), and
+    //   (ii) at least one `return_statement` returns a `call`
+    //        expression (e.g. `return _Validator(x)`).
+    // Returning a non-call value (slice / subscript / literal /
+    // identifier) does NOT qualify — `return buf[:4]` style functions
+    // are direct claims, not factories. A bare `return` or
+    // `return None` does not qualify either.
+    if body_returns_call_expression(body) {
+        return None;
+    }
     Some(trigger)
 }
 
@@ -482,6 +494,47 @@ fn body_contains_raise(node: tree_sitter::Node) -> bool {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if body_contains_raise(child) {
+            return true;
+        }
+    }
+    false
+}
+
+/// True when `body` contains at least one `return_statement` whose
+/// immediate returned expression is a `call` node (i.e. the function
+/// returns the result of a function / constructor call). This is the
+/// factory-shape signal: validators / decorators / partial functions
+/// canonically wrap a constructor call.
+///
+/// Returns inside nested `function_definition`, `class_definition`,
+/// `decorated_definition`, or `lambda` are ignored because those
+/// returns belong to the inner scope. A bare `return` or `return None`
+/// does not qualify.
+fn body_returns_call_expression(body: tree_sitter::Node) -> bool {
+    if matches!(
+        body.kind(),
+        "function_definition" | "class_definition" | "decorated_definition" | "lambda"
+    ) {
+        return false;
+    }
+    if body.kind() == "return_statement" {
+        let mut cursor = body.walk();
+        for child in body.children(&mut cursor) {
+            if !child.is_named() {
+                continue;
+            }
+            if child.kind() == "call" {
+                return true;
+            }
+            // First named child is the returned expression. Anything
+            // other than a `call` does NOT qualify.
+            return false;
+        }
+        return false;
+    }
+    let mut cursor = body.walk();
+    for child in body.children(&mut cursor) {
+        if body_returns_call_expression(child) {
             return true;
         }
     }
@@ -502,7 +555,102 @@ fn python_pattern_deprecated(
     {
         return None;
     }
+    // F5c: distinguish `.. deprecated::` directive shapes. A directive
+    // whose body opens with reST emphasis (`*X*`) or literal markup
+    // (`` `X` `` / ` ``X`` `) is parameter / item-level; otherwise
+    // function-level. The body may be on the same line as the
+    // directive header or on a subsequent indented continuation line
+    // when the header has no inline body. If every directive in the
+    // doc is parameter-level, suppress; if any function-level
+    // directive coexists, fire.
+    let mut found_param_level = false;
+    let lines: Vec<&str> = doc_lc.lines().collect();
+    for (idx, line) in lines.iter().enumerate() {
+        match classify_deprecated_directive(line, &lines, idx) {
+            DeprecatedDirectiveClass::FunctionLevel => return Some("deprecated"),
+            DeprecatedDirectiveClass::ParameterLevel => found_param_level = true,
+            DeprecatedDirectiveClass::None => {}
+        }
+    }
+    if found_param_level {
+        return None;
+    }
     Some("deprecated")
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DeprecatedDirectiveClass {
+    FunctionLevel,
+    ParameterLevel,
+    None,
+}
+
+/// Classify a `.. deprecated::` directive starting at `lines[idx]`.
+///
+/// The directive body is taken from the inline portion (text after
+/// `.. deprecated:: VERSION` on the same line) when present;
+/// otherwise the first non-blank continuation line is used. A reST
+/// directive's continuation lines are indented relative to the
+/// directive header — we accept any deeper indentation as
+/// continuation, mirroring how Sphinx itself parses these blocks.
+///
+/// Function-level: body is empty or starts with neither `*` nor `` ` ``.
+/// Parameter / item-level: body starts with `*` (reST emphasis) or
+/// `` ` `` (reST literal — single or double backtick).
+/// None: the header line is not a `.. deprecated::` directive.
+fn classify_deprecated_directive(
+    line: &str,
+    lines: &[&str],
+    idx: usize,
+) -> DeprecatedDirectiveClass {
+    let trimmed = line.trim_start();
+    let Some(rest) = trimmed.strip_prefix("..") else {
+        return DeprecatedDirectiveClass::None;
+    };
+    let rest = rest.trim_start();
+    let Some(rest) = rest.strip_prefix("deprecated::") else {
+        return DeprecatedDirectiveClass::None;
+    };
+    let rest = rest.trim_start();
+    let mut splitter = rest.splitn(2, char::is_whitespace);
+    let _version = splitter.next();
+    let inline_body = splitter
+        .next()
+        .map(|s| s.trim_start())
+        .unwrap_or("")
+        .trim_end();
+
+    let header_indent = line.len() - line.trim_start().len();
+    let body = if inline_body.is_empty() {
+        // Look ahead for the first non-blank line whose indentation
+        // is strictly greater than the header's: that's the
+        // directive's continuation body. Stop at any line at the
+        // header's indentation or shallower (the directive ended).
+        let mut found: Option<&str> = None;
+        for next in lines.iter().skip(idx + 1) {
+            if next.trim().is_empty() {
+                continue;
+            }
+            let next_indent = next.len() - next.trim_start().len();
+            if next_indent <= header_indent {
+                break;
+            }
+            found = Some(next.trim_start());
+            break;
+        }
+        found.unwrap_or("").trim_end()
+    } else {
+        inline_body
+    };
+
+    if body.is_empty() {
+        return DeprecatedDirectiveClass::FunctionLevel;
+    }
+    if body.starts_with('*') || body.starts_with('`') {
+        DeprecatedDirectiveClass::ParameterLevel
+    } else {
+        DeprecatedDirectiveClass::FunctionLevel
+    }
 }
 
 /// Decide whether a `decorator` node names a `@deprecated`-style marker.

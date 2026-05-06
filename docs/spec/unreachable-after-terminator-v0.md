@@ -76,6 +76,66 @@ points at the FIRST such following statement (index i+1); subsequent
 statements in the same block are not flagged separately to avoid duplicate
 noise on a single contradiction site.
 
+### F4b — cfg-gated terminator suppression (added 2026-05-07)
+
+A statement that would otherwise qualify as a terminator under F3 is NOT a
+terminator if it carries a `#[cfg(...)]` attribute. The attribute may be
+attached either as the immediately preceding sibling `attribute_item` within
+the same block, or as a child `attribute_item` of the `expression_statement`
+itself. Successive preceding `attribute_item` siblings are all considered.
+
+Detection key: after stripping the leading `#[` (or `#![`) the FIRST
+identifier is exactly `cfg`. The closely-named `cfg_attr(predicate, attr)`
+form does NOT make the statement conditional — it conditionally applies an
+inner attribute while the statement itself runs unconditionally — and is
+therefore NOT a suppressor.
+
+Rationale: in stable Rust, the canonical cross-platform / feature-gated
+return idiom is
+
+```rust
+#[cfg(feature = "X")]
+return foo();
+#[cfg(not(feature = "X"))]
+return bar();
+```
+
+Exactly one branch is active per cfg evaluation; both branches are NOT
+simultaneously present in any compiled binary. The v0 detector treated them
+as sequential statements, producing 100% false positives on the wild Rust β
+corpus for this pattern (10/10 findings). The suppression in F4b is the
+narrowest fix: only the terminator side is muted; an unconditional
+terminator followed by a cfg-gated statement still fires (the follower IS
+unreachable in any build where its cfg evaluates to true).
+
+### F4c — Hoisted item suppression (added 2026-05-07)
+
+Item declarations that appear inside a block (`function_item`,
+`function_signature_item`, `mod_item`, `foreign_mod_item`, `struct_item`,
+`union_item`, `enum_item`, `type_item`, `const_item`, `static_item`,
+`trait_item`, `impl_item`, `use_declaration`, `extern_crate_declaration`,
+`associated_type`, `macro_definition`) are NOT executable statements: the
+Rust compiler hoists them so their textual position carries no runtime
+ordering. They are filtered out of the block's statement list before F4
+runs, alongside attributes, comments, and `empty_statement` (the bare `;`).
+
+Concretely, a `fn` declared after a `return` does not constitute reachable-
+or unreachable-code:
+
+```rust
+fn outer() {
+    return helper();
+
+    #[cold]
+    fn helper() {}   // hoisted; not unreachable
+}
+```
+
+Found surfacing in `semver__identifier.rs:377` on the wild Rust β corpus.
+After F4c there are 0 findings of this shape on the corpus. F4c does NOT
+mask genuine unreachable-after-terminator: an executable statement
+appearing after the items still fires (T37).
+
 ### F5 — Finding shape
 
 For each block where F4 fires, emit one Finding:
@@ -153,6 +213,15 @@ Functions / blocks consisting solely of attributes are skipped.
 | T13 | `fn f() { let x = 1; bar(); baz(); }` (no terminator) | 0 Findings |
 | T14 | T1 with `#![allow(unreachable_code)]` inner attribute on the function block | 0 Findings (suppressed) |
 | T15 | every Finding has `anomaly_class = Logic` |
+| T29 | `#[cfg(unix)] return foo(); bar();` | 0 Findings (F4b: cfg-gated terminator) |
+| T30 | `#[cfg(not(test))] panic!(); let x = 1;` | 0 Findings (F4b: cfg(not(...)) also matches) |
+| T31 | complementary pair: `#[cfg(X)] return a();` followed by `#[cfg(not(X))] return b();` | 0 Findings (the wild-corpus β idiom) |
+| T32 | `#[cfg_attr(test, cold)] return foo(); bar();` | 1 Finding (cfg_attr is NOT cfg; statement runs unconditionally) |
+| T33 | `#[cfg(unix)] panic!(); let x = 1;` | 0 Findings (F4b applies to macro terminators too) |
+| T34 | `return foo(); #[cfg(test)] debug();` (cfg on FOLLOWER) | 1 Finding (terminator is unconditional; follower IS unreachable when its cfg is true) |
+| T35 | `fn outer() { return helper(); #[cold] fn helper() {} }` | 0 Findings (F4c: hoisted fn item) |
+| T36 | hoisted items only after `return`: `const`, `static`, `use`, `struct`, `enum`, `type`, `mod`, `impl`, `trait` | 0 Findings (F4c) |
+| T37 | `fn outer() { return; fn helper() {} bar(); }` | 1 Finding on `bar()` (items skipped, executable stmt still flags) |
 
 ## Tunable constants (v0 defaults)
 
