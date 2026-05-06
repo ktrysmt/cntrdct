@@ -150,10 +150,7 @@ cntrdct ships as a single crate. Internals are organised under
 ## Design notes
 
 `docs/spec/` contains the active specs that drove the TDD
-implementation. `ROADMAP.md` tracks engineering deliverables; the
-academic research tracks live under `research/projects/` inside the
-sibling `research/` cargo workspace, which is independent of the
-technical package at the repo root and never blocks technical CI.
+implementation. `ROADMAP.md` tracks engineering deliverables.
 
 ## Further reading
 

@@ -5,12 +5,7 @@ scaffolding minus the formal CoC, which is deferred until external
 contributor activity warrants it)
 
 Engineering roadmap for shipping cntrdct as a usable open-source Rust
-tool. Separate from the academic research tracks under
-`research/projects/A_*`, `research/projects/B_*`,
-`research/projects/C_*` (see `research/projects/PLAN.md` for the
-strategic context that produced this roadmap). The research-side
-workspace at `research/Cargo.toml` is independent of the technical
-workspace and never blocks technical CI.
+tool.
 
 ## Status legend
 
@@ -713,9 +708,8 @@ T4-18. PR template
   citations updated, corpus cases added, tests passing.
 - Effort: an hour.
 - Delivered: template covers Conventional Commit prefix, DCO
-  sign-off, the technical / research workspace boundary, the
-  detector / corpus checklist, and per-workspace gate boxes
-  (`cargo test --workspace` / clippy / fmt).
+  sign-off, the detector / corpus checklist, and the gate boxes
+  (`cargo test` / clippy / fmt).
 
 T4-19. CONTRIBUTING.md
 

@@ -29,8 +29,7 @@ Optional, but it makes review faster. -->
 
 ## Scope
 
-- [ ] Technical workspace (`crates/*`)
-- [ ] Research workspace (`research/*`)
+- [ ] Code (detector, CLI, library)
 - [ ] Tooling / docs only
 - [ ] Not sure
 
