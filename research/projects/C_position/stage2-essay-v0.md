@@ -18,7 +18,7 @@ reputation of the analyser's authors. This essay presents a contrarian
 position: that peer-reviewed citation, treated as a typed and enforced
 component of every detector, produces design constraints that ripple
 through the entire tool architecture in useful and non-obvious ways.
-The cntrdct project is the worked example. We describe four claims
+The cntrdct project is the worked example. We describe five claims
 about what falls out of an enforced citation API, sketch one open
 question about how such a tool should behave when its citation graph
 decays, and argue that the constraint is worth the cost.
@@ -54,8 +54,9 @@ top-level `CITATIONS.md` and the per-detector `citations()` methods in
 lock-step. None of this is novel as plumbing. What is interesting is
 what it costs and what it produces.
 
-We describe four claims (C1-C4) about what the discipline yields, plus
-one open question (C5) about its long-term failure mode. Each claim is
+We describe five claims (C1-C5) about what the discipline yields,
+plus one open question (C6) about its long-term failure mode. Each
+claim is
 illustrated with a specific code path or test in cntrdct that shows the
 discipline in action. The aim is to give a reader who has never seen
 the codebase enough to either accept the position or pose a concrete
@@ -200,7 +201,75 @@ answer is a citation, a deterministic detection rule, and a numeric
 prior with its corpus provenance. None of those three depend on
 trusting the analyser's authors.
 
-## 6. Open question C5: what to do when the citation graph decays
+## 6. Claim C5: the discipline produces a corpus, not just a tool
+
+The four claims so far framed the discipline as a constraint on
+cntrdct's source code. The discipline also has a downstream
+output: a labelled corpus of findings, calibrated against a
+preregistered evaluation protocol, that exists because cntrdct
+exists and would not have been produced otherwise. The claim is
+that this corpus is a research artefact, not a byproduct, and
+that its existence compounds with the discipline rather than
+sitting beside it.
+
+Three artefacts illustrate the claim. The Phase 1 labelling
+rubric (`research/projects/A_1000_crate/rubric-v1-draft.md`,
+frozen at promotion as
+`prereg/<DATE>-labelling-rubric-v1.md`) preregisters a
+per-detector TP / FP / Uncertain decision protocol with a
+published Cohen's κ acceptance threshold of 0.6 and a three-stage
+disagreement-adjudication ladder. The rubric is not specific to
+cntrdct's detectors; another analyser whose detectors map onto
+similar defect classes (clone-drift, arg-swap, comment-code) can
+adopt the rubric, recruit two raters, and produce comparable κ
+figures on its own corpus. The rubric is portable infrastructure.
+
+The FP failure-mode vocabulary
+(`research/projects/A_1000_crate/failure-modes-v1.md`)
+preregisters a controlled vocabulary of FP explanations per
+detector. v1 lists 5 detectors with 4-6 modes each, including a
+shared `cross-file-context-resolved` mode that two detectors
+admit. The vocabulary was calibrated against a real labelled FP
+set (the P-1 wild corpus, 124 hand-labelled FPs) before
+promotion: modes that did not cover real FP shapes were added
+under documented audit trail (`wild-corpus-failure-modes-dry-run.md`
+in the same directory). Other analysers can adopt the vocabulary
+verbatim for the same defect classes, or fork it to add
+detector-specific modes; the vocabulary's portability is
+structural rather than incidental.
+
+The blind labelling protocol with anchor-bias avoidance is
+reusable methodology. `build_phase1_csv.py` produces a CSV with
+the rank-score, message, and anomaly-class columns physically
+absent from the rater-visible file; a sidecar
+`phase1-context.json` carries those fields for the round-2
+adjudicator only. The harness addresses a problem present in any
+two-rater study where the analyser produces ranking signals that
+could prime raters; the same harness would work for any analyser
+whose findings carry an analogue of `rank_score`. The blind /
+sidecar split is the part of the methodology that ports across
+analysers most cleanly.
+
+The composition with claims C1-C4 is direct. C1 (type-level
+citation) gives every detector a paper-level grounding; C3
+(empirical priors) gives every detector a per-corpus calibration;
+preregistering the rating rubric AND the failure-mode vocabulary
+BEFORE producing labels closes the methodological loop. The
+corpus is a derivative of the analyser's discipline, made
+auditable by the same composition argument C4 made for the
+findings themselves.
+
+The claim is not that cntrdct's specific corpus is the canonical
+benchmark for static-analysis research. It is that the discipline
+produces a corpus shaped by the same constraints that shaped the
+tool, and the corpus's value is independent of any single
+analyser's finding-quality on it. An analyser whose detectors do
+poorly on this corpus is not necessarily a worse analyser; it is
+an analyser whose grounding the corpus exposes. That exposure is
+the corpus's contribution, and it survives the analyser that
+produced it.
+
+## 7. Open question C6: what to do when the citation graph decays
 
 Papers age. They get superseded by follow-ups, contradicted by later
 empirical work, or in extreme cases retracted. An evidence-bound
@@ -211,7 +280,7 @@ codebase but vulnerable to drift in its citation graph. We have no
 satisfying answer to what an evidence-bound tool should do when its
 citation graph decays. We sketch three plausible directions.
 
-### 6.1 Citation freshness as metadata
+### 7.1 Citation freshness as metadata
 
 The simplest direction is to enrich the existing `Citation` struct
 (`crates/core/src/lib.rs:120`) with a freshness rating that the
@@ -249,7 +318,7 @@ it first because it is the most likely path the project would take
 under deadline pressure, and the most likely to dilute the
 existing constraints if attempted without care.
 
-### 6.2 Conflicting-citation resolution
+### 7.2 Conflicting-citation resolution
 
 A more ambitious direction is to make the analyser a first-class
 participant in evidence conflict. Today, `register_detector`
@@ -291,7 +360,7 @@ otherwise the analyser quietly inherits whatever weights the
 maintainer happened to favour, which is C3's failure mode in a new
 costume.
 
-### 6.3 A meta-detector on citation staleness
+### 7.3 A meta-detector on citation staleness
 
 The third direction inverts the usual relationship: the analyser
 becomes a finding-emitter against its own bibliography. We add a
@@ -331,28 +400,28 @@ research artefact in its own right: a Phase-2-style empirical
 study whose subject is the analyser's own evidence graph rather
 than a user codebase.
 
-### 6.4 Which direction is most promising
+### 7.4 Which direction is most promising
 
-If forced to pick one of the three to ship, it is 6.3. The case is
+If forced to pick one of the three to ship, it is 7.3. The case is
 partly aesthetic — we are not aware of any deployed static
 analyser that audits its own bibliography, and the absence is
 itself evidence that the move is non-obvious — but the more
-substantive case is that 6.3 is the only direction whose failure
+substantive case is that 7.3 is the only direction whose failure
 mode resolves into a research artefact rather than a methodological
-burden. Direction 6.1 produces an editorial knob; direction 6.2
-produces a competence problem; direction 6.3 produces a
+burden. Direction 7.1 produces an editorial knob; direction 7.2
+produces a competence problem; direction 7.3 produces a
 calibration question whose resolution looks structurally identical
 to the empirical-priors discipline already defended in claim C3.
 The discipline composes with itself.
 
-We do not commit to 6.3 as this paper's research contribution. The
+We do not commit to 7.3 as this paper's research contribution. The
 Stage 2 essay's job is to surface the open question and weigh the
 directions; commitment is for a follow-up paper that ships a
 labelled staleness corpus and a calibrated threshold. What the
-choice of 6.3 does signal is which direction we believe is worth
+choice of 7.3 does signal is which direction we believe is worth
 a Phase 2 corpus and which two are not.
 
-## 7. Related work
+## 8. Related work
 
 Lint authoring practices have been studied empirically (see Sadowski
 et al. on Tricorder, the FindBugs / SpotBugs deployment papers).
@@ -414,7 +483,7 @@ which paper backs which detector. The decision to leave the binding
 implicit is design freedom, not constraint. cntrdct makes the
 opposite choice and accepts the cost.
 
-## 8. Threats to position and non-goals
+## 9. Threats to position and non-goals
 
 Citation requirements scale poorly to teams without research access.
 A small team with no academic library subscription cannot easily add a
@@ -437,7 +506,7 @@ adjudicator and would use a stronger one without changing the
 discipline. The constraint is that the LLM is a swappable annotation
 layer, not a load-bearing detection rule.
 
-## 9. Conclusion
+## 10. Conclusion
 
 Static analysis is an accumulating field. Each generation of tools
 inherits the assumptions of the previous one. The assumption we
@@ -454,21 +523,24 @@ suggestions.
 
 ## Open notes for Stage 2 expansion
 
-- Section 6 has been expanded into four subsections (6.1-6.4) with
-  cited adjacent-research analogues and an explicit failure mode
-  per direction. Section 6.4 nominates 6.3 (a meta-detector on
-  citation staleness) as the most promising research output without
-  committing to it as the paper's named contribution; the
-  abstract still frames C5 as an open question. If reviewers push
-  for a stronger commitment, promote 6.3 in the abstract and §1
-  closing.
+- Section 6 added a new positive claim C5 (the discipline produces
+  a corpus). The previous section 6 (open question) became section
+  7 and was renumbered to C6 throughout; subsections 6.1-6.4 became
+  7.1-7.4. Sections 7-9 (Related work, Threats, Conclusion)
+  cascade-renumbered to 8-10. Section 7.4 nominates 7.3 (a
+  meta-detector on citation staleness) as the most promising
+  research output without committing to it as the paper's named
+  contribution; the abstract still frames C6 as an open question.
+  If reviewers push for a stronger commitment, promote 7.3 in the
+  abstract and §1 closing.
 - Architecture diagram added at section 1.1 (Mermaid, vertical
   layout, Japanese node labels). Annotates the type-level citation
   gate at Layer 1, the deterministic prior-driven edge to Layer 2,
   and Layer 3 as the LLM-confined adjudicator.
-- Word count target: 4000-6000. Current draft is about 4075 words,
-  inside the target range. Further expansion is optional and
-  driven by reviewer feedback rather than by deadline.
+- Word count target: 4000-6000. Current draft is about 4605 words,
+  comfortably inside the target range after the C5 corpus claim
+  was added. Further expansion is optional and driven by reviewer
+  feedback rather than by deadline.
 - Consider adding a sixth claim: "the discipline produces a corpus,
   not just a tool" — pointing at the Phase 1 labelling artefacts
   that fall out of running the analyser.
