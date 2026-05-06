@@ -174,7 +174,7 @@ P-4. Layer 2 ranker recalibration on the β corpus
 P-5. β release tagging and crates.io publish
 
 - Status: `[~]`
-- Goal: tag as `v0.2.0-beta.0`, publish `cntrdct` to crates.io, push a
+- Goal: tag as `v0.2.0-beta.1`, publish `cntrdct` to crates.io, push a
   GitHub Release with pre-built binaries.
 - Acceptance: `cargo install cntrdct` works on a clean machine,
   the release page on GitHub shows binaries for at least
@@ -182,7 +182,9 @@ P-5. β release tagging and crates.io publish
 - Effort: 1 week including bug-fix iterations.
 - Depends on: T1-1, T1-2, T1-3, T2-8.
 - Phase 1 (local prep) progress:
-  - `[x]` Workspace version bumped to `0.2.0-beta.0`.
+  - `[x]` Workspace version bumped to `0.2.0-beta.1` (initial bump
+    to `0.2.0-beta.0` superseded after the macos-13 runner queue
+    blocked the first attempt; see commit history).
   - `[x]` CLI crate renamed `cntrdct-cli` → `cntrdct` so `cargo install
     cntrdct` resolves correctly. Lib name follows (`cntrdct_cli` →
     `cntrdct`).
@@ -196,7 +198,7 @@ P-5. β release tagging and crates.io publish
     page replaces the previous fan-out. P3 (LLM gating) is preserved
     by module boundary: only `src/adjudicator.rs` references reqwest.
 - Phase 2-4 (remote, user-driven, mostly irreversible): commit + push
-  the prep, tag `v0.2.0-beta.0` to fire `release.yml`, then run a
+  the prep, tag `v0.2.0-beta.1` to fire `release.yml`, then run a
   single `cargo publish`. Handoff notes with the exact command
   sequence accompany the prep commit.
 
