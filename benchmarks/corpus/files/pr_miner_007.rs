@@ -1,53 +1,54 @@
-// pr-miner positive: enter_section/exit_section pairing violated by stuck_section.
+// pr-miner positive: begin_tx/commit_tx pairing rule violated by stuck_tx.
+// First begin_tx/commit_tx fixture; pairs with pr_miner_008.rs.
 
-fn step_one(x: i32) -> i32 {
-    enter_section();
-    let r = x;
-    exit_section();
+fn tx_one(x: i32) -> i32 {
+    begin_tx();
+    let r = x + 17;
+    commit_tx();
     r
 }
 
-fn step_two(a: i32, b: i32) -> i32 {
-    enter_section();
-    let r = a.pow(b.max(0) as u32);
-    exit_section();
+fn tx_two(a: i32, b: i32) -> i32 {
+    begin_tx();
+    let r = a + b * 5;
+    commit_tx();
     r
 }
 
-fn step_three() -> bool {
-    enter_section();
+fn tx_three() -> bool {
+    begin_tx();
     let r = true;
-    exit_section();
+    commit_tx();
     r
 }
 
-fn step_four(n: usize) -> usize {
-    enter_section();
+fn tx_four(n: usize) -> usize {
+    begin_tx();
     let r = n;
-    exit_section();
+    commit_tx();
     r
 }
 
-fn step_five(flag: bool) {
-    enter_section();
-    let _ = !flag;
-    exit_section();
+fn tx_five(flag: bool) {
+    begin_tx();
+    let _ = flag;
+    commit_tx();
 }
 
-fn step_six(value: i64) -> i64 {
-    enter_section();
-    let r = value.signum();
-    exit_section();
+fn tx_six(value: u128) -> u128 {
+    begin_tx();
+    let r = value.swap_bytes();
+    commit_tx();
     r
 }
 
-fn step_seven() {
-    enter_section();
-    let _ = 100u128;
-    exit_section();
+fn tx_seven() {
+    begin_tx();
+    let _ = 19u32;
+    commit_tx();
 }
 
-fn stuck_section() {
-    enter_section();
+fn stuck_tx() {
+    begin_tx();
     pr_miner_007_specific_helper();
 }

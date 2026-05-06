@@ -1,53 +1,54 @@
-// pr-miner positive: connect/disconnect pairing rule violated by stuck_socket.
+// pr-miner positive: open_file/close_file pairing rule violated by abort_path.
+// Second open_file/close_file fixture; pairs with pr_miner_002.rs.
 
-fn talk_one(x: i32) -> i32 {
-    connect();
-    let r = x;
-    disconnect();
+fn handle_one(x: i32) -> i32 {
+    open_file();
+    let r = x ^ 7;
+    close_file();
     r
 }
 
-fn talk_two(a: i32, b: i32) -> i32 {
-    connect();
-    let r = a ^ b;
-    disconnect();
+fn handle_two(a: i32, b: i32) -> i32 {
+    open_file();
+    let r = a.saturating_sub(b);
+    close_file();
     r
 }
 
-fn talk_three() -> bool {
-    connect();
-    let r = false;
-    disconnect();
+fn handle_three() -> bool {
+    open_file();
+    let r = true;
+    close_file();
     r
 }
 
-fn talk_four(n: usize) -> usize {
-    connect();
-    let r = n / 2;
-    disconnect();
+fn handle_four(n: usize) -> usize {
+    open_file();
+    let r = n - 1;
+    close_file();
     r
 }
 
-fn talk_five(flag: bool) {
-    connect();
-    let _ = !flag as u32;
-    disconnect();
+fn handle_five(flag: bool) {
+    open_file();
+    let _ = !flag;
+    close_file();
 }
 
-fn talk_six(value: u32) -> u32 {
-    connect();
-    let r = value.swap_bytes();
-    disconnect();
+fn handle_six(value: u32) -> u32 {
+    open_file();
+    let r = value.count_zeros();
+    close_file();
     r
 }
 
-fn talk_seven() {
-    connect();
-    let _ = 3.14f64;
-    disconnect();
+fn handle_seven() {
+    open_file();
+    let _ = 13i32;
+    close_file();
 }
 
-fn stuck_socket() {
-    connect();
+fn abort_path() {
+    open_file();
     pr_miner_004_specific_helper();
 }

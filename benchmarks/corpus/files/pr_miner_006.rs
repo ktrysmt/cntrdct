@@ -1,4 +1,5 @@
 // pr-miner positive: alloc/free pairing rule violated by leaked_buffer.
+// Second alloc/free fixture; pairs with pr_miner_005.rs.
 
 fn buf_one(x: i32) -> i32 {
     alloc();

@@ -77,6 +77,45 @@ fn config_disables_detector_entirely() {
 }
 
 #[test]
+fn pr_miner_t15_python_language_suppression_drops_findings() {
+    // Spec: docs/spec/pr-miner-v0.md test plan T15. With
+    // `[languages.python] suppress = ["pr-miner"]` and a Python-only
+    // pr-miner violation, no pr-miner finding survives. Rust violations
+    // (if any) are unaffected — but to keep the assertion narrow this
+    // test seeds a Python-only corpus.
+    let dir = TempDir::new().unwrap();
+    let mut src = String::new();
+    for i in 0..7 {
+        src.push_str(&format!(
+            "def py_ok_{i}(x):\n    open_handle()\n    _ = x + {i}\n    close_handle()\n"
+        ));
+    }
+    src.push_str("def py_violator():\n    open_handle()\n    suppression_t15_helper()\n");
+    for i in 0..12 {
+        src.push_str(&format!(
+            "def py_filler_{i}():\n    filler_a()\n    filler_b()\n"
+        ));
+    }
+    fs::write(dir.path().join("a.py"), src).unwrap();
+    fs::write(
+        dir.path().join("cntrdct.toml"),
+        "[languages.python]\nsuppress = [\"pr-miner\"]\n",
+    )
+    .unwrap();
+
+    let findings = scan_with_config_in(dir.path());
+    let pr_miner_count = findings
+        .iter()
+        .filter(|f| f.detector_id == "pr-miner")
+        .count();
+    assert_eq!(
+        pr_miner_count, 0,
+        "[languages.python] suppress must drop all pr-miner findings on Python files; got: {:?}",
+        findings
+    );
+}
+
+#[test]
 fn pr_miner_t14_attribute_allow_suppresses_violation() {
     // Spec: docs/spec/pr-miner-v0.md test plan T14.
     // The fixture seeds 7 lock/unlock satisfiers + 1 violator, plus 12

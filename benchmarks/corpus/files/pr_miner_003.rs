@@ -1,53 +1,55 @@
-// pr-miner positive: begin_tx/commit_tx pairing rule violated by orphaned_tx.
+// pr-miner positive: lock/unlock pairing rule violated by missed_unlock_path.
+// Second lock/unlock fixture; pairs with pr_miner_001.rs to provide enough
+// satisfiers to clear MIN_SUPPORT against the v0.1 mining-database size.
 
-fn write_one(x: i32) -> i32 {
-    begin_tx();
-    let r = x - 1;
-    commit_tx();
+fn read_one(x: i32) -> i32 {
+    lock();
+    let r = x + 11;
+    unlock();
     r
 }
 
-fn write_two(a: i32, b: i32) -> i32 {
-    begin_tx();
-    let r = a / b.max(1);
-    commit_tx();
+fn read_two(a: i32, b: i32) -> i32 {
+    lock();
+    let r = a.saturating_mul(b);
+    unlock();
     r
 }
 
-fn write_three() -> bool {
-    begin_tx();
-    let r = true;
-    commit_tx();
+fn read_three() -> bool {
+    lock();
+    let r = false;
+    unlock();
     r
 }
 
-fn write_four(n: usize) -> usize {
-    begin_tx();
-    let r = n.checked_add(1).unwrap_or(0);
-    commit_tx();
+fn read_four(n: usize) -> usize {
+    lock();
+    let r = n + 4;
+    unlock();
     r
 }
 
-fn write_five(flag: bool) {
-    begin_tx();
-    let _ = flag;
-    commit_tx();
+fn read_five(flag: bool) {
+    lock();
+    let _ = flag as u32;
+    unlock();
 }
 
-fn write_six(value: i32) -> i32 {
-    begin_tx();
-    let r = value.abs();
-    commit_tx();
+fn read_six(value: u64) -> u64 {
+    lock();
+    let r = value | 1;
+    unlock();
     r
 }
 
-fn write_seven() {
-    begin_tx();
-    let _ = 'a';
-    commit_tx();
+fn read_seven() {
+    lock();
+    let _ = 11i64;
+    unlock();
 }
 
-fn orphaned_tx() {
-    begin_tx();
+fn missed_unlock_path() {
+    lock();
     pr_miner_003_specific_helper();
 }

@@ -24,16 +24,29 @@
 
 #![deny(missing_docs)]
 
+use std::collections::BTreeSet;
+
 use cntrdct_core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
     LanguageCitationStatus, Location, Severity,
 };
 
 mod apriori;
+mod extract_python;
 mod extract_rust;
 
 use apriori::{mine_pairs, Rule};
-use extract_rust::Transaction;
+
+/// One extracted function. Carries the source language so that finding
+/// builders can pick the per-language `LanguageCitationStatus` per spec
+/// F5 / `docs/spec/citations-policy.md`. Items are the distinct
+/// last-segment call identifiers in the body.
+#[derive(Debug, Clone)]
+pub(crate) struct Transaction {
+    pub language: Language,
+    pub items: BTreeSet<String>,
+    pub location: Location,
+}
 
 /// Minimum joint support fraction. Pairs whose joint itemset appears in
 /// fewer than `MIN_SUPPORT * |T|` transactions are pruned. Below this
@@ -99,16 +112,20 @@ impl Detector for PrMinerDetector {
     }
 
     fn supported_languages(&self) -> &'static [Language] {
-        // v0.0: Rust only. v0.1 extends to Python.
-        &[Language::Rust]
+        // v0.1: Rust + Python. Python findings carry
+        // LanguageCitationStatus::Unconfirmed per
+        // docs/surveys/pr-miner-python-2026-05.md.
+        &[Language::Rust, Language::Python]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
         // Step 1: extract transactions from every supported-language file.
         let mut all_txns: Vec<Transaction> = Vec::new();
         for file in ctx.files {
-            if file.language == Language::Rust {
-                all_txns.extend(extract_rust::extract(file));
+            match file.language {
+                Language::Rust => all_txns.extend(extract_rust::extract(file)),
+                Language::Python => all_txns.extend(extract_python::extract(file)),
+                _ => {}
             }
         }
 
@@ -147,6 +164,7 @@ impl Detector for PrMinerDetector {
                 if txn.items.contains(&rule.lhs) && !txn.items.contains(&rule.rhs) {
                     findings.push(make_finding(
                         rule,
+                        txn.language,
                         &txn.location,
                         &related_locations,
                         related_capped,
@@ -199,11 +217,23 @@ impl Detector for PrMinerDetector {
 
 fn make_finding(
     rule: &Rule,
+    language: Language,
     primary: &Location,
     related: &[Location],
     related_capped: bool,
 ) -> Finding {
     let percent = (rule.confidence * 100.0).round() as u32;
+    let status = match language {
+        // li-zhou-fse-2005 is grandfathered as Rust-grounded under
+        // citations-policy.md clause (b).
+        Language::Rust => LanguageCitationStatus::Confirmed,
+        // Python survey (docs/surveys/pr-miner-python-2026-05.md)
+        // returned no qualifying citation; ship Unconfirmed per the
+        // comment-code precedent. Future languages default to
+        // Unconfirmed too — the survey is what flips them to
+        // Confirmed.
+        _ => LanguageCitationStatus::Unconfirmed,
+    };
     Finding {
         detector_id: "pr-miner".to_string(),
         primary: primary.clone(),
@@ -224,7 +254,7 @@ fn make_finding(
                 "transaction_count": rule.transaction_count,
                 "related_capped": related_capped,
             }),
-            language_citation_status: LanguageCitationStatus::Confirmed,
+            language_citation_status: status,
         },
     }
 }

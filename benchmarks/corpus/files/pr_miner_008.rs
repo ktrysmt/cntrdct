@@ -1,53 +1,54 @@
-// pr-miner positive: start_timer/stop_timer pairing violated by hanging_timer.
+// pr-miner positive: begin_tx/commit_tx pairing rule violated by panic_in_tx.
+// Second begin_tx/commit_tx fixture; pairs with pr_miner_007.rs.
 
-fn time_one(x: i32) -> i32 {
-    start_timer();
+fn ledger_one(x: i32) -> i32 {
+    begin_tx();
     let r = x;
-    stop_timer();
+    commit_tx();
     r
 }
 
-fn time_two(a: i32, b: i32) -> i32 {
-    start_timer();
-    let r = a + b * 2;
-    stop_timer();
+fn ledger_two(a: i32, b: i32) -> i32 {
+    begin_tx();
+    let r = a.checked_add(b * 9).unwrap_or(0);
+    commit_tx();
     r
 }
 
-fn time_three() -> bool {
-    start_timer();
-    let r = true;
-    stop_timer();
+fn ledger_three() -> bool {
+    begin_tx();
+    let r = false;
+    commit_tx();
     r
 }
 
-fn time_four(n: usize) -> usize {
-    start_timer();
-    let r = n;
-    stop_timer();
+fn ledger_four(n: usize) -> usize {
+    begin_tx();
+    let r = n + 21;
+    commit_tx();
     r
 }
 
-fn time_five(flag: bool) {
-    start_timer();
-    let _ = flag;
-    stop_timer();
+fn ledger_five(flag: bool) {
+    begin_tx();
+    let _ = !flag;
+    commit_tx();
 }
 
-fn time_six(value: u64) -> u64 {
-    start_timer();
+fn ledger_six(value: u64) -> u64 {
+    begin_tx();
     let r = value.leading_zeros() as u64;
-    stop_timer();
+    commit_tx();
     r
 }
 
-fn time_seven() {
-    start_timer();
-    let _ = 9u32;
-    stop_timer();
+fn ledger_seven() {
+    begin_tx();
+    let _ = 23u16;
+    commit_tx();
 }
 
-fn hanging_timer() {
-    start_timer();
+fn panic_in_tx() {
+    begin_tx();
     pr_miner_008_specific_helper();
 }

@@ -102,8 +102,19 @@ P-2. pr-miner detector (multi-language)
     Eight Rust positives + three negatives added to
     `benchmarks/corpus/`; CITATIONS.md / corpus_shape.rs /
     citations_consistency.rs registrations all updated.
-  - `[ ]` Python dispatch + corpus + citation (v0.1).
-  - `[ ]` Corpus shape extension (≥8 positives per language).
+  - `[x]` Python dispatch + corpus + citation (v0.1).
+    `cntrdct-detector-pr-miner` widens `supported_languages()` to
+    `[Rust, Python]`; per-finding `LanguageCitationStatus` set from the
+    violator's source language (Rust = Confirmed, Python = Unconfirmed
+    per the survey conclusion). Eight Python positives + three negatives
+    added under `pr_miner_python_*.py`. Python-side test plan
+    (T2, T3, T8, T13, T15) covered: T2/T3/T8/T13 in
+    `crates/detector-pr-miner/tests/integration.rs`, T15 in
+    `crates/cli/tests/suppression.rs`.
+  - `[x]` Corpus shape extension (≥8 positives per language).
+    `crates/cli/tests/corpus_shape.rs::pr_miner_corpus_meets_per_language_positives`
+    asserts the per-language requirement on top of the existing
+    detector-global ≥ 8 commitment from the OSF prereg.
 
 P-3. SARIF output validation in CI
 

@@ -82,7 +82,8 @@ pointing at the relevant `docs/surveys/` file.
   Languages: Rust (clause (b) per docs/spec/citations-policy.md; the frequent-itemset
   framing is language-agnostic and cntrdct's Rust port is the secondary application).
 - (pr-miner Python coverage: unconfirmed; survey notes at
-  docs/surveys/pr-miner-python-2026-05.md. Python support lands in v0.1.)
+  docs/surveys/pr-miner-python-2026-05.md. v0.1 ships Python dispatch with
+  `LanguageCitationStatus::Unconfirmed`, mirroring the comment-code precedent.)
 - (Methodology reference for the Apriori miner: Agrawal & Srikant, VLDB 1994.
   Not listed as a Detector citation per citations-policy.md — the paper does not
   introduce the detector concept.)

@@ -53,6 +53,20 @@ struct ManifestStats {
     entries: usize,
     negatives: usize,
     positives_per_detector: BTreeMap<String, usize>,
+    /// (detector_id, language) -> count. Language is the lowercase file
+    /// extension stem (`rs`, `py`). Used by spec pr-miner-v0.md's
+    /// per-language ≥ 8 positives requirement.
+    positives_per_detector_language: BTreeMap<(String, String), usize>,
+}
+
+fn file_language_token(rel: &str) -> Option<&'static str> {
+    if rel.ends_with(".rs") {
+        Some("rs")
+    } else if rel.ends_with(".py") {
+        Some("py")
+    } else {
+        None
+    }
 }
 
 fn load_manifest_stats() -> ManifestStats {
@@ -64,6 +78,7 @@ fn load_manifest_stats() -> ManifestStats {
         entries: 0,
         negatives: 0,
         positives_per_detector: BTreeMap::new(),
+        positives_per_detector_language: BTreeMap::new(),
     };
 
     for raw in text.lines() {
@@ -74,6 +89,10 @@ fn load_manifest_stats() -> ManifestStats {
         let value: Value = serde_json::from_str(line)
             .unwrap_or_else(|e| panic!("parse manifest line {:?}: {}", line, e));
         stats.entries += 1;
+        let file_path = value
+            .get("file")
+            .and_then(|v| v.as_str())
+            .unwrap_or_else(|| panic!("entry missing `file`: {}", line));
         let expected = value
             .get("expected")
             .and_then(|v| v.as_array())
@@ -91,6 +110,12 @@ fn load_manifest_stats() -> ManifestStats {
                 .positives_per_detector
                 .entry(id.to_string())
                 .or_insert(0) += 1;
+            if let Some(lang) = file_language_token(file_path) {
+                *stats
+                    .positives_per_detector_language
+                    .entry((id.to_string(), lang.to_string()))
+                    .or_insert(0) += 1;
+            }
         }
     }
 
@@ -129,6 +154,44 @@ fn corpus_has_minimum_positives_per_registered_detector() {
     assert!(
         shortfalls.is_empty(),
         "corpus is short on positives for: {:?}",
+        shortfalls
+    );
+}
+
+#[test]
+fn pr_miner_corpus_meets_per_language_positives() {
+    // Spec: docs/spec/pr-miner-v0.md "Corpus contribution" — at least 8
+    // positives per supported language for pr-miner, on top of the
+    // global ≥ 8 enforced by `corpus_has_minimum_positives_per_registered_detector`.
+    let stats = load_manifest_stats();
+    let pr_miner = PrMinerDetector::new();
+    let id = pr_miner.id().to_string();
+    let supported = pr_miner.supported_languages();
+    let mut shortfalls: Vec<String> = Vec::new();
+    for language in supported {
+        let lang_token = match language.canonical_name() {
+            "rust" => "rs",
+            "python" => "py",
+            other => panic!(
+                "pr-miner declares unsupported language token `{}` — extend file_language_token()",
+                other
+            ),
+        };
+        let count = stats
+            .positives_per_detector_language
+            .get(&(id.clone(), lang_token.to_string()))
+            .copied()
+            .unwrap_or(0);
+        if count < MIN_POSITIVES_PER_DETECTOR {
+            shortfalls.push(format!(
+                "{}/{}: {} (need {})",
+                id, lang_token, count, MIN_POSITIVES_PER_DETECTOR
+            ));
+        }
+    }
+    assert!(
+        shortfalls.is_empty(),
+        "pr-miner is short on per-language positives: {:?}",
         shortfalls
     );
 }

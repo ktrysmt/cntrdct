@@ -10,15 +10,9 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use cntrdct_core::{Location, ParsedFile};
+use cntrdct_core::{Language, Location, ParsedFile};
 
-/// One extracted function: its location and the multiset (here: set, since
-/// we deduplicate) of call-site identifiers in its body.
-#[derive(Debug, Clone)]
-pub struct Transaction {
-    pub items: BTreeSet<String>,
-    pub location: Location,
-}
+use crate::Transaction;
 
 /// Extract one `Transaction` per top-level `function_item` in `file`. Files
 /// that fail to parse, or whose root has any parse error, return an empty
@@ -49,6 +43,7 @@ pub fn extract(file: &ParsedFile) -> Vec<Transaction> {
         let mut items: BTreeSet<String> = BTreeSet::new();
         collect_call_items(body, &file.source, &mut items);
         out.push(Transaction {
+            language: Language::Rust,
             items,
             location: node_location(&file.path, child),
         });

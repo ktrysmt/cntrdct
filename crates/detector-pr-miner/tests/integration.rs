@@ -1,10 +1,10 @@
-//! Integration tests for the pr-miner detector v0.0 (Rust only).
+//! Integration tests for the pr-miner detector v0.1 (Rust + Python).
 //!
-//! Spec: `docs/spec/pr-miner-v0.md`. The test-plan IDs (T1, T4-T7, T9-T12)
-//! covered here are the Rust-scoped subset of the full plan; T2, T3, T8,
-//! T13, T15 land alongside the Python extension in v0.1, and T14 lives in
-//! `crates/cli/tests/suppression.rs` because suppression is wired at the
-//! CLI layer.
+//! Spec: `docs/spec/pr-miner-v0.md`. Coverage matrix:
+//! - T1, T4-T7, T9-T12 (Rust scenarios) — below.
+//! - T2, T3, T8, T13 (Python and mixed-language scenarios) — below.
+//! - T14, T15 (suppression) — `crates/cli/tests/suppression.rs`,
+//!   because suppression is wired at the CLI layer.
 //!
 //! Filler design: spec `pr-miner-v0.md` test-plan preamble requires every
 //! fixture to pad its scenario with filler functions until the total
@@ -297,4 +297,188 @@ fn t12_related_is_capped_and_flag_is_set() {
             .and_then(|v| v.as_bool()),
         Some(true)
     );
+}
+
+// ---------- Python helpers (v0.1) ----------
+
+fn parsed_python(name: &str, src: &str) -> ParsedFile {
+    ParsedFile {
+        path: PathBuf::from(name),
+        language: Language::Python,
+        source: src.to_string(),
+    }
+}
+
+/// Build N Python filler functions, each calling the same `filler_a();
+/// filler_b()` pair. Mirrors the Rust `fillers()` helper above.
+fn python_fillers(n: usize) -> String {
+    let mut out = String::new();
+    for i in 0..n {
+        out.push_str(&format!(
+            "def py_filler_{i}():\n    filler_a()\n    filler_b()\n"
+        ));
+    }
+    out
+}
+
+// ---------- T2: Python pair violation ----------
+
+#[test]
+fn t2_python_open_close_pair_with_one_violator() {
+    let mut src = String::new();
+    for i in 0..9 {
+        src.push_str(&format!(
+            "def py_good_{i}():\n    open_handle()\n    close_handle()\n"
+        ));
+    }
+    src.push_str("def py_lone_violator():\n    open_handle()\n    py_helper()\n");
+    src.push_str(&python_fillers(10));
+    let findings = run(vec![parsed_python("t2.py", &src)]);
+    let open_close: Vec<&Finding> = findings
+        .iter()
+        .filter(|f| {
+            let lhs = f.evidence.raw.get("rule_lhs").and_then(|v| v.as_str());
+            let rhs = f.evidence.raw.get("rule_rhs").and_then(|v| v.as_str());
+            lhs == Some("open_handle") && rhs == Some("close_handle")
+        })
+        .collect();
+    assert_eq!(
+        open_close.len(),
+        1,
+        "expected exactly one open_handle->close_handle violation, got: {:#?}",
+        findings
+    );
+    assert_eq!(open_close[0].detector_id, "pr-miner");
+}
+
+// ---------- T3: cross-language rule mined from mixed corpus ----------
+//
+// Spec: "5 Rust fns + 5 Python fns calling lock(); unlock(); 1 Rust fn
+// calling lock(); helper() only; expect 1 Finding (rule mined cross-
+// language)". Both languages share the literal identifier `lock` /
+// `unlock`, so the Apriori miner sees them as the same items —
+// confirming the spec F3 single-shared-database design.
+
+#[test]
+fn t3_cross_language_rule_fires_across_corpus() {
+    let mut rust_src = String::new();
+    for i in 0..5 {
+        rust_src.push_str(&format!(
+            "fn rust_good_{i}() {{\n    lock();\n    unlock();\n}}\n"
+        ));
+    }
+    rust_src.push_str("fn rust_violator() {\n    lock();\n    helper();\n}\n");
+    rust_src.push_str(&fillers(9));
+
+    let mut py_src = String::new();
+    for i in 0..5 {
+        py_src.push_str(&format!("def py_good_{i}():\n    lock()\n    unlock()\n"));
+    }
+
+    let findings = run(vec![
+        parsed_rust("t3.rs", &rust_src),
+        parsed_python("t3.py", &py_src),
+    ]);
+
+    let lock_unlock: Vec<&Finding> = findings
+        .iter()
+        .filter(|f| {
+            let lhs = f.evidence.raw.get("rule_lhs").and_then(|v| v.as_str());
+            let rhs = f.evidence.raw.get("rule_rhs").and_then(|v| v.as_str());
+            lhs == Some("lock") && rhs == Some("unlock")
+        })
+        .collect();
+    assert_eq!(
+        lock_unlock.len(),
+        1,
+        "expected one lock->unlock violation from the mixed corpus, got: {:#?}",
+        findings
+    );
+}
+
+// ---------- T8: Python finding language_citation_status ----------
+
+#[test]
+fn t8_python_findings_are_unconfirmed() {
+    // Reuse T2's corpus.
+    let mut src = String::new();
+    for i in 0..9 {
+        src.push_str(&format!(
+            "def py_good_{i}():\n    open_handle()\n    close_handle()\n"
+        ));
+    }
+    src.push_str("def py_lone_violator():\n    open_handle()\n    py_helper()\n");
+    src.push_str(&python_fillers(10));
+    let findings = run(vec![parsed_python("t8.py", &src)]);
+    let py: Vec<&Finding> = findings
+        .iter()
+        .filter(|f| {
+            let lhs = f.evidence.raw.get("rule_lhs").and_then(|v| v.as_str());
+            let rhs = f.evidence.raw.get("rule_rhs").and_then(|v| v.as_str());
+            lhs == Some("open_handle") && rhs == Some("close_handle")
+        })
+        .collect();
+    assert_eq!(py.len(), 1);
+    assert_eq!(
+        py[0].evidence.language_citation_status,
+        LanguageCitationStatus::Unconfirmed,
+        "Python findings ship Unconfirmed per docs/surveys/pr-miner-python-2026-05.md"
+    );
+    // citation_keys still includes li-zhou-fse-2005 — it satisfies the
+    // overall P1 gate even when the per-language grounding is
+    // Unconfirmed (citations-policy.md SHOULD-not-MUST clause).
+    assert!(py[0].evidence.citation_keys.contains(&"li-zhou-fse-2005"));
+}
+
+// ---------- T13: mixed-language synonym pair does not mine cross-rule ----------
+//
+// Rust calls lock()/unlock(); Python calls acquire()/release(). The
+// identifiers are different strings, so no rule should pair "lock" with
+// "acquire" or "unlock" with "release" — the miner is purely textual.
+
+#[test]
+fn t13_mixed_language_synonym_pair_yields_no_cross_rule() {
+    let mut rust_src = String::new();
+    for i in 0..6 {
+        rust_src.push_str(&format!(
+            "fn rust_locker_{i}() {{\n    lock();\n    unlock();\n}}\n"
+        ));
+    }
+
+    let mut py_src = String::new();
+    for i in 0..6 {
+        py_src.push_str(&format!(
+            "def py_acquirer_{i}():\n    acquire()\n    release()\n"
+        ));
+    }
+    py_src.push_str(&python_fillers(8));
+
+    let findings = run(vec![
+        parsed_rust("t13.rs", &rust_src),
+        parsed_python("t13.py", &py_src),
+    ]);
+
+    let cross_pairs = [
+        ("lock", "acquire"),
+        ("acquire", "lock"),
+        ("unlock", "release"),
+        ("release", "unlock"),
+        ("lock", "release"),
+        ("release", "lock"),
+        ("unlock", "acquire"),
+        ("acquire", "unlock"),
+    ];
+    for f in &findings {
+        let lhs = f.evidence.raw.get("rule_lhs").and_then(|v| v.as_str());
+        let rhs = f.evidence.raw.get("rule_rhs").and_then(|v| v.as_str());
+        for (a, b) in &cross_pairs {
+            assert!(
+                !(lhs == Some(*a) && rhs == Some(*b)),
+                "miner produced spurious cross-language rule {} -> {}: {:#?}",
+                a,
+                b,
+                f
+            );
+        }
+    }
 }
