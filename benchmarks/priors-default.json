@@ -11,22 +11,28 @@
     "posterior_tp": 0.9,
     "wilson_lower_95": 0.6755843804891231
   },
-  "clone-drift": {
-    "tp": 16,
-    "fp": 114,
-    "posterior_tp": 0.12878787878787878,
-    "wilson_lower_95": 0.07719563620964336
-  },
   "unreachable-after-terminator": {
     "tp": 15,
     "fp": 10,
     "posterior_tp": 0.5925925925925926,
     "wilson_lower_95": 0.4073912778512734
   },
+  "pr-miner": {
+    "tp": 16,
+    "fp": 22,
+    "posterior_tp": 0.425,
+    "wilson_lower_95": 0.2785227481181953
+  },
   "comment-code": {
     "tp": 15,
     "fp": 18,
     "posterior_tp": 0.45714285714285713,
     "wilson_lower_95": 0.298426891258915
+  },
+  "clone-drift": {
+    "tp": 16,
+    "fp": 121,
+    "posterior_tp": 0.1223021582733813,
+    "wilson_lower_95": 0.07317839887053719
   }
 }
