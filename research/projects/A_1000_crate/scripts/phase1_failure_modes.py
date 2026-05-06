@@ -26,6 +26,7 @@ FAILURE_MODES_BY_DETECTOR: dict[str, frozenset[str]] = {
             "metadata-only-drift",
             "auto-generated-clone",
             "cross-file-context-resolved",
+            "cross-crate-pool-mismatch",
         }
     ),
     "arg-swap": frozenset(
@@ -43,6 +44,7 @@ FAILURE_MODES_BY_DETECTOR: dict[str, frozenset[str]] = {
             "doctest-divergence",
             "translation-ambiguity",
             "stale-but-harmless",
+            "parameter-contract-misread",
         }
     ),
     "unreachable-after-terminator": frozenset(

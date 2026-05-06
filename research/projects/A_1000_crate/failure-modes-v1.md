@@ -96,6 +96,7 @@ Phase 1 の二者評価で `consensus_label = FP` と判定された finding に
 | `metadata-only-drift` | ドリフトが doc comment、属性 (`#[inline]`、`#[cold]`)、可視性修飾子のみに存在し、実行本体は同一または自明な改名のみ | v0 FP-3 |
 | `auto-generated-clone` | 主対象または関連対象の少なくとも 1 つが自動生成コード (build.rs 出力、proc-macro 展開、derive 展開) | v0 FP-4 |
 | `cross-file-context-resolved` | アジュディケータが `phase1-context.json` および周辺 crate (呼び出し元、trait 定義、テスト期待値) を読んだ結果、ドリフトが正当な意図的差分であると判断できた | NEW |
+| `cross-crate-pool-mismatch` | ドリフトが crate 境界を越えた global 類似度プール内のミスマッチに起因し、両対象は同一の概念的役割 (例: parser combinator, iterator combinator, container API) を別 crate で別個に実装している。対比自体が意味を持たない | NEW (wild-corpus dry-run, 2026-05-06) |
 
 典型例:
 
@@ -105,6 +106,11 @@ Phase 1 の二者評価で `consensus_label = FP` と判定された finding に
 - `cross-file-context-resolved`: setter グループのうち 1 つだけが追加
   バリデーションを行うが、別ファイルの builder API がそのバリデーションを
   呼び出し前に必須化していたため、setter 側の差は正しい設計。
+- `cross-crate-pool-mismatch`: nom の `tag` combinator と winnow の
+  parser ヘルパが shape similarity プールに同居して "divergence" 発火
+  するが、両者は別 crate の独立 API であり比較自体が意味を持たない。
+  detector の `MAX_RELATED` / 類似度プール境界の問題で、個別 finding の
+  正当性ではなく detector のスコープ設定に起因する。
 
 ### 3.2 arg-swap
 
@@ -132,6 +138,7 @@ Phase 1 の二者評価で `consensus_label = FP` と判定された finding に
 | `doctest-divergence` | コメントが doctest (` ```rust ` ブロック) で、見かけの不一致は doctest 内例示コードと実装本体の差。doctest は別実行されるため矛盾ではない | v0 FP-3 |
 | `translation-ambiguity` | 非英語コメント (日本語、中国語、ロシア語など) でアジュディケータが翻訳ニュアンス一致に確信を持てず、ベストエフォート訳の上で FP と判断した | v0 FP-4 |
 | `stale-but-harmless` | コメントは確かに陳腐化しているが、不一致が純粋に表層的 (リネーム済み引数名への doc 言及など) で、読者を誤誘導するリスクがゼロ | NEW |
+| `parameter-contract-misread` | コメントが function 自体ではなく function の引数 (closure / callback 等) の振る舞い制約を述べているが、検出器はコメントの主体を function 本体と誤解し、function-level の panic / deprecated 等を主張していると解釈した | NEW (wild-corpus dry-run, 2026-05-06) |
 
 典型例:
 
@@ -141,6 +148,11 @@ Phase 1 の二者評価で `consensus_label = FP` と判定された finding に
   確認できる。
 - `higher-abstract-intent`: 関数頭の `// returns the parsed value or
   error` に対し、可視抜粋では error 経路のみが見えている。
+- `parameter-contract-misread`: parking_lot の `parking_lot.rs:736` で
+  doc に "the validate callback must not panic" と書かれているのを、
+  検出器は当該 function 自体が panic すると主張するコメントと解釈した。
+  実際は callback 引数 (caller-supplied closure) への制約で、function
+  本体は panic しない。
 
 ### 3.4 unreachable-after-terminator
 
