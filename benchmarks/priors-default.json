@@ -1,32 +1,32 @@
 {
-  "config-interaction": {
-    "tp": 8,
-    "fp": 0,
-    "posterior_tp": 0.9,
-    "wilson_lower_95": 0.6755843804891231
-  },
-  "unreachable-after-terminator": {
-    "tp": 15,
-    "fp": 0,
-    "posterior_tp": 0.9411764705882353,
-    "wilson_lower_95": 0.7961107336956521
-  },
   "arg-swap": {
     "tp": 15,
     "fp": 0,
     "posterior_tp": 0.9411764705882353,
     "wilson_lower_95": 0.7961107336956521
   },
+  "config-interaction": {
+    "tp": 8,
+    "fp": 0,
+    "posterior_tp": 0.9,
+    "wilson_lower_95": 0.6755843804891231
+  },
   "clone-drift": {
     "tp": 16,
-    "fp": 2,
-    "posterior_tp": 0.85,
-    "wilson_lower_95": 0.6719975513339578
+    "fp": 114,
+    "posterior_tp": 0.12878787878787878,
+    "wilson_lower_95": 0.07719563620964336
+  },
+  "unreachable-after-terminator": {
+    "tp": 15,
+    "fp": 10,
+    "posterior_tp": 0.5925925925925926,
+    "wilson_lower_95": 0.4073912778512734
   },
   "comment-code": {
     "tp": 15,
-    "fp": 16,
-    "posterior_tp": 0.48484848484848486,
-    "wilson_lower_95": 0.3196998603127883
+    "fp": 18,
+    "posterior_tp": 0.45714285714285713,
+    "wilson_lower_95": 0.298426891258915
   }
 }
