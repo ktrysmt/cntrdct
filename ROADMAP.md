@@ -178,7 +178,7 @@ P-5. β release tagging and crates.io publish
   GitHub Release with pre-built binaries.
 - Acceptance: `cargo install cntrdct` works on a clean machine,
   the release page on GitHub shows binaries for at least
-  Linux x86_64 / macOS aarch64 / macOS x86_64.
+  Linux x86_64 / macOS aarch64.
 - Effort: 1 week including bug-fix iterations.
 - Depends on: T1-1, T1-2, T1-3, T2-8.
 - Phase 1 (local prep) progress:
