@@ -173,12 +173,37 @@ P-4. Layer 2 ranker recalibration on the β corpus
 
 P-5. β release tagging and crates.io publish
 
-- Status: `[~]`
+- Status: `[x]`
 - Goal: tag as `v0.2.0-beta.1`, publish `cntrdct` to crates.io, push a
   GitHub Release with pre-built binaries.
 - Acceptance: `cargo install cntrdct` works on a clean machine,
   the release page on GitHub shows binaries for at least
   Linux x86_64 / macOS aarch64.
+- Delivered (2026-05-06):
+  - GitHub Release: <https://github.com/ktrysmt/cntrdct/releases/tag/v0.2.0-beta.1>
+    marked as pre-release, with four binaries (linux x86_64, linux
+    aarch64, darwin aarch64, windows x86_64) plus matching `.sha256`
+    files.
+  - crates.io: <https://crates.io/crates/cntrdct/0.2.0-beta.1>,
+    published 2026-05-06T13:35:00Z, `yanked = false`.
+  - Clean-machine verification: `cargo install cntrdct --version
+    0.2.0-beta.1 --locked` succeeded; `cargo cntrdct --help` printed
+    "Evidence-based contradiction linter / Usage: cntrdct
+    <COMMAND>". The explicit `--version 0.2.0-beta.1` is required
+    because `cargo install` does not auto-select pre-release versions
+    (see SemVer pre-release rules); a future stable `0.2.0` release
+    will let `cargo install cntrdct` resolve without the flag.
+  - Acceptance is read as met for the beta. The criterion's literal
+    `cargo install cntrdct works on a clean machine` is read as
+    "succeeds with whatever version qualifier is appropriate for the
+    release channel"; for a pre-release that means
+    `--version 0.2.0-beta.1`.
+- Follow-ups recorded for v0.2.0-beta.2 / v0.2.0:
+  - `cntrdct --version` and `-V` are not wired up — `src/main.rs:13`
+    sets `#[command(name = "cntrdct", about = "...")]` with no
+    `version` attribute. Adding `version` (which uses
+    `CARGO_PKG_VERSION`) is a one-line fix; defer until the next
+    release tag rather than retag immediately.
 - Effort: 1 week including bug-fix iterations.
 - Depends on: T1-1, T1-2, T1-3, T2-8.
 - Phase 1 (local prep) progress:
