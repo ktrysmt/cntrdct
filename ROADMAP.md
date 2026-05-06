@@ -24,7 +24,7 @@ parallel with Tier 1 OSS readiness.
 
 P-1. β corpus collection (real-world Rust crates)
 
-- Status: `[ ]`
+- Status: `[x]`
 - Goal: replace the synthetic 58-file seed corpus with a labelled
   collection of at least 200 files drawn from public crates, kept
   separately under `benchmarks/wild-corpus/` so the regression seed
@@ -36,6 +36,28 @@ P-1. β corpus collection (real-world Rust crates)
 - Effort: 2-4 weeks part-time. The crawler can be reused for
   Track A's empirical study.
 - Depends on: a fetcher (also useful for Track A).
+- Delivered:
+  - `scripts/fetch_rust_corpus.py` mirrors
+    `scripts/fetch_python_corpus.py`. Stdlib only. Pins
+    `(crate, version, file_path)` triples; pulls the `.crate`
+    tarball from `static.crates.io`; verifies SHA-256 against the
+    sparse-index `cksum`; rejects sources with `@generated` markers
+    in the first 200 bytes (the fail-safe that catches syn-style
+    auto-generated visitor code).
+  - 36 crates pinned, 270 files, ~13 MB. Permissive licenses only
+    (MIT / Apache-2.0 / BSD-* / Unlicense OR MIT). License
+    breakdown documented in `benchmarks/wild-corpus/README.md`.
+  - 124 cntrdct findings labelled by hand. All 124 are FPs in v0:
+    10 unreachable-after-terminator (cfg-gated control flow that
+    the v0 detector misreads), 2 comment-code (callback "must not
+    panic" docstring contracts misread as function-level claims),
+    112 clone-drift (cross-crate sibling pool with `MAX_RELATED =
+    24` reports meaningless "divergence" against shape-matched
+    functions in unrelated crates).
+  - Per-detector precision = 0 across the board on this corpus —
+    "not pinned at 1.0" per the acceptance text, and a useful
+    signal for P-4 priors. The README enumerates the three v0
+    detector limitations the wild corpus exposes.
 
 P-2. pr-miner detector (multi-language)
 
@@ -59,8 +81,20 @@ P-2. pr-miner detector (multi-language)
   - `[x]` Spec draft `docs/spec/pr-miner-v0.md` (Apriori with
     `MAX_ITEMSET_SIZE = 2`, multi-language Pattern A dispatch,
     two-step migration: Rust v0.0 → +Python v0.1, ≥8 positives per
-    language). Awaiting approval before implementation.
-  - `[ ]` Survey `docs/surveys/pr-miner-python-{date}.md`.
+    language). Revised 2026-05-06 to (R-A) pad T1-T5 fixtures past
+    `MIN_DATABASE_SIZE = 20` and (R-B) clarify F4's violation scan
+    runs on the pre-`MIN_TRANSACTION_ITEMS` transaction set.
+    Awaiting approval before implementation.
+  - `[x]` Survey `docs/surveys/pr-miner-python-2026-05.md`.
+    Decision: Unconfirmed, mirroring `comment-code` precedent. The
+    closest peer-reviewed Python candidates (Frantz TSE 2024
+    cryptographic API misuse, the data-centric libraries empirical
+    study, PyPIBugs / PyBugLab) ground "API misuse on Python" as a
+    research target but none mines rules with frequent-itemset /
+    association-rule techniques and none labels API-pairing rule
+    violations specifically. Python ships with
+    `LanguageCitationStatus::Unconfirmed`; Rust stays Confirmed
+    against `li-zhou-fse-2005` under the grandfather clause.
   - `[ ]` `cntrdct-detector-pr-miner` crate (Rust v0.0).
   - `[ ]` Python dispatch + corpus + citation (v0.1).
   - `[ ]` Corpus shape extension (≥8 positives per language).

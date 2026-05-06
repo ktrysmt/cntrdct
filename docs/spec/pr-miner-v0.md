@@ -1,6 +1,6 @@
 # pr-miner detector v0 spec
 
-Status: draft, awaiting approval before implementation.
+Status: approved 2026-05-06.
 
 Owner of `ROADMAP.md` P-2 (multi-language reframing of the original
 `pr-miner-rust` slot).
@@ -110,13 +110,20 @@ fopen/fclose).
 
 For each mined rule `{a} → {b}`:
 
-- Scan every transaction in the database.
-- A transaction T VIOLATES the rule iff `a ∈ T` and `b ∉ T`.
-- The transaction's owning function is the violation site.
+- Scan every function in the input set BEFORE the
+  `MIN_TRANSACTION_ITEMS` filter (i.e. the full extracted set, not
+  the mining-filtered subset). The filter exists only to suppress
+  noise during rule discovery; a function whose body contains `a`
+  alone is exactly the violation pattern Li-Zhou is designed to
+  surface, and dropping it before checking the rule would defeat
+  the detector.
+- A function T VIOLATES the rule iff `a ∈ items(T)` and `b ∉
+  items(T)`.
+- The function is the violation site.
 
 Per F3's `MAX_ITEMSET_SIZE = 2`, the violation predicate stays
 Boolean per function. When `MAX_ITEMSET_SIZE` is raised post-v0,
-the predicate generalises to `LHS ⊆ T ∧ ¬(RHS ⊆ T)`.
+the predicate generalises to `LHS ⊆ items(T) ∧ ¬(RHS ⊆ items(T))`.
 
 ### F5 — Finding shape
 
@@ -201,13 +208,21 @@ itemset is a singleton.
 
 ## Test plan
 
+Every fixture below pads its scenario with filler functions whose
+bodies contain two distinct identifiers each (`alpha(); beta();` etc.)
+so the total transaction count is `≥ MIN_DATABASE_SIZE = 20`. The
+fillers' identifier pairs are chosen so they neither participate in
+the scenario rule nor cross `MIN_SUPPORT` themselves; their sole
+purpose is to clear the database-size gate. Scenario function counts
+listed in the table refer to the rule-relevant subset, not the total.
+
 | ID | Description | Expected |
 |---|---|---|
-| T1 | 9 Rust fns each calling `acquire(); ...; release()`; 1 fn calling `acquire(); ...` (no release) | 1 Finding, primary = the lone fn, related.len() == 9 |
-| T2 | 9 Python fns each calling `open(...); ...; close()`; 1 fn calling `open(...); ...` (no close) | 1 Finding, primary = the lone fn |
-| T3 | 5 Rust fns + 5 Python fns calling `lock(); unlock()`; 1 Rust fn calling `lock()` only | 1 Finding (rule mined cross-language) |
-| T4 | 9 fns each calling `acquire()` only; 1 fn calling `acquire(); release()` | 0 Findings (no rule mined: confidence too low) |
-| T5 | 4 fns calling pair, 6 calling neither | 0 Findings (support below threshold) |
+| T1 | 9 Rust fns each calling `acquire(); release()`; 1 fn calling `acquire(); helper()` (no release) | 1 Finding, primary = the lone fn, related.len() == 9 |
+| T2 | 9 Python fns each calling `open(...); close()`; 1 fn calling `open(...); helper()` (no close) | 1 Finding, primary = the lone fn |
+| T3 | 5 Rust fns + 5 Python fns calling `lock(); unlock()`; 1 Rust fn calling `lock(); helper()` only | 1 Finding (rule mined cross-language) |
+| T4 | 9 fns each calling `acquire(); helper()` only; 1 fn calling `acquire(); release()` | 0 Findings (no rule mined: confidence too low) |
+| T5 | 4 fns calling pair, 16 calling neither | 0 Findings (support below threshold) |
 | T6 | T1 corpus run twice | identical `Vec<Finding>` |
 | T7 | T1 finding | `evidence.citation_keys` includes `li-zhou-fse-2005` |
 | T8 | T2 finding | `evidence.language_citation_status` matches survey outcome |
@@ -378,5 +393,7 @@ P-1) populate.
 
 ## Approval
 
-Pending. Approval gates implementation per the `Status` line at the
-top of this document.
+Approved 2026-05-06 with revisions R-A (test-fixture sizing
+relative to `MIN_DATABASE_SIZE = 20`) and R-B (F4 violation scan
+applies before the `MIN_TRANSACTION_ITEMS` filter) folded in.
+Implementation proceeds against this approved spec.
