@@ -13,11 +13,11 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
+use cntrdct::{adjudicate_top_n, rank_with_calibration, scan};
 use cntrdct_adjudicator_llm::{
     AdjudicatorError, AnthropicAdjudicator, HttpClient, MockResponse, ADJUDICATOR_CITATIONS,
     ANTHROPIC_VERSION, DEFAULT_MODEL,
 };
-use cntrdct_cli::{adjudicate_top_n, rank_with_calibration, scan};
 use cntrdct_core::{AdjudicationResult, AdjudicationVerdict, RankedFinding};
 use serde_json::{json, Value};
 use std::sync::Mutex;

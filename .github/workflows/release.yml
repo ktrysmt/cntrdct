@@ -59,11 +59,11 @@ jobs:
 
       - name: build (cargo)
         if: ${{ !matrix.use_cross }}
-        run: cargo build --release -p cntrdct-cli --target ${{ matrix.target }}
+        run: cargo build --release -p cntrdct --target ${{ matrix.target }}
 
       - name: build (cross)
         if: matrix.use_cross
-        run: cross build --release -p cntrdct-cli --target ${{ matrix.target }}
+        run: cross build --release -p cntrdct --target ${{ matrix.target }}
 
       - name: package (tar.gz)
         if: matrix.archive == 'tar.gz'

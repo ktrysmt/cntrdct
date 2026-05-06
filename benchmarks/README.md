@@ -55,7 +55,7 @@ ICSE 2017").
    them.
 4. Run `cargo run --bin cntrdct -- eval benchmarks/corpus` to see the
    updated metrics.
-5. Run `cargo test -p cntrdct-cli --test corpus_shape` to confirm the
+5. Run `cargo test -p cntrdct --test corpus_shape` to confirm the
    prereg-numeric corpus contract still holds.
 
 ## Status

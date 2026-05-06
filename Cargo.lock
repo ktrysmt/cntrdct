@@ -180,31 +180,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
-name = "cntrdct-adjudicator-llm"
-version = "0.2.0"
-dependencies = [
- "cntrdct-core",
- "mockito",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "cntrdct-calibration"
-version = "0.2.0"
-dependencies = [
- "cntrdct-core",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "cntrdct-cli"
-version = "0.2.0"
+name = "cntrdct"
+version = "0.2.0-beta.0"
 dependencies = [
  "clap",
  "cntrdct-adjudicator-llm",
@@ -232,8 +209,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "cntrdct-adjudicator-llm"
+version = "0.2.0-beta.0"
+dependencies = [
+ "cntrdct-core",
+ "mockito",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "cntrdct-calibration"
+version = "0.2.0-beta.0"
+dependencies = [
+ "cntrdct-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "cntrdct-config"
-version = "0.2.0"
+version = "0.2.0-beta.0"
 dependencies = [
  "cntrdct-core",
  "globset",
@@ -248,7 +248,7 @@ dependencies = [
 
 [[package]]
 name = "cntrdct-core"
-version = "0.2.0"
+version = "0.2.0-beta.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -257,7 +257,7 @@ dependencies = [
 
 [[package]]
 name = "cntrdct-detector-arg-swap"
-version = "0.2.0"
+version = "0.2.0-beta.0"
 dependencies = [
  "cntrdct-core",
  "rayon",
@@ -270,7 +270,7 @@ dependencies = [
 
 [[package]]
 name = "cntrdct-detector-clone-drift"
-version = "0.2.0"
+version = "0.2.0-beta.0"
 dependencies = [
  "cntrdct-core",
  "rayon",
@@ -283,7 +283,7 @@ dependencies = [
 
 [[package]]
 name = "cntrdct-detector-comment-code"
-version = "0.2.0"
+version = "0.2.0-beta.0"
 dependencies = [
  "cntrdct-core",
  "rayon",
@@ -296,7 +296,7 @@ dependencies = [
 
 [[package]]
 name = "cntrdct-detector-config-interaction"
-version = "0.2.0"
+version = "0.2.0-beta.0"
 dependencies = [
  "cntrdct-core",
  "rayon",
@@ -308,7 +308,7 @@ dependencies = [
 
 [[package]]
 name = "cntrdct-detector-pr-miner"
-version = "0.2.0"
+version = "0.2.0-beta.0"
 dependencies = [
  "cntrdct-core",
  "serde",
@@ -320,7 +320,7 @@ dependencies = [
 
 [[package]]
 name = "cntrdct-detector-unreachable-after-terminator"
-version = "0.2.0"
+version = "0.2.0-beta.0"
 dependencies = [
  "cntrdct-core",
  "rayon",
@@ -333,7 +333,7 @@ dependencies = [
 
 [[package]]
 name = "cntrdct-eval"
-version = "0.2.0"
+version = "0.2.0-beta.0"
 dependencies = [
  "cntrdct-core",
  "serde",
@@ -344,7 +344,7 @@ dependencies = [
 
 [[package]]
 name = "cntrdct-parsers"
-version = "0.2.0"
+version = "0.2.0-beta.0"
 dependencies = [
  "cntrdct-core",
  "serde",
@@ -356,7 +356,7 @@ dependencies = [
 
 [[package]]
 name = "cntrdct-ranker"
-version = "0.2.0"
+version = "0.2.0-beta.0"
 dependencies = [
  "cntrdct-calibration",
  "cntrdct-core",
@@ -365,7 +365,7 @@ dependencies = [
 
 [[package]]
 name = "cntrdct-sarif"
-version = "0.2.0"
+version = "0.2.0-beta.0"
 dependencies = [
  "cntrdct-core",
  "serde_json",

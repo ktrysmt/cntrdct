@@ -6,7 +6,7 @@
 //!   the same synthesised corpus and asserts the resulting `Vec<Finding>` is
 //!   bit-identical between runs.
 //! - `parallel_scan_is_faster_than_serial` (ignored by default; run with
-//!   `cargo test -p cntrdct-cli --release -- --ignored parallel_scan_is_faster`)
+//!   `cargo test -p cntrdct --release -- --ignored parallel_scan_is_faster`)
 //!   builds a 1000-file corpus, times scans inside a 1-thread rayon pool and
 //!   inside a default-sized pool, and reports the speedup. Asserts the
 //!   speedup is at least 2.0x — the roadmap's 4.0x target assumes an 8-core
@@ -52,8 +52,8 @@ fn scan_is_deterministic_under_parallel_execution() {
     let dir = TempDir::new().expect("tempdir");
     synthesize_corpus(dir.path(), 32);
 
-    let first = cntrdct_cli::scan(dir.path()).expect("first scan");
-    let second = cntrdct_cli::scan(dir.path()).expect("second scan");
+    let first = cntrdct::scan(dir.path()).expect("first scan");
+    let second = cntrdct::scan(dir.path()).expect("second scan");
 
     let key = |f: &cntrdct_core::Finding| {
         (
@@ -86,7 +86,7 @@ fn parallel_scan_is_faster_than_serial() {
         .expect("serial pool");
     let serial_path = path.clone();
     let serial_start = Instant::now();
-    let serial = serial_pool.install(|| cntrdct_cli::scan(&serial_path).expect("serial scan"));
+    let serial = serial_pool.install(|| cntrdct::scan(&serial_path).expect("serial scan"));
     let serial_elapsed = serial_start.elapsed();
 
     let parallel_pool = ThreadPoolBuilder::new()
@@ -95,8 +95,7 @@ fn parallel_scan_is_faster_than_serial() {
         .expect("parallel pool");
     let parallel_path = path.clone();
     let par_start = Instant::now();
-    let parallel =
-        parallel_pool.install(|| cntrdct_cli::scan(&parallel_path).expect("parallel scan"));
+    let parallel = parallel_pool.install(|| cntrdct::scan(&parallel_path).expect("parallel scan"));
     let par_elapsed = par_start.elapsed();
 
     assert_eq!(

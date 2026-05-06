@@ -153,7 +153,7 @@ P-4. Layer 2 ranker recalibration on the β corpus
     spread: comment-code 0.32 (16 FP from attrs idioms) at the low
     end; arg-swap and unreachable-after-terminator at 0.80; clone-
     drift 0.67; config-interaction 0.68.
-  - `cntrdct-cli` embeds `priors-default.json` at compile time via
+  - `cntrdct` (the CLI crate) embeds `priors-default.json` at compile time via
     `include_str!`. New `pick_ranker` fallback chain:
     explicit `--priors` (kept silent on missing path for backwards
     compat) → per-user cache → embedded priors → uncalibrated.
@@ -174,14 +174,28 @@ P-4. Layer 2 ranker recalibration on the β corpus
 
 P-5. β release tagging and crates.io publish
 
-- Status: `[ ]`
-- Goal: tag the workspace as `v0.2.0-beta`, publish all crates to
+- Status: `[~]`
+- Goal: tag the workspace as `v0.2.0-beta.0`, publish all crates to
   crates.io, push a GitHub Release with pre-built binaries.
 - Acceptance: `cargo install cntrdct` works on a clean machine,
   the release page on GitHub shows binaries for at least
   Linux x86_64 / macOS aarch64 / macOS x86_64.
 - Effort: 1 week including bug-fix iterations.
 - Depends on: T1-1, T1-2, T1-3, T2-8.
+- Phase 1 (local prep) progress:
+  - `[x]` Workspace version bumped to `0.2.0-beta.0` (workspace.package
+    + 15 workspace.dependencies entries).
+  - `[x]` CLI crate renamed `cntrdct-cli` → `cntrdct` so `cargo install
+    cntrdct` resolves correctly. Lib name follows (`cntrdct_cli` →
+    `cntrdct`); call sites in `crates/cli/src/{main,cargo_subcommand}.rs`,
+    `crates/cli/tests/*`, `.github/workflows/{ci,release}.yml`,
+    `docs/spec/{cli,eval,ranker,adjudicator}-*.md`,
+    `benchmarks/README.md`, `CONTRIBUTING.md`, `README.md` updated to
+    match.
+- Phase 2-4 (remote, user-driven, mostly irreversible): commit + push
+  the prep, tag `v0.2.0-beta.0` to fire `release.yml`, then run
+  `cargo publish` for the 15 crates in dependency order. Handoff notes
+  with the exact command sequence accompany the prep commit.
 
 ## Tier 1 — usable OSS (blocking for first announcement)
 

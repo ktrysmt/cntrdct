@@ -7,7 +7,7 @@
 //!
 //! This shim drops the leading `cntrdct` arg (when present), then re-execs
 //! the main `cntrdct` binary with the remaining arguments. Re-exec is used
-//! instead of calling `cntrdct_cli::main_entry` directly so the user-visible
+//! instead of calling `cntrdct::main_entry` directly so the user-visible
 //! exit codes, signal handling, and stdio behaviour are exactly identical to
 //! `cntrdct ...`.
 

@@ -15,8 +15,8 @@ use cntrdct_core::Severity;
 use tempfile::TempDir;
 
 fn scan_with_config_in(dir: &Path) -> Vec<cntrdct_core::Finding> {
-    let (raw, files) = cntrdct_cli::scan_full(dir).expect("scan_full");
-    cntrdct_cli::apply_suppression(None, dir, &files, raw).expect("apply_suppression")
+    let (raw, files) = cntrdct::scan_full(dir).expect("scan_full");
+    cntrdct::apply_suppression(None, dir, &files, raw).expect("apply_suppression")
 }
 
 #[test]

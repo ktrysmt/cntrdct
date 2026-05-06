@@ -101,14 +101,14 @@ fn main() -> ExitCode {
             adjudicate_top,
             config,
         } => {
-            let cfg = match cntrdct_cli::load_config(config.as_deref(), &path) {
+            let cfg = match cntrdct::load_config(config.as_deref(), &path) {
                 Ok(c) => c,
                 Err(e) => {
                     eprintln!("error: {}", e);
                     return ExitCode::from(1);
                 }
             };
-            match cntrdct_cli::scan_full_with_config(&path, &cfg) {
+            match cntrdct::scan_full_with_config(&path, &cfg) {
                 Ok((raw_findings, parsed_files)) => {
                     let findings = match cntrdct_config::apply(&cfg, &parsed_files, raw_findings) {
                         Ok(f) => f,
@@ -118,7 +118,7 @@ fn main() -> ExitCode {
                         }
                     };
 
-                    let mut ranked = match cntrdct_cli::rank_with_calibration(
+                    let mut ranked = match cntrdct::rank_with_calibration(
                         findings,
                         no_calibration,
                         priors.as_deref(),
@@ -131,17 +131,15 @@ fn main() -> ExitCode {
                     };
 
                     if adjudicate {
-                        match cntrdct_cli::read_anthropic_api_key() {
-                            Some(key) => match cntrdct_cli::build_default_adjudicator(key) {
+                        match cntrdct::read_anthropic_api_key() {
+                            Some(key) => match cntrdct::build_default_adjudicator(key) {
                                 Ok(mut adj) => {
                                     if let Ok(url) = std::env::var("ANTHROPIC_API_URL_OVERRIDE") {
                                         adj = adj.with_url(url);
                                     }
-                                    if let Err(e) = cntrdct_cli::adjudicate_top_n(
-                                        &mut ranked,
-                                        &adj,
-                                        adjudicate_top,
-                                    ) {
+                                    if let Err(e) =
+                                        cntrdct::adjudicate_top_n(&mut ranked, &adj, adjudicate_top)
+                                    {
                                         eprintln!(
                                         "note: adjudication failed; continuing without verdicts ({})",
                                         e
@@ -167,7 +165,7 @@ fn main() -> ExitCode {
                         OutputFormat::Json => serde_json::to_string_pretty(&ranked)
                             .expect("ranked findings serialize cleanly"),
                         OutputFormat::Sarif => {
-                            // Mirror the detector set registered by `cntrdct_cli::scan`
+                            // Mirror the detector set registered by `cntrdct::scan`
                             // so the rules taxonomy in the SARIF output matches the
                             // detectors that produced the findings.
                             let clone_drift = CloneDrift::new();
@@ -199,7 +197,7 @@ fn main() -> ExitCode {
             manifest,
         } => {
             let manifest_path = manifest.unwrap_or_else(|| corpus_dir.join("manifest.jsonl"));
-            match cntrdct_cli::run_eval(&corpus_dir, &manifest_path) {
+            match cntrdct::run_eval(&corpus_dir, &manifest_path) {
                 Ok(report) => {
                     let body = serde_json::to_string_pretty(&report)
                         .expect("EvalReport serializes cleanly");
@@ -214,9 +212,9 @@ fn main() -> ExitCode {
         }
         Commands::Calibrate { corpus, output } => {
             let output_path = output
-                .or_else(cntrdct_cli::default_priors_path)
+                .or_else(cntrdct::default_priors_path)
                 .unwrap_or_else(|| PathBuf::from("priors.json"));
-            match cntrdct_cli::calibrate(&corpus, &output_path) {
+            match cntrdct::calibrate(&corpus, &output_path) {
                 Ok(n) => {
                     eprintln!(
                         "wrote priors for {} detectors to {}",

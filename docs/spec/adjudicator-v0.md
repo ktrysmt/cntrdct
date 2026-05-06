@@ -173,7 +173,7 @@ because there is no defensible default.
 When `--adjudicate` is set:
 
 - The CLI reads `ANTHROPIC_API_KEY` from the environment via
-  `cntrdct_cli::read_anthropic_api_key()`. The helper treats a present but
+  `cntrdct::read_anthropic_api_key()`. The helper treats a present but
   empty value as absent (defends against `export ANTHROPIC_API_KEY=` in a
   shell profile).
 - If absent: a single line is emitted on stderr —
@@ -254,7 +254,7 @@ without re-implementing the adjudicator.
 ## API key handling
 
 - Source: process environment variable `ANTHROPIC_API_KEY`
-- Lookup helper: `cntrdct_cli::read_anthropic_api_key() -> Option<String>`
+- Lookup helper: `cntrdct::read_anthropic_api_key() -> Option<String>`
   (returns `None` for unset OR empty)
 - Lifetime: held only in `AnthropicAdjudicator.api_key` for the duration of
   the scan; never written to disk, never logged

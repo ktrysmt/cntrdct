@@ -207,7 +207,7 @@ cntrdct eval <CORPUS_DIR> [--manifest <PATH>]
 - The CLI:
   1. Loads the manifest.
   2. Verifies every `file` exists under `corpus_dir` (else `MissingSource`).
-  3. Calls `cntrdct_cli::scan(corpus_dir)`.
+  3. Calls `cntrdct::scan(corpus_dir)`.
   4. Calls `evaluate(...)`.
   5. Pretty-prints the `EvalReport` as JSON to stdout.
 - Exit code: `0` on a clean run regardless of metric values; `1` on any
@@ -230,7 +230,7 @@ BTreeMap. Two runs over the same corpus produce byte-identical output.
 - N2. The eval crate has no detector dependencies of its own. It only
   depends on `cntrdct-core` for `Finding`/`Location` types.
 - N3. The CLI integration that wires `scan + evaluate` lives in
-  `cntrdct-cli`; the eval crate stays decoupled from `walkdir` /
+  `cntrdct` (the CLI crate); the eval crate stays decoupled from `walkdir` /
   `tree-sitter` entirely.
 
 ## Test plan

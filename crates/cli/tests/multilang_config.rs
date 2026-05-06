@@ -40,9 +40,8 @@ fn write_mixed_corpus(dir: &Path) {
 }
 
 fn run_scan(dir: &Path) -> Vec<cntrdct_core::Finding> {
-    let cfg = cntrdct_cli::load_config(None, dir).expect("load_config");
-    let (raw, files) =
-        cntrdct_cli::scan_full_with_config(dir, &cfg).expect("scan_full_with_config");
+    let cfg = cntrdct::load_config(None, dir).expect("load_config");
+    let (raw, files) = cntrdct::scan_full_with_config(dir, &cfg).expect("scan_full_with_config");
     cntrdct_config::apply(&cfg, &files, raw).expect("apply")
 }
 
@@ -131,7 +130,7 @@ fn sarif_emitter_handles_mixed_rust_and_python_unchanged() {
     let dir = TempDir::new().unwrap();
     write_mixed_corpus(dir.path());
     let findings = run_scan(dir.path());
-    let ranked = cntrdct_cli::rank_with_calibration(findings, true, None).expect("rank");
+    let ranked = cntrdct::rank_with_calibration(findings, true, None).expect("rank");
 
     let clone_drift = CloneDrift::new();
     let arg_swap = ArgSwap::new();

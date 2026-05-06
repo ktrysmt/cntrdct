@@ -153,7 +153,7 @@ runs. Production users typically rely on the default cache path.
 ### F7 — Determinism and purity
 
 Unchanged from v0: `Ranker::rank` is a pure function of its input. All I/O
-lives in `cntrdct-cli` (which calls `calibration::load_corpus` once at start
+lives in `cntrdct` (the CLI crate; calls `calibration::load_corpus` once at start
 and constructs the ranker with the resulting `HashMap`).
 
 ## Non-functional requirements

@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use cntrdct_cli::{scan, ScanError};
+use cntrdct::{scan, ScanError};
 use tempfile::tempdir;
 
 const FN_BASE: &str = r#"

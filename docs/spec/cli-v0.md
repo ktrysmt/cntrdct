@@ -17,7 +17,7 @@ Status: active draft, approved for TDD implementation 2026-05-03.
 
 ### F2 — Library API
 
-`cntrdct_cli::scan(path: &Path) -> Result<Vec<Finding>, ScanError>` is the testable
+`cntrdct::scan(path: &Path) -> Result<Vec<Finding>, ScanError>` is the testable
 entry point. The binary is a thin wrapper that calls it and serializes the result.
 
 ### F3 — File collection

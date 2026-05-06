@@ -1,7 +1,7 @@
 # cntrdct
 
 [![CI](https://github.com/ktrysmt/cntrdct/actions/workflows/ci.yml/badge.svg)](https://github.com/ktrysmt/cntrdct/actions/workflows/ci.yml)
-[![crates.io](https://img.shields.io/crates/v/cntrdct-cli.svg)](https://crates.io/crates/cntrdct-cli)
+[![crates.io](https://img.shields.io/crates/v/cntrdct.svg)](https://crates.io/crates/cntrdct)
 [![docs.rs](https://img.shields.io/docsrs/cntrdct-core)](https://docs.rs/cntrdct-core)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -18,7 +18,10 @@ Layer 1 → 4 pipeline (detect → rank → adjudicate → SARIF) runs end-to-en
 ## Quickstart
 
 ```sh
-# Pre-built binary (Linux x86_64/aarch64, macOS x86_64/aarch64).
+# From crates.io.
+cargo install cntrdct
+
+# Or, pre-built binary (Linux x86_64/aarch64, macOS x86_64/aarch64).
 curl -fsSL https://raw.githubusercontent.com/ktrysmt/cntrdct/main/scripts/install.sh | bash
 
 # Or, from source.

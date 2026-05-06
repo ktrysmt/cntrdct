@@ -1,5 +1,5 @@
 [package]
-name = "cntrdct-cli"
+name = "cntrdct"
 description = "Command-line interface for the cntrdct linter."
 version.workspace = true
 edition.workspace = true

@@ -7,8 +7,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
+use cntrdct::{calibrate, pick_ranker, rank_with_calibration, scan};
 use cntrdct_calibration::DetectorPrior;
-use cntrdct_cli::{calibrate, pick_ranker, rank_with_calibration, scan};
 use cntrdct_core::{
     AnomalyClass, Evidence, Finding, LanguageCitationStatus, Location, RankedFinding, Severity,
 };

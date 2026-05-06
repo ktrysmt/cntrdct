@@ -90,7 +90,7 @@ flow is:
    effort and have the detector emit
    `LanguageCitationStatus::Unconfirmed` for that language.
 4. Implement the detector under `crates/detector-<id>/`. Register it
-   in `cntrdct-cli`. Wire its citations into the static `Citation`
+   in `cntrdct` (the CLI crate). Wire its citations into the static `Citation`
    array; `register_detector` rejects detectors with empty
    `citations()`.
 5. Add at least 8 positive cases and 3 negative cases per supported
