@@ -320,5 +320,5 @@ pending.
 
 | ID | Status | Last update |
 |---|---|---|
-| TECH-1 | pending | 2026-05-06 |
+| TECH-1 | done (landed pre-emptively; filter is no-op until `prereg/<DATE>-failure-modes-v1.md` is placed) | 2026-05-07 |
 | TECH-3 | pending | 2026-05-06 |

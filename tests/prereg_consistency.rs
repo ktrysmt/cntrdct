@@ -88,7 +88,9 @@ fn list_prereg_markdown() -> Vec<PathBuf> {
             // Sibling artefacts live next to the formal prereg but follow a
             // different schema; skip them so `latest_prereg()` keeps pointing
             // at the most recent full preregistration.
-            !stem.contains("-rubric-") && !stem.contains("-addendum")
+            !stem.contains("-rubric-")
+                && !stem.contains("-addendum")
+                && !stem.contains("-failure-modes-")
         })
         .collect();
     files.sort();
