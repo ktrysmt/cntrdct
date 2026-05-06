@@ -363,6 +363,85 @@ synthesises a tempdir corpus large enough to trigger mining. The
 real signal arrives once the wild corpora (M-4 and the future
 P-1) populate.
 
+## Empirical FP analysis (v0.1, 2026-05)
+
+Recalibration after step 3 (`chore(priors): recalibrate against
+pr-miner v0.1 corpus`) labels 16 TP / 22 FP across `benchmarks/corpus`,
+`benchmarks/wild-corpus-python`, and `benchmarks/wild-corpus`
+(`posterior_tp = 0.43`, `wilson_lower_95 = 0.28`). The 22 FPs cluster
+into two failure modes that the v0 design did not anticipate.
+
+FM-A. Stdlib-constructor / builtin co-occurrence (21 of 22 FPs).
+- Rust: rule `Err -> Ok` with 19 violations across `chrono`, `flate2`,
+  `mio`, `regex_syntax`, `serde`, `serde_json`, `uuid`. Mechanism:
+  `Result`'s `Err(...)` and `Ok(...)` are tree-sitter
+  `call_expression`s reduced to the items `Err` and `Ok` per F2's
+  last-segment rule. They co-occur in the majority of fallible Rust
+  functions, so Apriori mines the pair with high confidence; functions
+  that early-return only `Err(...)` (typical short delegators that
+  forward to a helper for the success path, e.g.
+  `uuid__parser.rs::parse_braced`) are flagged as violators even
+  though no API contract is being broken.
+- Python: rule `TypeError -> isinstance` with 2 violations in
+  `click_utils.py::get_binary_stream`, `::get_text_stream`. Mechanism:
+  Python validators frequently combine `isinstance(x, T)` with
+  `raise TypeError(...)`; functions that raise `TypeError` after a
+  different shape of guard (e.g. `if opener is None:`) are flagged.
+
+FM-B. Cross-fixture name collision (1 of 22 FPs).
+- Rule `close_handle -> open_handle` (the reverse direction of the
+  `pr_miner_python_001/003.py` open_handle/close_handle pair) flags
+  `unreachable_python_002.py::parse_header`, which legitimately calls
+  `close_handle()` for that fixture's own scenario but never
+  `open_handle()`. The pr-miner positive corpus's heavy use of the
+  pair makes the reverse rule mineable; absence of `open_handle` in a
+  peer-detector fixture surfaces as a violation.
+
+FM-A drives the bulk of the FP count and is what depresses
+`posterior_tp` from a paired-API-driven ceiling near 0.7-0.8 down to
+0.43. FM-B is corpus-specific to the fixture-rich seed.
+
+## v1 mitigations under consideration
+
+R6. Per-language stop-list of constructors / builtins. Maintain
+`crates/detector-pr-miner/src/stoplist_<lang>.rs` listing items that
+should be dropped from the transaction set before mining (e.g. Rust:
+`Err`, `Ok`, `Some`, `None`, `Box::new`, `Vec::new`, `String::from`,
+`Default::default`; Python: `isinstance`, `TypeError`, `ValueError`,
+`KeyError`, `len`, `range`, `print`, `super`, `iter`, `next`).
+Conservative; eliminates FM-A entirely on the observed corpora.
+Citation grounding for the choice would lean on the Li-Zhou paper's
+own stop-list-style filtering ("we filter common library calls"
+referenced in §3.2), so this stays within the cited algorithm's
+operating envelope. Open question: a generic stop-list risks
+suppressing legitimate paired APIs that happen to share a name with
+a stdlib symbol; per-language curation plus a `cntrdct.toml`
+extension knob (`[detectors.pr-miner] stoplist = ["Err", ...]`) is
+the proposed surface.
+
+R7. Optional fully-qualified item granularity (refines R2).
+Switching from "last segment" to the full path (`core::result::Result::Err`
+instead of `Err`) would distinguish stdlib constructors from
+user-defined symbols at zero stop-list maintenance cost. Cost: the
+extractor needs to resolve paths, which tree-sitter alone cannot do
+for Rust use-statements / re-exports. A pragmatic compromise: keep
+last-segment as default but add an item-cardinality post-filter
+(drop rules whose `lhs` or `rhs` exceeds N% of all transactions —
+items that "everyone" calls are by definition not paired-API
+candidates). Eliminates most of FM-A without a manual list.
+
+R8. Cross-fixture isolation in mixed-fixture corpora. The seed
+corpus mixes positives from six detectors; pr-miner's mining DB
+includes peer-detector fixtures, so identifiers reused across
+fixtures (FM-B) leak rules from one detector's positives into
+another's. Two candidate mitigations: (a) corpus tagging via a
+manifest field (`pr_miner_eligible: true|false`) so calibration can
+exclude peer-detector fixtures from the mining DB; (b) ranker-side
+de-weighting of findings whose violation file has an `expected`
+entry for a different detector. Option (b) is purely Layer 2 and
+keeps the detector contract clean; option (a) costs a manifest-
+schema bump.
+
 ## Compatibility
 
 - `cntrdct-core` unchanged. The `Detector` trait surface already
