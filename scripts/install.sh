@@ -56,6 +56,17 @@ download() {
     fi
 }
 
+verify_sha256() {
+    local dir="$1" file="$2"
+    if command -v shasum >/dev/null 2>&1; then
+        ( cd "${dir}" && shasum -a 256 -c "${file}.sha256" )
+    elif command -v sha256sum >/dev/null 2>&1; then
+        ( cd "${dir}" && sha256sum -c "${file}.sha256" )
+    else
+        err "neither shasum nor sha256sum is installed"
+    fi
+}
+
 main() {
     local target tag asset url tmpdir archive
     target="$(detect_target)"
@@ -63,17 +74,24 @@ main() {
     if [[ -z "${tag}" ]]; then
         err "could not resolve latest release tag"
     fi
+    case "${tag}" in
+        v[0-9]*) ;;
+        *) err "invalid tag format: ${tag}" ;;
+    esac
     asset="cntrdct-${tag}-${target}.tar.gz"
     url="https://github.com/${REPO}/releases/download/${tag}/${asset}"
 
-    tmpdir="$(mktemp -d -t cntrdct-install.XXXXXX)"
+    tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/cntrdct-install.XXXXXX")"
     trap 'rm -rf "$tmpdir"' EXIT
 
     archive="${tmpdir}/${asset}"
     echo "downloading ${url}"
     download "${url}" "${archive}"
+    echo "downloading ${url}.sha256"
+    download "${url}.sha256" "${archive}.sha256"
+    verify_sha256 "${tmpdir}" "${asset}"
 
-    tar -C "${tmpdir}" -xzf "${archive}"
+    tar -C "${tmpdir}" --no-same-owner -xzf "${archive}"
     extracted="${tmpdir}/cntrdct-${tag}-${target}"
 
     mkdir -p "${PREFIX}"

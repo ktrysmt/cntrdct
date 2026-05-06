@@ -128,6 +128,52 @@ When proposing or implementing a promotion:
 - Append `!` after the scope for breaking changes
   (e.g. `chore(release)!: collapse 15 crates into single package`).
 
+## Release procedure (technical package)
+
+Releasing the root `cntrdct` package to crates.io and GitHub Releases is
+driven entirely by pushing an annotated `vX.Y.Z` tag.
+`.github/workflows/release.yml` runs `build` (cross-target binaries) ->
+`release` (GitHub Release) and `publish-crate` (crates.io) on tag push.
+The `publish-crate` job verifies that the tag (with the leading `v`
+stripped) equals `Cargo.toml`'s `version`, so a mismatch fails the job
+before anything reaches crates.io.
+
+Only `Cargo.toml` is the source of truth for the version; `Cargo.lock`
+is kept in sync via cargo. Other `0.2.0`-shaped strings in the repo
+(`ROADMAP.md` history, `research/Cargo.toml`, docs, workflow examples)
+are NOT version-tracking and must not be bumped as part of the release.
+
+Steps (run from repo root):
+
+```sh
+$EDITOR Cargo.toml                                 # bump version to X.Y.Z
+cargo update -p cntrdct                            # sync Cargo.lock
+git add Cargo.toml Cargo.lock
+git commit -m "chore(release): bump version to X.Y.Z"
+git tag -a vX.Y.Z -m "release vX.Y.Z"              # MUST be annotated
+git push --follow-tags
+```
+
+Non-negotiable details:
+
+- Tag MUST be annotated (`git tag -a` or `-s`). `git push --follow-tags`
+  silently skips lightweight tags, so a plain `git tag vX.Y.Z` will not
+  trigger CI.
+- Tag name MUST be `v` + the exact `Cargo.toml` version, including any
+  pre-release suffix (e.g. `v0.2.0-beta.2`, `v0.2.0-rc.1`, `v0.2.0`).
+  The CI verify step strips the leading `v` and demands an exact match.
+- crates.io publishes are irreversible. A given version can be published
+  exactly once; subsequent attempts get `409 already exists`. To recover
+  from a bad release, bump the version again and tag anew.
+- `cargo install cntrdct` ignores pre-release versions by default. While
+  the published version carries a `-beta.N` / `-rc.N` suffix, document
+  the explicit `--version X.Y.Z-suffix` invocation for users.
+- The CI gate is build-only across four targets; it does not re-run
+  `cargo test` / `clippy` / `fmt`. Run the standard root-package gates
+  (see "Working in the right context") before tagging.
+- The research workspace has its own version cycle and is NOT released
+  through this procedure. Do not bump `research/Cargo.toml` here.
+
 ## Preregistration discipline (technical workspace)
 
 - `prereg/` files at repo root are FROZEN once their associated phase
