@@ -75,6 +75,18 @@ pointing at the relevant `docs/surveys/` file.
 - (unreachable-after-terminator Python coverage: unconfirmed; survey notes at
   docs/surveys/unreachable-after-terminator-python-2026-05.md)
 
+### pr-miner
+
+- `li-zhou-fse-2005` — Z. Li, Y. Zhou, "PR-Miner: Automatically Extracting Implicit
+  Programming Rules and Detecting Violations in Large Software Code", ESEC/FSE 2005.
+  Languages: Rust (clause (b) per docs/spec/citations-policy.md; the frequent-itemset
+  framing is language-agnostic and cntrdct's Rust port is the secondary application).
+- (pr-miner Python coverage: unconfirmed; survey notes at
+  docs/surveys/pr-miner-python-2026-05.md. Python support lands in v0.1.)
+- (Methodology reference for the Apriori miner: Agrawal & Srikant, VLDB 1994.
+  Not listed as a Detector citation per citations-policy.md — the paper does not
+  introduce the detector concept.)
+
 ### config-interaction
 
 - `tartler-eurosys-2011` — B. Tartler, D. Lohmann, J. Sincero,

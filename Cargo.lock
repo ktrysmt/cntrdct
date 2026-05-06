@@ -215,6 +215,7 @@ dependencies = [
  "cntrdct-detector-clone-drift",
  "cntrdct-detector-comment-code",
  "cntrdct-detector-config-interaction",
+ "cntrdct-detector-pr-miner",
  "cntrdct-detector-unreachable-after-terminator",
  "cntrdct-eval",
  "cntrdct-parsers",
@@ -299,6 +300,17 @@ version = "0.2.0"
 dependencies = [
  "cntrdct-core",
  "rayon",
+ "serde",
+ "serde_json",
+ "tree-sitter",
+ "tree-sitter-rust",
+]
+
+[[package]]
+name = "cntrdct-detector-pr-miner"
+version = "0.2.0"
+dependencies = [
+ "cntrdct-core",
  "serde",
  "serde_json",
  "tree-sitter",

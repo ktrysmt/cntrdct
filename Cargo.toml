@@ -7,6 +7,7 @@ members = [
     "crates/detector-comment-code",
     "crates/detector-unreachable-after-terminator",
     "crates/detector-config-interaction",
+    "crates/detector-pr-miner",
     "crates/sarif",
     "crates/ranker",
     "crates/calibration",
@@ -46,3 +47,4 @@ cntrdct-detector-arg-swap = { path = "crates/detector-arg-swap", version = "0.2.
 cntrdct-detector-comment-code = { path = "crates/detector-comment-code", version = "0.2.0" }
 cntrdct-detector-unreachable-after-terminator = { path = "crates/detector-unreachable-after-terminator", version = "0.2.0" }
 cntrdct-detector-config-interaction = { path = "crates/detector-config-interaction", version = "0.2.0" }
+cntrdct-detector-pr-miner = { path = "crates/detector-pr-miner", version = "0.2.0" }

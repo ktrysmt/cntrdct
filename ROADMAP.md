@@ -95,7 +95,13 @@ P-2. pr-miner detector (multi-language)
     violations specifically. Python ships with
     `LanguageCitationStatus::Unconfirmed`; Rust stays Confirmed
     against `li-zhou-fse-2005` under the grandfather clause.
-  - `[ ]` `cntrdct-detector-pr-miner` crate (Rust v0.0).
+  - `[x]` `cntrdct-detector-pr-miner` crate (Rust v0.0).
+    Apriori (max-itemset-size = 2) over per-function call-site
+    transactions; spec test plan T1, T4-T7, T9-T12 covered as
+    integration tests, T14 covered by the CLI suppression suite.
+    Eight Rust positives + three negatives added to
+    `benchmarks/corpus/`; CITATIONS.md / corpus_shape.rs /
+    citations_consistency.rs registrations all updated.
   - `[ ]` Python dispatch + corpus + citation (v0.1).
   - `[ ]` Corpus shape extension (≥8 positives per language).
 

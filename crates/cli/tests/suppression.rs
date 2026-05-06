@@ -77,6 +77,45 @@ fn config_disables_detector_entirely() {
 }
 
 #[test]
+fn pr_miner_t14_attribute_allow_suppresses_violation() {
+    // Spec: docs/spec/pr-miner-v0.md test plan T14.
+    // The fixture seeds 7 lock/unlock satisfiers + 1 violator, plus 12
+    // filler functions sharing a separate pair, so the mining database
+    // hits MIN_DATABASE_SIZE = 20 and the lock -> unlock rule mines with
+    // confidence 7/8 = 0.875 (above MIN_CONFIDENCE = 0.85). Without the
+    // attribute the violator would surface; with the attribute the
+    // CLI's apply_suppression must drop it.
+    let dir = TempDir::new().unwrap();
+    let mut src = String::new();
+    for i in 0..7 {
+        src.push_str(&format!(
+            "fn ok_{i}(x: i32) -> i32 {{\n    lock();\n    let r = x + {i};\n    unlock();\n    r\n}}\n"
+        ));
+    }
+    src.push_str(
+        "#[cntrdct::allow(pr-miner)]\n\
+         fn missing_unlock_violator() {\n    lock();\n    suppression_t14_helper();\n}\n",
+    );
+    for i in 0..12 {
+        src.push_str(&format!(
+            "fn filler_{i}() {{\n    filler_a();\n    filler_b();\n}}\n"
+        ));
+    }
+    fs::write(dir.path().join("a.rs"), src).unwrap();
+
+    let findings = scan_with_config_in(dir.path());
+    let pr_miner_count = findings
+        .iter()
+        .filter(|f| f.detector_id == "pr-miner")
+        .count();
+    assert_eq!(
+        pr_miner_count, 0,
+        "attribute suppression must drop the pr-miner finding; got: {:?}",
+        findings
+    );
+}
+
+#[test]
 fn config_remaps_severity_to_error() {
     let dir = TempDir::new().unwrap();
     fs::write(

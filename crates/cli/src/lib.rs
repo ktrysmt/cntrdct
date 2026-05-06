@@ -18,6 +18,7 @@ use cntrdct_detector_arg_swap::ArgSwap;
 use cntrdct_detector_clone_drift::CloneDrift;
 use cntrdct_detector_comment_code::CommentCode;
 use cntrdct_detector_config_interaction::ConfigInteraction;
+use cntrdct_detector_pr_miner::PrMinerDetector;
 use cntrdct_detector_unreachable_after_terminator::UnreachableAfterTerminator;
 use cntrdct_eval::{evaluate, load_manifest, EvalError, EvalReport};
 use cntrdct_parsers::{detect_language, Language};
@@ -108,11 +109,13 @@ pub fn scan_full_with_config(
     let comment_code = CommentCode::new();
     let unreachable = UnreachableAfterTerminator::new();
     let config_interaction = ConfigInteraction::new();
+    let pr_miner = PrMinerDetector::new();
     register_detector(&clone_drift)?;
     register_detector(&arg_swap)?;
     register_detector(&comment_code)?;
     register_detector(&unreachable)?;
     register_detector(&config_interaction)?;
+    register_detector(&pr_miner)?;
 
     let stats = CorpusStats {
         file_count: parsed.len(),
@@ -135,6 +138,7 @@ pub fn scan_full_with_config(
         &comment_code,
         &unreachable,
         &config_interaction,
+        &pr_miner,
     ];
     let nested: Result<Vec<Vec<Finding>>, cntrdct_core::DetectorError> =
         detectors.par_iter().map(|d| d.detect(&ctx)).collect();

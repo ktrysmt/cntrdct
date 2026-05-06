@@ -89,6 +89,16 @@
 {"file":"files/unreachable_python_004.py","expected":[{"detector_id":"unreachable-after-terminator","line":14}]}
 {"file":"files/unreachable_python_005.py","expected":[{"detector_id":"unreachable-after-terminator","line":12}]}
 //
+// pr-miner (Rust positives — P-2 v0.0)
+{"file":"files/pr_miner_001.rs","expected":[{"detector_id":"pr-miner","line":52}]}
+{"file":"files/pr_miner_002.rs","expected":[{"detector_id":"pr-miner","line":51}]}
+{"file":"files/pr_miner_003.rs","expected":[{"detector_id":"pr-miner","line":50}]}
+{"file":"files/pr_miner_004.rs","expected":[{"detector_id":"pr-miner","line":50}]}
+{"file":"files/pr_miner_005.rs","expected":[{"detector_id":"pr-miner","line":50}]}
+{"file":"files/pr_miner_006.rs","expected":[{"detector_id":"pr-miner","line":50}]}
+{"file":"files/pr_miner_007.rs","expected":[{"detector_id":"pr-miner","line":50}]}
+{"file":"files/pr_miner_008.rs","expected":[{"detector_id":"pr-miner","line":50}]}
+//
 // Negatives — files where no finding is expected.
 {"file":"files/arg_swap_negative_001.rs","expected":[]}
 {"file":"files/arg_swap_negative_002.rs","expected":[]}
@@ -111,4 +121,7 @@
 {"file":"files/arg_swap_python_negative_003.py","expected":[]}
 {"file":"files/clone_drift_python_negative_001.py","expected":[]}
 {"file":"files/clone_drift_python_negative_002.py","expected":[]}
+{"file":"files/pr_miner_negative_001.rs","expected":[]}
+{"file":"files/pr_miner_negative_002.rs","expected":[]}
+{"file":"files/pr_miner_negative_003.rs","expected":[]}
 {"file":"files/clone_drift_python_negative_003.py","expected":[]}
