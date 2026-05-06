@@ -152,6 +152,25 @@ benefit of long-lived reproducibility. We argue this is the correct
 trade for a tool whose primary asset is its evidentiary defensibility
 rather than its peak performance on any single benchmark.
 
+The directional structure of the layers makes the trade visible
+in a single picture. Findings flow from Layer 1 to Layer 2 to the
+user; the adjudicator's annotations flow to the user as well but
+never back to Layer 1 or Layer 2. The dashed arrow marks the
+annotation channel, distinguished from the rank-output arrow it
+shares a destination with.
+
+```mermaid
+flowchart TD
+    L1["Layer 1: 検出器<br>決定論的、citations() 必須"]
+    L2["Layer 2: ランカー<br>決定論的、事前分布駆動"]
+    L3["Layer 3: アジュディケータ<br>LLM はここのみに封じ込め"]
+    OUT["利用者への出力"]
+    L1 -->|"候補 finding"| L2
+    L2 -->|"ランク付き結果"| OUT
+    L2 -->|"上位 finding のみ"| L3
+    L3 -.->|"自然言語注釈<br>フィルタ・抑制は不可"| OUT
+```
+
 ## 4. Claim C3: empirical priors make the analyser falsifiable
 
 The Layer 2 ranker in cntrdct sorts findings by a posterior that
@@ -178,6 +197,29 @@ is unfalsifiable in the sense that no external evidence will move it
 short of a maintainer accepting a pull request. With empirical priors,
 external evidence is the mechanism. The discipline pushes back against
 the temptation to ship intuitions as severities.
+
+The falsifiability loop is a single round trip through the
+calibration command. An external evaluator who labels a corpus
+runs `cntrdct calibrate` against their JSONL, gets a new
+`priors.json`, and the ranker yields to their evidence on the
+next scan. The dashed arrow below is the falsifiability path: a
+new corpus reaches the ranker only by re-running calibration,
+which is reproducible and inspectable end-to-end.
+
+```mermaid
+flowchart TD
+    CORP["ラベル付きコーパス<br>JSONL"]
+    CAL["cntrdct calibrate"]
+    PRIORS["priors.json<br>Wilson 下限 + Laplace 平滑"]
+    RANKER["Layer 2 ランカー"]
+    OUT["ランク付き結果"]
+    NEW["外部評価者の新コーパス"]
+    CORP --> CAL
+    CAL --> PRIORS
+    PRIORS --> RANKER
+    RANKER --> OUT
+    NEW -.->|"反証ループ<br>再キャリブレーション"| CAL
+```
 
 ## 5. Claim C4: C1-C3 compose into outside-auditable claims
 
@@ -537,10 +579,12 @@ suggestions.
   layout, Japanese node labels). Annotates the type-level citation
   gate at Layer 1, the deterministic prior-driven edge to Layer 2,
   and Layer 3 as the LLM-confined adjudicator.
-- Word count target: 4000-6000. Current draft is about 4605 words,
-  comfortably inside the target range after the C5 corpus claim
-  was added. Further expansion is optional and driven by reviewer
-  feedback rather than by deadline.
+- Word count target: 4000-6000. Current draft is about 4801 words
+  after §3 (C2 LLM containment) and §4 (C3 empirical priors)
+  each gained a Mermaid flowchart making the directional /
+  falsifiability properties visible. Further expansion is
+  optional and driven by reviewer feedback rather than by
+  deadline.
 - Consider adding a sixth claim: "the discipline produces a corpus,
   not just a tool" — pointing at the Phase 1 labelling artefacts
   that fall out of running the analyser.
