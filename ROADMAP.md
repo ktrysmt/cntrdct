@@ -254,10 +254,24 @@ T3-13. mdBook user guide
 
 T3-14. Distribution channels beyond crates.io
 
-- Status: `[ ]`
+- Status: `[~]` (cargo-binstall landed 2026-05-08; Homebrew tap and
+  AUR package still pending)
 - Goal: Homebrew tap, AUR package, `cargo-binstall` metadata.
 - Effort: 1-2 days each.
 - Depends on: T2-8.
+- Summary so far: `[package.metadata.binstall]` added to root
+  `Cargo.toml` mapping the existing release-archive layout
+  (`cntrdct-v{version}-{target}/{cntrdct,cargo-cntrdct}{,.exe}`,
+  tar.gz on Linux/macOS and zip on Windows). Users can now run
+  `cargo binstall cntrdct` to fetch the pre-built archive from
+  GitHub Releases instead of compiling from source. README
+  Quickstart documents the path.
+- Followups (each 1-2 days, deferred until external demand):
+  - Homebrew tap at `ktrysmt/homebrew-cntrdct` (separate repo) with
+    a Formula that pulls the macOS aarch64 archive, plus an Action
+    that bumps the formula on each `v*` tag.
+  - AUR `cntrdct-bin` package shipping the Linux x86_64 archive,
+    with a release-tag-driven submission flow via `aur-publish`.
 
 T3-15. Auto-generated changelog
 

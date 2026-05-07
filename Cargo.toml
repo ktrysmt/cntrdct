@@ -21,6 +21,20 @@ exclude = [
     "scripts/",
 ]
 
+# cargo-binstall: download pre-built release archives from
+# GitHub Releases instead of compiling from source. T3-14.
+# The archive layout is `cntrdct-v{version}-{target}/{cntrdct,cargo-cntrdct}`,
+# tar.gz on Linux/macOS and zip on Windows; see
+# `.github/workflows/release.yml` for the producer side.
+[package.metadata.binstall]
+pkg-url = "{repo}/releases/download/v{version}/{name}-v{version}-{target}.tar.gz"
+pkg-fmt = "tgz"
+bin-dir = "{name}-v{version}-{target}/{bin}{binary-ext}"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-url = "{repo}/releases/download/v{version}/{name}-v{version}-{target}.zip"
+pkg-fmt = "zip"
+
 [lib]
 path = "src/lib.rs"
 

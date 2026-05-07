@@ -21,7 +21,12 @@ Layer 1 → 4 pipeline (detect → rank → adjudicate → SARIF) runs end-to-en
 # From crates.io.
 cargo install cntrdct
 
-# Or, pre-built binary (Linux x86_64/aarch64, macOS x86_64/aarch64).
+# Or, fetch the pre-built release archive directly from GitHub Releases
+# (no compile, ~10x faster). Requires `cargo-binstall`.
+cargo binstall cntrdct
+
+# Or, pre-built binary via the install script (Linux x86_64/aarch64,
+# macOS aarch64, Windows x86_64).
 curl -fsSL https://raw.githubusercontent.com/ktrysmt/cntrdct/main/scripts/install.sh | bash
 
 # Or, from source.
@@ -158,9 +163,9 @@ and the `wire_adjudicator` constructor in `src/lib.rs`; no walker,
 parser, detector, ranker, or SARIF emitter touches it.
 
 CI enforces this structurally. The `network-isolation` job in
-`.github/workflows/ci.yml` runs `cntrdct scan` inside an unprivileged
-network namespace (`unshare --net --map-root-user`) on every push and
-pull request. The namespace ships with no outbound routes; if any
+`.github/workflows/ci.yml` runs `cntrdct scan` inside a fresh Linux
+network namespace (`sudo unshare --net`) on every push and pull
+request. The namespace ships with no outbound routes; if any
 non-adjudicator code path makes an unexpected network call, it fails
 with `ENETUNREACH` / `EAI_*` and the job goes red. There is no
 opt-out — the assurance applies to every release that passes CI.
