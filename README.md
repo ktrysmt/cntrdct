@@ -21,6 +21,10 @@ Layer 1 → 4 pipeline (detect → rank → adjudicate → SARIF) runs end-to-en
 # From crates.io.
 cargo install cntrdct
 
+# Or, on macOS / Linux via Homebrew (uses the pre-built release archive).
+brew tap ktrysmt/cntrdct
+brew install cntrdct
+
 # Or, fetch the pre-built release archive directly from GitHub Releases
 # (no compile, ~10x faster). Requires `cargo-binstall`.
 cargo binstall cntrdct

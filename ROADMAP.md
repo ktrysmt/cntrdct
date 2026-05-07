@@ -254,24 +254,36 @@ T3-13. mdBook user guide
 
 T3-14. Distribution channels beyond crates.io
 
-- Status: `[~]` (cargo-binstall landed 2026-05-08; Homebrew tap and
-  AUR package still pending)
-- Goal: Homebrew tap, AUR package, `cargo-binstall` metadata.
+- Status: `[~]` (cargo-binstall and Homebrew tap landed 2026-05-08;
+  AUR package deferred per maintainer decision)
+- Goal: Homebrew tap, `cargo-binstall` metadata. AUR is no longer in
+  scope.
 - Effort: 1-2 days each.
 - Depends on: T2-8.
-- Summary so far: `[package.metadata.binstall]` added to root
-  `Cargo.toml` mapping the existing release-archive layout
+- Summary: cargo-binstall metadata block in root `Cargo.toml` maps
+  the existing release-archive layout
   (`cntrdct-v{version}-{target}/{cntrdct,cargo-cntrdct}{,.exe}`,
-  tar.gz on Linux/macOS and zip on Windows). Users can now run
-  `cargo binstall cntrdct` to fetch the pre-built archive from
-  GitHub Releases instead of compiling from source. README
-  Quickstart documents the path.
-- Followups (each 1-2 days, deferred until external demand):
-  - Homebrew tap at `ktrysmt/homebrew-cntrdct` (separate repo) with
-    a Formula that pulls the macOS aarch64 archive, plus an Action
-    that bumps the formula on each `v*` tag.
-  - AUR `cntrdct-bin` package shipping the Linux x86_64 archive,
-    with a release-tag-driven submission flow via `aur-publish`.
+  tar.gz on Linux/macOS and zip on Windows); users can now run
+  `cargo binstall cntrdct` to fetch the pre-built archive instead of
+  compiling. The Homebrew tap lives at
+  `ktrysmt/homebrew-cntrdct`, with `Formula/cntrdct.rb` covering
+  macOS aarch64 and Linux x86_64/aarch64; the v0.2.0-beta.1 formula
+  carries the release-asset SHA256s. The bump path is
+  `.github/workflows/homebrew.yml` in this repo: it triggers on
+  every `v*` tag push, polls for the release artifacts to be
+  uploaded by `release.yml`, then rewrites and pushes
+  `Formula/cntrdct.rb` in the tap repo. README Quickstart documents
+  both `brew tap ktrysmt/cntrdct` and `cargo binstall cntrdct`.
+- Operational note: the bump workflow consumes the
+  `HOMEBREW_TAP_TOKEN` repo secret on `ktrysmt/cntrdct` (a
+  fine-grained PAT scoped to `ktrysmt/homebrew-cntrdct` with
+  Contents: Read and write). The secret is registered as of
+  2026-05-08; if it is ever rotated, the workflow exits with a
+  pointer back to this entry on the next tag push.
+- AUR (out of scope): originally listed as a distribution target,
+  now dropped — the operational cost of maintaining an AUR account
+  + submission flow is not justified by current Arch demand. If
+  external demand materialises, reopen as a new T-series item.
 
 T3-15. Auto-generated changelog
 

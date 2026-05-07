@@ -1,0 +1,158 @@
+name: Bump Homebrew formula
+
+# Triggers on every `v*` tag push, polls for the release artifacts
+# to be uploaded by `release.yml`, then regenerates and pushes
+# `Formula/cntrdct.rb` in the `ktrysmt/homebrew-cntrdct` tap repo.
+#
+# Triggering on `push: tags` rather than `release: published` is
+# deliberate: the `release: published` event does not fire when the
+# release is created with the default `GITHUB_TOKEN`
+# (https://docs.github.com/en/actions/using-workflows/triggering-a-workflow#triggering-a-workflow-from-a-workflow),
+# and `release.yml`'s `softprops/action-gh-release` step uses the
+# default token. Polling for the asset .sha256 files is the simplest
+# self-contained synchronisation.
+#
+# Requires repository secret `HOMEBREW_TAP_TOKEN` — a fine-grained
+# PAT with Contents: Read and write on `ktrysmt/homebrew-cntrdct`.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to bump the formula to (e.g. v0.2.0). Required for manual runs."
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME:-${{ github.event.inputs.tag }}}"
+          if [ -z "${TAG:-}" ]; then
+            echo "::error::no tag resolved from GITHUB_REF_NAME or workflow_dispatch input" >&2
+            exit 1
+          fi
+          echo "tag=${TAG}"          >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}"    >> "$GITHUB_OUTPUT"
+
+      - name: Wait for release assets to be uploaded
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          base="https://github.com/ktrysmt/cntrdct/releases/download/${TAG}"
+          targets="aarch64-apple-darwin aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu"
+          for i in $(seq 1 60); do
+            ok=1
+            for t in $targets; do
+              if ! curl -fsSL -o /dev/null "${base}/cntrdct-${TAG}-${t}.tar.gz.sha256"; then
+                ok=0
+                break
+              fi
+            done
+            if [ "$ok" = "1" ]; then
+              echo "all assets visible after $i poll(s)"
+              exit 0
+            fi
+            echo "waiting for release assets... (${i}/60)"
+            sleep 15
+          done
+          echo "::error::release assets not visible after 15 minutes" >&2
+          exit 1
+
+      - name: Compute SHA256 values
+        id: shas
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          base="https://github.com/ktrysmt/cntrdct/releases/download/${TAG}"
+          DARWIN_ARM=$(curl -fsSL "${base}/cntrdct-${TAG}-aarch64-apple-darwin.tar.gz.sha256" | awk '{print $1}')
+          LINUX_X86=$(curl -fsSL "${base}/cntrdct-${TAG}-x86_64-unknown-linux-gnu.tar.gz.sha256" | awk '{print $1}')
+          LINUX_ARM=$(curl -fsSL "${base}/cntrdct-${TAG}-aarch64-unknown-linux-gnu.tar.gz.sha256" | awk '{print $1}')
+          {
+            echo "darwin_arm=${DARWIN_ARM}"
+            echo "linux_x86=${LINUX_X86}"
+            echo "linux_arm=${LINUX_ARM}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Clone tap repo
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TAP_TOKEN:-}" ]; then
+            echo "::error::HOMEBREW_TAP_TOKEN secret is not set; see ROADMAP T3-14 / homebrew.yml header" >&2
+            exit 1
+          fi
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/ktrysmt/homebrew-cntrdct.git" tap
+
+      - name: Render Formula/cntrdct.rb
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          DARWIN_ARM: ${{ steps.shas.outputs.darwin_arm }}
+          LINUX_X86: ${{ steps.shas.outputs.linux_x86 }}
+          LINUX_ARM: ${{ steps.shas.outputs.linux_arm }}
+        run: |
+          set -euo pipefail
+          cat > tap/Formula/cntrdct.rb <<EOF
+          class Cntrdct < Formula
+            desc "Evidence-based contradiction linter for Rust and Python"
+            homepage "https://github.com/ktrysmt/cntrdct"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/ktrysmt/cntrdct/releases/download/v${VERSION}/cntrdct-v${VERSION}-aarch64-apple-darwin.tar.gz"
+                sha256 "${DARWIN_ARM}"
+              end
+            end
+
+            on_linux do
+              on_intel do
+                url "https://github.com/ktrysmt/cntrdct/releases/download/v${VERSION}/cntrdct-v${VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "${LINUX_X86}"
+              end
+              on_arm do
+                url "https://github.com/ktrysmt/cntrdct/releases/download/v${VERSION}/cntrdct-v${VERSION}-aarch64-unknown-linux-gnu.tar.gz"
+                sha256 "${LINUX_ARM}"
+              end
+            end
+
+            def install
+              bin.install "cntrdct"
+              bin.install "cargo-cntrdct"
+            end
+
+            test do
+              system bin/"cntrdct", "--help"
+            end
+          end
+          EOF
+
+      - name: Commit and push to tap
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd tap
+          if git diff --quiet Formula/cntrdct.rb; then
+            echo "Formula already up-to-date for ${VERSION}"
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              add Formula/cntrdct.rb
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -m "cntrdct ${VERSION}"
+          git push origin main
