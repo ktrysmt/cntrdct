@@ -102,12 +102,23 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
       - name: list artifacts
         run: ls -la dist
+      - name: generate release notes (git-cliff)
+        id: git-cliff
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+        env:
+          OUTPUT: RELEASE_NOTES.md
+          GITHUB_REPO: ${{ github.repository }}
       - name: create release
         uses: softprops/action-gh-release@v2
         with:
@@ -117,7 +128,7 @@ jobs:
             dist/cntrdct-*.zip
             dist/cntrdct-*.zip.sha256
           draft: false
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
 
   publish-crate:
     name: publish to crates.io

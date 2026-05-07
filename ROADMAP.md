@@ -1,12 +1,13 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-07 (Phase G RC1-blocker Q-series Q-1..Q-5
-landed; Phase H governance items Q-6..Q-10 all landed the same
-day, closing Phase H; P-7 clone-drift residual FP cleanup landed
-the same day, taking wild β clone-drift FPs to 0 in both Rust and
-Python; T4-17, T4-18, T4-19 landed earlier; community scaffolding
-minus the formal CoC, which is deferred until external contributor
-activity warrants it)
+Last updated: 2026-05-08 (Phase G RC1-blocker Q-series Q-1..Q-5
+landed; Phase H governance items Q-6..Q-10 all landed 2026-05-07,
+closing Phase H; P-7 clone-drift residual FP cleanup landed
+2026-05-07, taking wild β clone-drift FPs to 0 in both Rust and
+Python; T3-15 git-cliff release-notes pipeline landed 2026-05-08;
+T4-17, T4-18, T4-19 landed earlier; T4-20 / T4-21 deferred per
+maintainer decision; community scaffolding minus the formal CoC,
+which is deferred until external contributor activity warrants it)
 
 Engineering roadmap for shipping cntrdct as a usable open-source Rust
 tool.
@@ -243,6 +244,12 @@ T3-13. mdBook user guide
   pages have at least placeholder content, and the published
   URL is linked from the README.
 - Effort: 2-3 weeks.
+- Note: the existing Jekyll essays under `docs/site/essays/` are
+  scheduled to migrate to a separate external blog rather than be
+  absorbed into mdBook. Plan: keep `docs/site/` in place during the
+  user-guide build-out; once the external blog has the content,
+  retire the Jekyll site (and its `pages.yml` deploy step) so the
+  GitHub Pages URL serves the mdBook user guide alone.
 
 T3-14. Distribution channels beyond crates.io
 
@@ -253,10 +260,23 @@ T3-14. Distribution channels beyond crates.io
 
 T3-15. Auto-generated changelog
 
-- Status: `[ ]`
-- Goal: `git-cliff` or `cocogitto` produces `CHANGELOG.md` from
-  conventional commit messages on every release.
-- Effort: half a day plus retroactive commit cleanup if desired.
+- Status: `[x]` 2026-05-08
+- Summary: `cliff.toml` at repo root configures `git-cliff` against
+  cntrdct's Conventional Commits prefixes (`feat` / `fix` / `perf` /
+  `refactor` / `promote` / `docs` / `test` / `ci` / `chore`;
+  `chore(release)` / `chore(changelog)` / `Merge` are skipped). The
+  release workflow's `release` job now checks out with
+  `fetch-depth: 0` and runs `orhun/git-cliff-action@v4` with
+  `--latest --strip header`, then feeds the output into
+  `softprops/action-gh-release` via `body_path: RELEASE_NOTES.md`,
+  replacing the prior `generate_release_notes: true` path. CI side
+  is fully self-contained: no local `git-cliff` install is required.
+  `CONTRIBUTING.md` "Pull request review" updated so the squash-on-
+  merge guidance points at the new pipeline; CLAUDE.md "Release
+  procedure" non-negotiables documents the parser's drop list.
+- Followup: a checked-in `CHANGELOG.md` and an auto-commit-back step
+  on tag push are deferred until a future tag confirms the release-
+  body path is healthy in production.
 
 T3-16. Telemetry-free assurance
 

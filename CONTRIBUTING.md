@@ -177,8 +177,10 @@ We do not maintain a separate CLA. The DCO is sufficient.
 - All required CI checks must be green: technical `clippy-test`,
   `fmt`, `licenses`, `sarif`. Research-side failures do not block.
 - Squash on merge is the default. Keep the squashed commit message in
-  Conventional Commits form so the future changelog tooling
-  (ROADMAP T3-15) can pick it up cleanly.
+  Conventional Commits form: the release workflow runs `git-cliff`
+  (config at `cliff.toml`) on every tag push and uses the grouped
+  output as the GitHub Release body. Off-shape commits silently fall
+  out of the release notes.
 - Avoid force-pushes to a PR branch once review has started; prefer
   fixup commits so review threads stay anchored.
 
