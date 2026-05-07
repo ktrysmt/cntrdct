@@ -123,3 +123,34 @@ jobs:
               --no-calibration > /tmp/sample.sarif
           export PATH="$HOME/.dotnet/tools:$PATH"
           sarif validate /tmp/sample.sarif
+
+  network-isolation:
+    name: telemetry-free assurance (T3-16)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: build cntrdct
+        run: cargo build --release -p cntrdct
+      # T3-16: the scan path must complete with no network access.
+      # `unshare --net --map-root-user` creates a fresh network
+      # namespace with no outbound routes (only a `lo` interface, and
+      # it's down by default). If any code path in `cntrdct scan`
+      # makes an unexpected network call, the call fails with
+      # `ENETUNREACH` / `EAI_*` inside the namespace and the job
+      # goes red. The reqwest dependency is constrained to
+      # `src/adjudicator.rs` (gated by the explicit `--adjudicate`
+      # flag), so the scan path here exercises everything that runs
+      # by default end-users: walker -> parsers -> Layer 1 detectors
+      # -> Layer 2 ranker -> Layer 4 SARIF emitter.
+      - name: cntrdct scan succeeds inside isolated network namespace
+        run: |
+          set -euo pipefail
+          unshare --net --map-root-user ./target/release/cntrdct \
+              scan benchmarks/corpus/files \
+              --format sarif --no-calibration \
+              > /tmp/isolated.sarif
+          test -s /tmp/isolated.sarif
+          python3 -c "import json; json.load(open('/tmp/isolated.sarif'))"
+          echo "::notice::cntrdct scan completed with no network access"

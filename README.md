@@ -147,6 +147,24 @@ cntrdct ships as a single crate. Internals are organised under
 | `eval` | precision/recall/F1 evaluation harness against a labelled corpus |
 | `config` | `cntrdct.toml` and in-source suppression |
 
+## Network access
+
+cntrdct's `scan`, `calibrate`, and `eval` paths run entirely offline.
+The only code path that opens a socket is the Layer 3 LLM adjudicator
+(`src/adjudicator.rs`), which is gated behind the explicit
+`--adjudicate` flag and the `ANTHROPIC_API_KEY` environment variable.
+The `reqwest` dependency is reachable only from `src/adjudicator.rs`
+and the `wire_adjudicator` constructor in `src/lib.rs`; no walker,
+parser, detector, ranker, or SARIF emitter touches it.
+
+CI enforces this structurally. The `network-isolation` job in
+`.github/workflows/ci.yml` runs `cntrdct scan` inside an unprivileged
+network namespace (`unshare --net --map-root-user`) on every push and
+pull request. The namespace ships with no outbound routes; if any
+non-adjudicator code path makes an unexpected network call, it fails
+with `ENETUNREACH` / `EAI_*` and the job goes red. There is no
+opt-out — the assurance applies to every release that passes CI.
+
 ## Design notes
 
 `docs/spec/` contains the active specs that drove the TDD

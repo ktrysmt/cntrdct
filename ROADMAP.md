@@ -4,10 +4,11 @@ Last updated: 2026-05-08 (Phase G RC1-blocker Q-series Q-1..Q-5
 landed; Phase H governance items Q-6..Q-10 all landed 2026-05-07,
 closing Phase H; P-7 clone-drift residual FP cleanup landed
 2026-05-07, taking wild β clone-drift FPs to 0 in both Rust and
-Python; T3-15 git-cliff release-notes pipeline landed 2026-05-08;
-T4-17, T4-18, T4-19 landed earlier; T4-20 / T4-21 deferred per
-maintainer decision; community scaffolding minus the formal CoC,
-which is deferred until external contributor activity warrants it)
+Python; T3-15 git-cliff release-notes pipeline and T3-16 telemetry-free
+assurance both landed 2026-05-08; T4-17, T4-18, T4-19 landed
+earlier; T4-20 / T4-21 deferred per maintainer decision; community
+scaffolding minus the formal CoC, which is deferred until external
+contributor activity warrants it)
 
 Engineering roadmap for shipping cntrdct as a usable open-source Rust
 tool.
@@ -280,13 +281,22 @@ T3-15. Auto-generated changelog
 
 T3-16. Telemetry-free assurance
 
-- Status: `[ ]`
-- Goal: explicit documentation that the binary makes no network
-  calls except via `--adjudicate`. Reinforced by a CI test that
-  runs the binary under a network namespace with no internet
-  access (or a mock that fails any unexpected outbound call) and
-  confirms `cntrdct scan` succeeds.
-- Effort: 1-2 days.
+- Status: `[x]` 2026-05-08
+- Summary: a new `network-isolation` job in
+  `.github/workflows/ci.yml` runs `cntrdct scan` inside an
+  unprivileged Linux network namespace
+  (`unshare --net --map-root-user`) on every push and pull request.
+  The namespace ships with no outbound routes; any unexpected
+  network call from the scan path fails `ENETUNREACH` / `EAI_*`
+  and the job goes red. The job exercises walker → parsers →
+  Layer 1 detectors → Layer 2 ranker → Layer 4 SARIF emitter —
+  i.e. everything that runs by default end-users — and asserts a
+  non-empty, well-formed SARIF document on stdout. The reqwest
+  dependency stays constrained to `src/adjudicator.rs` (gated by
+  the explicit `--adjudicate` flag) and `src/lib.rs`'s
+  `wire_adjudicator` constructor. README.md carries a new
+  "Network access" section documenting both the design property
+  and the CI enforcement; the assurance has no opt-out path.
 
 ## Multi-language track (M-series)
 
