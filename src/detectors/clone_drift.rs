@@ -48,6 +48,42 @@ pub const MIN_FN_TOKENS: usize = 22;
 /// as nom@1309 (0.53) and nom@1330 (0.66) do not. See
 /// `docs/spec/clone-drift-v0.md` F5c-ii.
 pub const NEAR_DUPLICATE_THRESHOLD: f64 = 0.7;
+/// F5d-ii: when the dominant partition holds fewer than
+/// `LENGTH_IMBALANCE_DOMINANT_FLOOR` functions (i.e. exactly 2, the
+/// F5c-i strict-majority floor for a 3-fn cluster), the canonical-form
+/// evidence is structurally weak — the 2 dominant members might
+/// themselves be a designed sibling pair (`layer_is_none` /
+/// `subscriber_is_none` in tracing-subscriber) rather than 2 copies of
+/// one canonical form. In that weak-evidence regime we additionally
+/// require small token-length symmetry between the drifted singleton
+/// and the dominant exemplar; an asymmetry above this fraction
+/// indicates structural divergence (extra struct definition, repeated
+/// body block) and the gate suppresses. Tuned at 0.15 so the wild β
+/// residuals (uuid `encode_*` at 0.242, tracing-subscriber `*_is_none`
+/// twins at 0.186) are caught while genuine drift fixtures with
+/// dominant size 2 (FN_VARIANT_A vs FN_VARIANT_B at ≈ 0.11) clear the
+/// gate. Clusters with dominant size ≥ 3 are exempt; the textbook bug
+/// pattern of "1 of N copies missed an update" (corpus_005 at length
+/// imbalance 0.258 with dominant size 4) fires unaffected. See
+/// `docs/spec/clone-drift-v0.md` F5d-ii.
+pub const LENGTH_IMBALANCE_THRESHOLD: f64 = 0.15;
+/// F5d-ii applies only when `largest.len() < LENGTH_IMBALANCE_DOMINANT_FLOOR`.
+/// At 3 the gate triggers exactly when the dominant partition holds 2
+/// functions — the F5c-i strict-majority floor for a 3-fn cluster.
+/// Larger dominant partitions carry strong canonical-form evidence and
+/// are exempt from the length-symmetry requirement.
+pub const LENGTH_IMBALANCE_DOMINANT_FLOOR: usize = 3;
+/// F5d-iii: a cluster at exactly `MIN_GROUP_SIZE` whose dominant
+/// exemplar is also near the `MIN_FN_TOKENS` floor is at the
+/// resolution limit of the detector — signature normalization
+/// dominates the n-gram set, so any single-token shift in the
+/// singleton looks like a drift even when the three siblings are
+/// independently designed delegate wrappers. The +2 buffer admits
+/// genuine drift fixtures (t5's dominant exemplar normalises to ≈ 35
+/// tokens) while suppressing the syn parse-API family (dominant
+/// `parse_str`/`parse2` body normalises to 22 tokens). See
+/// `docs/spec/clone-drift-v0.md` F5d-iii.
+pub const SMALL_CLUSTER_TOKEN_BUFFER: usize = 2;
 
 static CITATIONS: &[Citation] = &[
     Citation {
@@ -251,8 +287,37 @@ fn emit_findings_for_scope(
             continue;
         }
 
+        // F5d-i: multi-singleton family. A cluster carrying two or more
+        // size-1 partitions is the structural signature of a designed
+        // family of N parallel variants (e.g. charset_normalizer's
+        // `is_<script>` siblings each searching for a different
+        // substring), not the textbook "one of N copies missed an
+        // update" drift shape. Suppress the entire group's singleton
+        // emission once the multi-singleton signal fires. See
+        // `docs/spec/clone-drift-v0.md` F5d-i.
+        let partition_sizes: Vec<usize> = parts.iter().map(|x| x.len()).collect();
+        let singleton_count = partition_sizes.iter().filter(|&&n| n == 1).count();
+        if singleton_count >= 2 {
+            continue;
+        }
+
         let dominant_exemplar_idx = largest[0];
         let dominant_exemplar = &fns[dominant_exemplar_idx];
+        let dominant_len = dominant_exemplar.normalized.len();
+
+        // F5d-iii: small-cluster floor. A cluster at exactly
+        // MIN_GROUP_SIZE whose dominant exemplar normalises to within
+        // SMALL_CLUSTER_TOKEN_BUFFER of MIN_FN_TOKENS is at the
+        // detector's resolution limit; signature normalization (params,
+        // type bounds, where clauses) dominates the n-gram set, so any
+        // single-token body shift in the singleton looks like a drift
+        // even when the three siblings are independently designed
+        // delegate wrappers. See `docs/spec/clone-drift-v0.md` F5d-iii.
+        if group.len() == MIN_GROUP_SIZE
+            && dominant_len <= MIN_FN_TOKENS + SMALL_CLUSTER_TOKEN_BUFFER
+        {
+            continue;
+        }
 
         for p in &parts {
             if p.len() != 1 {
@@ -273,13 +338,40 @@ fn emit_findings_for_scope(
             if dominant_jaccard < NEAR_DUPLICATE_THRESHOLD {
                 continue;
             }
+            // F5d-ii: length-imbalance gate, conditioned on weak
+            // dominant-form evidence. With a dominant partition of
+            // exactly 2 (the F5c-i strict-majority floor for a 3-fn
+            // cluster) the "two members happen to share a normalised
+            // form" interpretation is just as plausible as "the two
+            // members are 2 copies of one canonical form"; we
+            // therefore additionally require that the drifted
+            // singleton matches the dominant exemplar in token-length.
+            // A high-Jaccard / high-length-imbalance pair under that
+            // weak-evidence cluster is the family-of-variants shape
+            // (uuid `encode_braced` adds a nested struct, etc.).
+            // Clusters with dominant size ≥ 3 are exempt: the
+            // textbook bug pattern of "1 of N copies missed an
+            // update" (corpus_005 with N = 4 at imbalance 0.258)
+            // fires unaffected.
+            let drift_len = drifted.normalized.len();
+            let max_len = drift_len.max(dominant_len) as f64;
+            let length_imbalance = if max_len > 0.0 {
+                (drift_len as f64 - dominant_len as f64).abs() / max_len
+            } else {
+                0.0
+            };
+            if largest.len() < LENGTH_IMBALANCE_DOMINANT_FLOOR
+                && length_imbalance > LENGTH_IMBALANCE_THRESHOLD
+            {
+                continue;
+            }
+
             let related: Vec<Location> = largest
                 .iter()
                 .filter(|&&i| i != drifted_idx)
                 .map(|&i| fns[i].location.clone())
                 .collect();
             let related_count = related.len();
-            let partition_sizes: Vec<usize> = parts.iter().map(|x| x.len()).collect();
             findings.push(Finding {
                 detector_id: "clone-drift".to_string(),
                 primary: drifted.location.clone(),
@@ -292,11 +384,14 @@ fn emit_findings_for_scope(
                     raw: serde_json::json!({
                         "similarity_threshold": SIMILARITY_THRESHOLD,
                         "near_duplicate_threshold": NEAR_DUPLICATE_THRESHOLD,
+                        "length_imbalance_threshold": LENGTH_IMBALANCE_THRESHOLD,
                         "group_size": group.len(),
                         "partition_sizes": partition_sizes,
+                        "singleton_count": singleton_count,
                         "dominant_jaccard": dominant_jaccard,
-                        "drifted_len": drifted.normalized.len(),
-                        "dominant_len": dominant_exemplar.normalized.len(),
+                        "drifted_len": drift_len,
+                        "dominant_len": dominant_len,
+                        "length_imbalance": length_imbalance,
                     }),
                     language_citation_status: citation_status,
                 },

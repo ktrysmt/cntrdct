@@ -150,6 +150,84 @@ formatter family) are designed library shapes; they have the same
 shape as a real drift but are not bugs. They are documented as v0
 limitations and labelled FP in the wild-corpus manifest.
 
+### F5d — Sibling-family discriminator (added 2026-05-07)
+
+After F5b / F5c the wild β corpus retained 5 residual FPs (Rust 3,
+Python 2). Hand inspection showed all five share a structural
+property that F5c does not capture: the cluster is a *designed
+family of N parallel variants* rather than the textbook
+"one of N copies missed an update" shape. F5d adds three
+independent sub-gates, each carved from a residual class.
+
+(F5d-i) Multi-singleton suppression. A cluster carrying ≥ 2 size-1
+partitions is the signature of an N-variant family — every variant
+intentionally differs from every other along a small surgical edit.
+The Python `charset_normalizer.utils` `is_<script>` family clusters
+with `partition_sizes = [6, 1, 1, 1]`: six members share the
+canonical `try / unicodedata.name / except / return X in name` body
+and three variants each substitute a different substring (`"LATIN"`,
+`"ARABIC" + "ISOLATED FORM"`, `"HANGUL"`, ...). When the bug pattern
+is present at most one member is "missed" per cluster; ≥ 2 distinct
+singletons in the same cluster is therefore the family-of-variants
+shape and the entire cluster's singleton emission is suppressed.
+
+(F5d-ii) Length-imbalance gate, conditioned on weak dominant-form
+evidence. A real drifted clone differs from the dominant exemplar
+by a small, surgical edit. Because the n-gram set is order- and
+multiplicity-agnostic, repeated body blocks (`encode_braced` adding
+a nested `struct` and a transmute) keep Jaccard high while bumping
+the normalised length significantly. A high-Jaccard /
+high-length-imbalance pair is the residual that F5c-ii cannot
+resolve. We compute the asymmetry as
+`|drift_len - dom_len| / max(drift_len, dom_len)` and suppress when
+both (a) it exceeds `LENGTH_IMBALANCE_THRESHOLD` (default 0.15) and
+(b) the dominant partition holds fewer than
+`LENGTH_IMBALANCE_DOMINANT_FLOOR` functions (default 3, i.e. exactly
+2 — the F5c-i strict-majority floor for a 3-fn cluster).
+
+The dominant-floor conditioning is critical. With dominant size 2
+the canonical-form evidence is structurally weak: the 2 dominant
+members may themselves be a designed sibling pair (`layer_is_none` /
+`subscriber_is_none` in tracing-subscriber) rather than 2 copies of
+one canonical form, so length symmetry becomes the deciding signal.
+With dominant size ≥ 3 the canonical-form evidence is strong; the
+textbook bug pattern of "1 of N copies missed an update" (e.g.
+seed-corpus `clone_drift_005` at length imbalance 0.258 with N = 4
+poll-wrappers + 1 break-clause drift) fires unaffected. An
+unconditional gate would have suppressed three seed-corpus TPs at
+length imbalance 0.16, 0.18, 0.26 — empirically the same band the
+wild β residuals sit in (0.186, 0.242), distinguished only by
+dominant size. The wild β syn parse-API family at length imbalance
+0.043 falls below the threshold; F5d-iii catches it.
+
+(F5d-iii) Small-cluster floor. A cluster at exactly `MIN_GROUP_SIZE`
+whose dominant exemplar's normalised length is within
+`SMALL_CLUSTER_TOKEN_BUFFER` (default 2) of `MIN_FN_TOKENS` is at the
+detector's resolution limit — signature normalization (parameters,
+type bounds, where clauses) dominates the n-gram set, so any
+single-token body shift in the singleton looks like a drift even
+when the three siblings are independently designed delegate
+wrappers. The wild β syn parse-API family (`parse` / `parse2` /
+`parse_str`) is exactly this shape (group_size = 3, dominant
+normalises to 22 tokens). The +2 buffer admits genuine fixtures
+(t5's dominant exemplar normalises to ≈ 35 tokens).
+
+All three gates are applied in `emit_findings_for_scope`. F5d-i and
+F5d-iii are evaluated once per cluster (cheap), before the per-
+singleton loop; F5d-ii is evaluated per singleton, after the F5c-ii
+Jaccard recompute (so an obvious low-Jaccard variant short-circuits
+first). Evidence is extended with `length_imbalance`,
+`length_imbalance_threshold`, and `singleton_count` for downstream
+calibration and audit.
+
+Acceptance: on benchmarks/wild-corpus the clone-drift residual FP
+count drops from 3 to 0 in Rust and from 2 to 0 in Python (the wild
+β corpus's labelled FPs at `syn__lib.rs:961`,
+`tracing_subscriber__layer_mod.rs:1547`, `uuid__fmt.rs:280`,
+`charset_normalizer_utils.py:70`, `:194` no longer fire).
+`tests/detector_clone_drift.rs` t29 (F5d-i), t30 (F5d-ii), t31
+(F5d-iii) pin the new gates structurally; t1–t28 remain green.
+
 ### F8 — Anomaly class
 
 Every Finding emitted by clone-drift sets `anomaly_class = AnomalyClass::Logic`
@@ -205,6 +283,10 @@ in β.
 | T26 | 4-fn cluster split [3, 1] (strict majority + small drift) | 1 Finding |
 | T27 | 5-fn cluster, dominant pair + 1 structurally different singleton | 0 Findings (F5c-ii: dominant_jaccard < NEAR_DUPLICATE_THRESHOLD) |
 | T28 | T1 fixture | every Finding's `evidence.raw` carries `dominant_jaccard` and `near_duplicate_threshold` |
+| T29 | 4 base fns + 2 distinct drifted singletons in same scope | 0 Findings (F5d-i: multi-singleton family) |
+| T30 | 2 base fns + 1 repeated-body singleton (dominant size 2, length asymmetry > 0.15) | 0 Findings (F5d-ii: weak-dominant length-imbalance) |
+| T30b | 4 base fns + 1 break-clause drifted singleton (dominant size 4, length asymmetry > 0.15) | 1 Finding (F5d-ii exemption: strong dominant) |
+| T31 | 3 tiny delegate wrappers at MIN_GROUP_SIZE with dominant normalised length ≤ MIN_FN_TOKENS + 2 | 0 Findings (F5d-iii: small-cluster floor) |
 | T10 | one fn with parse error + valid drift fixture | invalid one skipped, drift still detected |
 
 ## Tunable constants (v0 defaults)
@@ -227,6 +309,29 @@ in β.
   near-clone property. Empirically tuned so the Python pilot drift
   fixture (Jaccard 0.78) clears it while structural variants such
   as nom@1309 (0.53) and nom@1330 (0.66) do not.
+- `LENGTH_IMBALANCE_THRESHOLD = 0.15` — F5d-ii ceiling on the
+  normalised-token-length asymmetry between a drifted singleton and
+  the dominant exemplar. The gate fires only in conjunction with
+  `LENGTH_IMBALANCE_DOMINANT_FLOOR` (see below). Tuned so the wild β
+  residuals (uuid `encode_*` 0.242, tracing-subscriber `*_is_none`
+  0.186) are caught under weak dominant evidence while genuine drift
+  fixtures with weak dominants (FN_VARIANT_A vs FN_VARIANT_B at
+  ≈ 0.11) clear the gate.
+- `LENGTH_IMBALANCE_DOMINANT_FLOOR = 3` — F5d-ii dominant-size
+  conditioner. The length-imbalance gate triggers only when
+  `largest.len() < LENGTH_IMBALANCE_DOMINANT_FLOOR`, i.e. exactly 2
+  (the F5c-i strict-majority floor for a 3-fn cluster). Larger
+  dominant partitions carry strong canonical-form evidence and are
+  exempt; the textbook bug pattern of "1 of N copies missed an
+  update" with N ≥ 3 fires unaffected even at length imbalance > 0.15
+  (seed-corpus `clone_drift_005` at 0.258 with N = 4 stays a TP).
+- `SMALL_CLUSTER_TOKEN_BUFFER = 2` — F5d-iii buffer above
+  `MIN_FN_TOKENS`. A cluster at exactly `MIN_GROUP_SIZE` whose
+  dominant exemplar normalises to ≤ `MIN_FN_TOKENS +
+  SMALL_CLUSTER_TOKEN_BUFFER` tokens is at the detector's resolution
+  limit and is suppressed. The +2 buffer admits genuine fixtures
+  (t5's dominant exemplar at ≈ 35 tokens) while suppressing the syn
+  parse-API family (dominant 22 tokens).
 
 Exposed as `pub const` in `cntrdct-detector-clone-drift` for tuning without API
 change. Real-world calibration belongs to Layer 2 (ranker), not these constants.

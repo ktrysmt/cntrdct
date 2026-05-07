@@ -697,3 +697,158 @@ fn t28_evidence_carries_dominant_jaccard() {
         "F5c: evidence.raw must include near_duplicate_threshold, got {raw}"
     );
 }
+
+// ---------- F5d: residual sibling-family discriminator (added 2026-05-07) ----------
+
+const FN_DRIFTED_SECOND: &str = r#"
+fn process(items: Vec<i32>) -> Vec<i32> {
+    let mut result = Vec::new();
+    for item in items {
+        if item > 0 || item == -1 {
+            result.push(item * 2);
+        }
+    }
+    result
+}
+"#;
+
+#[test]
+fn t29_no_drift_on_multi_singleton_cluster() {
+    // F5d-i: a cluster with two or more size-1 partitions is the
+    // structural signature of a designed family of N variants
+    // (e.g. charset_normalizer's `is_<script>` siblings each searching
+    // for a different substring), not the textbook drifted-clone
+    // shape. 4 base copies + 2 distinct singletons → partition
+    // [4, 1, 1] → suppress.
+    let files = vec![
+        parsed("a.rs", FN_BASE),
+        parsed("b.rs", FN_BASE),
+        parsed("c.rs", FN_BASE),
+        parsed("d.rs", FN_BASE),
+        parsed("e.rs", FN_DRIFTED),
+        parsed("f.rs", FN_DRIFTED_SECOND),
+    ];
+    let findings = run(files);
+    assert!(
+        findings.is_empty(),
+        "F5d-i: multi-singleton cluster must not fire, got {:#?}",
+        findings
+    );
+}
+
+const FN_REPEATED_BODY: &str = r#"
+fn process(items: Vec<i32>) -> Vec<i32> {
+    let mut result = Vec::new();
+    for item in items {
+        if item > 0 {
+            result.push(item * 2);
+            result.push(item * 2);
+            result.push(item * 2);
+            result.push(item * 2);
+        }
+    }
+    result
+}
+"#;
+
+#[test]
+fn t30_no_drift_on_length_imbalance_with_weak_dominant() {
+    // F5d-ii: a singleton that shares high n-gram Jaccard with the
+    // dominant exemplar (because repeated body blocks contribute the
+    // same n-grams) but whose token-length differs by >
+    // LENGTH_IMBALANCE_THRESHOLD AND whose dominant partition holds
+    // only 2 members (the F5c-i strict-majority floor for a 3-fn
+    // cluster) is the weak-evidence family-of-variants shape. Compare
+    // with corpus_005 (dominant size 4, length imbalance 0.258) which
+    // stays a TP — see t30b.
+    let files = vec![
+        parsed("a.rs", FN_BASE),
+        parsed("b.rs", FN_BASE),
+        parsed("c.rs", FN_REPEATED_BODY),
+    ];
+    let findings = run(files);
+    assert!(
+        findings.is_empty(),
+        "F5d-ii: weak-dominant + length-imbalanced singleton must not fire, got {:#?}",
+        findings
+    );
+}
+
+const FN_DRIFT_ADDS_BREAK: &str = r#"
+fn process(items: Vec<i32>) -> Vec<i32> {
+    let mut result = Vec::new();
+    for item in items {
+        if item > 0 {
+            result.push(item * 2);
+            if item == 0 { break; }
+        }
+    }
+    result
+}
+"#;
+
+#[test]
+fn t30b_strong_dominant_keeps_drift_under_length_imbalance() {
+    // F5d-ii is exempt when the dominant partition holds ≥ 3
+    // functions: the canonical-form evidence is strong enough that a
+    // structurally larger drifted singleton (the textbook "1 of N
+    // copies missed an update" shape, e.g. corpus_005 at length
+    // imbalance 0.258 with N = 4) still fires. Pinned here so a
+    // future tightening of LENGTH_IMBALANCE_DOMINANT_FLOOR cannot
+    // silently drop the TP.
+    let files = vec![
+        parsed("a.rs", FN_BASE),
+        parsed("b.rs", FN_BASE),
+        parsed("c.rs", FN_BASE),
+        parsed("d.rs", FN_BASE),
+        parsed("e.rs", FN_DRIFT_ADDS_BREAK),
+    ];
+    let findings = run(files);
+    assert_eq!(
+        findings.len(),
+        1,
+        "F5d-ii exemption: dominant size ≥ 3 must keep length-imbalanced drifts as TPs, got {:#?}",
+        findings
+    );
+    assert_eq!(findings[0].primary.file, PathBuf::from("e.rs"));
+}
+
+const FN_TINY_DELEGATE_A: &str = r#"
+pub fn parse_a<T: Parse>(s: &str) -> Result<T> {
+    Parser::parse_a(T::parse, s)
+}
+"#;
+
+const FN_TINY_DELEGATE_B: &str = r#"
+pub fn parse_b<T: Parse>(s: &str) -> Result<T> {
+    Parser::parse_b(T::parse, s)
+}
+"#;
+
+const FN_TINY_DELEGATE_C: &str = r#"
+pub fn parse_c<T: Parse>(t: TokenStream) -> Result<T> {
+    Parser::parse_c(T::parse, t)
+}
+"#;
+
+#[test]
+fn t31_no_drift_on_small_cluster_floor() {
+    // F5d-iii: a cluster at exactly MIN_GROUP_SIZE whose dominant
+    // exemplar normalises to within SMALL_CLUSTER_TOKEN_BUFFER tokens
+    // of MIN_FN_TOKENS is at the detector's resolution limit. The
+    // wild-β syn parse-API family (`parse` / `parse2` / `parse_str`)
+    // is a 3-fn cluster of 1-line delegate wrappers whose dominant
+    // exemplar normalises to 22 tokens; this fixture mirrors that
+    // shape with three independently typed parse-style delegates.
+    let files = vec![
+        parsed("a.rs", FN_TINY_DELEGATE_A),
+        parsed("b.rs", FN_TINY_DELEGATE_B),
+        parsed("c.rs", FN_TINY_DELEGATE_C),
+    ];
+    let findings = run(files);
+    assert!(
+        findings.is_empty(),
+        "F5d-iii: small-cluster + dominant-near-MIN_FN_TOKENS must not fire, got {:#?}",
+        findings
+    );
+}

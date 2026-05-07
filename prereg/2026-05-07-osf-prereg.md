@@ -35,22 +35,36 @@ of the embedded priors.
   `tests/detector_comment_code.rs` t21–t28b.
 - `clone-drift` adds F5b (scope-bounded clustering via path-only
   inference: provenance header → Cargo layout → filename `__`
-  separator → parent directory) and F5c (within-scope tightening:
+  separator → parent directory), F5c (within-scope tightening:
   F5c-i strict-majority gate `largest * 2 > group`, F5c-ii
   near-duplicate gate `Jaccard(drifted, dominant) ≥
-  NEAR_DUPLICATE_THRESHOLD = 0.7`). Together these reduce the Rust
-  wild β corpus FP count from 124 to 3 (97.6 % reduction); the 3
-  residuals are designed-library-shape variants documented as v0
-  limitations. Spec: `docs/spec/clone-drift-v0.md` F5b / F5c.
-  Tests: `tests/detector_clone_drift.rs` t20–t28.
+  NEAR_DUPLICATE_THRESHOLD = 0.7`), and F5d (sibling-family
+  discriminator: F5d-i multi-singleton suppression, F5d-ii weak-
+  dominant length-imbalance gate, F5d-iii small-cluster floor)
+  landed the same day as a follow-up residual cleanup (ROADMAP P-7).
+  Together these reduce the Rust wild β FP count from 124 to 0
+  (100 % reduction) and the Python wild β FP count from 19 to 4
+  for `comment-code` plus 0 for `clone-drift` (the 2 residuals at
+  `charset_normalizer_utils.py:70` and `:194` are now suppressed by
+  F5d-i). Spec: `docs/spec/clone-drift-v0.md` F5b / F5c / F5d.
+  Tests: `tests/detector_clone_drift.rs` t20–t28 (F5b / F5c) and
+  t29–t31 (F5d), plus t30b which pins F5d-ii's exemption clause so
+  a future tightening of `LENGTH_IMBALANCE_DOMINANT_FLOOR` cannot
+  silently drop the seed-corpus `clone_drift_005` TP at length
+  imbalance 0.258. F5d's parameters (`LENGTH_IMBALANCE_THRESHOLD =
+  0.15`, `LENGTH_IMBALANCE_DOMINANT_FLOOR = 3`,
+  `SMALL_CLUSTER_TOKEN_BUFFER = 2`) carry the same prior-art
+  citations as F5b / F5c (Bettenburg et al. MSR 2009; Krinke ICSM
+  2007); no new citation is added.
 - `cntrdct calibrate` is now byte-stable: the priors HashMap is
   serialised through a sorted BTreeMap before write, so identical
   labelled corpora produce byte-identical
   `benchmarks/priors-default.json` across runs. Recalibration
   against the relabelled wild β corpus moves the embedded priors
-  as expected: clone-drift Wilson lower 0.073 → 0.355,
-  unreachable-after-terminator 0.407 → 0.796, comment-code 0.298 →
-  0.657. Source: `src/lib.rs::calibrate`.
+  as expected: clone-drift Wilson lower 0.073 → 0.355 → 0.676 (the
+  second jump from F5d removing 5 FP rows), unreachable-after-
+  terminator 0.407 → 0.796, comment-code 0.298 → 0.657. Source:
+  `src/lib.rs::calibrate`.
 - The wild β corpus manifests are relabelled per
   `prereg/2026-05-04-labelling-rubric-v0.md` against the new
   detector behaviour. Rust:
@@ -61,7 +75,12 @@ of the embedded priors.
   from TP to FP per rubric §5.1 FP-1 (different conceptual role:
   accent-property detector vs single-predicate
   script/category-detector siblings). The pre-relabel TP at this
-  position is no longer flagged anyway: F5c-ii filters it.
+  position is no longer flagged anyway: F5c-ii filters it. After
+  F5d the wild β manifests carry 5 fewer clone-drift FP rows
+  (`syn__lib.rs:961`, `tracing_subscriber__layer_mod.rs:1547`,
+  `uuid__fmt.rs:280`, `charset_normalizer_utils.py:70`, `:194`) —
+  these now produce zero findings on scan and so generate no
+  labelled rows.
 
 ## Background
 

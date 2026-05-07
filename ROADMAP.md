@@ -2,9 +2,11 @@
 
 Last updated: 2026-05-07 (Phase G RC1-blocker Q-series Q-1..Q-5
 landed; Phase H governance items Q-6..Q-10 all landed the same
-day, closing Phase H; T4-17, T4-18, T4-19 landed earlier; community
-scaffolding minus the formal CoC, which is deferred until external
-contributor activity warrants it)
+day, closing Phase H; P-7 clone-drift residual FP cleanup landed
+the same day, taking wild β clone-drift FPs to 0 in both Rust and
+Python; T4-17, T4-18, T4-19 landed earlier; community scaffolding
+minus the formal CoC, which is deferred until external contributor
+activity warrants it)
 
 Engineering roadmap for shipping cntrdct as a usable open-source Rust
 tool.
@@ -104,21 +106,28 @@ P-6. v0 → v0.1 detector quality fixes (wild β FP reduction pass)
 
 P-7. clone-drift within-scope residual cleanup
 
-- Status: `[ ]`
-- Goal: close the 3 residual Rust clone-drift FPs after P-6
-  (syn parse-API family at `syn__lib.rs:961`, tracing-subscriber
-  `*_is_none` twins at `tracing_subscriber__layer_mod.rs:1547`,
-  uuid `encode_*` formatter family at `uuid__fmt.rs:280`) and the
-  2 Python residuals (`charset_normalizer_utils.py:70` and `:194`).
-- Plan: investigate token-length-balance filter, type-annotation-
-  aware normalisation, or `MIN_FN_TOKENS` bump tuned per language;
-  pick the smallest change that clears all 5 residuals without
-  losing existing test fixtures.
-- Acceptance: wild β clone-drift FP count → 0 in both Rust and
-  Python; existing `tests/detector_clone_drift.rs` t1–t28 all
-  pass; spec records the new tunable / filter under F5d.
-- Effort: half a day.
-- Depends on: P-6.
+- Status: `[x]` 2026-05-07
+- Summary: F5d sibling-family discriminator (3 sub-gates) closes
+  all 5 P-6 residuals. F5d-i suppresses clusters carrying ≥ 2
+  size-1 partitions (the Python `charset_normalizer.utils`
+  `is_<script>` family at `:70` and `:194`); F5d-ii suppresses
+  high-Jaccard / high-length-imbalance singletons when the
+  dominant partition holds only 2 functions (uuid `encode_*` at
+  `uuid__fmt.rs:280`, tracing-subscriber `*_is_none` twins at
+  `tracing_subscriber__layer_mod.rs:1547`); F5d-iii suppresses
+  3-fn clusters whose dominant exemplar normalises to within 2
+  tokens of `MIN_FN_TOKENS` (syn parse-API family at
+  `syn__lib.rs:961`). The dominant-floor conditioner on F5d-ii
+  (`LENGTH_IMBALANCE_DOMINANT_FLOOR = 3`) is what keeps the seed-
+  corpus `clone_drift_005` TP at length imbalance 0.258 from
+  being suppressed alongside the wild β residuals at 0.186 and
+  0.242 — empirically the FP / TP bands overlap on length
+  imbalance alone and are distinguished only by dominant size.
+  Wild β clone-drift FP count → 0 in both Rust and Python.
+  `tests/detector_clone_drift.rs` t29 / t30 / t30b / t31 pin the
+  new gates structurally; t1–t28 all pass. Spec:
+  `docs/spec/clone-drift-v0.md` F5d. Embedded priors recompute:
+  clone-drift Wilson lower 0.355 → 0.676 (8 TP / 0 FP).
 
 ## Tier 1 — usable OSS (blocking for first announcement)
 

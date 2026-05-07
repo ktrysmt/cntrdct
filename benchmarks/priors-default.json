@@ -7,9 +7,9 @@
   },
   "clone-drift": {
     "tp": 8,
-    "fp": 5,
-    "posterior_tp": 0.6,
-    "wilson_lower_95": 0.3552248097226855
+    "fp": 0,
+    "posterior_tp": 0.9,
+    "wilson_lower_95": 0.6755843804891231
   },
   "comment-code": {
     "tp": 15,

@@ -95,12 +95,7 @@
 {"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/uuid__parser.rs", "line": 151, "repo": "wild-corpus", "verdict": "FalsePositive"}
 {"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/uuid__parser.rs", "line": 171, "repo": "wild-corpus", "verdict": "FalsePositive"}
 {"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/uuid__parser.rs", "line": 181, "repo": "wild-corpus", "verdict": "FalsePositive"}
-{"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/syn__lib.rs", "line": 961, "repo": "wild-corpus", "verdict": "FalsePositive"}
-{"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/tracing_subscriber__layer_mod.rs", "line": 1547, "repo": "wild-corpus", "verdict": "FalsePositive"}
-{"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/uuid__fmt.rs", "line": 280, "repo": "wild-corpus", "verdict": "FalsePositive"}
 {"anomaly_class": "Documentation", "detector_id": "comment-code", "file": "files/parking_lot_core__parking_lot.rs", "line": 736, "repo": "wild-corpus", "verdict": "FalsePositive"}
 {"anomaly_class": "Documentation", "detector_id": "comment-code", "file": "files/parking_lot_core__parking_lot.rs", "line": 892, "repo": "wild-corpus", "verdict": "FalsePositive"}
 {"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/click_utils.py", "line": 326, "repo": "wild-corpus-python", "verdict": "FalsePositive"}
 {"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/click_utils.py", "line": 338, "repo": "wild-corpus-python", "verdict": "FalsePositive"}
-{"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/charset_normalizer_utils.py", "line": 70, "repo": "wild-corpus-python", "verdict": "FalsePositive"}
-{"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/charset_normalizer_utils.py", "line": 194, "repo": "wild-corpus-python", "verdict": "FalsePositive"}
