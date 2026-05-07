@@ -46,6 +46,18 @@ path = "src/main.rs"
 name = "cargo-cntrdct"
 path = "src/cargo_subcommand.rs"
 
+# T3-12 LSP server. Gated behind the `lsp` feature so users who only
+# want the CLI do not pay the tokio + tower-lsp build cost. Build with
+# `cargo build --features lsp` (or `cargo install cntrdct --features lsp`).
+[[bin]]
+name = "cntrdct-lsp"
+path = "src/lsp_main.rs"
+required-features = ["lsp"]
+
+[features]
+default = []
+lsp = ["dep:tower-lsp", "dep:tokio"]
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -61,6 +73,9 @@ walkdir = "2"
 dirs = "5"
 tempfile = "3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"] }
+# T3-12 LSP. Optional; pulled in by the `lsp` feature.
+tower-lsp = { version = "0.20", optional = true }
+tokio = { version = "1", optional = true, features = ["macros", "rt-multi-thread", "io-std"] }
 
 [dev-dependencies]
 tempfile = "3"

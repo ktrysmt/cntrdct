@@ -25,6 +25,8 @@ pub mod config;
 pub mod core;
 pub mod detectors;
 pub mod eval;
+#[cfg(feature = "lsp")]
+pub mod lsp;
 pub mod parsers;
 pub mod ranker;
 pub mod sarif;

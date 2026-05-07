@@ -63,6 +63,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+      # T3-12: clippy --all-targets does not exercise the cntrdct-lsp
+      # binary because it gates on `required-features = ["lsp"]`. Run
+      # the lsp-feature build explicitly so a future change to the
+      # library API that breaks the LSP module fails CI rather than
+      # silently rotting.
+      - name: clippy (lsp feature)
+        run: cargo clippy --features lsp --bin cntrdct-lsp -- -D warnings
       - name: test
         run: cargo test --workspace --all-targets
       - name: examples smoke test

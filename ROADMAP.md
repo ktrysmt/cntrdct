@@ -228,12 +228,33 @@ T2-11. cargo cntrdct subcommand
 
 T3-12. LSP server
 
-- Status: `[ ]`
+- Status: `[~]` (Phase 1 scaffolding landed 2026-05-08; Phase 1.b /
+  1.c / 2 / 3 still pending)
 - Goal: a `cntrdct-lsp` crate that exposes findings to IDEs
   (VS Code, Helix, Neovim) via the Language Server Protocol.
 - Acceptance: a `vscode-cntrdct` extension or comparable
   client surfaces findings inline.
-- Effort: 4-6 weeks.
+- Effort: 4-6 weeks (across all phases).
+- Phase 1 — server scaffolding (done 2026-05-08): `cntrdct-lsp`
+  binary added under the optional `lsp` Cargo feature
+  (`tower-lsp` 0.20 + tokio multi-thread runtime). Implements the
+  LSP lifecycle methods (`initialize` returning
+  `text_document_sync = Full`, `initialized` logging via
+  `window/logMessage`, `shutdown`). Spec: `docs/spec/lsp-v0.md`.
+  CI gains a `clippy (lsp feature)` step so a future cntrdct API
+  change that breaks `src/lsp.rs` fails CI rather than rotting
+  silently. Default `cargo install cntrdct` is unchanged; LSP build
+  is opt-in via `cargo install cntrdct --features lsp`.
+- Phase 1.b — document events + Finding -> Diagnostic mapping
+  (`textDocument/{didOpen,didChange,didSave,didClose}`,
+  `textDocument/publishDiagnostics`). Lands the
+  `tests/lsp_smoke.rs` round-trip described in lsp-v0.md "Testing".
+- Phase 1.c — debouncing on didChange (so per-keystroke re-scans
+  do not stall the editor on multi-thousand-LOC buffers).
+- Phase 2 — `vscode-cntrdct` extension scaffolding (TypeScript /
+  pnpm), bundling the LSP binary auto-downloaded from GitHub
+  Releases. Separate repository under `ktrysmt/vscode-cntrdct`.
+- Phase 3 — VS Code Marketplace listing + announcement.
 
 T3-13. mdBook user guide
 
