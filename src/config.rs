@@ -13,9 +13,18 @@
 //!   suppressions found via tree-sitter, per-detector enable, per-detector
 //!   severity remap.
 //!
-//! In-source suppression syntax: `#[cntrdct::allow(detector_id, …)]` on the
-//! item containing the finding. An empty argument list (`#[cntrdct::allow()]`)
-//! suppresses every detector for that item.
+//! In-source suppression syntax:
+//!
+//! - Rust: `#[cntrdct::allow(detector_id, …)]` on the item containing the
+//!   finding. Empty argument list (`#[cntrdct::allow()]`) suppresses every
+//!   detector for that item.
+//! - Python (Q-9): `# cntrdct: allow(detector_id, …)` line comment.
+//!   Trailing form (`code()  # cntrdct: allow(arg-swap)`) suppresses
+//!   findings whose `start_line` equals the comment's line. Standalone
+//!   form (a whole-line comment) suppresses the next non-comment
+//!   sibling statement / definition's full span — mirroring the Rust
+//!   attribute-precedes-item shape at line granularity. `# cntrdct: allow()`
+//!   is the Python catch-all.
 
 #![deny(missing_docs)]
 
@@ -221,16 +230,27 @@ pub struct AttributeSuppression {
     pub end_line: u32,
 }
 
-/// Walk `file` and collect every `#[cntrdct::allow(...)]` suppression on a
-/// top-level item (function, struct, enum, impl, trait, mod). The attribute
-/// must appear immediately above the item in the same parse tree; nested or
-/// detached attributes are ignored.
+/// Walk `file` and collect every in-source suppression. Dispatches on
+/// `file.language`:
+///
+/// - [`Language::Rust`]: collect `#[cntrdct::allow(...)]` attributes
+///   on top-level items (function, struct, enum, impl, trait, mod).
+///   The attribute must appear immediately above the item in the same
+///   parse tree; nested or detached attributes are ignored.
+/// - [`Language::Python`]: collect `# cntrdct: allow(...)` line
+///   comments. See module-level docs for the trailing / standalone
+///   semantics.
 pub fn collect_attribute_suppressions(file: &ParsedFile) -> Vec<AttributeSuppression> {
-    if file.language != Language::Rust {
-        return vec![];
+    match file.language {
+        Language::Rust => collect_rust_suppressions(file),
+        Language::Python => collect_python_suppressions(file),
     }
+}
+
+fn collect_rust_suppressions(file: &ParsedFile) -> Vec<AttributeSuppression> {
     let mut parser = tree_sitter::Parser::new();
-    if parser.set_language(&tree_sitter_rust::language()).is_err() {
+    let lang = crate::parsers::parser_for(Language::Rust).ts_language();
+    if parser.set_language(&lang).is_err() {
         return vec![];
     }
     let Some(tree) = parser.parse(&file.source, None) else {
@@ -260,6 +280,143 @@ pub fn collect_attribute_suppressions(file: &ParsedFile) -> Vec<AttributeSuppres
     }
 
     out
+}
+
+/// Q-9: collect `# cntrdct: allow(...)` line-comment suppressions from a
+/// Python source file.
+///
+/// Two recognised forms:
+///
+/// - Trailing comment (`code()  # cntrdct: allow(<id>)`): suppression
+///   range is the single line carrying the comment. Detected by
+///   inspecting the bytes between the start of the line and the
+///   comment's start byte; if any non-whitespace byte is present, the
+///   comment is treated as trailing.
+/// - Standalone comment (whole line is the comment): suppression range
+///   spans the next named sibling whose kind is not `comment`. This
+///   mirrors the Rust pattern where the `#[cntrdct::allow(...)]`
+///   attribute applies to the immediately following item; intervening
+///   blank lines and additional `# cntrdct: allow(...)` lines are
+///   tolerated and stack onto the same target.
+///
+/// Empty argument list (`# cntrdct: allow()`) is the catch-all that
+/// suppresses every detector on the suppression range, matching the
+/// Rust attribute's empty-form semantics.
+fn collect_python_suppressions(file: &ParsedFile) -> Vec<AttributeSuppression> {
+    let mut parser = tree_sitter::Parser::new();
+    let lang = crate::parsers::parser_for(Language::Python).ts_language();
+    if parser.set_language(&lang).is_err() {
+        return vec![];
+    }
+    let Some(tree) = parser.parse(&file.source, None) else {
+        return vec![];
+    };
+    let root = tree.root_node();
+    // Unlike Rust's hard `has_error` bail, Python source with a single
+    // misindented stretch can still carry well-formed suppression
+    // comments earlier in the file. tree-sitter recovers locally;
+    // walking the tree and collecting comment nodes is safe even with
+    // partial errors. We only bail when no tree was returned at all.
+    let mut comments: Vec<tree_sitter::Node> = Vec::new();
+    collect_python_comment_nodes(root, &mut comments);
+
+    let mut out = Vec::new();
+    for comment in comments {
+        let Some(parsed) = parse_python_allow_comment(&comment, &file.source) else {
+            continue;
+        };
+        if is_python_trailing_comment(&comment, &file.source) {
+            let line = comment.start_position().row as u32 + 1;
+            out.push(AttributeSuppression {
+                detector_ids: match parsed {
+                    ParsedAllow::All => None,
+                    ParsedAllow::List(ids) => Some(ids),
+                },
+                start_line: line,
+                end_line: line,
+            });
+        } else if let Some(target) = next_non_comment_named_sibling(comment) {
+            let start = target.start_position().row as u32 + 1;
+            let end = target.end_position().row as u32 + 1;
+            out.push(AttributeSuppression {
+                detector_ids: match parsed {
+                    ParsedAllow::All => None,
+                    ParsedAllow::List(ids) => Some(ids),
+                },
+                start_line: start,
+                end_line: end,
+            });
+        }
+    }
+
+    out
+}
+
+fn collect_python_comment_nodes<'a>(
+    node: tree_sitter::Node<'a>,
+    out: &mut Vec<tree_sitter::Node<'a>>,
+) {
+    if node.kind() == "comment" {
+        out.push(node);
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_python_comment_nodes(child, out);
+    }
+}
+
+fn is_python_trailing_comment(comment: &tree_sitter::Node, source: &str) -> bool {
+    let bytes = source.as_bytes();
+    let comment_start = comment.start_byte();
+    // Walk back to the start of the line.
+    let mut line_start = comment_start;
+    while line_start > 0 && bytes[line_start - 1] != b'\n' {
+        line_start -= 1;
+    }
+    bytes[line_start..comment_start]
+        .iter()
+        .any(|b| !b.is_ascii_whitespace())
+}
+
+fn next_non_comment_named_sibling(node: tree_sitter::Node<'_>) -> Option<tree_sitter::Node<'_>> {
+    let mut sib = node.next_named_sibling();
+    while let Some(s) = sib {
+        if s.kind() != "comment" {
+            return Some(s);
+        }
+        sib = s.next_named_sibling();
+    }
+    None
+}
+
+fn parse_python_allow_comment(node: &tree_sitter::Node, source: &str) -> Option<ParsedAllow> {
+    let text = node_text(node, source);
+    // Strip the leading `#` and any whitespace; tolerate `## cntrdct:` /
+    // shebang-ish forms by collapsing extra `#` characters.
+    let body = text.trim_start_matches('#').trim();
+    // Accept either `cntrdct: allow(...)` or `cntrdct:allow(...)`.
+    let body = body.strip_prefix("cntrdct:")?.trim_start();
+    let body = body.strip_prefix("allow")?.trim_start();
+    let body = body.strip_prefix('(')?;
+    let close = body.find(')')?;
+    let args = body[..close].trim();
+
+    if args.is_empty() {
+        return Some(ParsedAllow::All);
+    }
+
+    let ids: Vec<String> = args
+        .split(',')
+        .map(|s| s.trim().trim_matches('"').to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if ids.is_empty() {
+        Some(ParsedAllow::All)
+    } else {
+        Some(ParsedAllow::List(ids))
+    }
 }
 
 fn is_top_level_item(node: &tree_sitter::Node) -> bool {
@@ -509,6 +666,14 @@ mod tests {
         }
     }
 
+    fn parsed_python(name: &str, body: &str) -> ParsedFile {
+        ParsedFile {
+            path: PathBuf::from(name),
+            language: Language::Python,
+            source: body.to_string(),
+        }
+    }
+
     fn finding_at(detector: &str, file: &str, line: u32) -> Finding {
         Finding {
             detector_id: detector.to_string(),
@@ -605,6 +770,136 @@ mod tests {
         let f = finding_at("clone-drift", "a.rs", 2);
         let out = apply(&Config::default(), &[pf], vec![f]).unwrap();
         assert_eq!(out.len(), 1, "non-matching detector_id stays");
+    }
+
+    // ---------- Q-9: Python attribute-style suppression ----------
+
+    #[test]
+    fn python_trailing_allow_suppresses_finding_on_same_line() {
+        let body = "x = copy(src, dst)  # cntrdct: allow(arg-swap)\n";
+        let pf = parsed_python("a.py", body);
+        let sups = collect_attribute_suppressions(&pf);
+        assert_eq!(sups.len(), 1, "expected one suppression; got {:?}", sups);
+        assert_eq!(sups[0].start_line, 1);
+        assert_eq!(sups[0].end_line, 1);
+        assert_eq!(
+            sups[0].detector_ids.as_deref(),
+            Some(&["arg-swap".to_string()][..])
+        );
+
+        let f = finding_at("arg-swap", "a.py", 1);
+        let out = apply(&Config::default(), &[pf], vec![f]).unwrap();
+        assert!(
+            out.is_empty(),
+            "trailing comment must drop same-line finding"
+        );
+    }
+
+    #[test]
+    fn python_standalone_allow_covers_following_def_span() {
+        let body = "\
+# cntrdct: allow(unreachable-after-terminator)
+def dead():
+    return 1
+    print(\"unreachable\")
+";
+        let pf = parsed_python("a.py", body);
+        let sups = collect_attribute_suppressions(&pf);
+        assert_eq!(sups.len(), 1, "expected one suppression; got {:?}", sups);
+        // Comment is on line 1; `def dead` starts on line 2 and the
+        // unreachable `print` lives on line 4. The suppression range
+        // must cover line 4.
+        assert_eq!(sups[0].start_line, 2);
+        assert!(sups[0].end_line >= 4);
+        assert_eq!(
+            sups[0].detector_ids.as_deref(),
+            Some(&["unreachable-after-terminator".to_string()][..])
+        );
+
+        let f = finding_at("unreachable-after-terminator", "a.py", 4);
+        let out = apply(&Config::default(), &[pf], vec![f]).unwrap();
+        assert!(out.is_empty(), "standalone comment must cover def's body");
+    }
+
+    #[test]
+    fn python_allow_empty_form_is_catch_all() {
+        let body = "\
+# cntrdct: allow()
+def anything():
+    return 1
+";
+        let pf = parsed_python("a.py", body);
+        let sups = collect_attribute_suppressions(&pf);
+        assert_eq!(sups.len(), 1);
+        assert!(
+            sups[0].detector_ids.is_none(),
+            "empty form means all detectors"
+        );
+
+        let f1 = finding_at("clone-drift", "a.py", 2);
+        let f2 = finding_at("arg-swap", "a.py", 3);
+        let out = apply(&Config::default(), &[pf], vec![f1, f2]).unwrap();
+        assert!(
+            out.is_empty(),
+            "catch-all must drop every detector on the def"
+        );
+    }
+
+    #[test]
+    fn python_allow_does_not_match_other_detectors() {
+        let body = "\
+# cntrdct: allow(arg-swap)
+def helper():
+    return 1
+";
+        let pf = parsed_python("a.py", body);
+        let f = finding_at("clone-drift", "a.py", 2);
+        let out = apply(&Config::default(), &[pf], vec![f]).unwrap();
+        assert_eq!(
+            out.len(),
+            1,
+            "non-matching detector_id must survive the suppression"
+        );
+    }
+
+    #[test]
+    fn python_no_suppression_on_unrelated_comment() {
+        let body = "\
+# this is just a normal comment
+def helper():
+    return 1
+";
+        let pf = parsed_python("a.py", body);
+        let sups = collect_attribute_suppressions(&pf);
+        assert!(
+            sups.is_empty(),
+            "regular comments must not register as suppressions"
+        );
+    }
+
+    #[test]
+    fn python_inside_block_standalone_allow_targets_next_statement() {
+        // Mirrors the FindBugs-style local suppression: the
+        // `# cntrdct: allow(...)` line sits inside a function body and
+        // applies to the immediately following statement only.
+        let body = "\
+def f():
+    x = 1
+    # cntrdct: allow(unreachable-after-terminator)
+    return x
+    y = 2
+";
+        let pf = parsed_python("a.py", body);
+        let sups = collect_attribute_suppressions(&pf);
+        // The suppression must cover line 4 (the `return x`); the
+        // dead `y = 2` on line 5 is outside the targeted statement and
+        // therefore stays exposed — matching the Rust attribute model
+        // where `#[cntrdct::allow(...)]` covers exactly the next item.
+        assert!(
+            sups.iter().any(|s| s.start_line <= 4 && s.end_line >= 4),
+            "no suppression covers line 4: {:?}",
+            sups
+        );
     }
 
     #[test]

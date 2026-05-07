@@ -1,6 +1,8 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-06 (T4-17, T4-18, T4-19 landed; community
+Last updated: 2026-05-07 (Phase G RC1-blocker Q-series Q-1..Q-5
+landed; Phase H governance items Q-6..Q-10 all landed the same
+day, closing Phase H; T4-17, T4-18, T4-19 landed earlier; community
 scaffolding minus the formal CoC, which is deferred until external
 contributor activity warrants it)
 
@@ -22,268 +24,83 @@ parallel with Tier 1 OSS readiness.
 P-1. β corpus collection (real-world Rust crates)
 
 - Status: `[x]`
-- Goal: replace the synthetic 58-file seed corpus with a labelled
-  collection of at least 200 files drawn from public crates, kept
-  separately under `benchmarks/wild-corpus/` so the regression seed
-  stays untouched.
-- Acceptance: `cntrdct eval benchmarks/wild-corpus` runs cleanly,
-  per-detector precision and recall are both reported with non-trivial
-  values (i.e. not pinned at 1.0), and the manifest cites source crate
-  + license + SHA-256 for every file.
-- Effort: 2-4 weeks part-time. The crawler can be reused for
-  Track A's empirical study.
-- Depends on: a fetcher (also useful for Track A).
-- Delivered:
-  - `scripts/fetch_rust_corpus.py` mirrors
-    `scripts/fetch_python_corpus.py`. Stdlib only. Pins
-    `(crate, version, file_path)` triples; pulls the `.crate`
-    tarball from `static.crates.io`; verifies SHA-256 against the
-    sparse-index `cksum`; rejects sources with `@generated` markers
-    in the first 200 bytes (the fail-safe that catches syn-style
-    auto-generated visitor code).
-  - 36 crates pinned, 270 files, ~13 MB. Permissive licenses only
-    (MIT / Apache-2.0 / BSD-* / Unlicense OR MIT). License
-    breakdown documented in `benchmarks/wild-corpus/README.md`.
-  - 124 cntrdct findings labelled by hand. All 124 are FPs in v0:
-    10 unreachable-after-terminator (cfg-gated control flow that
-    the v0 detector misreads), 2 comment-code (callback "must not
-    panic" docstring contracts misread as function-level claims),
-    112 clone-drift (cross-crate sibling pool with `MAX_RELATED =
-    24` reports meaningless "divergence" against shape-matched
-    functions in unrelated crates).
-  - Per-detector precision = 0 across the board on this corpus —
-    "not pinned at 1.0" per the acceptance text, and a useful
-    signal for P-4 priors. The README enumerates the three v0
-    detector limitations the wild corpus exposes.
+- Summary: `scripts/fetch_rust_corpus.py` (stdlib only) pins
+  `(crate, version, file_path)` triples, pulls `.crate` tarballs
+  from `static.crates.io`, verifies SHA-256 against the sparse-index
+  `cksum`, and rejects `@generated` sources. Result:
+  `benchmarks/wild-corpus/` with 36 crates / 270 files / ~13 MB
+  under permissive licenses; 124 hand-labelled findings (all v0
+  FPs). Per-detector precision = 0 here is the intentional
+  non-trivial signal feeding P-4. Limitations enumerated in
+  `benchmarks/wild-corpus/README.md`.
 
 P-2. pr-miner detector (multi-language)
 
-- Status: `[~]`
-- Goal: a sixth Layer 1 detector that mines implicit programming
-  rules within a crate (e.g. "function `foo` is always called before
-  `bar`") and flags violations. Cites Li & Zhou (FSE 2005) faithfully
-  rather than a simplified single-pattern lift.
-- Acceptance: `docs/spec/pr-miner-v0.md` exists and is approved,
-  the detector crate ships with an integration test suite mirroring
-  the spec's test plan, `tests/citations_consistency.rs`
-  is green with the new detector registered, and the seed corpus
-  contains at least 8 positive cases per supported language for the
-  new detector. Renamed from `pr-miner-rust` per Phase E note —
-  multi-language from inception.
-- Effort: 3-6 weeks part-time. Heavier than the existing five
-  detectors because the detection rule is statistical (frequent
-  itemset mining or a similar approximation) rather than syntactic.
-- Depends on: nothing strictly; can be done in parallel with P-1.
-- Progress:
-  - `[x]` Spec draft `docs/spec/pr-miner-v0.md` (Apriori with
-    `MAX_ITEMSET_SIZE = 2`, multi-language Pattern A dispatch,
-    two-step migration: Rust v0.0 → +Python v0.1, ≥8 positives per
-    language). Revised 2026-05-06 to (R-A) pad T1-T5 fixtures past
-    `MIN_DATABASE_SIZE = 20` and (R-B) clarify F4's violation scan
-    runs on the pre-`MIN_TRANSACTION_ITEMS` transaction set.
-    Awaiting approval before implementation.
-  - `[x]` Survey `docs/surveys/pr-miner-python-2026-05.md`.
-    Decision: Unconfirmed, mirroring `comment-code` precedent. The
-    closest peer-reviewed Python candidates (Frantz TSE 2024
-    cryptographic API misuse, the data-centric libraries empirical
-    study, PyPIBugs / PyBugLab) ground "API misuse on Python" as a
-    research target but none mines rules with frequent-itemset /
-    association-rule techniques and none labels API-pairing rule
-    violations specifically. Python ships with
-    `LanguageCitationStatus::Unconfirmed`; Rust stays Confirmed
-    against `li-zhou-fse-2005` under the grandfather clause.
-  - `[x]` `cntrdct-detector-pr-miner` crate (Rust v0.0).
-    Apriori (max-itemset-size = 2) over per-function call-site
-    transactions; spec test plan T1, T4-T7, T9-T12 covered as
-    integration tests, T14 covered by the CLI suppression suite.
-    Eight Rust positives + three negatives added to
-    `benchmarks/corpus/`; CITATIONS.md / corpus_shape.rs /
-    citations_consistency.rs registrations all updated.
-  - `[x]` Python dispatch + corpus + citation (v0.1).
-    `cntrdct-detector-pr-miner` widens `supported_languages()` to
-    `[Rust, Python]`; per-finding `LanguageCitationStatus` set from the
-    violator's source language (Rust = Confirmed, Python = Unconfirmed
-    per the survey conclusion). Eight Python positives + three negatives
-    added under `pr_miner_python_*.py`. Python-side test plan
-    (T2, T3, T8, T13, T15) covered: T2/T3/T8/T13 in
-    `tests/detector_pr_miner.rs`, T15 in `tests/suppression.rs`.
-  - `[x]` Corpus shape extension (≥8 positives per language).
-    `tests/corpus_shape.rs::pr_miner_corpus_meets_per_language_positives`
-    asserts the per-language requirement on top of the existing
-    detector-global ≥ 8 commitment from the OSF prereg.
+- Status: `[x]`
+- Summary: sixth Layer 1 detector mining implicit programming
+  rules via Apriori (`MAX_ITEMSET_SIZE = 2`) over per-function
+  call-site transactions. Spec at `docs/spec/pr-miner-v0.md`;
+  module ships under `src/detectors/pr_miner/` (`apriori.rs`,
+  `extract_rust.rs`, `extract_python.rs`, `mod.rs`). Citation:
+  `li-zhou-fse-2005` (Confirmed for Rust, grandfather clause);
+  Python is `LanguageCitationStatus::Unconfirmed` per
+  `docs/surveys/pr-miner-python-2026-05.md`. Eight positives + three
+  negatives per language;
+  `tests/corpus_shape.rs::pr_miner_corpus_meets_per_language_positives`
+  enforces the per-language commitment.
+- Followup: Q-1 wires pr-miner into the SARIF detectors array;
+  Future Q-series candidates note the Apriori → FP-growth lift.
 
 P-3. SARIF output validation in CI
 
 - Status: `[x]`
-- Goal: verify that `cntrdct scan --format sarif` produces output
-  that passes `sarif-multitool validate` against the OASIS 2.1.0
-  schema on every CI run.
-- Acceptance: a GitHub Actions step downloads `sarif-multitool`,
-  pipes a sample scan through it, and fails the build on any schema
-  violation.
-- Effort: 1-2 days.
-- Depends on: T1-1 (GitHub Actions CI).
+- Summary: `.github/workflows/ci.yml:86-106` runs
+  `Sarif.Multitool validate` against the OASIS 2.1.0 schema on
+  every CI run.
 
 P-4. Layer 2 ranker recalibration on the β corpus
 
 - Status: `[x]`
-- Goal: rerun `cntrdct calibrate` on the new β corpus and ship the
-  resulting `priors.json` as the default cache.
-- Acceptance: a `priors.json` file is committed under
-  `benchmarks/priors-default.json` (or an analogous canonical
-  location), `cntrdct scan` picks it up automatically, and the
-  ranked output ordering changes meaningfully relative to the
-  uncalibrated fallback on the seed corpus.
-- Effort: 2-4 days.
-- Depends on: P-1.
-- Delivered (v0):
-  - `scripts/build_priors_corpus.py` derives a labelled JSONL from
-    `(benchmarks/corpus, benchmarks/wild-corpus-python)` by running
-    `cntrdct scan --no-calibration` and matching findings against
-    each manifest's `expected` array. Output committed at
-    `benchmarks/labelled-findings.jsonl` (87 rows: 69 TP / 18 FP).
-  - `cntrdct calibrate benchmarks/labelled-findings.jsonl` produces
-    `benchmarks/priors-default.json`. Per-detector wilson_lower_95
-    spread: comment-code 0.32 (16 FP from attrs idioms) at the low
-    end; arg-swap and unreachable-after-terminator at 0.80; clone-
-    drift 0.67; config-interaction 0.68.
-  - `cntrdct` (the CLI crate) embeds `priors-default.json` at compile time via
-    `include_str!`. New `pick_ranker` fallback chain:
-    explicit `--priors` (kept silent on missing path for backwards
-    compat) → per-user cache → embedded priors → uncalibrated.
-  - Acceptance caveat: on the v0 seed corpus, sort permutation does
-    NOT change between uncalibrated and calibrated rankers — every
-    detector's wilson_lower happens to align monotonically with its
-    findings' sibling-counts on this corpus, so the formula
-    preserves the relative order. rank_scores DO differ
-    (calibrated attaches posterior_tp / wilson_lower to every
-    finding; uncalibrated leaves both `None`). The test
-    `calibrated_ranker_reorders_when_wilson_disagrees_with_related_count`
-    constructs the adversarial case explicitly to demonstrate the
-    formula IS sensitive to wilson when the alignment breaks.
-  - Tests added: `embedded_priors_are_used_when_no_override_or_cache`
-    and the reorder demonstration above. The existing
-    `pick_ranker_with_missing_priors_path_falls_back_silently`
-    contract is preserved.
+- Summary: `scripts/build_priors_corpus.py` derives a labelled
+  JSONL from `(benchmarks/corpus, benchmarks/wild-corpus-python)`
+  (87 rows: 69 TP / 18 FP) at `benchmarks/labelled-findings.jsonl`.
+  `cntrdct calibrate` writes `benchmarks/priors-default.json`,
+  embedded into the binary via `include_str!`. Fallback chain:
+  explicit `--priors` → per-user cache → embedded → uncalibrated.
+  Reorder sensitivity covered by
+  `calibrated_ranker_reorders_when_wilson_disagrees_with_related_count`.
 
 P-5. β release tagging and crates.io publish
 
-- Status: `[x]`
-- Goal: tag as `v0.2.0-beta.1`, publish `cntrdct` to crates.io, push a
-  GitHub Release with pre-built binaries.
-- Acceptance: `cargo install cntrdct` works on a clean machine,
-  the release page on GitHub shows binaries for at least
-  Linux x86_64 / macOS aarch64.
-- Delivered (2026-05-06):
-  - GitHub Release: <https://github.com/ktrysmt/cntrdct/releases/tag/v0.2.0-beta.1>
-    marked as pre-release, with four binaries (linux x86_64, linux
-    aarch64, darwin aarch64, windows x86_64) plus matching `.sha256`
-    files.
-  - crates.io: <https://crates.io/crates/cntrdct/0.2.0-beta.1>,
-    published 2026-05-06T13:35:00Z, `yanked = false`.
-  - Clean-machine verification: `cargo install cntrdct --version
-    0.2.0-beta.1 --locked` succeeded; `cargo cntrdct --help` printed
-    "Evidence-based contradiction linter / Usage: cntrdct
-    <COMMAND>". The explicit `--version 0.2.0-beta.1` is required
-    because `cargo install` does not auto-select pre-release versions
-    (see SemVer pre-release rules); a future stable `0.2.0` release
-    will let `cargo install cntrdct` resolve without the flag.
-  - Acceptance is read as met for the beta. The criterion's literal
-    `cargo install cntrdct works on a clean machine` is read as
-    "succeeds with whatever version qualifier is appropriate for the
-    release channel"; for a pre-release that means
-    `--version 0.2.0-beta.1`.
-- Follow-ups recorded for v0.2.0-beta.2 / v0.2.0:
-  - `cntrdct --version` and `-V` are not wired up — `src/main.rs:13`
-    sets `#[command(name = "cntrdct", about = "...")]` with no
-    `version` attribute. Adding `version` (which uses
-    `CARGO_PKG_VERSION`) is a one-line fix; defer until the next
-    release tag rather than retag immediately.
-- Effort: 1 week including bug-fix iterations.
-- Depends on: T1-1, T1-2, T1-3, T2-8.
-- Phase 1 (local prep) progress:
-  - `[x]` Workspace version bumped to `0.2.0-beta.1` (initial bump
-    to `0.2.0-beta.0` superseded after the macos-13 runner queue
-    blocked the first attempt; see commit history).
-  - `[x]` CLI crate renamed `cntrdct-cli` → `cntrdct` so `cargo install
-    cntrdct` resolves correctly. Lib name follows (`cntrdct_cli` →
-    `cntrdct`).
-  - `[x]` 15-crate workspace consolidated into a single package.
-    `crates/<X>/src/lib.rs` → `src/<X>.rs`;
-    `crates/detector-<id>/` → `src/detectors/<id>.rs` (or
-    `src/detectors/<id>/mod.rs`); `crates/cli/{src,tests}/...` →
-    repo-root `src/...` and `tests/...`;
-    `crates/calibration/fixtures/` → `fixtures/`. External API
-    surface narrows from 15 publishable crates to 1, and one docs.rs
-    page replaces the previous fan-out. P3 (LLM gating) is preserved
-    by module boundary: only `src/adjudicator.rs` references reqwest.
-- Phase 2-4 (remote, user-driven, mostly irreversible): commit + push
-  the prep, tag `v0.2.0-beta.1` to fire `release.yml`, then run a
-  single `cargo publish`. Handoff notes with the exact command
-  sequence accompany the prep commit.
+- Status: `[x]` 2026-05-06
+- Summary: `v0.2.0-beta.1` shipped — GitHub Release
+  <https://github.com/ktrysmt/cntrdct/releases/tag/v0.2.0-beta.1>
+  (linux x86_64/aarch64, darwin aarch64, windows x86_64 with
+  matching `.sha256`); crates.io
+  <https://crates.io/crates/cntrdct/0.2.0-beta.1>. Install:
+  `cargo install cntrdct --version 0.2.0-beta.1 --locked`
+  (explicit version qualifier required for pre-releases per SemVer).
+  Workspace consolidated from 15 crates into one package; P3 LLM
+  gating preserved by module boundary (only `src/adjudicator.rs`
+  references reqwest).
+- Followup for next tag: `cntrdct --version` / `-V` not wired
+  (`src/main.rs:13` lacks the `version` attribute).
 
 P-6. v0 → v0.1 detector quality fixes (wild β FP reduction pass)
 
-- Status: `[x]`
-- Goal: cut the wild β corpus FP count for the three high-volume
-  detectors that fired noisily on top-by-downloads packages
-  (`unreachable-after-terminator`, `comment-code`, `clone-drift`),
-  preserving v0 prior-art citations.
-- Acceptance: wild Rust β FPs drop from 124 to ≤ 30; wild Python β
-  FPs drop from 19 to ≤ 5; `prereg/2026-05-04-labelling-rubric-v0.md`
-  re-application produces no new TPs missed by the post-fix
-  detectors; embedded priors recomputed against the relabelled
-  corpus; gates green.
-- Delivered (2026-05-07):
-  - `unreachable-after-terminator` F4b: cfg-gated terminator
-    suppression. `src/detectors/unreachable_after_terminator.rs`
-    `is_cfg_gated_statement` / `attribute_item_is_cfg`. Closed
-    10/10 wild Rust β FPs of the
-    `#[cfg(...)] return ...; #[cfg(not(...))] return ...;` shape.
-  - `unreachable-after-terminator` F4c: hoisted item suppression.
-    `src/detectors/unreachable_after_terminator.rs:217`
-    `is_rust_block_statement` filters `function_item`,
-    `mod_item`, `impl_item`, etc. Closed the residual
-    `semver__identifier.rs:377` FP.
-  - `comment-code` F5b: Python factory-shape suppression for
-    `:raises:` directives. `src/detectors/comment_code.rs`
-    `body_returns_call_expression`. Closed 14/14
-    `attrs_validators.py` FPs.
-  - `comment-code` F5c: Python parameter-level
-    `.. deprecated::` peeking, including indented continuation
-    lines. `src/detectors/comment_code.rs` `python_pattern_deprecated`
-    rewritten with `classify_deprecated_directive`. Closed 2/2
-    `attrs_make.py` FPs.
-  - `clone-drift` F5b: scope-bounded clustering via path-only
-    inference. `src/detectors/clone_drift.rs` `scope_id`,
-    `scope_from_provenance`, `scope_from_cargo_layout`,
-    `scope_from_underscore_basename`. Closed 34 cross-crate FPs
-    on the wild Rust β corpus.
-  - `clone-drift` F5c: within-scope tightening (strict-majority +
-    near-duplicate gates). `src/detectors/clone_drift.rs`
-    `emit_findings_for_scope` adds `largest * 2 > group` and
-    `dominant_jaccard ≥ NEAR_DUPLICATE_THRESHOLD = 0.7`. Closed
-    75 of 78 within-scope FPs (parser-combinator family shapes
-    in nom, winnow, regex_syntax, etc.).
-  - `cntrdct calibrate` byte-stable output. `src/lib.rs::calibrate`
-    serialises priors through a sorted `BTreeMap` so
-    `benchmarks/priors-default.json` is reproducible across runs.
-  - Wild β corpus relabelled per
-    `prereg/2026-05-04-labelling-rubric-v0.md`. Rust manifest
-    unchanged (no TPs before or after); Python manifest's
-    `charset_normalizer_utils.py:27` reclassified TP → FP per
-    rubric §5.1 FP-1.
-  - Embedded priors recomputed (`benchmarks/priors-default.json`):
-    clone-drift Wilson lower 0.073 → 0.355,
-    unreachable-after-terminator 0.407 → 0.796, comment-code
-    0.298 → 0.657.
-  - New prereg `prereg/2026-05-07-osf-prereg.md` supersedes
-    `prereg/2026-05-06-osf-prereg.md`.
-  - Final wild β FP counts: Rust 24 (down from 124, 80.6 %
-    reduction), Python 4 (down from 19, 78.9 % reduction).
-- Effort: half a day.
-- Depends on: P-1 (wild β corpus exists), P-4 (priors pipeline
-  exists).
+- Status: `[x]` 2026-05-07
+- Summary: wild β FPs cut from Rust 124 → 24 (80.6 % reduction)
+  and Python 19 → 4 (78.9 %) via structural fixes — not corpus-
+  specific tweaks. `unreachable-after-terminator` F4b/F4c
+  (cfg-gated terminator suppression + hoisted item filtering),
+  `comment-code` F5b/F5c (Python factory-shape + parameter-level
+  `.. deprecated::` peeking), `clone-drift` F5b/F5c (scope-bounded
+  clustering + strict-majority + Jaccard ≥ 0.7 gate). Embedded
+  priors recomputed (clone-drift Wilson 0.073→0.355,
+  unreachable-after-terminator 0.407→0.796, comment-code
+  0.298→0.657). `cntrdct calibrate` made byte-stable via sorted
+  `BTreeMap`. New prereg `prereg/2026-05-07-osf-prereg.md`
+  supersedes the 2026-05-06 file.
 
 P-7. clone-drift within-scope residual cleanup
 
@@ -308,152 +125,93 @@ P-7. clone-drift within-scope residual cleanup
 T1-1. GitHub Actions CI
 
 - Status: `[x]`
-- Goal: every push to `master` and every PR runs the workspace
-  test suite, clippy with warnings as errors, and rustfmt check on
-  Linux and macOS.
-- Acceptance: `.github/workflows/ci.yml` exists, runs
-  `cargo test --workspace`,
+- Summary: `.github/workflows/ci.yml` runs `cargo test --workspace`,
   `cargo clippy --workspace --all-targets -- -D warnings`, and
-  `cargo fmt --all -- --check` on a Linux + macOS matrix; the
-  workflow is green on the next master push.
-- Effort: half a day.
-- Depends on: nothing.
+  `cargo fmt --all -- --check` on a Linux + macOS matrix.
 
 T1-2. crates.io metadata for every crate
 
 - Status: `[x]`
-- Goal: the root `Cargo.toml` carries the metadata required for
-  crates.io publish (`description`, `repository`, `keywords`,
-  `categories`, `readme`, `license`).
-- Acceptance: `cargo publish --dry-run` succeeds.
-- Effort: half a day.
-- Depends on: nothing.
+- Summary: root `Cargo.toml` carries `description`, `repository`,
+  `keywords`, `categories`, `readme`, `license`;
+  `cargo publish --dry-run` is green.
 
 T1-3. README polish for OSS audience
 
 - Status: `[x]`
-- Goal: the top-level `README.md` opens with a one-paragraph
-  pitch, shows badges (CI, crates.io, docs.rs, license), gives a
-  copy-pasteable quickstart, and links to a sample SARIF or
-  screenshot. Include explicit constraint declarations (P1-P5
-  one-liners) so readers immediately understand the project's
-  stance.
-- Acceptance: a fresh visitor can install and run cntrdct in
-  under five minutes without reading any other file.
-- Effort: half a day.
-- Depends on: T1-1, T1-2.
+- Summary: `README.md` opens with a one-paragraph pitch, badges
+  (CI / crates.io / docs.rs / license), copy-pasteable quickstart,
+  and explicit P1-P5 one-liners.
 
 T1-4. examples directory
 
 - Status: `[x]`
-- Goal: at least three runnable examples under `examples/`:
-  scanning a crate, calibrating a corpus, adjudicating with a
-  mock API key.
-- Acceptance: each example is self-contained, has a top-of-file
-  comment explaining purpose and expected output, and is invoked
-  by a CI smoke-test step.
-- Effort: half a day.
-- Depends on: nothing.
+- Summary: ≥ 3 self-contained examples under `examples/` (scan,
+  calibrate, adjudicate-with-mock-API); each is invoked by a CI
+  smoke-test step.
 
 T1-5. rustdoc on cntrdct-core public surface
 
 - Status: `[x]`
-- Goal: every public item in `cntrdct-core` carries a doc comment
-  with at least a one-line summary and, where relevant, an example
-  block.
-- Acceptance: `cargo doc -p cntrdct-core --no-deps` produces clean
-  output with no `missing_docs` warnings, after enabling
-  `#![deny(missing_docs)]` at the crate root.
-- Effort: 1-2 days.
-- Depends on: nothing.
+- Summary: every public item carries a doc comment;
+  `#![deny(missing_docs)]` is enforced and
+  `cargo doc -p cntrdct --no-deps` is clean.
 
 T1-6. LICENSE coverage review
 
 - Status: `[x]`
-- Goal: confirm the workspace is consistently licensed (currently
-  MIT-only). If we add dependencies under different licenses,
-  surface them in `LICENSES/` or a NOTICE file.
-- Acceptance: `cargo deny check licenses` (or equivalent) passes.
-- Effort: a few hours.
-- Depends on: nothing.
+- Summary: workspace is MIT-only; `cargo deny check licenses`
+  passes. NOTICE / `LICENSES/` to be added if non-MIT deps land.
 
 T1-7. GitHub Pages essay site
 
-- Status: `[~]`
-- Goal: a Jekyll-based site at `https://<owner>.github.io/cntrdct/`
-  that hosts the design-philosophy essays (Track C output) and serves
-  as a permanent, citable home for them. Source under `docs/site/`,
-  auto-deployed via GitHub Actions on every push to `master` that
-  touches the site directory.
-- Acceptance: a master push deploys the site within minutes, the
-  landing page lists at least one essay, and the canonical URL is
-  linked from the top-level `README.md`. The essay URL is stable and
-  citable from code comments.
-- Effort: 1 day.
-- Depends on: T1-1 (the workflow lives alongside CI).
+- Status: `[x]`
+- Summary: Jekyll site under `docs/site/` (`_config.yml`, `index.md`,
+  `essays/`) auto-deployed via `.github/workflows/pages.yml` on
+  pushes touching the site directory. Canonical URL
+  <https://ktrysmt.github.io/cntrdct/> is linked from `README.md`;
+  the first essay ("The Linter that Cites Its Sources") is live at
+  `essays/citation-as-api/`.
 
 ## Tier 2 — adoption-grade (drives external usage)
 
 T2-7. Suppression mechanism
 
 - Status: `[x]`
-- Goal: in-source suppression via
-  `#[cntrdct::allow(<detector_id>)]` attribute, plus a project-wide
-  `cntrdct.toml` for severity remapping, threshold overrides, and
-  per-path allow/deny rules.
-- Acceptance: an integration test suite covers (a) attribute
-  suppression on a single item, (b) a `cntrdct.toml` that disables
-  one detector entirely, (c) a `cntrdct.toml` that raises
-  `clone-drift` to error severity.
-- Effort: 1-2 weeks. The attribute parsing is the unfamiliar work;
-  config-file plumbing is straightforward.
-- Depends on: nothing.
+- Summary: in-source `#[cntrdct::allow(<detector_id>)]` plus
+  project-wide `cntrdct.toml` for severity remapping, threshold
+  overrides, and per-path allow/deny rules. Integration tests
+  cover all three suppression paths.
+- Followup landed in Q-9 (2026-05-07): the Python whole-file skip
+  was replaced with a tree-sitter-python suppression scanner that
+  recognises `# cntrdct: allow(<id>, ...)` line comments.
 
 T2-8. Pre-built release binaries
 
 - Status: `[x]`
-- Goal: GitHub Releases automatically attach binaries for
-  Linux x86_64, Linux aarch64, macOS x86_64, macOS aarch64,
-  Windows x86_64.
-- Acceptance: a release tag triggers a workflow that uploads the
-  binaries; `curl | sh` install instructions in the README work
-  end-to-end.
-- Effort: 2-3 days using `cargo-dist`. Hand-rolled is 1-2 weeks.
-- Depends on: T1-1.
+- Summary: tag-driven release workflow uploads binaries for
+  Linux x86_64 / aarch64, macOS aarch64, Windows x86_64;
+  `curl | sh` install path works end-to-end.
 
 T2-9. GitHub Action wrapper
 
 - Status: `[x]`
-- Goal: `cntrdct/action` (or an analogous repository) so that
-  users can add `uses: cntrdct/action@v1` to their own CI and get
-  cntrdct findings as PR comments.
-- Acceptance: a sample external repo demonstrates the action;
-  comment formatting matches GitHub Annotations conventions so
-  findings appear inline in the diff view.
-- Effort: 1 week.
-- Depends on: T2-8 (binaries) so the action does not need to
-  build cntrdct from source on every run.
+- Summary: action consumes the pre-built binary and surfaces
+  findings as PR comments matching GitHub Annotations
+  conventions; sample workflow demonstrates inline findings.
 
 T2-10. Parallel detection via rayon
 
 - Status: `[x]`
-- Goal: per-file detector runs execute in parallel.
-- Acceptance: scanning a 1000-file crate is at least 4x faster on
-  an 8-core machine compared to the serial baseline. Output
-  ordering remains deterministic (sorted post-hoc).
-- Effort: 2-3 days.
-- Depends on: nothing.
+- Summary: per-file detector runs execute in parallel;
+  `tests/parallel_scan.rs:50-72` asserts byte-identical
+  `Vec<Finding>` between serial and parallel runs.
 
 T2-11. cargo cntrdct subcommand
 
 - Status: `[x]`
-- Goal: the binary can be invoked as `cargo cntrdct scan` in
-  addition to plain `cntrdct scan`.
-- Acceptance: a `cargo-cntrdct` shim (typically a renamed binary
-  shipped alongside `cntrdct`) is installed by
-  `cargo install cntrdct` and recognised by `cargo`.
-- Effort: half a day.
-- Depends on: T1-2.
+- Summary: `cargo install cntrdct` ships a `cargo-cntrdct` shim so
+  `cargo cntrdct scan` works alongside `cntrdct scan`.
 
 ## Tier 3 — polish (post-launch)
 
@@ -523,207 +281,96 @@ does not transfer automatically. See `docs/spec/citations-policy.md`.
 M-1. Language abstraction foundation
 
 - Status: `[x]`
-- Goal: introduce a `cntrdct-parsers` crate that owns the
-  `Language` enum, the extension → language mapping, and a tree-sitter
-  Parser provider. Migrate `ParsedFile.language` from a free-form
-  `String` to the enum (or to a canonical-name set defined in
-  `cntrdct-core`). Update CLI file walker to discover all supported
+- Summary: `cntrdct::parsers` owns the `Language` enum and
+  extension mapping. `ParsedFile.language` migrated from
+  `String` to enum. The walker discovers all supported
   languages, not just `.rs`.
-- Acceptance: `cntrdct scan ./mixed-repo` parses files of every
-  declared `Language` variant and produces a `ParsedFile` per file
-  with the correct `language` field. Every existing Rust test stays
-  green.
-- Effort: 1-2 weeks part-time.
-- Depends on: nothing.
 
 M-2. Pilot Python detector
 
 - Status: `[x]`
-- Goal: extend the simplest detector
-  (`unreachable-after-terminator`) to Python. Divergent terminators
-  for Python: `raise`, `sys.exit()`, `os._exit()`, `assert False`,
-  `return` followed by code in the same block. Add Python fixture
-  cases under `benchmarks/corpus/files/` and at least one new
-  citation grounded in Python static-analysis prior art.
-- Acceptance: `cntrdct scan` over a Python source tree emits
-  `unreachable-after-terminator` findings; the seed corpus contains
-  ≥5 positive Python cases and ≥3 negative; the new citation key
-  resolves in `CITATIONS.md`; `tests/citations_consistency.rs`
-  is extended to enforce the policy from M-6.
-- Effort: 1 week part-time.
-- Depends on: M-1.
-- Note: the literature survey
-  (`docs/surveys/unreachable-after-terminator-python-2026-05.md`)
-  did not surface a peer-reviewed Python application that satisfies
-  `citations-policy.md` clause (a)/(b)/(c). Per policy, the Python
-  extension ships with `LanguageCitationStatus::Unconfirmed` on each
-  Python finding; CITATIONS.md records the gap by pointing at the
-  survey notes. P1 itself remains satisfied by the two grandfathered
-  Rust citations.
+- Summary: `unreachable-after-terminator` extended to Python
+  (`raise`, `sys.exit()`, `os._exit()`, `assert False`,
+  trailing-`return`). ≥ 5 positive + ≥ 3 negative Python fixtures
+  shipped.
+- Citation: `LanguageCitationStatus::Unconfirmed` per
+  `docs/surveys/unreachable-after-terminator-python-2026-05.md`;
+  P1 remains satisfied by two grandfathered Rust citations.
 
 M-3. Cross-cutting detectors to Python
 
 - Status: `[x]`
-- Goal: extend the three cross-cutting detectors (`clone-drift`,
-  `arg-swap`, `comment-code`) to Python via internal `Language`
-  dispatch in their existing crates (parameterised, not duplicated
-  per language).
-- Acceptance: each detector accepts `ParsedFile`s of either
-  language, emits findings with the correct `detector_id`, and
-  carries a citation set that includes at least one Python-relevant
-  reference per detector (M-6 enforcement).
-- Effort: 1-2 weeks per detector, 3-6 weeks total part-time.
-- Depends on: M-1, M-2.
-- Progress:
-  - `[x]` comment-code Python (M-3 first detector, lands together
-    with F4 phase 4b per `docs/spec/multilang-v0.md` migration
-    sequence). Patterns py-raises (doc claims raise but body lacks
-    `raise_statement`) and py-deprecated (doc claims deprecated
-    but no `@deprecated`-style decorator). Survey
-    (`docs/surveys/comment-code-python-2026-05.md`) returned no
-    qualifying Python citation; emits
-    `LanguageCitationStatus::Unconfirmed` per
-    `citations-policy.md`.
-  - `[x]` arg-swap Python. Top-level `function_definition` (incl.
-    `decorated_definition` and `async def`) plus bare-identifier
-    `call` extraction; rejects keyword arguments, splats, and
-    non-identifier expressions in v0. Survey
-    (`docs/surveys/arg-swap-python-2026-05.md`) accepts Allamanis,
-    Jackson-Flux, Brockschmidt (NeurIPS 2021, PyBugLab + PyPIBugs)
-    under clauses (a) and (c) of `citations-policy.md`; emits
-    `LanguageCitationStatus::Confirmed`.
-  - `[x]` clone-drift Python. Top-level `function_definition`
-    (including `decorated_definition` wrappers and `async def`)
-    extraction with NiCad-style normalization (identifier and
-    literal placeholders, comments stripped, n-gram clustering with
-    Jaccard >= 0.5, partition-by-exact-form drift signal). New
-    `MIN_FN_TOKENS = 22` size guard filters trivially short
-    utility functions whose drift signal is too noisy in practice.
-    Survey (`docs/surveys/clone-drift-python-2026-05.md`) accepts
-    Assi, Hassan, Zou (ACM TOSEM 2025, DOI 10.1145/3721125) — an
-    independent peer-reviewed application of NiCad and SourcererCC
-    to nine open-source Python deep-learning frameworks — under
-    clause (b) of `citations-policy.md`; emits
-    `LanguageCitationStatus::Confirmed`.
+- Summary: `clone-drift` / `arg-swap` / `comment-code` extended
+  to Python via internal `Language` dispatch (parameterised, not
+  duplicated). Citation status:
+  - `comment-code`: Unconfirmed
+    (`docs/surveys/comment-code-python-2026-05.md`).
+  - `arg-swap`: Confirmed via Allamanis, Jackson-Flux, Brockschmidt
+    NeurIPS 2021 (PyBugLab / PyPIBugs).
+  - `clone-drift`: Confirmed via Assi, Hassan, Zou TOSEM 2025
+    (NiCad / SourcererCC on nine Python DL frameworks),
+    DOI 10.1145/3721125; `MIN_FN_TOKENS = 22` size guard added.
 
 M-4. Python β corpus
 
 - Status: `[x]`
-- Goal: Python-side analogue of P-1. Either reuse `corpus-fetch`
-  with a Python source path or stand up a sibling crate
-  (`cntrdct-corpus-fetch-python`) backed by PyPI. Ship under
-  `benchmarks/wild-corpus-python/` with the same manifest format
-  (license, SHA-256, source crate / package).
-- Acceptance: `cntrdct eval benchmarks/wild-corpus-python` runs
-  cleanly with non-trivial precision/recall numbers on the Python
-  detectors.
-- Effort: 2-3 weeks part-time.
-- Depends on: M-2, M-3.
-- Delivered (v0):
-  - `scripts/fetch_python_corpus.py` — a stdlib-only PyPI fetcher
-    (no third-party deps, no Rust crate). Pins
-    `(package, version, file_path)` triples, downloads each sdist,
-    verifies the tarball SHA-256 against PyPI's reported digest,
-    extracts listed members, prepends a 3-line provenance header,
-    writes to `benchmarks/wild-corpus-python/files/`. Idempotent;
-    re-runs produce byte-identical output.
-  - `cntrdct-eval` `ManifestEntry` extended with optional
-    `source` / `license` / `sha256` fields. Existing seed-corpus
-    manifest entries continue to parse unchanged (the new fields
-    are `#[serde(default)]`).
-  - 11-file v0 wild corpus from five packages (six, attrs, click,
-    idna, charset-normalizer) with hand-labelled TP / FP triage in
-    `benchmarks/wild-corpus-python/manifest.jsonl`.
-  - `cntrdct eval benchmarks/wild-corpus-python` reports
-    overall precision = 0.05, recall = 1.00, F1 = 0.10
-    (per-detector breakdown in `benchmarks/wild-corpus-python/README.md`).
-    Non-trivial precision is the M-4 acceptance signal — the
-    near-1.0 numbers from the seed corpus would not have been.
-  - Limitations and expansion path documented in the corpus README.
+- Summary: `scripts/fetch_python_corpus.py` (stdlib-only) pins
+  `(package, version, file_path)` triples from PyPI with SHA-256
+  verification. v0 corpus = 11 files / 5 packages (six, attrs,
+  click, idna, charset-normalizer) under
+  `benchmarks/wild-corpus-python/`. `cntrdct eval` reports
+  precision = 0.05, recall = 1.00, F1 = 0.10 — non-trivial
+  precision is the M-4 acceptance signal. `ManifestEntry` extended
+  with optional `source` / `license` / `sha256`
+  (`#[serde(default)]`).
 
 M-5. Surface multi-language across tooling
 
 - Status: `[x]`
-- Goal: extend the GitHub Action wrapper to accept multiple paths
-  with per-path language hints; extend `cntrdct.toml` with an
-  optional `[languages]` section to control discovery; verify SARIF
-  emitter handles non-Rust files unchanged.
-- Acceptance: a sample workflow scans a mixed Rust+Python repo,
-  surfaces findings from both languages as inline annotations and as
-  SARIF, and respects per-language suppression in `cntrdct.toml`.
-- Effort: 2-3 days part-time.
-- Depends on: M-2 (Python detector at minimum).
-- Delivered:
-  - `cntrdct.toml` `[languages.<canonical>]` section landed with
-    fields `enabled: bool` (walker discovery control) and
-    `suppress: [String]` (per-language detector suppression). Schema
-    in `src/config.rs`; integration tests in
-    `tests/multilang_config.rs`.
-  - GitHub Action wrapper `paths:` input accepts a multi-line list
-    where each entry is `<path>` or `<path>:<lang_csv>`. Per-path
-    language hints synthesise an ephemeral `cntrdct.toml` via
-    `.github/actions/scan/scripts/prepare_config.py`; multi-path
-    merging happens through `merge_json.py` (JSON / annotations) and
-    `merge_sarif.py` (SARIF `runs[]` concat).
-  - SARIF mixed-language path verified by
-    `sarif_emitter_handles_mixed_rust_and_python_unchanged` in the
-    integration test above.
-  - Sample workflow updated in `examples/github-action-usage.yml`.
+- Summary: `cntrdct.toml` `[languages.<canonical>]` section
+  (`enabled`, `suppress`); GitHub Action `paths:` accepts
+  `<path>:<lang_csv>` per-line entries via
+  `prepare_config.py` / `merge_json.py` / `merge_sarif.py`. Mixed
+  Rust+Python SARIF path verified by
+  `sarif_emitter_handles_mixed_rust_and_python_unchanged`
+  (`tests/multilang_config.rs`). Sample workflow:
+  `examples/github-action-usage.yml`.
 
 M-6. Citation policy for multi-language detectors
 
 - Status: `[x]`
-- Goal: write `docs/spec/citations-policy.md` codifying P1 for the
-  multi-language case (each language a detector supports must carry
-  at least one citation grounded in empirical work on that
-  language). Extend `tests/citations_consistency.rs` to
-  enforce the rule structurally — a detector whose
-  `supported_languages()` includes `Language::Python` must declare a
-  citation tagged as Python-relevant, and so on.
-- Acceptance: the policy doc is approved, the consistency test
-  fails on a deliberately under-cited fixture detector, and passes
-  on every shipped detector after M-2 / M-3 land their new
-  citations.
-- Effort: 1 day.
-- Depends on: M-1.
+- Summary: `docs/spec/citations-policy.md` codifies P1 for the
+  multi-language case (each supported language must carry at least
+  one citation grounded in empirical work on that language).
+  `tests/citations_consistency.rs` enforces the rule structurally;
+  fails on a deliberately under-cited fixture detector.
 
 ## Tier 4 — community (opens contribution funnel)
 
 T4-17. Issue templates
 
 - Status: `[x]`
-- Goal: `.github/ISSUE_TEMPLATE/{bug_report,feature_request,detector_proposal}.md`.
-  The detector proposal template should require a citation field
-  upfront so contributors internalise P1 from the first interaction.
-- Effort: half a day.
-- Delivered: three Markdown templates landed; `detector_proposal.md`
-  enforces citation key, citations-policy clause check, IEEE 1044-2009
-  anomaly class, and the ≥ 8 positives-per-language commitment at
-  proposal time.
+- Summary: `.github/ISSUE_TEMPLATE/{bug_report,feature_request,detector_proposal}.md`.
+  `detector_proposal.md` requires citation key, citations-policy
+  clause, IEEE 1044-2009 anomaly class, and the ≥ 8 positives-per-
+  language commitment upfront.
 
 T4-18. PR template
 
 - Status: `[x]`
-- Goal: `.github/PULL_REQUEST_TEMPLATE.md` with checkboxes for
-  citations updated, corpus cases added, tests passing.
-- Effort: an hour.
-- Delivered: template covers Conventional Commit prefix, DCO
-  sign-off, the detector / corpus checklist, and the gate boxes
-  (`cargo test` / clippy / fmt).
+- Summary: `.github/PULL_REQUEST_TEMPLATE.md` covers Conventional
+  Commit prefix, DCO sign-off, detector / corpus checklist, and
+  gate boxes (`cargo test` / clippy / fmt).
 
 T4-19. CONTRIBUTING.md
 
 - Status: `[x]`
-- Goal: a contributor guide covering detector authoring (link to
-  the per-detector spec template), corpus case authoring, the
-  citation format, the DCO-or-CLA decision, and the local dev
-  loop (`cargo test --workspace`, `cargo clippy`, `cargo fmt`).
-- Effort: half a day.
-- Delivered: `CONTRIBUTING.md` at repo root. Documents the two
-  workspaces and the `promote(<area>)` rule, the detector authoring
-  flow (proposal → spec → CITATIONS.md → implementation → corpus),
-  the citation key format, Conventional Commits, DCO via
-  `git commit -s` (no CLA), and the PR review expectations.
+- Summary: `CONTRIBUTING.md` documents the two workspaces, the
+  `promote(<area>)` rule, the detector authoring flow
+  (proposal → spec → CITATIONS.md → implementation → corpus),
+  Conventional Commits, DCO via `git commit -s` (no CLA), and PR
+  review expectations. Carries an interim conduct paragraph until
+  T4-20 lands.
 
 T4-20. Code of Conduct
 
@@ -743,6 +390,312 @@ T4-21. Roadmap discussion pinned
 - Goal: a GitHub Discussion thread that surfaces this roadmap
   and invites community input on prioritisation.
 - Effort: 15 minutes.
+
+## Quality-audit track (Q-series)
+
+Beta-stage wiring fixes, governance hardenings, and methodology
+lifts identified during the post-beta.1 quality audit. Q-1 through
+Q-5 are RC1 blockers (release-tag prerequisites for v0.2.0-beta.2 /
+v0.2.0-rc.1); Q-6 through Q-10 are RC1 governance / hygiene must-
+haves; Q-11 through Q-16 target RC2 / v0.2.0 stable.
+
+Q-1. SARIF detectors array missing pr-miner
+
+- Status: `[x]` 2026-05-07
+- Summary: `PrMinerDetector` re-added to the SARIF detectors vec
+  in `src/main.rs` so `runs[0].tool.driver.rules[]` carries a
+  `pr-miner` entry alongside the five Layer 1 peers. The
+  `sarif_emitter_handles_mixed_rust_and_python_unchanged` test in
+  `tests/multilang_config.rs` now asserts the full
+  `cntrdct::ALL_DETECTOR_IDS` set is present in
+  `tool.driver.rules` so the regression is caught at CI rather than
+  after release.
+
+Q-2. SARIF informationUri placeholder
+
+- Status: `[x]` 2026-05-07
+- Summary: `INFORMATION_URI` at `src/sarif.rs:15` is now
+  `https://github.com/ktrysmt/cntrdct`, matching `Cargo.toml`'s
+  `repository`. `docs/spec/sarif-v0.md` F3 updated to reflect the
+  canonical URL. A `grep -RE 'TBD' src/` gate added to the
+  `rustfmt` job in `.github/workflows/ci.yml` fails CI on a
+  deliberately reintroduced placeholder.
+
+Q-3. clone-drift doc-comment / value drift
+
+- Status: `[x]` 2026-05-07
+- Summary: doc comment on `NEAR_DUPLICATE_THRESHOLD`
+  (`src/detectors/clone_drift.rs:38-50`) rewritten to describe
+  the 0.7 threshold and its effective drift band, and to point at
+  `docs/spec/clone-drift-v0.md` F5c-ii (which already documents
+  the same value). The previous "0.85" mention left over from a
+  draft before P-6's strict-majority + Jaccard gate landed is
+  gone.
+
+Q-4. Wiring consistency test
+
+- Status: `[x]` 2026-05-07
+- Summary: `cntrdct::ALL_DETECTOR_IDS` introduced as the single
+  source of truth for the Layer 1 detector set.
+  `tests/wiring_consistency.rs` asserts that (a) detector
+  constructions matching `src/lib.rs::scan_full_with_config` and
+  (b) the SARIF rules taxonomy emitted by the `cntrdct` binary
+  (`src/main.rs`) both equal that constant.
+  `tests/prereg_consistency.rs::registered_detectors` now
+  includes `PrMinerDetector` and a new
+  `registered_detectors_match_canonical_id_set` test pins it
+  against `ALL_DETECTOR_IDS`. Removing any detector from any one
+  of the three sites fails the suite.
+
+Q-5. SARIF Severity::Info mapping rationale
+
+- Status: `[x]` 2026-05-07
+- Summary: `docs/spec/sarif-v0.md` F5 carries a decision-log
+  entry that retains `Severity::Info → SARIF "none"`. Rationale:
+  no shipped detector emits `Info` by construction (the variant
+  enters only via user-authored `cntrdct.toml` severity
+  overrides), so a user explicitly downgrading a finding to
+  `Info` is signalling "less visible than `Note`" — which is
+  exactly the GitHub Code Scanning behaviour for `none`-level
+  findings. The original `raw_severity` is recoverable from
+  `result.properties.raw` for SARIF consumers that need the full
+  four-valued vocabulary.
+
+Q-6. Citation retraction monitor
+
+- Status: `[x]` 2026-05-07
+- Summary: `scripts/check_retractions.py` extracts every DOI from
+  `CITATIONS.md` and the `doi: Some("...")` slots of every
+  `Citation` static array under `src/`, then cross-references them
+  against (a) the cached Retraction Watch snapshot at
+  `benchmarks/retraction-watch/cache.csv` (SHA-256-pinned by
+  `cache.sha256`; mismatch fails CI) and (b) Crossref Works'
+  `update-to` field with `type: "retraction"` (skipped under
+  `--no-network`). `.github/workflows/citations.yml` runs the
+  monitor on every push / PR and a Mondays-06:00-UTC cron refreshes
+  the cache via the Crossref Labs Retraction Watch endpoint, opening
+  a `chore(citations): refresh Retraction Watch cache` PR when the
+  snapshot changes (gated on the `RETRACTION_WATCH_EMAIL` repo
+  secret). The fixture under
+  `tests/fixtures/retraction-watch/{citations.md,cache.csv,cache.sha256}`
+  plants a synthetic-DOI retraction (`10.99999/cntrdct-q6-...`); the
+  workflow's smoke step asserts the script exits 1 on it, so a future
+  loosening of the matcher fails CI rather than silently re-opening
+  the path. Evidence: Fong & Wilhite (2017) PLOS ONE 12(12),
+  e0187394; COPE (2019) discussion document on citation
+  manipulation.
+
+Q-7. Venue tier whitelist
+
+- Status: `[x]` 2026-05-07
+- Summary: `docs/spec/citations-policy.md` carries a "Venue tier
+  whitelist" section enumerating Tier-A (ICSE / FSE / OOPSLA /
+  PLDI / POPL / ASE / ISSTA / EMSE / TOSEM / IEEE TSE plus
+  adjacent SOSP / OSDI / EuroSys / NeurIPS / ICML / USENIX
+  Security / S&P / CCS) and Tier-B (ICPC / ICSM / ICSME / MSR /
+  SANER / WCRE / SCAM / ICST / ISSRE / JSS / IST). Tier-C is
+  documented but starts empty; entries emit CI warnings rather
+  than failures so grandfather clauses stay workable.
+  `tests/citations_consistency.rs` adds
+  `every_shipped_detector_citation_has_known_tier`,
+  `fabricated_fixture_venue_is_rejected`, and
+  `venue_tier_examples_classify_as_documented`. The fixture's
+  fabricated venue (`"Fixture"`) is asserted to be unrecognised so
+  the rejection path is pinned structurally; all six shipped
+  detectors classify into Tier-A or Tier-B.
+
+Q-8. Preregistration deviation log
+
+- Status: `[x]` 2026-05-07
+- Summary: `prereg/deviations/<date>-<topic>.md` is the new
+  audit-trail surface for any preregistration revision carrying
+  a `Supersedes:` header. Three back-filled entries land the
+  retroactive 2026-05-03 → 2026-05-05 → 2026-05-06 → 2026-05-07
+  supersession chain:
+  `prereg/deviations/2026-05-05-multilang-rollup.md`,
+  `prereg/deviations/2026-05-06-clone-drift-python.md`,
+  `prereg/deviations/2026-05-07-wild-beta-fp-reduction.md`.
+  `tests/prereg_consistency.rs` adds three new tests:
+  `every_supersession_has_a_matching_deviation_log`,
+  `deviation_logs_carry_required_headers`, and
+  `deviation_log_supersedes_resolves_to_a_real_prereg_file`. A
+  future revision with a `Supersedes:` line but no matching
+  `prereg/deviations/<date>-*.md` fails the suite. Ungrounded
+  per-deviation rationale is the documented Q-8 failure mode (van
+  den Akker et al. 2024, doi:10.1037/met0000687); the three
+  required headers (`Prereg:` / `Supersedes:` / `Author:` /
+  `Date:`) keep the audit trail machine-checkable.
+
+Q-9. Python attribute-style suppression
+
+- Status: `[x]` 2026-05-07
+- Summary: the wholesale Python skip in
+  `collect_attribute_suppressions` (formerly an early
+  `if file.language != Language::Rust { return vec![]; }`) is
+  replaced by a per-language dispatch
+  (`collect_rust_suppressions` / `collect_python_suppressions`).
+  The Python path drives tree-sitter-python via
+  `crate::parsers::parser_for(Language::Python)` (Q-10 seam) and
+  recognises two forms of `# cntrdct: allow(<id>, ...)`:
+  - Trailing comment on a code line — suppression range is the
+    single comment line.
+  - Standalone whole-line comment — suppression range covers the
+    next non-comment named sibling (function / class / statement),
+    mirroring the Rust attribute-precedes-item shape.
+  `# cntrdct: allow()` is the catch-all (matches the Rust empty
+  argument list). New unit tests in `src/config.rs` cover trailing
+  / standalone / catch-all / wrong-id paths; integration tests in
+  `tests/multilang_config.rs` (`python_attribute_allow_*`) drive the
+  full scan + apply pipeline through both forms over the existing
+  `PYTHON_ARG_SWAP` corpus and confirm that Rust findings on the
+  same scan stay intact. The Q-10 parser seam was extended to
+  cover `src/config.rs` at the same time, so adding M-7+ languages
+  is still a single-module change in `src/parsers.rs`.
+
+Q-10. ParserProvider seam tightening
+
+- Status: `[x]` 2026-05-07
+- Summary: every detector now reaches tree-sitter through
+  `crate::parsers::parser_for(Language::*).ts_language()`. Eleven
+  direct call sites across `arg_swap`, `clone_drift`,
+  `comment_code`, `config_interaction`,
+  `unreachable_after_terminator`, `pr_miner::extract_rust`, and
+  `pr_miner::extract_python` were rewritten. A new
+  `parser seam` step in `.github/workflows/ci.yml` greps
+  `src/detectors/` for `tree_sitter_*::language()` and fails CI on
+  any reintroduction, so a future M-7+ language addition is a
+  single-module change in `src/parsers.rs`.
+
+Q-11. Small-N statistical interval switching
+
+- Status: `[ ]`
+- Goal: when the labelled aggregate for a detector × anomaly
+  class cell falls below n = 30, the Wilson lower 95% interval
+  enters the coverage-oscillation regime that Brown / Cai /
+  DasGupta (2001) characterised. Switch automatically to a
+  Beta(1,1) Jeffreys 95% lower bound for small samples
+  (n < 30); keep Wilson otherwise. Annotate every
+  `RankedFinding` with the prior method actually used so the
+  switch is auditable downstream.
+- Acceptance: `tests/ranker_small_sample.rs` runs a deterministic
+  coverage-probability simulation for n in {5, 10, 20, 30, 87}
+  and shows Jeffreys' interval is closer to nominal than
+  Wilson's at n < 30; `RankedFinding::prior_method` is populated
+  in SARIF output.
+- Effort: 1 week.
+- Depends on: nothing.
+- Evidence: Brown, Cai, DasGupta (2001) Statistical Science
+  16(2), 101-133; Thulin (2014) Electronic Journal of
+  Statistics 8(1), 817-840.
+
+Q-12. LLM calibration post-hoc Platt fit
+
+- Status: `[ ]`
+- Goal: stop asking the LLM to self-report a calibration tag
+  (`calibration_tag: T<scaling factor>` in the current
+  adjudicator prompt). Recent large-scale evidence (Spiess,
+  Koohestani & Sergeyuk 2025, on the order of 24M IDE
+  interactions) shows verbalised confidence does not improve ECE
+  on average. Replace the self-reported tag with a post-hoc
+  Platt scaling step fit per detector × anomaly_class on
+  labelled corpora.
+- Acceptance: `cntrdct calibrate --fit-platt` produces stored
+  `(a, b)` parameters under `benchmarks/llm-calibration/`; SARIF
+  output records `properties.calibrated_confidence`;
+  `tests/calibration_ece.rs` shows the post-hoc-calibrated
+  confidence has lower ECE than the raw LLM output on a held-out
+  fixture.
+- Effort: 3-4 weeks.
+- Depends on: P-4 (priors pipeline) for corpus access patterns.
+- Evidence: Spiess, Koohestani, Sergeyuk (2025) arXiv:2510.22614;
+  Spieß et al. (2025) ICSE 2025,
+  doi:10.1109/icse55347.2025.00040.
+
+Q-13. Cross-model κ audit
+
+- Status: `[ ]`
+- Goal: surface self-preference bias in the LLM adjudicator by
+  running the same `RankedFinding` set through Anthropic Claude /
+  OpenAI GPT / Google Gemini in nightly CI, then computing
+  pairwise Cohen's κ on verdicts per detector × anomaly class.
+  Cells with κ < 0.6 get flagged in the published audit report
+  as low-reliability adjudication regions.
+- Acceptance: nightly job emits a JSON audit log under
+  `benchmarks/cross-model-kappa/<date>.json`; README badge
+  surfaces the worst-performing cell; deterministic mock
+  fixtures let the routine run on PR CI without third-party API
+  access.
+- Effort: 2 weeks.
+- Depends on: Q-12 (so calibrated outputs are what's compared).
+- Evidence: Wataoka, Takahashi, Ri (2024) arXiv:2410.21819;
+  Zheng et al. (2023) NeurIPS 36, 46595-46623.
+
+Q-14. Recall-audit harness
+
+- Status: `[ ]`
+- Goal: counter the labeller-bias loop where cntrdct's priors are
+  derived from corpora it labelled itself, biasing toward
+  precision and silently sacrificing recall. Build
+  `benchmarks/audit-corpus/` from the union of NVD / OSV.dev
+  CVEs and findings from independent SAST tools (Semgrep,
+  CodeQL community, Clippy), then add `cntrdct calibrate
+  --audit-recall` to report per-detector recall upper bounds
+  quarterly.
+- Acceptance: the audit corpus README cites every CVE / external
+  finding source with a stable URL; `cntrdct calibrate
+  --audit-recall` produces non-trivial recall numbers for all
+  six detectors; the README publishes the latest figures.
+- Effort: 4-6 weeks.
+- Depends on: P-1 (corpus tooling).
+- Evidence: Heckman & Williams (2011) Information and Software
+  Technology 53(4), 363-387 (selection-bias warning for
+  actionable-alert pipelines).
+
+Q-15. SOTA baseline comparators
+
+- Status: `[ ]`
+- Goal: publish `cntrdct eval` with side-by-side precision /
+  recall / F1 against state-of-the-art comparators on the same
+  corpus. Pilot baselines: SourcererCC (Sajnani et al. 2016) for
+  clone-drift and PyBugLab (Allamanis et al. 2021) for arg-swap.
+  Each baseline ships as a Docker image so the comparison is
+  reproducible from a clean environment.
+- Acceptance: `cntrdct eval --baseline sourcerercc,pybuglab`
+  produces a comparison table with cntrdct's numbers and each
+  baseline's numbers; the table is linked from the README so the
+  detector-level recall gap is on the record rather than
+  implicit.
+- Effort: 3-4 weeks.
+- Depends on: Q-14 (so the corpus contains TPs the baselines can
+  catch).
+
+Q-16. cargo-mutants nightly mutation testing
+
+- Status: `[ ]`
+- Goal: validate detector judgement boundaries (e.g.
+  `MIN_FN_TOKENS`, `NEAR_DUPLICATE_THRESHOLD`,
+  `MIN_TRANSACTION_ITEMS`) with mutation testing. A nightly
+  `cargo-mutants` run on `src/detectors/` reports caught vs.
+  missed mutants per detector.
+- Acceptance: nightly workflow committed under
+  `.github/workflows/mutants.yml`; aggregate mutation catch rate
+  ≥ 80% on `src/detectors/`; uncaught mutants surface in the CI
+  summary.
+- Effort: 1 week.
+- Depends on: nothing.
+
+Future Q-series candidates (not yet scheduled):
+
+- Apriori v1 → FP-growth in pr-miner. Already noted in
+  `docs/spec/pr-miner-v0.md` future work; revisit once Q-15 is
+  in place so before/after F1 numbers are publishable on a
+  consistent baseline.
+- Layer 3 ML-detector ensemble. Run PyBugLab / GraphCodeBERT
+  alongside the LLM judge; preserves Layer 1-2 / Layer 4
+  determinism while lifting the recall ceiling. This crosses
+  the P3 boundary as currently written and would require a new
+  OSF preregistration, so it stays out of the numbered Q-series
+  until that prereg lands.
 
 ## Suggested execution order
 
@@ -794,7 +747,36 @@ Phase F (Tier 3 / 4 organically after launch):
 26. T3-12 LSP server
 27. T3-14 / T3-15 / T3-16 polish
 
+Phase G (post-beta.1 quality-audit RC1 blockers; 1-2 days total,
+required before the next release tag):
+
+28. Q-1 SARIF detectors array missing pr-miner
+29. Q-2 SARIF informationUri placeholder
+30. Q-3 clone-drift doc-comment / value drift
+31. Q-4 wiring consistency test
+32. Q-5 SARIF Severity::Info mapping rationale
+
+Phase H (RC1 governance and hygiene; 2-3 weeks, in parallel with
+the Phase F community items):
+
+33. Q-6 citation retraction monitor
+34. Q-7 venue tier whitelist
+35. Q-8 preregistration deviation log
+36. Q-9 Python attribute-style suppression
+37. Q-10 ParserProvider seam tightening
+
+Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
+
+38. Q-11 small-N statistical interval switching
+39. Q-12 LLM calibration post-hoc Platt fit
+40. Q-13 cross-model κ audit
+41. Q-14 recall-audit harness
+42. Q-15 SOTA baseline comparators
+43. Q-16 cargo-mutants nightly mutation testing
+
 The split between Phase A (Tier 1, blocking) and later phases is the
 single most important boundary in this roadmap. Everything in Phase A
 should be done before any external announcement; everything after
-Phase A can be sequenced based on signal from early users.
+Phase A can be sequenced based on signal from early users. Phase G
+plays the same role for the next release tag (RC1) as Phase A did
+for the first announcement.

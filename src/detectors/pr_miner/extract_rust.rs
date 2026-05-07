@@ -19,7 +19,10 @@ use super::Transaction;
 /// vector (silent skip per spec N5 / F1).
 pub fn extract(file: &ParsedFile) -> Vec<Transaction> {
     let mut parser = tree_sitter::Parser::new();
-    if parser.set_language(&tree_sitter_rust::language()).is_err() {
+    if parser
+        .set_language(&crate::parsers::parser_for(Language::Rust).ts_language())
+        .is_err()
+    {
         return Vec::new();
     }
     let Some(tree) = parser.parse(&file.source, None) else {

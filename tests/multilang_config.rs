@@ -118,6 +118,94 @@ fn languages_python_suppress_drops_only_python_arg_swap_findings() {
     );
 }
 
+// ---------- Q-9: Python attribute-style suppression ----------
+//
+// The Rust side has shipped `#[cntrdct::allow(<id>)]` since T2-7. Q-9
+// brings symmetric Python coverage: a `# cntrdct: allow(<id>)` line
+// comment, in either trailing form (on the offending line itself) or
+// standalone form (annotating the next def), drops the matching
+// finding while leaving everything else alone.
+
+const PYTHON_ARG_SWAP_TRAILING_ALLOW: &str = "\
+def copy(dst, src):
+    return dst + src
+
+def driver_py():
+    dst = 1
+    src = 2
+    _ = copy(src, dst)  # cntrdct: allow(arg-swap)
+";
+
+const PYTHON_ARG_SWAP_STANDALONE_ALLOW: &str = "\
+def copy(dst, src):
+    return dst + src
+
+# cntrdct: allow(arg-swap)
+def driver_py():
+    dst = 1
+    src = 2
+    _ = copy(src, dst)
+";
+
+#[test]
+fn python_attribute_allow_trailing_form_suppresses_finding() {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("a.rs"), RUST_ARG_SWAP).unwrap();
+    fs::write(dir.path().join("b.py"), PYTHON_ARG_SWAP_TRAILING_ALLOW).unwrap();
+    let findings = run_scan(dir.path());
+    assert!(
+        has_finding(&findings, "arg-swap", "rs"),
+        "Rust arg-swap finding must survive — Python suppression is scoped to .py only"
+    );
+    assert!(
+        !has_finding(&findings, "arg-swap", "py"),
+        "Trailing `# cntrdct: allow(arg-swap)` must drop the .py finding; got: {:?}",
+        findings
+    );
+}
+
+#[test]
+fn python_attribute_allow_standalone_form_suppresses_finding() {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("a.rs"), RUST_ARG_SWAP).unwrap();
+    fs::write(dir.path().join("b.py"), PYTHON_ARG_SWAP_STANDALONE_ALLOW).unwrap();
+    let findings = run_scan(dir.path());
+    assert!(
+        has_finding(&findings, "arg-swap", "rs"),
+        "Rust arg-swap finding must survive — Python suppression is scoped to .py only"
+    );
+    assert!(
+        !has_finding(&findings, "arg-swap", "py"),
+        "Standalone `# cntrdct: allow(arg-swap)` annotating `def driver_py` must drop \
+         the .py finding; got: {:?}",
+        findings
+    );
+}
+
+#[test]
+fn python_attribute_allow_unrelated_detector_id_leaves_finding_intact() {
+    // Citing a different detector ID in the allow list must NOT drop
+    // the arg-swap finding. Pins the failure mode where a typo /
+    // wrong-id allow accidentally silences the wrong detector.
+    let body = "\
+def copy(dst, src):
+    return dst + src
+
+def driver_py():
+    dst = 1
+    src = 2
+    _ = copy(src, dst)  # cntrdct: allow(clone-drift)
+";
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("b.py"), body).unwrap();
+    let findings = run_scan(dir.path());
+    assert!(
+        has_finding(&findings, "arg-swap", "py"),
+        "non-matching detector id must NOT silence arg-swap; got: {:?}",
+        findings
+    );
+}
+
 #[test]
 fn sarif_emitter_handles_mixed_rust_and_python_unchanged() {
     use cntrdct::core::Detector;
@@ -125,6 +213,7 @@ fn sarif_emitter_handles_mixed_rust_and_python_unchanged() {
     use cntrdct::detectors::clone_drift::CloneDrift;
     use cntrdct::detectors::comment_code::CommentCode;
     use cntrdct::detectors::config_interaction::ConfigInteraction;
+    use cntrdct::detectors::pr_miner::PrMinerDetector;
     use cntrdct::detectors::unreachable_after_terminator::UnreachableAfterTerminator;
 
     let dir = TempDir::new().unwrap();
@@ -137,14 +226,33 @@ fn sarif_emitter_handles_mixed_rust_and_python_unchanged() {
     let comment_code = CommentCode::new();
     let unreachable = UnreachableAfterTerminator::new();
     let config_interaction = ConfigInteraction::new();
+    let pr_miner = PrMinerDetector::new();
     let detectors: Vec<&dyn Detector> = vec![
         &clone_drift,
         &arg_swap,
         &comment_code,
         &unreachable,
         &config_interaction,
+        &pr_miner,
     ];
     let sarif = cntrdct::sarif::to_sarif_with_rules_ranked(&ranked, &detectors);
+
+    // Q-1: every detector registered by the scanner must appear as a rule
+    // in the SARIF taxonomy. pr-miner specifically slipped through before
+    // this assertion existed, so call it out.
+    let rules = sarif["runs"][0]["tool"]["driver"]["rules"]
+        .as_array()
+        .expect("SARIF tool.driver.rules array");
+    let rule_ids: Vec<&str> = rules
+        .iter()
+        .map(|r| r["id"].as_str().expect("rule.id is a string"))
+        .collect();
+    for id in cntrdct::ALL_DETECTOR_IDS {
+        assert!(
+            rule_ids.contains(id),
+            "SARIF tool.driver.rules must contain {id:?}; got {rule_ids:?}"
+        );
+    }
 
     let results = sarif["runs"][0]["results"]
         .as_array()

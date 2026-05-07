@@ -29,6 +29,24 @@ pub mod parsers;
 pub mod ranker;
 pub mod sarif;
 
+/// Canonical set of `Detector::id()` values registered by
+/// [`scan_full_with_config`], emitted as SARIF `tool.driver.rules` by
+/// `src/main.rs`, and cross-checked against the OSF preregistration in
+/// `tests/prereg_consistency.rs`. Single source of truth so a removal or
+/// addition at any one site without updating the others is caught by
+/// `tests/wiring_consistency.rs` (Q-4).
+///
+/// Order is alphabetical and not load-bearing; tests sort before
+/// comparing.
+pub const ALL_DETECTOR_IDS: &[&str] = &[
+    "arg-swap",
+    "clone-drift",
+    "comment-code",
+    "config-interaction",
+    "pr-miner",
+    "unreachable-after-terminator",
+];
+
 use std::fs;
 use std::path::{Path, PathBuf};
 

@@ -7,6 +7,7 @@ use cntrdct::detectors::arg_swap::ArgSwap;
 use cntrdct::detectors::clone_drift::CloneDrift;
 use cntrdct::detectors::comment_code::CommentCode;
 use cntrdct::detectors::config_interaction::ConfigInteraction;
+use cntrdct::detectors::pr_miner::PrMinerDetector;
 use cntrdct::detectors::unreachable_after_terminator::UnreachableAfterTerminator;
 
 #[derive(Parser)]
@@ -167,18 +168,21 @@ fn main() -> ExitCode {
                         OutputFormat::Sarif => {
                             // Mirror the detector set registered by `cntrdct::scan`
                             // so the rules taxonomy in the SARIF output matches the
-                            // detectors that produced the findings.
+                            // detectors that produced the findings. Kept in sync
+                            // with `cntrdct::ALL_DETECTOR_IDS` via Q-4 wiring test.
                             let clone_drift = CloneDrift::new();
                             let arg_swap = ArgSwap::new();
                             let comment_code = CommentCode::new();
                             let unreachable = UnreachableAfterTerminator::new();
                             let config_interaction = ConfigInteraction::new();
+                            let pr_miner = PrMinerDetector::new();
                             let detectors: Vec<&dyn Detector> = vec![
                                 &clone_drift,
                                 &arg_swap,
                                 &comment_code,
                                 &unreachable,
                                 &config_interaction,
+                                &pr_miner,
                             ];
                             cntrdct::sarif::to_sarif_with_rules_pretty_ranked(&ranked, &detectors)
                         }

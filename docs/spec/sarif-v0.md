@@ -30,7 +30,7 @@ Convert `Vec<Finding>` to SARIF 2.1.0 JSON. Library only; no binary, no I/O.
   "driver": {
     "name": "cntrdct",
     "version": <CARGO_PKG_VERSION of the sarif crate>,
-    "informationUri": "https://github.com/TBD/cntrdct"
+    "informationUri": "https://github.com/ktrysmt/cntrdct"
   }
 }
 ```
@@ -60,6 +60,35 @@ Each `Finding` produces one SARIF `result`:
 | `Note` | `"note"` |
 | `Warning` | `"warning"` |
 | `Error` | `"error"` |
+
+#### F5 decision log — `Severity::Info` → SARIF `"none"` (2026-05-07, Q-5)
+
+SARIF 2.1.0 §3.27.10 defines `"none"` as "the level is not applicable
+to the result," and GitHub Code Scanning suppresses results whose
+`level` resolves to `"none"` from the inline PR review surface. This
+behaviour is the precise reason the mapping is retained:
+
+- No shipped detector emits `Severity::Info` by construction. The
+  variant only enters the pipeline through user-authored
+  `cntrdct.toml` severity overrides (`config.rs::SeverityName::Info →
+  Severity::Info`). A user who explicitly downgrades a finding to
+  `Info` is signalling "I want this less visible than `Note`," and
+  `"note"` would defeat that expectation by re-surfacing the finding
+  in GitHub's inline annotation stream.
+- The alternative remap (`Info → "note"`) would conflate
+  `Severity::Info` and `Severity::Note` in SARIF output. SARIF
+  consumers that branch on `level` (CodeQL viewer, GitHub Code
+  Scanning, custom dashboards) would lose the user's intended
+  distinction.
+- The original `Finding::raw_severity` is reachable from
+  `result.properties.raw` by downstream tooling that wants to act on
+  the four-valued severity vocabulary directly. The lossy projection
+  lives only at the SARIF surface.
+
+The trade-off is explicit: GitHub Code Scanning hides `Info`
+findings from the inline PR review surface. This is documented
+here so a future SARIF consumer change does not silently reopen the
+question.
 
 ### F6 — Location mapping
 

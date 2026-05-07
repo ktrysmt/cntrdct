@@ -28,6 +28,25 @@ jobs:
       - name: rustfmt (research workspace)
         working-directory: research
         run: cargo fmt --all -- --check
+      # Q-2: guard against placeholder URLs (e.g. github.com/TBD/cntrdct)
+      # leaking into production SARIF output. The previous SARIF
+      # informationUri shipped as `https://github.com/TBD/cntrdct` for
+      # several releases; this grep ensures the regression cannot recur.
+      - name: no placeholder URLs in src/
+        run: |
+          if grep -RnE 'TBD' src/; then
+            echo "::error::placeholder string 'TBD' found in src/; replace with the real value before merging" >&2
+            exit 1
+          fi
+      # Q-10: detectors must not depend on `tree_sitter_*` directly.
+      # All parsing entry points go through `cntrdct::parsers::parser_for`
+      # so adding a future M-7+ language is a single-module change.
+      - name: parser seam (no tree_sitter_*::language() in src/detectors/)
+        run: |
+          if grep -REn 'tree_sitter_[a-z_]+::language\(\)' src/detectors/; then
+            echo "::error::detectors must call cntrdct::parsers::parser_for(...).ts_language() instead of tree_sitter_*::language() directly" >&2
+            exit 1
+          fi
 
   clippy-test:
     name: clippy + test (technical, ${{ matrix.os }})

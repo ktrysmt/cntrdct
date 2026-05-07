@@ -348,3 +348,151 @@ fn under_cited_fixture_has_python_without_python_citation() {
         "fixture must lack a Python-grounded citation to model the SHOULD scenario"
     );
 }
+
+// ---------- Q-7: venue tier whitelist ----------
+//
+// Per `docs/spec/citations-policy.md` §"Venue tier whitelist", every
+// citation shipped on a registered detector must classify into Tier-A
+// or Tier-B. Unknown venues fail the test; the spec lists the
+// canonical Tier-A and Tier-B sets. Adding a venue requires updating
+// both the spec and the lists below.
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum VenueTier {
+    A,
+    B,
+    /// Reserved for future grandfather clauses. Currently unused; the
+    /// matcher never returns this variant. Kept on the enum so
+    /// `every_shipped_detector_citation_has_known_tier` can warn
+    /// rather than fail when a Tier-C entry is added later.
+    #[allow(dead_code)]
+    C,
+}
+
+/// Acronym tokens recognised at word boundaries (case-insensitive).
+/// Per the policy, `S&P` and `IST` would also belong here, but `S&P`
+/// is matched as a phrase to avoid the "&"/"p" tokenisation, and the
+/// short token `IST` would false-positive on common words; both live
+/// in `*_PHRASES` instead.
+const TIER_A_TOKENS: &[&str] = &[
+    "icse", "fse", "oopsla", "pldi", "popl", "ase", "issta", "tosem", "tse", "neurips", "icml",
+    "sosp", "osdi", "eurosys", "ccs",
+];
+
+const TIER_B_TOKENS: &[&str] = &[
+    "icpc", "icsm", "icsme", "msr", "saner", "wcre", "scam", "icst", "issre", "jss",
+];
+
+/// Multi-word venues / disambiguators matched as full lowercased
+/// substrings.
+const TIER_A_PHRASES: &[&str] = &[
+    "empirical software engineering",
+    "usenix security",
+    "ieee s&p",
+    "acm tosem",
+    "ieee tse",
+    "ieee transactions on software engineering",
+];
+
+const TIER_B_PHRASES: &[&str] = &[
+    "information and software technology",
+    "journal of systems and software",
+];
+
+fn venue_tier(venue: &str) -> Option<VenueTier> {
+    let lower = venue.to_ascii_lowercase();
+    let tokens: Vec<&str> = lower
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|t| !t.is_empty())
+        .collect();
+
+    let token_hit = |list: &[&str]| -> bool { tokens.iter().any(|t| list.contains(t)) };
+    let phrase_hit = |list: &[&str]| -> bool { list.iter().any(|p| lower.contains(p)) };
+
+    if token_hit(TIER_A_TOKENS) || phrase_hit(TIER_A_PHRASES) {
+        return Some(VenueTier::A);
+    }
+    if token_hit(TIER_B_TOKENS) || phrase_hit(TIER_B_PHRASES) {
+        return Some(VenueTier::B);
+    }
+    None
+}
+
+#[test]
+fn every_shipped_detector_citation_has_known_tier() {
+    let mut warnings: Vec<String> = Vec::new();
+    for d in registered_detectors() {
+        for c in d.citations() {
+            match venue_tier(c.venue) {
+                Some(VenueTier::A) | Some(VenueTier::B) => {}
+                Some(VenueTier::C) => {
+                    // Tier-C is reserved for grandfather clauses; emit a
+                    // warning to stderr rather than failing per the
+                    // policy. Currently empty, so this branch is
+                    // forward-compatible only.
+                    warnings.push(format!(
+                        "Tier-C grandfather: detector `{}` cites `{}` from `{}`",
+                        d.id(),
+                        c.key,
+                        c.venue
+                    ));
+                }
+                None => panic!(
+                    "Detector `{}` citation key `{}` has unrecognised venue `{}`. \
+                     Either add the venue to docs/spec/citations-policy.md \
+                     (Tier-A/B/C whitelist) or replace the citation with one \
+                     from a recognised peer-reviewed venue.",
+                    d.id(),
+                    c.key,
+                    c.venue
+                ),
+            }
+        }
+    }
+    for w in &warnings {
+        eprintln!("warning: {w}");
+    }
+}
+
+#[test]
+fn fabricated_fixture_venue_is_rejected() {
+    // Pin the rejection path: the fixture's venue is intentionally
+    // outside the Tier-A/B/C whitelist. If the matcher were ever
+    // loosened (e.g. adding a wildcard fallback to Tier-C), this test
+    // would fail and the spec rationale would be re-examined before
+    // the fabrication route reopened.
+    for c in UNDER_CITED_FIXTURE_CITATIONS {
+        assert!(
+            venue_tier(c.venue).is_none(),
+            "fixture must keep an unrecognised venue to model the rejection \
+             path; got tier {:?} for `{}`",
+            venue_tier(c.venue),
+            c.venue
+        );
+    }
+}
+
+#[test]
+fn venue_tier_examples_classify_as_documented() {
+    // Spot-check the canonical examples named in the spec so a
+    // refactor of the matcher cannot quietly drop a known venue.
+    assert_eq!(venue_tier("ICSE 2014"), Some(VenueTier::A));
+    assert_eq!(venue_tier("ESEC/FSE 2005"), Some(VenueTier::A));
+    assert_eq!(venue_tier("OOPSLA 2004"), Some(VenueTier::A));
+    assert_eq!(venue_tier("PLDI 2011"), Some(VenueTier::A));
+    assert_eq!(venue_tier("ACM TOSEM"), Some(VenueTier::A));
+    assert_eq!(venue_tier("NeurIPS 2021"), Some(VenueTier::A));
+    assert_eq!(venue_tier("SOSP 2007"), Some(VenueTier::A));
+    assert_eq!(venue_tier("EuroSys 2011"), Some(VenueTier::A));
+
+    assert_eq!(venue_tier("ICPC 2008"), Some(VenueTier::B));
+    assert_eq!(venue_tier("ICSM 2007"), Some(VenueTier::B));
+    assert_eq!(venue_tier("MSR 2009"), Some(VenueTier::B));
+    assert_eq!(
+        venue_tier("Information and Software Technology"),
+        Some(VenueTier::B)
+    );
+
+    assert_eq!(venue_tier("Fixture"), None);
+    assert_eq!(venue_tier("My Cool Workshop 2026"), None);
+}

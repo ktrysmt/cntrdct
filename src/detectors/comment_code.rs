@@ -128,7 +128,10 @@ impl Detector for CommentCode {
 
 fn collect_rust_findings(file: &ParsedFile, out: &mut Vec<Finding>) {
     let mut parser = tree_sitter::Parser::new();
-    if parser.set_language(&tree_sitter_rust::language()).is_err() {
+    if parser
+        .set_language(&crate::parsers::parser_for(Language::Rust).ts_language())
+        .is_err()
+    {
         return;
     }
     let tree = match parser.parse(&file.source, None) {
@@ -345,7 +348,7 @@ const PYTHON_RAISES_TRIGGERS: &[&str] = &["raises", "may raise", "throws"];
 fn collect_python_findings(file: &ParsedFile, out: &mut Vec<Finding>) {
     let mut parser = tree_sitter::Parser::new();
     if parser
-        .set_language(&tree_sitter_python::language())
+        .set_language(&crate::parsers::parser_for(Language::Python).ts_language())
         .is_err()
     {
         return;

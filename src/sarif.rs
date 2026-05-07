@@ -12,7 +12,7 @@ const SARIF_SCHEMA: &str = "https://json.schemastore.org/sarif-2.1.0.json";
 const SARIF_VERSION: &str = "2.1.0";
 const TOOL_NAME: &str = "cntrdct";
 const TOOL_VERSION: &str = env!("CARGO_PKG_VERSION");
-const INFORMATION_URI: &str = "https://github.com/TBD/cntrdct";
+const INFORMATION_URI: &str = "https://github.com/ktrysmt/cntrdct";
 
 /// Emit SARIF 2.1.0 without a rules taxonomy. Preserved for backwards compat
 /// with callers (and tests) that don't have access to the live `Detector`

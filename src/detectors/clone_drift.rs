@@ -36,11 +36,17 @@ pub const MIN_GROUP_SIZE: usize = 3;
 /// as `SIMILARITY_THRESHOLD`.
 pub const MIN_FN_TOKENS: usize = 22;
 /// F5c-ii: a drifted-clone candidate must be a near-duplicate of the
-/// dominant exemplar. Generic-family resemblance (Jaccard 0.5..0.8)
+/// dominant exemplar. Generic-family resemblance (Jaccard 0.5..0.7)
 /// is not a drift signal; the bug pattern requires the singleton to
 /// differ from the cluster's canonical form by only a small number
-/// of tokens. 0.85 keeps small (1-3 token) drifts and rejects
+/// of tokens. 0.7 keeps small (1-3 token) drifts and rejects
 /// structural variants that share only the surface n-gram skeleton.
+/// Higher than `SIMILARITY_THRESHOLD` because cluster membership is a
+/// transitive-chain property while the drift signal is a direct
+/// near-clone property; empirically tuned so the Python pilot drift
+/// fixture (Jaccard 0.78) clears it while structural variants such
+/// as nom@1309 (0.53) and nom@1330 (0.66) do not. See
+/// `docs/spec/clone-drift-v0.md` F5c-ii.
 pub const NEAR_DUPLICATE_THRESHOLD: f64 = 0.7;
 
 static CITATIONS: &[Citation] = &[
@@ -379,7 +385,7 @@ fn scope_from_underscore_basename(path: &std::path::Path) -> Option<String> {
 
 fn extract_rust_fns(file: &ParsedFile) -> Option<Vec<FnInfo>> {
     let mut parser = tree_sitter::Parser::new();
-    let lang = tree_sitter_rust::language();
+    let lang = crate::parsers::parser_for(Language::Rust).ts_language();
     parser.set_language(&lang).ok()?;
     let tree = parser.parse(&file.source, None)?;
     let root = tree.root_node();
@@ -485,7 +491,9 @@ fn walk_normalize_python(node: tree_sitter::Node, out: &mut Vec<String>) {
 
 fn extract_python_fns(file: &ParsedFile) -> Option<Vec<FnInfo>> {
     let mut parser = tree_sitter::Parser::new();
-    parser.set_language(&tree_sitter_python::language()).ok()?;
+    parser
+        .set_language(&crate::parsers::parser_for(Language::Python).ts_language())
+        .ok()?;
     let tree = parser.parse(&file.source, None)?;
     let root = tree.root_node();
 

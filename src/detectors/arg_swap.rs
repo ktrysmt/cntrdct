@@ -235,7 +235,9 @@ fn check_swap(
 
 fn extract_rust_fn_defs(file: &ParsedFile) -> Option<Vec<(String, FnDef)>> {
     let mut parser = tree_sitter::Parser::new();
-    parser.set_language(&tree_sitter_rust::language()).ok()?;
+    parser
+        .set_language(&crate::parsers::parser_for(Language::Rust).ts_language())
+        .ok()?;
     let tree = parser.parse(&file.source, None)?;
     let root = tree.root_node();
     if root.has_error() {
@@ -300,7 +302,9 @@ fn extract_rust_pattern_identifier(node: tree_sitter::Node, source: &str) -> Opt
 
 fn extract_rust_call_sites(file: &ParsedFile) -> Option<Vec<CallSite>> {
     let mut parser = tree_sitter::Parser::new();
-    parser.set_language(&tree_sitter_rust::language()).ok()?;
+    parser
+        .set_language(&crate::parsers::parser_for(Language::Rust).ts_language())
+        .ok()?;
     let tree = parser.parse(&file.source, None)?;
     let root = tree.root_node();
     if root.has_error() {
@@ -371,7 +375,9 @@ fn parse_rust_call(node: tree_sitter::Node, file: &ParsedFile) -> Option<CallSit
 
 fn extract_python_fn_defs(file: &ParsedFile) -> Option<Vec<(String, FnDef)>> {
     let mut parser = tree_sitter::Parser::new();
-    parser.set_language(&tree_sitter_python::language()).ok()?;
+    parser
+        .set_language(&crate::parsers::parser_for(Language::Python).ts_language())
+        .ok()?;
     let tree = parser.parse(&file.source, None)?;
     let root = tree.root_node();
     if root.has_error() {
@@ -443,7 +449,9 @@ fn parse_python_fn_def(node: tree_sitter::Node, file: &ParsedFile) -> Option<(St
 
 fn extract_python_call_sites(file: &ParsedFile) -> Option<Vec<CallSite>> {
     let mut parser = tree_sitter::Parser::new();
-    parser.set_language(&tree_sitter_python::language()).ok()?;
+    parser
+        .set_language(&crate::parsers::parser_for(Language::Python).ts_language())
+        .ok()?;
     let tree = parser.parse(&file.source, None)?;
     let root = tree.root_node();
     if root.has_error() {

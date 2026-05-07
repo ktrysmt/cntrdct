@@ -108,7 +108,7 @@ impl Detector for UnreachableAfterTerminator {
 
 fn scan_rust(file: &ParsedFile, findings: &mut Vec<Finding>) {
     let mut parser = tree_sitter::Parser::new();
-    let lang = tree_sitter_rust::language();
+    let lang = crate::parsers::parser_for(Language::Rust).ts_language();
     if parser.set_language(&lang).is_err() {
         return;
     }
@@ -313,14 +313,18 @@ fn rust_attribute_contains(attr: tree_sitter::Node, source: &str, token: &str) -
 // way tree-sitter-rust uses `block` for braced bodies, so the same
 // outer recursion structure applies.
 //
-// Suppression: Python has no syntactic equivalent of
-// `#[allow(unreachable_code)]`. v0 ships without an inline Python
-// suppression mechanism; project-level suppression via `cntrdct.toml`
-// (T2-7) still applies.
+// Suppression: Q-9 introduced `# cntrdct: allow(<id>)` line-comment
+// suppression for Python (mirrors the Rust attribute form at line
+// granularity; trailing form covers a single line, standalone form
+// covers the next named sibling's span). This detector emits findings
+// at AST nodes; the suppression filter in `crate::config::apply` walks
+// `# cntrdct: allow(...)` comments via tree-sitter-python and drops
+// matches before SARIF emission. Project-level suppression via
+// `cntrdct.toml` (T2-7 / M-5) continues to apply.
 
 fn scan_python(file: &ParsedFile, findings: &mut Vec<Finding>) {
     let mut parser = tree_sitter::Parser::new();
-    let lang = tree_sitter_python::language();
+    let lang = crate::parsers::parser_for(Language::Python).ts_language();
     if parser.set_language(&lang).is_err() {
         return;
     }

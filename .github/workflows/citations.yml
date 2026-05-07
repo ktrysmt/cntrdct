@@ -1,0 +1,99 @@
+name: Citations
+
+# Q-6 retraction monitor. Two responsibilities:
+#
+#   - On every push / PR: verify that no DOI cited by a shipped detector
+#     appears in the cached Retraction Watch snapshot, and that the
+#     fixture-retracted-DOI path still trips the script (regression
+#     guard against a future loosening of the matcher).
+#
+#   - On a weekly schedule: refresh the cached Retraction Watch snapshot
+#     by calling the Crossref Labs endpoint, regenerate the SHA-256 pin,
+#     and open a PR if the cache changed.
+#
+# See `benchmarks/retraction-watch/README.md` and
+# `scripts/check_retractions.py`.
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  schedule:
+    # Mondays 06:00 UTC. Weekly cadence matches Retraction Watch's
+    # publishing rhythm without spamming PR noise.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: retraction monitor (cited DOIs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: cache integrity (sha256 pin)
+        run: python3 scripts/check_retractions.py --verify-cache
+      - name: production retraction check (cache + Crossref)
+        run: python3 scripts/check_retractions.py
+      - name: fixture smoke test (must flag retraction)
+        run: |
+          set +e
+          python3 scripts/check_retractions.py \
+              --citations tests/fixtures/retraction-watch/citations.md \
+              --cache tests/fixtures/retraction-watch/cache.csv \
+              --sha tests/fixtures/retraction-watch/cache.sha256 \
+              --src /nonexistent \
+              --no-network
+          rc=$?
+          set -e
+          if [ "$rc" -ne 1 ]; then
+            echo "::error::fixture script returned $rc, expected 1 — retraction monitor regression" >&2
+            exit 1
+          fi
+          echo "fixture correctly flagged the planted retraction (exit 1)"
+
+  refresh-cache:
+    name: refresh Retraction Watch cache
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: refresh cache from Crossref Labs
+        env:
+          RETRACTION_WATCH_EMAIL: ${{ secrets.RETRACTION_WATCH_EMAIL }}
+        run: |
+          if [ -z "${RETRACTION_WATCH_EMAIL}" ]; then
+            echo "::warning::RETRACTION_WATCH_EMAIL secret not set; skipping refresh."
+            exit 0
+          fi
+          python3 scripts/check_retractions.py --refresh-cache
+      - name: open PR if cache changed
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore(citations): refresh Retraction Watch cache"
+          title: "chore(citations): refresh Retraction Watch cache"
+          body: |
+            Weekly automated refresh of the Retraction Watch cache from
+            the Crossref Labs endpoint. SHA-256 pin regenerated.
+
+            Triggered by `.github/workflows/citations.yml` (Q-6).
+          branch: chore/refresh-retraction-watch-cache
+          delete-branch: true
+          add-paths: |
+            benchmarks/retraction-watch/cache.csv
+            benchmarks/retraction-watch/cache.sha256

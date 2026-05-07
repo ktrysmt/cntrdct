@@ -100,7 +100,7 @@ impl Detector for ConfigInteraction {
 
 fn scan_file(file: &ParsedFile, findings: &mut Vec<Finding>) {
     let mut parser = tree_sitter::Parser::new();
-    let lang = tree_sitter_rust::language();
+    let lang = crate::parsers::parser_for(Language::Rust).ts_language();
     if parser.set_language(&lang).is_err() {
         return;
     }

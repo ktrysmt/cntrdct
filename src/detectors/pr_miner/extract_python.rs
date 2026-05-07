@@ -28,7 +28,7 @@ use super::Transaction;
 pub fn extract(file: &ParsedFile) -> Vec<Transaction> {
     let mut parser = tree_sitter::Parser::new();
     if parser
-        .set_language(&tree_sitter_python::language())
+        .set_language(&crate::parsers::parser_for(Language::Python).ts_language())
         .is_err()
     {
         return Vec::new();
