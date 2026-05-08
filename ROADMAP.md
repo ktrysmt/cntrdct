@@ -5,10 +5,15 @@ landed; Phase H governance items Q-6..Q-10 all landed 2026-05-07,
 closing Phase H; P-7 clone-drift residual FP cleanup landed
 2026-05-07, taking wild β clone-drift FPs to 0 in both Rust and
 Python; T3-15 git-cliff release-notes pipeline and T3-16 telemetry-free
-assurance both landed 2026-05-08; T4-17, T4-18, T4-19 landed
-earlier; T4-20 / T4-21 deferred per maintainer decision; community
-scaffolding minus the formal CoC, which is deferred until external
-contributor activity warrants it)
+assurance both landed 2026-05-08; T3-14 cargo-binstall metadata and
+Homebrew tap (`ktrysmt/homebrew-cntrdct`) landed 2026-05-08, with the
+AUR sub-target dropped from scope; T3-12 LSP server Phase 1 scaffolding
+(`cntrdct-lsp` binary behind the `lsp` Cargo feature) landed
+2026-05-08; v0.2.0-rc.1 tag cut 2026-05-08 — first end-to-end run of
+the git-cliff + Homebrew bump pipelines, both green on first try;
+T4-17, T4-18, T4-19 landed earlier; T4-20 / T4-21 deferred per
+maintainer decision; community scaffolding minus the formal CoC,
+which is deferred until external contributor activity warrants it)
 
 Engineering roadmap for shipping cntrdct as a usable open-source Rust
 tool.
@@ -87,8 +92,21 @@ P-5. β release tagging and crates.io publish
   Workspace consolidated from 15 crates into one package; P3 LLM
   gating preserved by module boundary (only `src/adjudicator.rs`
   references reqwest).
-- Followup for next tag: `cntrdct --version` / `-V` not wired
-  (`src/main.rs:13` lacks the `version` attribute).
+- Successor: `v0.2.0-rc.1` cut 2026-05-08 — GitHub Release
+  <https://github.com/ktrysmt/cntrdct/releases/tag/v0.2.0-rc.1>,
+  crates.io <https://crates.io/crates/cntrdct/0.2.0-rc.1>. Install:
+  `cargo install cntrdct --version 0.2.0-rc.1 --locked` (still pre-
+  release per SemVer). Bundles the Phase G/H Q-series, P-7
+  clone-drift residual cleanup, T3-12 LSP scaffolding, T3-14
+  Homebrew + cargo-binstall, T3-15 git-cliff release-notes pipeline,
+  and T3-16 netns telemetry-free assurance. First end-to-end run of
+  the git-cliff release-body pipeline and the Homebrew tap auto-
+  bump workflow; both green on first execution.
+- Followup for next tag (still open): `cntrdct --version` / `-V`
+  not wired (`src/main.rs:13` lacks the `#[command(version)]`
+  attribute). The v0.2.0-rc.1 binary still answers `--version` with
+  an `error: unexpected argument` clap message; carry into v0.2.0
+  stable.
 
 P-6. v0 → v0.1 detector quality fixes (wild β FP reduction pass)
 
@@ -288,13 +306,15 @@ T3-14. Distribution channels beyond crates.io
   `cargo binstall cntrdct` to fetch the pre-built archive instead of
   compiling. The Homebrew tap lives at
   `ktrysmt/homebrew-cntrdct`, with `Formula/cntrdct.rb` covering
-  macOS aarch64 and Linux x86_64/aarch64; the v0.2.0-beta.1 formula
-  carries the release-asset SHA256s. The bump path is
+  macOS aarch64 and Linux x86_64/aarch64. The bump path is
   `.github/workflows/homebrew.yml` in this repo: it triggers on
   every `v*` tag push, polls for the release artifacts to be
   uploaded by `release.yml`, then rewrites and pushes
-  `Formula/cntrdct.rb` in the tap repo. README Quickstart documents
-  both `brew tap ktrysmt/cntrdct` and `cargo binstall cntrdct`.
+  `Formula/cntrdct.rb` in the tap repo. The `v0.2.0-rc.1` tag
+  (2026-05-08) was the first end-to-end run; the workflow bumped
+  the Formula from the seeded `0.2.0-beta.1` to `0.2.0-rc.1` with
+  refreshed SHA256s on first try. README Quickstart documents both
+  `brew tap ktrysmt/cntrdct` and `cargo binstall cntrdct`.
 - Operational note: the bump workflow consumes the
   `HOMEBREW_TAP_TOKEN` repo secret on `ktrysmt/cntrdct` (a
   fine-grained PAT scoped to `ktrysmt/homebrew-cntrdct` with
@@ -323,27 +343,46 @@ T3-15. Auto-generated changelog
   merge guidance points at the new pipeline; CLAUDE.md "Release
   procedure" non-negotiables documents the parser's drop list.
 - Followup: a checked-in `CHANGELOG.md` and an auto-commit-back step
-  on tag push are deferred until a future tag confirms the release-
-  body path is healthy in production.
+  on tag push were deferred until a future tag confirmed the
+  release-body path is healthy in production. `v0.2.0-rc.1`
+  (2026-05-08) is that confirmation — git-cliff produced the
+  expected grouped output (Bug Fixes / CI / Chores / Documentation /
+  Features) on first run with commit-link backrefs and a
+  `compare/v0.2.0-beta.1..v0.2.0-rc.1` URL. The followup is now
+  unblocked for whoever picks it up next; it is no longer a
+  prerequisite for any other roadmap item, just an OSS-hygiene
+  improvement.
 
 T3-16. Telemetry-free assurance
 
 - Status: `[x]` 2026-05-08
 - Summary: a new `network-isolation` job in
-  `.github/workflows/ci.yml` runs `cntrdct scan` inside an
-  unprivileged Linux network namespace
-  (`unshare --net --map-root-user`) on every push and pull request.
-  The namespace ships with no outbound routes; any unexpected
-  network call from the scan path fails `ENETUNREACH` / `EAI_*`
-  and the job goes red. The job exercises walker → parsers →
-  Layer 1 detectors → Layer 2 ranker → Layer 4 SARIF emitter —
-  i.e. everything that runs by default end-users — and asserts a
-  non-empty, well-formed SARIF document on stdout. The reqwest
-  dependency stays constrained to `src/adjudicator.rs` (gated by
-  the explicit `--adjudicate` flag) and `src/lib.rs`'s
+  `.github/workflows/ci.yml` runs `cntrdct scan` inside a fresh
+  Linux network namespace (`sudo unshare --net`) on every push and
+  pull request. The namespace ships with no outbound routes; any
+  unexpected network call from the scan path fails `ENETUNREACH` /
+  `EAI_*` and the job goes red. The job exercises walker →
+  parsers → Layer 1 detectors → Layer 2 ranker → Layer 4 SARIF
+  emitter — i.e. everything that runs by default for end-users —
+  and asserts a non-empty, well-formed SARIF document on stdout.
+  The reqwest dependency stays constrained to `src/adjudicator.rs`
+  (gated by the explicit `--adjudicate` flag) and `src/lib.rs`'s
   `wire_adjudicator` constructor. README.md carries a new
   "Network access" section documenting both the design property
   and the CI enforcement; the assurance has no opt-out path.
+- Implementation note: the first attempt used the unprivileged
+  `unshare -r --net` form, but Ubuntu 24.04's AppArmor
+  `unprivileged_userns` profile blocks `/proc/self/uid_map` writes
+  from non-root processes on GitHub-hosted runners
+  (`unshare: write failed /proc/self/uid_map: Operation not
+  permitted`). The fix was to drop the user-ns mapping entirely
+  and run `sudo unshare --net` instead — passwordless sudo is
+  available on GHA runners, and `--no-calibration` keeps the
+  process from needing `$HOME` access since the priors are
+  embedded into the binary via `include_str!`. Carried as a future
+  signal: if GHA's runner image ever loosens the AppArmor profile,
+  the unprivileged form is preferable for the smaller blast
+  radius.
 
 ## Multi-language track (M-series)
 
@@ -828,10 +867,16 @@ Phase E (Practical-track items, resumed once Phase D lands):
 
 Phase F (Tier 3 / 4 organically after launch):
 
-24. T4-19 / T4-20 / T4-17 / T4-18 / T4-21 community scaffolding
-25. T3-13 mdBook
-26. T3-12 LSP server
-27. T3-14 / T3-15 / T3-16 polish
+24. T4-17 / T4-18 / T4-19 community scaffolding (landed)
+24a. T4-20 / T4-21 deferred per maintainer decision
+25. T3-15 git-cliff release-notes pipeline (landed 2026-05-08)
+26. T3-16 telemetry-free assurance (landed 2026-05-08)
+27. T3-14 distribution channels — cargo-binstall + Homebrew tap
+    landed 2026-05-08; AUR dropped from scope
+28. T3-12 LSP server — Phase 1 scaffolding landed 2026-05-08;
+    Phase 1.b document events + diagnostics next
+29. T3-13 mdBook user guide (essay migration to external blog
+    precedes Jekyll retirement, see T3-13 note)
 
 Phase G (post-beta.1 quality-audit RC1 blockers; 1-2 days total,
 required before the next release tag):
