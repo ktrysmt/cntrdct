@@ -1,6 +1,6 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-08 (Phase G RC1-blocker Q-series Q-1..Q-5
+Last updated: 2026-05-09 (Phase G RC1-blocker Q-series Q-1..Q-5
 landed; Phase H governance items Q-6..Q-10 all landed 2026-05-07,
 closing Phase H; P-7 clone-drift residual FP cleanup landed
 2026-05-07, taking wild β clone-drift FPs to 0 in both Rust and
@@ -13,9 +13,13 @@ AUR sub-target dropped from scope; T3-12 LSP server Phase 1 scaffolding
 mapping (`textDocument/{didOpen,didChange,didSave,didClose}` →
 `publishDiagnostics`, sharing the Layer 1 detector battery with the
 disk-walking scan path via a new `scan_buffer` + `run_detectors_on`
-seam) landing the same day on top; v0.2.0-rc.1 tag cut 2026-05-08 —
-first end-to-end run of the git-cliff + Homebrew bump pipelines, both
-green on first try; T4-17, T4-18, T4-19 landed earlier; T4-20 / T4-21
+seam) landing the same day on top, and Phase 1.c per-URI didChange
+debouncing (250 ms quiet window backed by an
+`Arc<tokio::sync::Mutex<HashMap<Url, JoinHandle>>>`, with
+`didSave` / `didClose` draining the pending map for their URI before
+acting) landing 2026-05-09; v0.2.0-rc.1 tag cut 2026-05-08 — first
+end-to-end run of the git-cliff + Homebrew bump pipelines, both green
+on first try; T4-17, T4-18, T4-19 landed earlier; T4-20 / T4-21
 deferred per maintainer decision; community scaffolding minus the
 formal CoC, which is deferred until external contributor activity
 warrants it)
@@ -253,7 +257,8 @@ T3-12. LSP server
 
 - Status: `[~]` (Phase 1 scaffolding landed 2026-05-08; Phase 1.b
   document events + Finding -> Diagnostic mapping landed 2026-05-08;
-  Phase 1.c / 2 / 3 still pending)
+  Phase 1.c didChange debouncing landed 2026-05-09; Phases 2 / 3
+  still pending)
 - Goal: a `cntrdct-lsp` crate that exposes findings to IDEs
   (VS Code, Helix, Neovim) via the Language Server Protocol.
 - Acceptance: a `vscode-cntrdct` extension or comparable
@@ -289,8 +294,21 @@ T3-12. LSP server
   pinning the Finding -> Diagnostic mapping); the `clippy (lsp
   feature)` step now passes `--all-targets` so the new test files
   are checked too.
-- Phase 1.c — debouncing on didChange (so per-keystroke re-scans
-  do not stall the editor on multi-thousand-LOC buffers).
+- Phase 1.c — debouncing on didChange (done 2026-05-09): per-URI
+  250 ms quiet window in `src/lsp.rs`. `did_change` now spawns a
+  debounced task (`tokio::spawn` + `tokio::time::sleep`) instead of
+  scanning inline; a successor `did_change` for the same URI calls
+  `JoinHandle::abort()` on the prior handle and replaces it.
+  `did_save` and `did_close` drain the per-URI pending map before
+  acting so an explicit user action is not shadowed by a stale
+  follow-up publish. `Cargo.toml` adds `time` + `sync` to the
+  optional `tokio` features. New smoke test
+  `did_change_debounces_rapid_bursts_to_one_publish` in
+  `tests/lsp_smoke.rs` fires three notifications inside the window
+  and asserts exactly one `publishDiagnostics` survives, carrying
+  the most recent buffer state. `JoinHandle::abort()` cannot
+  interrupt an in-flight `spawn_blocking`; a generation counter is
+  the documented Phase 1.c+ upgrade path.
 - Phase 2 — `vscode-cntrdct` extension scaffolding (TypeScript /
   pnpm), bundling the LSP binary auto-downloaded from GitHub
   Releases. Separate repository under `ktrysmt/vscode-cntrdct`.
@@ -896,8 +914,9 @@ Phase F (Tier 3 / 4 organically after launch):
 27. T3-14 distribution channels — cargo-binstall + Homebrew tap
     landed 2026-05-08; AUR dropped from scope
 28. T3-12 LSP server — Phase 1 scaffolding + Phase 1.b document
-    events + Finding -> Diagnostic mapping both landed 2026-05-08;
-    Phase 1.c didChange debouncing next
+    events + Finding -> Diagnostic mapping landed 2026-05-08;
+    Phase 1.c per-URI didChange debouncing landed 2026-05-09; Phase
+    2 (vscode-cntrdct extension) next
 29. T3-13 mdBook user guide (essay migration to external blog
     precedes Jekyll retirement, see T3-13 note)
 

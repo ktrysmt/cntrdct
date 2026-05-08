@@ -7,13 +7,20 @@
 //!   (`textDocument/{didOpen,didChange,didSave,didClose}`) plus the
 //!   `Finding -> Diagnostic` mapping pushed back to the editor via
 //!   `textDocument/publishDiagnostics`.
+//! - Phase 1.c — per-URI debouncing on `didChange` so a burst of
+//!   keystrokes does not stall the editor on multi-thousand-LOC
+//!   buffers.
 //!
-//! Phase 1.c (debouncing on `didChange`) and Phases 2 / 3 (VS Code
-//! extension scaffolding + Marketplace) are still pending.
+//! Phases 2 / 3 (VS Code extension scaffolding + Marketplace) are
+//! still pending.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::OnceLock;
+use std::time::Duration;
 
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 use tower_lsp::jsonrpc::Result as JsonRpcResult;
 use tower_lsp::lsp_types::{
     Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, DidChangeTextDocumentParams,
@@ -32,14 +39,40 @@ use crate::detectors::config_interaction::ConfigInteraction;
 use crate::detectors::pr_miner::PrMinerDetector;
 use crate::detectors::unreachable_after_terminator::UnreachableAfterTerminator;
 
+/// Quiet window observed before a debounced `didChange` triggers a
+/// scan. Long enough to swallow a typing burst (typical inter-stroke
+/// gap ~100-200 ms), short enough to stay below perceptible delay.
+/// Phase 1.c hardcodes this; configurability via `cntrdct.toml` is
+/// deferred. See `docs/spec/lsp-v0.md` "Debouncing".
+const DIDCHANGE_DEBOUNCE: Duration = Duration::from_millis(250);
+
 /// The cntrdct LSP server.
 ///
 /// Holds the tower-lsp [`Client`] handle so server methods can push
 /// notifications (`window/logMessage`,
-/// `textDocument/publishDiagnostics`) back to the editor.
+/// `textDocument/publishDiagnostics`) back to the editor, plus a
+/// per-URI map of pending debounced scan tasks (Phase 1.c).
 pub struct CntrdctLsp {
     /// tower-lsp client handle, populated by [`tower_lsp::LspService::new`].
     pub client: Client,
+    /// Per-URI handles to debounced scan tasks scheduled by
+    /// `did_change`. A new `did_change` for the same URI aborts the
+    /// prior handle so only the most recent buffer state is scanned;
+    /// `did_save` and `did_close` also drain this map for their URI
+    /// to avoid a stale follow-up publish landing after the explicit
+    /// save / close action.
+    pending: Arc<Mutex<HashMap<Url, JoinHandle<()>>>>,
+}
+
+impl CntrdctLsp {
+    /// Construct a server bound to `client` with an empty pending-scan
+    /// map. Used by `LspService::new` in `src/lsp_main.rs`.
+    pub fn new(client: Client) -> Self {
+        Self {
+            client,
+            pending: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
 }
 
 #[tower_lsp::async_trait]
@@ -75,7 +108,7 @@ impl LanguageServer for CntrdctLsp {
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let uri = params.text_document.uri;
         let text = params.text_document.text;
-        self.scan_and_publish(uri, text).await;
+        scan_and_publish(&self.client, uri, text).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -88,11 +121,15 @@ impl LanguageServer for CntrdctLsp {
         let Some(change) = params.content_changes.into_iter().last() else {
             return;
         };
-        self.scan_and_publish(uri, change.text).await;
+        self.schedule_debounced_scan(uri, change.text).await;
     }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         let uri = params.text_document.uri;
+        // Cancel any pending debounced didChange scan for this URI so
+        // the explicit save's publish is not overwritten by a stale
+        // follow-up. See Phase 1.c notes in `docs/spec/lsp-v0.md`.
+        self.cancel_pending(&uri).await;
         // The client may include the saved buffer text via
         // `save.includeText`; when it does we trust it. Otherwise we
         // re-read the file from disk so the diagnostics reflect the
@@ -105,63 +142,97 @@ impl LanguageServer for CntrdctLsp {
                 None => return,
             },
         };
-        self.scan_and_publish(uri, text).await;
+        scan_and_publish(&self.client, uri, text).await;
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
+        let uri = params.text_document.uri;
+        // Cancel any pending debounced didChange scan for this URI;
+        // there is nothing to publish into a buffer the editor no
+        // longer has open.
+        self.cancel_pending(&uri).await;
         // Clear the editor's problems pane for this URI. Without this
         // the diagnostics from the last `publishDiagnostics` would stay
         // pinned to a buffer the editor no longer has open.
-        self.client
-            .publish_diagnostics(params.text_document.uri, Vec::new(), None)
-            .await;
+        self.client.publish_diagnostics(uri, Vec::new(), None).await;
     }
 }
 
 impl CntrdctLsp {
-    /// Run the Layer 1 detector battery against `text` for the buffer
-    /// identified by `uri`, then publish the resulting diagnostics.
-    /// The scan itself is CPU-bound and synchronous, so it is offloaded
-    /// to tokio's blocking pool to keep the LSP event loop responsive
-    /// on multi-thousand-LOC buffers.
-    async fn scan_and_publish(&self, uri: Url, text: String) {
-        let Ok(path) = uri.to_file_path() else {
-            // Non-file URIs (e.g. `untitled:` buffers) cannot be fed to
-            // the detector battery, but publishing an empty diagnostic
-            // vector keeps the editor consistent with the protocol.
-            self.client.publish_diagnostics(uri, Vec::new(), None).await;
-            return;
-        };
-
-        let scan_path = path.clone();
-        let scan_result =
-            tokio::task::spawn_blocking(move || crate::scan_buffer(&scan_path, text)).await;
-
-        let findings = match scan_result {
-            Ok(Ok((findings, _parsed))) => findings,
-            Ok(Err(e)) => {
-                self.client
-                    .log_message(MessageType::ERROR, format!("cntrdct scan failed: {e}"))
-                    .await;
-                Vec::new()
-            }
-            Err(e) => {
-                self.client
-                    .log_message(MessageType::ERROR, format!("cntrdct scan panicked: {e}"))
-                    .await;
-                Vec::new()
-            }
-        };
-
-        let diagnostics: Vec<Diagnostic> = findings
-            .iter()
-            .filter(|f| f.primary.file == path)
-            .map(|f| finding_to_diagnostic(&uri, f))
-            .collect();
-        self.client
-            .publish_diagnostics(uri, diagnostics, None)
-            .await;
+    /// Schedule a debounced scan of `text` for `uri`. If a prior scan
+    /// is already pending for the same URI it is aborted and replaced;
+    /// only the most recent buffer state survives the quiet window.
+    /// Phase 1.c.
+    async fn schedule_debounced_scan(&self, uri: Url, text: String) {
+        let client = self.client.clone();
+        let uri_for_task = uri.clone();
+        let handle = tokio::spawn(async move {
+            tokio::time::sleep(DIDCHANGE_DEBOUNCE).await;
+            scan_and_publish(&client, uri_for_task, text).await;
+        });
+        let prior = self.pending.lock().await.insert(uri, handle);
+        if let Some(h) = prior {
+            // abort() is best-effort: a task already past its sleep
+            // and inside scan_and_publish will keep running on the
+            // blocking pool, but the new task supersedes it for the
+            // next publish. Acceptable v0 trade-off; a generation
+            // counter is the documented Phase 1.c+ upgrade path.
+            h.abort();
+        }
     }
+
+    /// Drop any pending debounced scan for `uri`. Called from
+    /// `did_save` and `did_close` so an explicit user action is not
+    /// shadowed by a stale follow-up publish.
+    async fn cancel_pending(&self, uri: &Url) {
+        if let Some(h) = self.pending.lock().await.remove(uri) {
+            h.abort();
+        }
+    }
+}
+
+/// Run the Layer 1 detector battery against `text` for the buffer
+/// identified by `uri`, then publish the resulting diagnostics. The
+/// scan itself is CPU-bound and synchronous, so it is offloaded to
+/// tokio's blocking pool to keep the LSP event loop responsive on
+/// multi-thousand-LOC buffers. Free function (not a method) so the
+/// debouncer in `schedule_debounced_scan` can invoke it from a spawned
+/// task that does not hold `&self`.
+async fn scan_and_publish(client: &Client, uri: Url, text: String) {
+    let Ok(path) = uri.to_file_path() else {
+        // Non-file URIs (e.g. `untitled:` buffers) cannot be fed to
+        // the detector battery, but publishing an empty diagnostic
+        // vector keeps the editor consistent with the protocol.
+        client.publish_diagnostics(uri, Vec::new(), None).await;
+        return;
+    };
+
+    let scan_path = path.clone();
+    let scan_result =
+        tokio::task::spawn_blocking(move || crate::scan_buffer(&scan_path, text)).await;
+
+    let findings = match scan_result {
+        Ok(Ok((findings, _parsed))) => findings,
+        Ok(Err(e)) => {
+            client
+                .log_message(MessageType::ERROR, format!("cntrdct scan failed: {e}"))
+                .await;
+            Vec::new()
+        }
+        Err(e) => {
+            client
+                .log_message(MessageType::ERROR, format!("cntrdct scan panicked: {e}"))
+                .await;
+            Vec::new()
+        }
+    };
+
+    let diagnostics: Vec<Diagnostic> = findings
+        .iter()
+        .filter(|f| f.primary.file == path)
+        .map(|f| finding_to_diagnostic(&uri, f))
+        .collect();
+    client.publish_diagnostics(uri, diagnostics, None).await;
 }
 
 fn read_file_sync(path: std::path::PathBuf) -> Option<String> {

@@ -75,7 +75,7 @@ tempfile = "3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"] }
 # T3-12 LSP. Optional; pulled in by the `lsp` feature.
 tower-lsp = { version = "0.20", optional = true }
-tokio = { version = "1", optional = true, features = ["macros", "rt-multi-thread", "io-std"] }
+tokio = { version = "1", optional = true, features = ["macros", "rt-multi-thread", "io-std", "time", "sync"] }
 
 [dev-dependencies]
 tempfile = "3"
