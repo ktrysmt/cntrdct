@@ -174,6 +174,25 @@ non-adjudicator code path makes an unexpected network call, it fails
 with `ENETUNREACH` / `EAI_*` and the job goes red. There is no
 opt-out — the assurance applies to every release that passes CI.
 
+## Release process
+
+Releases are driven entirely by pushing an annotated `vX.Y.Z` tag.
+`.github/workflows/release.yml` cross-builds binaries for the four
+supported targets (Linux x86_64 / aarch64, macOS aarch64, Windows
+x86_64), creates the GitHub Release, and publishes to crates.io.
+`git-cliff` (config at `cliff.toml`) reads Conventional Commits since
+the previous tag and produces the GitHub Release body; off-shape
+commits silently fall out of the notes by design. In parallel,
+`.github/workflows/homebrew.yml` waits for the release artifacts to
+upload, then regenerates and pushes `Formula/cntrdct.rb` in the
+`ktrysmt/homebrew-cntrdct` tap repo. Pre-release versions
+(`-beta.N`, `-rc.N`) require an explicit `cargo install cntrdct
+--version X.Y.Z-suffix` because cargo skips pre-releases by default.
+
+Maintainer step-by-step: see `CLAUDE.md` "Release procedure". Per-
+tier deliverables and the rationale behind each automation: see
+`ROADMAP.md` T3-14 / T3-15.
+
 ## Design notes
 
 `docs/spec/` contains the active specs that drove the TDD
