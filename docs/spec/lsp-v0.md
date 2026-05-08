@@ -1,6 +1,9 @@
 # cntrdct-lsp v0 — Language Server for the cntrdct linter
 
-Status: phase 1 scaffolding (skeleton landing under feature flag `lsp`).
+Status: phase 1 + phase 1.b shipped (lifecycle methods, document
+events, and the Finding -> Diagnostic mapping landed under feature
+flag `lsp`); phase 1.c (didChange debouncing) and phases 2 / 3 still
+pending.
 
 This spec scopes the v0 surface of `cntrdct-lsp`, a Language Server Protocol
 implementation that exposes cntrdct's findings to LSP-speaking editors
@@ -30,17 +33,26 @@ re-tokenising change ranges, and the cntrdct detectors all parse
 whole-files anyway. We can graduate to `Incremental` if profiling shows
 the full-document re-parse is a hot path.
 
-## Document events (deferred to phase 1.b)
-
-The following methods are part of phase 1 but land in a follow-up commit
-once the `Finding -> Diagnostic` mapping (below) is wired in:
+## Document events (phase 1.b — landed)
 
 | LSP method | v0.b behaviour |
 | --- | --- |
-| `textDocument/didOpen` | Run `scan_full_with_config` on the opened buffer; publish `textDocument/publishDiagnostics`. |
+| `textDocument/didOpen` | Run [`crate::scan_buffer`] on the opened buffer; publish `textDocument/publishDiagnostics`. |
 | `textDocument/didChange` | Re-scan on every change for v0; debouncing is Phase 1.c. |
-| `textDocument/didSave` | Re-scan and republish (idempotent with didChange). |
+| `textDocument/didSave` | Re-scan and republish (idempotent with didChange). When the client omits the saved text the server reads from disk via `Url::to_file_path()`. |
 | `textDocument/didClose` | Publish an empty diagnostic vector to clear stale findings. |
+
+Implementation note: the buffer scan does not call
+`scan_full_with_config` (which walks the disk and reads file contents).
+Instead, [`crate::scan_buffer`] feeds the editor-supplied text into a
+one-file `DetectContext` and runs the same Layer 1 detector battery
+that disk-walking callers use, sharing the registration list through
+`run_detectors_on`. This keeps the LSP path independent of disk state
+on `didOpen` / `didChange` (where the editor's buffer is the source
+of truth) while still letting `didSave` fall back to disk when the
+client elects not to include the saved text. Detection itself is
+CPU-bound, so `scan_and_publish` runs the scan on `tokio::task::spawn_blocking`
+to keep the event loop free.
 
 ## Finding -> Diagnostic mapping
 
@@ -84,11 +96,14 @@ will get its own follow-up entry once v0 is in users' hands.
 
 1. Phase 1 — server scaffolding behind `lsp` feature flag (this spec +
    skeleton implementation: Initialize / Initialized / Shutdown).
+   Landed.
 2. Phase 1.b — document events + Finding -> Diagnostic mapping.
-3. Phase 1.c — debouncing on didChange.
+   Landed.
+3. Phase 1.c — debouncing on didChange. Pending.
 4. Phase 2 — `vscode-cntrdct` extension scaffolding (TypeScript / pnpm,
    bundled with the LSP binary auto-downloaded from GitHub Releases).
-5. Phase 3 — Marketplace listing.
+   Pending.
+5. Phase 3 — Marketplace listing. Pending.
 
 Phases 1 and 1.b together are the minimum to advertise the LSP as
 "ships diagnostics inline"; phases 1.c and 2 deliver the
@@ -96,8 +111,22 @@ production-quality VS Code experience; phase 3 is the public release.
 
 ## Testing
 
-- `tests/lsp_smoke.rs` (lands with phase 1.b) drives the server's
-  stdin/stdout with a small JSON-RPC client and asserts the
-  `Initialize` -> `Initialized` -> `Shutdown` round-trip.
-- The skeleton in phase 1 ships without tests; the smoke test is the
-  acceptance gate for the next commit.
+- `tests/lsp_smoke.rs` spawns the actual `cntrdct-lsp` binary
+  (`CARGO_BIN_EXE_cntrdct-lsp`) and drives its stdin/stdout with a
+  hand-rolled JSON-RPC framing client. It asserts the
+  `Initialize` -> `initialized` -> `didOpen` -> `publishDiagnostics`
+  -> `Shutdown` round-trip, including that the published diagnostic
+  carries `source = "cntrdct"`, `code = "<detector_id>"`, and
+  severity 2 (Warning) for the unreachable-after-terminator finding.
+- The `lsp::tests` unit module under `src/lsp.rs` covers the
+  Finding -> Diagnostic mapping table directly: severity mapping for
+  every `Severity` variant, 1-based-to-0-based range conversion,
+  detector_id flowing into `code`, `source = "cntrdct"`,
+  `evidence.raw` round-tripping into `data`, and the
+  `relatedInformation` shape (one entry per citation key, URL
+  fallout from the static citation registry, fallback to buffer URI
+  for unknown keys).
+- Both run only with `--features lsp` enabled; CI wires
+  `cargo test --features lsp --test lsp_smoke` and
+  `cargo test --features lsp --lib lsp::tests` as separate steps so
+  a future regression in either path fails CI.

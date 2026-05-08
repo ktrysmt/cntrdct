@@ -64,14 +64,24 @@ jobs:
       - name: clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
       # T3-12: clippy --all-targets does not exercise the cntrdct-lsp
-      # binary because it gates on `required-features = ["lsp"]`. Run
-      # the lsp-feature build explicitly so a future change to the
-      # library API that breaks the LSP module fails CI rather than
-      # silently rotting.
+      # binary, the `lsp` module, or `tests/lsp_smoke.rs` because they
+      # all gate on the `lsp` feature (the binary via `required-features`,
+      # the module via `cfg(feature = "lsp")`). Run the lsp-feature
+      # build explicitly so a future change to the library API that
+      # breaks the LSP module fails CI rather than silently rotting.
       - name: clippy (lsp feature)
-        run: cargo clippy --features lsp --bin cntrdct-lsp -- -D warnings
+        run: cargo clippy --features lsp --all-targets -- -D warnings
       - name: test
         run: cargo test --workspace --all-targets
+      # Phase 1.b smoke test (`tests/lsp_smoke.rs`) and the `lsp::tests`
+      # unit module are gated on the `lsp` feature, so the previous step
+      # skips them. Two invocations because the smoke test name does not
+      # contain "lsp", so we cannot share a single name filter with the
+      # `lsp::tests` lib selection.
+      - name: test (lsp feature, smoke)
+        run: cargo test --features lsp --test lsp_smoke
+      - name: test (lsp feature, unit)
+        run: cargo test --features lsp --lib lsp::tests
       - name: examples smoke test
         run: |
           ./examples/01_scan.sh > /dev/null

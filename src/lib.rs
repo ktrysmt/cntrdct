@@ -148,6 +148,38 @@ pub fn scan_full_with_config(
         })
         .collect();
 
+    run_detectors_on(parsed)
+}
+
+/// Buffer-only scan path used by the LSP server (T3-12 Phase 1.b).
+///
+/// Skips the file walker entirely: builds a one-file `DetectContext` from
+/// the supplied source string and runs the full Layer 1 detector battery
+/// the same way [`scan_full_with_config`] does after reading from disk.
+/// Returns empty findings (and an empty parsed vec) for paths whose
+/// extension does not map to a [`Language`] — the caller (e.g.
+/// `cntrdct::lsp::CntrdctLsp`) does not need to gate on language up
+/// front. Spec: `docs/spec/lsp-v0.md` Phase 1.b.
+pub fn scan_buffer(
+    path: &Path,
+    source: String,
+) -> Result<(Vec<Finding>, Vec<ParsedFile>), ScanError> {
+    let Some(language) = detect_language(path) else {
+        return Ok((Vec::new(), Vec::new()));
+    };
+    let parsed = vec![ParsedFile {
+        path: path.to_path_buf(),
+        language,
+        source,
+    }];
+    run_detectors_on(parsed)
+}
+
+/// Run all six Layer 1 detectors over a pre-built [`ParsedFile`] vector.
+/// Shared between the disk-walking [`scan_full_with_config`] and the
+/// buffer-only [`scan_buffer`] (used by the LSP server) so the registration
+/// list and ordering rules live in exactly one place.
+fn run_detectors_on(parsed: Vec<ParsedFile>) -> Result<(Vec<Finding>, Vec<ParsedFile>), ScanError> {
     let clone_drift = CloneDrift::new();
     let arg_swap = ArgSwap::new();
     let comment_code = CommentCode::new();
@@ -172,7 +204,7 @@ pub fn scan_full_with_config(
         config: &config,
     };
 
-    // Run all five detectors in parallel against the shared context. Each
+    // Run all six detectors in parallel against the shared context. Each
     // detector implementation is `Send + Sync` per the trait bound, so this
     // is sound. Output ordering is restored via a deterministic post-hoc
     // sort below so the ranker (and snapshot tests) see stable input.

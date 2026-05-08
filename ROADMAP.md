@@ -9,11 +9,16 @@ assurance both landed 2026-05-08; T3-14 cargo-binstall metadata and
 Homebrew tap (`ktrysmt/homebrew-cntrdct`) landed 2026-05-08, with the
 AUR sub-target dropped from scope; T3-12 LSP server Phase 1 scaffolding
 (`cntrdct-lsp` binary behind the `lsp` Cargo feature) landed
-2026-05-08; v0.2.0-rc.1 tag cut 2026-05-08 — first end-to-end run of
-the git-cliff + Homebrew bump pipelines, both green on first try;
-T4-17, T4-18, T4-19 landed earlier; T4-20 / T4-21 deferred per
-maintainer decision; community scaffolding minus the formal CoC,
-which is deferred until external contributor activity warrants it)
+2026-05-08, with Phase 1.b document events + Finding -> Diagnostic
+mapping (`textDocument/{didOpen,didChange,didSave,didClose}` →
+`publishDiagnostics`, sharing the Layer 1 detector battery with the
+disk-walking scan path via a new `scan_buffer` + `run_detectors_on`
+seam) landing the same day on top; v0.2.0-rc.1 tag cut 2026-05-08 —
+first end-to-end run of the git-cliff + Homebrew bump pipelines, both
+green on first try; T4-17, T4-18, T4-19 landed earlier; T4-20 / T4-21
+deferred per maintainer decision; community scaffolding minus the
+formal CoC, which is deferred until external contributor activity
+warrants it)
 
 Engineering roadmap for shipping cntrdct as a usable open-source Rust
 tool.
@@ -246,8 +251,9 @@ T2-11. cargo cntrdct subcommand
 
 T3-12. LSP server
 
-- Status: `[~]` (Phase 1 scaffolding landed 2026-05-08; Phase 1.b /
-  1.c / 2 / 3 still pending)
+- Status: `[~]` (Phase 1 scaffolding landed 2026-05-08; Phase 1.b
+  document events + Finding -> Diagnostic mapping landed 2026-05-08;
+  Phase 1.c / 2 / 3 still pending)
 - Goal: a `cntrdct-lsp` crate that exposes findings to IDEs
   (VS Code, Helix, Neovim) via the Language Server Protocol.
 - Acceptance: a `vscode-cntrdct` extension or comparable
@@ -264,9 +270,25 @@ T3-12. LSP server
   silently. Default `cargo install cntrdct` is unchanged; LSP build
   is opt-in via `cargo install cntrdct --features lsp`.
 - Phase 1.b — document events + Finding -> Diagnostic mapping
-  (`textDocument/{didOpen,didChange,didSave,didClose}`,
-  `textDocument/publishDiagnostics`). Lands the
-  `tests/lsp_smoke.rs` round-trip described in lsp-v0.md "Testing".
+  (done 2026-05-08): `textDocument/{didOpen,didChange,didSave,didClose}`
+  wired through to `textDocument/publishDiagnostics`. Buffer scan
+  goes through a new `crate::scan_buffer` entry point that shares
+  the Layer 1 detector battery with `scan_full_with_config` via
+  the extracted `run_detectors_on` helper (so registration ordering
+  lives in exactly one place). Severity, code, source, message,
+  range (1-based → 0-based), `relatedInformation` (one entry per
+  citation key, with the citation URL resolved through a static
+  detector-citation registry when available, falling back to the
+  buffer URI when the key is unknown), and `data` (verbatim
+  `evidence.raw`) all follow the lsp-v0.md mapping table. Scans
+  run on `tokio::task::spawn_blocking` so the event loop is not
+  blocked while a multi-thousand-LOC buffer parses. CI exercises
+  the new surface through `cargo test --features lsp --test
+  lsp_smoke` (a subprocess JSON-RPC round-trip) and
+  `cargo test --features lsp --lib lsp::tests` (seven unit tests
+  pinning the Finding -> Diagnostic mapping); the `clippy (lsp
+  feature)` step now passes `--all-targets` so the new test files
+  are checked too.
 - Phase 1.c — debouncing on didChange (so per-keystroke re-scans
   do not stall the editor on multi-thousand-LOC buffers).
 - Phase 2 — `vscode-cntrdct` extension scaffolding (TypeScript /
@@ -873,8 +895,9 @@ Phase F (Tier 3 / 4 organically after launch):
 26. T3-16 telemetry-free assurance (landed 2026-05-08)
 27. T3-14 distribution channels — cargo-binstall + Homebrew tap
     landed 2026-05-08; AUR dropped from scope
-28. T3-12 LSP server — Phase 1 scaffolding landed 2026-05-08;
-    Phase 1.b document events + diagnostics next
+28. T3-12 LSP server — Phase 1 scaffolding + Phase 1.b document
+    events + Finding -> Diagnostic mapping both landed 2026-05-08;
+    Phase 1.c didChange debouncing next
 29. T3-13 mdBook user guide (essay migration to external blog
     precedes Jekyll retirement, see T3-13 note)
 
