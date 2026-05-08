@@ -13,16 +13,20 @@ AUR sub-target dropped from scope; T3-12 LSP server Phase 1 scaffolding
 mapping (`textDocument/{didOpen,didChange,didSave,didClose}` →
 `publishDiagnostics`, sharing the Layer 1 detector battery with the
 disk-walking scan path via a new `scan_buffer` + `run_detectors_on`
-seam) landing the same day on top, and Phase 1.c per-URI didChange
+seam) landing the same day on top, Phase 1.c per-URI didChange
 debouncing (250 ms quiet window backed by an
 `Arc<tokio::sync::Mutex<HashMap<Url, JoinHandle>>>`, with
 `didSave` / `didClose` draining the pending map for their URI before
-acting) landing 2026-05-09; v0.2.0-rc.1 tag cut 2026-05-08 — first
-end-to-end run of the git-cliff + Homebrew bump pipelines, both green
-on first try; T4-17, T4-18, T4-19 landed earlier; T4-20 / T4-21
-deferred per maintainer decision; community scaffolding minus the
-formal CoC, which is deferred until external contributor activity
-warrants it)
+acting) landing 2026-05-09, and Phase 1.c+ per-URI monotonic
+generation counter (extends the per-URI map to a `UriState` carrying
+`{handle, latest_generation}`, every event bumps and captures, every
+publish is gated on `captured == latest`) closing the
+`spawn_blocking`-cannot-be-aborted race the same day; v0.2.0-rc.1
+tag cut 2026-05-08 — first end-to-end run of the git-cliff + Homebrew
+bump pipelines, both green on first try; T4-17, T4-18, T4-19 landed
+earlier; T4-20 / T4-21 deferred per maintainer decision; community
+scaffolding minus the formal CoC, which is deferred until external
+contributor activity warrants it)
 
 Engineering roadmap for shipping cntrdct as a usable open-source Rust
 tool.
@@ -257,7 +261,8 @@ T3-12. LSP server
 
 - Status: `[~]` (Phase 1 scaffolding landed 2026-05-08; Phase 1.b
   document events + Finding -> Diagnostic mapping landed 2026-05-08;
-  Phase 1.c didChange debouncing landed 2026-05-09; Phases 2 / 3
+  Phase 1.c didChange debouncing landed 2026-05-09; Phase 1.c+
+  per-URI generation counter landed 2026-05-09; Phases 2 / 3
   still pending)
 - Goal: a `cntrdct-lsp` crate that exposes findings to IDEs
   (VS Code, Helix, Neovim) via the Language Server Protocol.
@@ -306,9 +311,24 @@ T3-12. LSP server
   `did_change_debounces_rapid_bursts_to_one_publish` in
   `tests/lsp_smoke.rs` fires three notifications inside the window
   and asserts exactly one `publishDiagnostics` survives, carrying
-  the most recent buffer state. `JoinHandle::abort()` cannot
-  interrupt an in-flight `spawn_blocking`; a generation counter is
-  the documented Phase 1.c+ upgrade path.
+  the most recent buffer state.
+- Phase 1.c+ — per-URI generation counter (done 2026-05-09): the
+  per-URI map evolves from `HashMap<Url, JoinHandle>` to
+  `HashMap<Url, UriState>` where `UriState { handle: Option<JoinHandle>,
+  latest_generation: u64 }`. Every event that produces a new scan
+  (`did_open` / `did_change` / `did_save`) or invalidates pending
+  work (`did_close`) bumps `latest_generation` atomically with the
+  abort + spawn it performs; each scheduled scan captures the value
+  at scheduling time and re-checks it after `spawn_blocking` returns,
+  dropping its `publish_diagnostics` if a fresher event has overtaken
+  it. This closes the documented race in which `JoinHandle::abort()`
+  cannot interrupt a blocking-pool thread that is already inside the
+  detector pass. Four new unit tests (`bump_generation_*`,
+  `is_current_*`) in `src/lsp.rs::tests` pin the counter primitives;
+  the existing `did_change_debounces_rapid_bursts_to_one_publish`
+  smoke test continues to pass unchanged. The error-log path
+  (`window/logMessage`) is intentionally left ungated — a stale scan
+  that errored out describes a real failure the user wants to see.
 - Phase 2 — `vscode-cntrdct` extension scaffolding (TypeScript /
   pnpm), bundling the LSP binary auto-downloaded from GitHub
   Releases. Separate repository under `ktrysmt/vscode-cntrdct`.
@@ -915,7 +935,8 @@ Phase F (Tier 3 / 4 organically after launch):
     landed 2026-05-08; AUR dropped from scope
 28. T3-12 LSP server — Phase 1 scaffolding + Phase 1.b document
     events + Finding -> Diagnostic mapping landed 2026-05-08;
-    Phase 1.c per-URI didChange debouncing landed 2026-05-09; Phase
+    Phase 1.c per-URI didChange debouncing landed 2026-05-09;
+    Phase 1.c+ per-URI generation counter landed 2026-05-09; Phase
     2 (vscode-cntrdct extension) next
 29. T3-13 mdBook user guide (essay migration to external blog
     precedes Jekyll retirement, see T3-13 note)

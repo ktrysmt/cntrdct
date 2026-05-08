@@ -1,8 +1,10 @@
 # cntrdct-lsp v0 — Language Server for the cntrdct linter
 
-Status: phase 1 + phase 1.b + phase 1.c shipped (lifecycle methods,
-document events, the Finding -> Diagnostic mapping, and per-URI
-didChange debouncing all landed under feature flag `lsp`); phases
+Status: phase 1 + phase 1.b + phase 1.c + phase 1.c+ shipped
+(lifecycle methods, document events, the Finding -> Diagnostic
+mapping, per-URI didChange debouncing, and the per-URI generation
+counter that gates `publish_diagnostics` against in-flight
+`spawn_blocking` scans all landed under feature flag `lsp`); phases
 2 / 3 still pending.
 
 This spec scopes the v0 surface of `cntrdct-lsp`, a Language Server Protocol
@@ -80,16 +82,27 @@ gap. `didSave` and `didClose` actively drain the pending map for their
 URI before acting, so a stale scan scheduled by an earlier `didChange`
 cannot land its publish *after* the explicit user action.
 
-Failure mode acknowledged: `JoinHandle::abort()` cannot interrupt a
-`spawn_blocking` task that has already started executing the detector
-pass; the OS thread keeps running and its publish (if it reaches
-`client.publish_diagnostics`) lands after the replacement scan's
-publish. The probability of this race in practice is low (the first
-scan would have to outrace the 250 ms debounce + the next scan), and
-the editor's worst-case behaviour is briefly showing stale diagnostics
-for one frame. A generation counter that gates `publish_diagnostics`
-on `last_seen_generation == my_generation` is the documented Phase
-1.c+ upgrade path.
+## Generation counter (phase 1.c+ — landed)
+
+`JoinHandle::abort()` cannot interrupt a `spawn_blocking` task that has
+already started executing the detector pass; the OS thread keeps
+running until it returns, and its publish (if reached) would otherwise
+land after the replacement scan's publish. Phase 1.c+ closes this race
+by extending the per-URI map from `JoinHandle<()>` to a `UriState`
+record carrying both the handle and a monotonic `latest_generation:
+u64` counter (`src/lsp.rs`). Every event that produces a new scan
+(`didOpen` / `didChange` / `didSave`) or invalidates pending work
+(`didClose`) bumps the counter, and each scheduled scan captures the
+value at scheduling time. After `spawn_blocking` returns, the scan
+re-locks the state, compares its captured generation against the
+latest, and drops its publish silently if they no longer match.
+
+The cancel + bump in `did_save` and `did_close` is atomic (a single
+locked critical section) so there is no window in which an in-flight
+stale scan can read its own generation as still-current. Error logs
+(`window/logMessage`) still fire from a stale scan because they
+describe a real scan failure that the user wants to see regardless of
+freshness; only the diagnostic publish is gated.
 
 ## Finding -> Diagnostic mapping
 
@@ -137,15 +150,17 @@ will get its own follow-up entry once v0 is in users' hands.
 2. Phase 1.b — document events + Finding -> Diagnostic mapping.
    Landed.
 3. Phase 1.c — debouncing on didChange. Landed.
-4. Phase 2 — `vscode-cntrdct` extension scaffolding (TypeScript / pnpm,
+4. Phase 1.c+ — per-URI generation counter gating `publish_diagnostics`
+   against late-arriving stale `spawn_blocking` scans. Landed.
+5. Phase 2 — `vscode-cntrdct` extension scaffolding (TypeScript / pnpm,
    bundled with the LSP binary auto-downloaded from GitHub Releases).
    Pending.
-5. Phase 3 — Marketplace listing. Pending.
+6. Phase 3 — Marketplace listing. Pending.
 
-Phases 1 + 1.b + 1.c together are the minimum to advertise the LSP as
-"ships diagnostics inline without choking on rapid typing"; phase 2
-delivers the production-quality VS Code experience; phase 3 is the
-public release.
+Phases 1 + 1.b + 1.c + 1.c+ together are the minimum to advertise the
+LSP as "ships diagnostics inline without choking on rapid typing and
+without races on cancellation"; phase 2 delivers the production-
+quality VS Code experience; phase 3 is the public release.
 
 ## Testing
 
@@ -174,7 +189,16 @@ public release.
   thread + mpsc channel underpins the assertion so the test can ask
   "did *no* further frame arrive in the next 700 ms", which the
   Phase 1.b sync-read helpers cannot answer.
-- Both run only with `--features lsp` enabled; CI wires
-  `cargo test --features lsp --test lsp_smoke` and
+- Phase 1.c+ adds four unit tests in `lsp::tests` covering the
+  generation counter primitives directly (no `tower_lsp::Client`
+  required): `bump_generation` starts at 1 and increases monotonically,
+  is per-URI, `is_current` matches only the latest generation, and
+  returns false for unknown URIs. The race the counter defends against
+  (a `spawn_blocking` scan whose abort lost to its blocking-pool
+  thread) is awkward to force deterministically without a test seam,
+  so the unit-level proof of the gate is the load-bearing assertion;
+  the smoke test continues to validate end-to-end debounce behaviour.
+- Both smoke and unit suites run only with `--features lsp` enabled;
+  CI wires `cargo test --features lsp --test lsp_smoke` and
   `cargo test --features lsp --lib lsp::tests` as separate steps so
   a future regression in either path fails CI.

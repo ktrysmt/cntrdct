@@ -10,6 +10,11 @@
 //! - Phase 1.c — per-URI debouncing on `didChange` so a burst of
 //!   keystrokes does not stall the editor on multi-thousand-LOC
 //!   buffers.
+//! - Phase 1.c+ — per-URI monotonic generation counter that gates
+//!   every `publish_diagnostics` call. `JoinHandle::abort()` cannot
+//!   interrupt a `spawn_blocking` scan that has already started; the
+//!   generation check ensures such a stale scan drops its publish
+//!   when a newer event has bumped the counter while it was running.
 //!
 //! Phases 2 / 3 (VS Code extension scaffolding + Marketplace) are
 //! still pending.
@@ -46,31 +51,55 @@ use crate::detectors::unreachable_after_terminator::UnreachableAfterTerminator;
 /// deferred. See `docs/spec/lsp-v0.md` "Debouncing".
 const DIDCHANGE_DEBOUNCE: Duration = Duration::from_millis(250);
 
+/// Shared per-URI state map. Each `Url` carries the handle of any
+/// debounced didChange task (Phase 1.c) plus a monotonic generation
+/// counter (Phase 1.c+). The handle gets `abort()`-ed on the next
+/// event for the same URI so a still-sleeping debounce does not fire;
+/// the counter gates `publish_diagnostics` so an in-flight
+/// `spawn_blocking` scan whose `abort()` arrived too late to stop its
+/// blocking-pool thread cannot publish stale diagnostics over the
+/// editor's problems pane.
+type StateMap = Arc<Mutex<HashMap<Url, UriState>>>;
+
+#[derive(Default)]
+struct UriState {
+    /// Most recent debounced didChange task scheduled for this URI, if
+    /// any. `did_change` / `did_save` / `did_close` all `abort()` it
+    /// before scheduling their own work; `abort()` only stops tasks
+    /// that have not yet exited the `tokio::time::sleep` window.
+    handle: Option<JoinHandle<()>>,
+    /// Monotonic per-URI generation. Every event that produces a new
+    /// scan (`did_open` / `did_change` / `did_save`) or invalidates
+    /// pending work (`did_close`) bumps this. A scheduled scan
+    /// captures the value at scheduling time and only publishes if
+    /// the captured value still equals the latest. This is the Phase
+    /// 1.c+ defense against a `spawn_blocking` scan that was already
+    /// past the sleep when its `JoinHandle::abort()` ran and so
+    /// continued executing on the blocking pool until completion.
+    latest_generation: u64,
+}
+
 /// The cntrdct LSP server.
 ///
 /// Holds the tower-lsp [`Client`] handle so server methods can push
 /// notifications (`window/logMessage`,
-/// `textDocument/publishDiagnostics`) back to the editor, plus a
-/// per-URI map of pending debounced scan tasks (Phase 1.c).
+/// `textDocument/publishDiagnostics`) back to the editor, plus the
+/// per-URI [`UriState`] map shared with debounced scan tasks
+/// (Phase 1.c) and the generation counter (Phase 1.c+).
 pub struct CntrdctLsp {
     /// tower-lsp client handle, populated by [`tower_lsp::LspService::new`].
     pub client: Client,
-    /// Per-URI handles to debounced scan tasks scheduled by
-    /// `did_change`. A new `did_change` for the same URI aborts the
-    /// prior handle so only the most recent buffer state is scanned;
-    /// `did_save` and `did_close` also drain this map for their URI
-    /// to avoid a stale follow-up publish landing after the explicit
-    /// save / close action.
-    pending: Arc<Mutex<HashMap<Url, JoinHandle<()>>>>,
+    /// Per-URI debounce handle + generation counter; see [`UriState`].
+    state: StateMap,
 }
 
 impl CntrdctLsp {
-    /// Construct a server bound to `client` with an empty pending-scan
+    /// Construct a server bound to `client` with an empty per-URI state
     /// map. Used by `LspService::new` in `src/lsp_main.rs`.
     pub fn new(client: Client) -> Self {
         Self {
             client,
-            pending: Arc::new(Mutex::new(HashMap::new())),
+            state: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -108,7 +137,12 @@ impl LanguageServer for CntrdctLsp {
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let uri = params.text_document.uri;
         let text = params.text_document.text;
-        scan_and_publish(&self.client, uri, text).await;
+        // Bump the generation here too: a slow didOpen scan could
+        // otherwise be overtaken by a fast didChange that fires before
+        // the open-time scan completes, and we want the latest event
+        // to win deterministically.
+        let my_gen = bump_generation(&self.state, &uri).await;
+        scan_and_publish_if_current(&self.client, uri, text, &self.state, my_gen).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -126,15 +160,18 @@ impl LanguageServer for CntrdctLsp {
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         let uri = params.text_document.uri;
-        // Cancel any pending debounced didChange scan for this URI so
-        // the explicit save's publish is not overwritten by a stale
-        // follow-up. See Phase 1.c notes in `docs/spec/lsp-v0.md`.
-        self.cancel_pending(&uri).await;
+        // Cancel any pending debounced didChange scan for this URI and
+        // bump the generation atomically. The bump invalidates any
+        // in-flight `spawn_blocking` scan from a prior didChange whose
+        // abort() arrived too late to stop the blocking-pool thread,
+        // so the explicit save's publish is the one the editor sees.
+        let my_gen = self.cancel_pending_and_bump(&uri).await;
         // The client may include the saved buffer text via
         // `save.includeText`; when it does we trust it. Otherwise we
         // re-read the file from disk so the diagnostics reflect the
         // newly-saved state. v0 keeps this synchronous; the spawn-
-        // blocking inside `scan_and_publish` keeps the event loop free.
+        // blocking inside `scan_and_publish_if_current` keeps the
+        // event loop free.
         let text = match params.text {
             Some(t) => t,
             None => match uri.to_file_path().ok().and_then(read_file_sync) {
@@ -142,18 +179,20 @@ impl LanguageServer for CntrdctLsp {
                 None => return,
             },
         };
-        scan_and_publish(&self.client, uri, text).await;
+        scan_and_publish_if_current(&self.client, uri, text, &self.state, my_gen).await;
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         let uri = params.text_document.uri;
-        // Cancel any pending debounced didChange scan for this URI;
-        // there is nothing to publish into a buffer the editor no
-        // longer has open.
-        self.cancel_pending(&uri).await;
-        // Clear the editor's problems pane for this URI. Without this
-        // the diagnostics from the last `publishDiagnostics` would stay
-        // pinned to a buffer the editor no longer has open.
+        // Cancel any pending debounced didChange scan and bump the
+        // generation so a slow scan whose blocking-pool thread is
+        // still running cannot land its publish after we clear the
+        // editor's problems pane.
+        self.cancel_pending_and_bump(&uri).await;
+        // The empty publish here is unconditional — closing the buffer
+        // always clears its diagnostics. Any in-flight stale scan has
+        // already been invalidated by the generation bump above and
+        // will drop its own publish before sending it.
         self.client.publish_diagnostics(uri, Vec::new(), None).await;
     }
 }
@@ -161,49 +200,106 @@ impl LanguageServer for CntrdctLsp {
 impl CntrdctLsp {
     /// Schedule a debounced scan of `text` for `uri`. If a prior scan
     /// is already pending for the same URI it is aborted and replaced;
-    /// only the most recent buffer state survives the quiet window.
-    /// Phase 1.c.
+    /// only the most recent buffer state survives the quiet window
+    /// (Phase 1.c). The generation counter is bumped atomically with
+    /// the abort + spawn so any in-flight `spawn_blocking` scan that
+    /// outran its abort is invalidated and will drop its publish
+    /// (Phase 1.c+).
     async fn schedule_debounced_scan(&self, uri: Url, text: String) {
+        // Hold the lock across abort() + spawn() so a parallel
+        // `did_change` for the same URI cannot interleave between
+        // bumping the generation and installing the new handle.
+        let mut guard = self.state.lock().await;
+        let entry = guard.entry(uri.clone()).or_default();
+        entry.latest_generation += 1;
+        let my_gen = entry.latest_generation;
+        if let Some(prev) = entry.handle.take() {
+            prev.abort();
+        }
         let client = self.client.clone();
+        let state = self.state.clone();
         let uri_for_task = uri.clone();
         let handle = tokio::spawn(async move {
             tokio::time::sleep(DIDCHANGE_DEBOUNCE).await;
-            scan_and_publish(&client, uri_for_task, text).await;
+            scan_and_publish_if_current(&client, uri_for_task, text, &state, my_gen).await;
         });
-        let prior = self.pending.lock().await.insert(uri, handle);
-        if let Some(h) = prior {
-            // abort() is best-effort: a task already past its sleep
-            // and inside scan_and_publish will keep running on the
-            // blocking pool, but the new task supersedes it for the
-            // next publish. Acceptable v0 trade-off; a generation
-            // counter is the documented Phase 1.c+ upgrade path.
-            h.abort();
-        }
+        entry.handle = Some(handle);
     }
 
-    /// Drop any pending debounced scan for `uri`. Called from
+    /// Drop any pending debounced scan for `uri` and bump the
+    /// generation. Returns the new generation so the caller (e.g.
+    /// `did_save`) can pass it to its own scan. Called from
     /// `did_save` and `did_close` so an explicit user action is not
-    /// shadowed by a stale follow-up publish.
-    async fn cancel_pending(&self, uri: &Url) {
-        if let Some(h) = self.pending.lock().await.remove(uri) {
-            h.abort();
+    /// shadowed by a stale follow-up publish — both the still-sleeping
+    /// debounce (via `abort()`) and an in-flight blocking scan (via
+    /// the generation gate) are invalidated.
+    async fn cancel_pending_and_bump(&self, uri: &Url) -> u64 {
+        let mut guard = self.state.lock().await;
+        let entry = guard.entry(uri.clone()).or_default();
+        entry.latest_generation += 1;
+        if let Some(prev) = entry.handle.take() {
+            prev.abort();
         }
+        entry.latest_generation
     }
 }
 
+/// Bump the per-URI generation counter and return the new value. Used
+/// by `did_open` directly and by [`CntrdctLsp::schedule_debounced_scan`] /
+/// [`CntrdctLsp::cancel_pending_and_bump`] indirectly through their own
+/// guarded paths. The function is a thin wrapper so the unit tests can
+/// drive the counter without standing up a `tower_lsp::Client`.
+async fn bump_generation(state: &StateMap, uri: &Url) -> u64 {
+    let mut guard = state.lock().await;
+    let entry = guard.entry(uri.clone()).or_default();
+    entry.latest_generation += 1;
+    entry.latest_generation
+}
+
+/// Phase 1.c+ generation gate: returns true iff `uri`'s latest
+/// generation in `state` still equals `my_gen`. Returns false for
+/// unknown URIs (the `did_close` path removes nothing today, so this
+/// is mostly a defensive default — any future entry-cleanup code that
+/// drops a URI from the map effectively invalidates all in-flight
+/// scans for it, which is the conservative outcome).
+async fn is_current(state: &StateMap, uri: &Url, my_gen: u64) -> bool {
+    state
+        .lock()
+        .await
+        .get(uri)
+        .is_some_and(|s| s.latest_generation == my_gen)
+}
+
 /// Run the Layer 1 detector battery against `text` for the buffer
-/// identified by `uri`, then publish the resulting diagnostics. The
-/// scan itself is CPU-bound and synchronous, so it is offloaded to
-/// tokio's blocking pool to keep the LSP event loop responsive on
-/// multi-thousand-LOC buffers. Free function (not a method) so the
-/// debouncer in `schedule_debounced_scan` can invoke it from a spawned
-/// task that does not hold `&self`.
-async fn scan_and_publish(client: &Client, uri: Url, text: String) {
+/// identified by `uri`, then publish the resulting diagnostics — but
+/// only if the per-URI generation counter still matches `my_gen` at
+/// publish time. The scan itself is CPU-bound and synchronous, so it
+/// is offloaded to tokio's blocking pool to keep the LSP event loop
+/// responsive on multi-thousand-LOC buffers. Free function (not a
+/// method) so the debouncer in `schedule_debounced_scan` can invoke
+/// it from a spawned task that does not hold `&self`.
+///
+/// `my_gen` is captured at scheduling time and re-checked after the
+/// blocking scan returns. A scan whose generation has been overtaken
+/// by a fresher event (didChange / didSave / didClose) drops its
+/// publish silently — error logs still fire because they describe a
+/// real failure that the user wants to see regardless of staleness.
+async fn scan_and_publish_if_current(
+    client: &Client,
+    uri: Url,
+    text: String,
+    state: &StateMap,
+    my_gen: u64,
+) {
     let Ok(path) = uri.to_file_path() else {
         // Non-file URIs (e.g. `untitled:` buffers) cannot be fed to
-        // the detector battery, but publishing an empty diagnostic
-        // vector keeps the editor consistent with the protocol.
-        client.publish_diagnostics(uri, Vec::new(), None).await;
+        // the detector battery. Publish an empty diagnostic vector to
+        // keep the editor consistent with the protocol, but only if
+        // we are still the current generation — otherwise a fresher
+        // event has already supplanted us.
+        if is_current(state, &uri, my_gen).await {
+            client.publish_diagnostics(uri, Vec::new(), None).await;
+        }
         return;
     };
 
@@ -226,6 +322,10 @@ async fn scan_and_publish(client: &Client, uri: Url, text: String) {
             Vec::new()
         }
     };
+
+    if !is_current(state, &uri, my_gen).await {
+        return;
+    }
 
     let diagnostics: Vec<Diagnostic> = findings
         .iter()
@@ -446,5 +546,59 @@ mod tests {
         let d = finding_to_diagnostic(&buffer_uri(), &f);
         let related = d.related_information.expect("related info present");
         assert_eq!(related[0].location.uri, buffer_uri());
+    }
+
+    // ---------- Phase 1.c+ generation counter unit tests ----------
+
+    fn empty_state() -> StateMap {
+        Arc::new(Mutex::new(HashMap::new()))
+    }
+
+    #[tokio::test]
+    async fn bump_generation_starts_at_one_and_increases_monotonically() {
+        let state = empty_state();
+        let uri = buffer_uri();
+        assert_eq!(bump_generation(&state, &uri).await, 1);
+        assert_eq!(bump_generation(&state, &uri).await, 2);
+        assert_eq!(bump_generation(&state, &uri).await, 3);
+    }
+
+    #[tokio::test]
+    async fn bump_generation_is_per_uri() {
+        let state = empty_state();
+        let a = Url::parse("file:///tmp/a.rs").unwrap();
+        let b = Url::parse("file:///tmp/b.rs").unwrap();
+        assert_eq!(bump_generation(&state, &a).await, 1);
+        assert_eq!(bump_generation(&state, &b).await, 1);
+        assert_eq!(bump_generation(&state, &a).await, 2);
+        assert_eq!(bump_generation(&state, &b).await, 2);
+    }
+
+    #[tokio::test]
+    async fn is_current_matches_only_the_latest_generation() {
+        let state = empty_state();
+        let uri = buffer_uri();
+        let g1 = bump_generation(&state, &uri).await;
+        assert!(
+            is_current(&state, &uri, g1).await,
+            "freshly-issued generation must be current"
+        );
+        let g2 = bump_generation(&state, &uri).await;
+        assert!(
+            !is_current(&state, &uri, g1).await,
+            "stale generation must not be current after a fresh bump"
+        );
+        assert!(
+            is_current(&state, &uri, g2).await,
+            "newest generation must be current"
+        );
+    }
+
+    #[tokio::test]
+    async fn is_current_returns_false_for_unknown_uri() {
+        let state = empty_state();
+        let uri = Url::parse("file:///tmp/never-touched.rs").unwrap();
+        assert!(!is_current(&state, &uri, 0).await);
+        assert!(!is_current(&state, &uri, 42).await);
     }
 }
