@@ -115,11 +115,17 @@ P-5. β release tagging and crates.io publish
   and T3-16 netns telemetry-free assurance. First end-to-end run of
   the git-cliff release-body pipeline and the Homebrew tap auto-
   bump workflow; both green on first execution.
-- Followup for next tag (still open): `cntrdct --version` / `-V`
-  not wired (`src/main.rs:13` lacks the `#[command(version)]`
-  attribute). The v0.2.0-rc.1 binary still answers `--version` with
-  an `error: unexpected argument` clap message; carry into v0.2.0
-  stable.
+- Followup landed 2026-05-10: `cntrdct --version` / `-V` now wired.
+  `Cli` derive at `src/main.rs:13` carries `#[command(version)]`,
+  which clap fills from `CARGO_PKG_VERSION`. Both flags emit
+  `cntrdct <version>` and exit 0 before subcommand resolution, so
+  the prior `error: unexpected argument` clap message is gone. The
+  `cargo cntrdct --version` shim path inherits the behaviour for
+  free since `src/cargo_subcommand.rs` is a verbatim arg forwarder.
+  Two new integration tests
+  (`cli_version_long_flag_prints_cargo_pkg_version`,
+  `cli_version_short_flag_prints_cargo_pkg_version` in
+  `tests/integration.rs`) pin the contract structurally.
 
 P-6. v0 → v0.1 detector quality fixes (wild β FP reduction pass)
 

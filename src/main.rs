@@ -11,7 +11,11 @@ use cntrdct::detectors::pr_miner::PrMinerDetector;
 use cntrdct::detectors::unreachable_after_terminator::UnreachableAfterTerminator;
 
 #[derive(Parser)]
-#[command(name = "cntrdct", about = "Evidence-based contradiction linter")]
+#[command(
+    name = "cntrdct",
+    version,
+    about = "Evidence-based contradiction linter"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

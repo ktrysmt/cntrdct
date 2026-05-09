@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 use cntrdct::{scan, ScanError};
 use tempfile::tempdir;
@@ -122,4 +123,40 @@ fn t6_ignores_non_rs_files() {
         "non-rust files must be ignored, got {:#?}",
         findings
     );
+}
+
+fn cntrdct_bin() -> PathBuf {
+    PathBuf::from(env!("CARGO_BIN_EXE_cntrdct"))
+}
+
+#[test]
+fn cli_version_long_flag_prints_cargo_pkg_version() {
+    let out = Command::new(cntrdct_bin())
+        .arg("--version")
+        .output()
+        .expect("invoke cntrdct --version");
+    assert!(
+        out.status.success(),
+        "--version exited non-zero: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let expected = format!("cntrdct {}", env!("CARGO_PKG_VERSION"));
+    assert_eq!(stdout.trim(), expected, "got: {}", stdout);
+}
+
+#[test]
+fn cli_version_short_flag_prints_cargo_pkg_version() {
+    let out = Command::new(cntrdct_bin())
+        .arg("-V")
+        .output()
+        .expect("invoke cntrdct -V");
+    assert!(
+        out.status.success(),
+        "-V exited non-zero: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let expected = format!("cntrdct {}", env!("CARGO_PKG_VERSION"));
+    assert_eq!(stdout.trim(), expected, "got: {}", stdout);
 }
