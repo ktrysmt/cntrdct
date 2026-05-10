@@ -39,6 +39,7 @@ fn main() {
         finding: f,
         posterior_tp: Some(0.6),
         wilson_lower: Some(0.4),
+        prior_method: Some(cntrdct::calibration::PriorMethod::Wilson),
         rank_score: 1.0,
         adjudication: None,
     };

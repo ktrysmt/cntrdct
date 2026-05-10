@@ -2,6 +2,7 @@
 //!
 //! Spec: `cntrdct/docs/spec/sarif-v0.md`.
 
+use crate::calibration::PriorMethod;
 use crate::core::{
     AdjudicationResult, AdjudicationVerdict, AnomalyClass, Citation, Detector, Finding,
     LanguageCitationStatus, Location, RankedFinding, Severity,
@@ -108,12 +109,29 @@ pub fn to_sarif_with_rules_pretty_ranked(
 
 fn ranked_to_result(rf: &RankedFinding) -> Value {
     let mut result = finding_to_result(&rf.finding);
-    if let Some(adj) = &rf.adjudication {
-        if let Some(props) = result.get_mut("properties").and_then(|v| v.as_object_mut()) {
+    if let Some(props) = result.get_mut("properties").and_then(|v| v.as_object_mut()) {
+        if let Some(method) = rf.prior_method {
+            props.insert(
+                "priorMethod".to_string(),
+                Value::String(prior_method_to_str(method).to_string()),
+            );
+        }
+        if let Some(adj) = &rf.adjudication {
             props.insert("adjudication".to_string(), adjudication_to_value(adj));
         }
     }
     result
+}
+
+/// Q-11: which 95% lower-bound method actually produced the prior for
+/// this finding. Surfaced verbatim into SARIF so external tools (Code
+/// Scanning, custom dashboards) can flag the small-sample regime
+/// without re-implementing the switching rule.
+fn prior_method_to_str(m: PriorMethod) -> &'static str {
+    match m {
+        PriorMethod::Wilson => "wilson",
+        PriorMethod::Jeffreys => "jeffreys",
+    }
 }
 
 fn adjudication_to_value(a: &AdjudicationResult) -> Value {

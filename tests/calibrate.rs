@@ -109,9 +109,16 @@ fn calibrate_writes_priors_with_expected_values() {
     assert_eq!(cd.fp, 1);
     // (2 + 1) / (3 + 2) = 0.6
     assert!((cd.posterior_tp - 0.6).abs() < 1e-3);
-    // wilson_lower_95(2, 1) ≈ 0.2077
+    // n = 3 < SMALL_SAMPLE_THRESHOLD, so the calibrator picks Jeffreys
+    // per Q-11. Reference value: 2.5% quantile of Beta(3, 2) = 4x^3 - 3x^4
+    // solved at p = 0.025 → x ≈ 0.1941.
+    assert_eq!(
+        cd.prior_method,
+        cntrdct::calibration::PriorMethod::Jeffreys,
+        "n=3 should trigger small-sample Jeffreys"
+    );
     assert!(
-        (cd.wilson_lower_95 - 0.2077).abs() < 1e-3,
+        (cd.wilson_lower_95 - 0.1941).abs() < 1e-3,
         "got {}",
         cd.wilson_lower_95
     );
@@ -121,6 +128,11 @@ fn calibrate_writes_priors_with_expected_values() {
     assert_eq!(asw.fp, 1);
     // (1 + 1) / (2 + 2) = 0.5
     assert!((asw.posterior_tp - 0.5).abs() < 1e-3);
+    // n = 2 < SMALL_SAMPLE_THRESHOLD: Jeffreys.
+    assert_eq!(
+        asw.prior_method,
+        cntrdct::calibration::PriorMethod::Jeffreys
+    );
 }
 
 #[test]
@@ -239,6 +251,7 @@ fn calibrated_ranker_reorders_when_wilson_disagrees_with_related_count() {
             fp: 9,
             posterior_tp: 0.166,
             wilson_lower_95: 0.02,
+            prior_method: cntrdct::calibration::PriorMethod::Wilson,
         },
     );
     priors.insert(
@@ -248,6 +261,7 @@ fn calibrated_ranker_reorders_when_wilson_disagrees_with_related_count() {
             fp: 0,
             posterior_tp: 0.916,
             wilson_lower_95: 0.85,
+            prior_method: cntrdct::calibration::PriorMethod::Wilson,
         },
     );
 

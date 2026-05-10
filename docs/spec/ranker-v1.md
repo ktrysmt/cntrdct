@@ -60,6 +60,15 @@ carry it. Loaders MUST treat the field as optional.
 
 - Laplace-smoothed posterior TP rate (Beta(1, 1) prior):
   `posterior_tp = (TP + 1) / (TP + FP + 2)`
+- Lower-bound switching (Q-11):
+  - `n = TP + FP < 30` → use [`PriorMethod::Jeffreys`]: 2.5%
+    quantile of `Beta(TP+1, FP+1)`. At `TP = 0` apply the BCD 2001
+    §4 boundary modification and return 0; otherwise solve
+    `I_x(TP+1, FP+1) = 0.025` by bisection on the integer-Beta CDF.
+  - `n >= 30` → use [`PriorMethod::Wilson`]: the formula below.
+  - `DetectorPrior.prior_method` records which branch produced the
+    value so the choice is auditable downstream
+    (`RankedFinding.prior_method`, SARIF `result.properties.priorMethod`).
 - Wilson 95% lower bound (z = 1.96):
   ```
   let n = TP + FP
@@ -209,3 +218,46 @@ and constructs the ranker with the resulting `HashMap`).
 - `jung-kim-shin-yi-sas-2005` — Bayesian post-analysis, SAS 2005
 - `spiess-icse-2025` — Calibration of LMs for code (post-v1 reference for
   Layer 3 adjudicator integration)
+- `brown-cai-dasgupta-stat-sci-2001` — L.D. Brown, T.T. Cai,
+  A. DasGupta, "Interval Estimation for a Binomial Proportion",
+  Statistical Science 16(2), 101-133. Source for Q-11's `n < 30`
+  switching threshold and the `tp = 0` boundary modification.
+- `thulin-ejs-2014` — M. Thulin, "The cost of using exact confidence
+  intervals for a binomial proportion", Electronic Journal of
+  Statistics 8(1), 817-840. Independent confirmation that a
+  Beta-prior credible interval at small `n` is preferable to the
+  exact (Clopper-Pearson) interval; provides the methodological
+  grounding for using a credible-interval lower bound rather than
+  reverting to Clopper-Pearson at small `n`.
+
+## Q-11 design notes
+
+The roadmap's headline framing of Q-11 — "Jeffreys is closer to
+nominal than Wilson at n < 30" — is a useful shorthand but
+empirically does not hold under one-sided lower coverage averaged
+over `p`: with the BCD 2001 boundary correction at `tp = 0`, both
+methods sit similarly close to nominal one-sided lower coverage
+across small `n`. Q-11's actual reason for switching at small `n` is
+methodological coherence, not a coverage-superiority claim:
+
+- `posterior_tp` is already a Beta(1, 1) Bayesian update; pairing it
+  with a Beta(1, 1) credible-interval lower bound at small `n` keeps
+  both columns in one regime. Mixing `posterior_tp` (Bayesian) with
+  Wilson (frequentist) at small `n` would surface two incompatible
+  uncertainty semantics in the same `DetectorPrior`.
+- At `n >= 30` Wilson and the Bayes-Laplace bound agree to several
+  decimals, so the choice is irrelevant; we keep Wilson there for
+  byte-stability with pre-Q-11 priors files (the JSON field name
+  `wilson_lower_95` is preserved for backward compatibility — the
+  authoritative metadata is in `prior_method`).
+- The `tp = 0` boundary modification (return 0) keeps the two
+  methods aligned at the most-common observation-free cell so
+  detectors with no observed TPs sort identically under either
+  method.
+
+The exploratory coverage-probability simulation that motivated the
+above lives in the test plan row Q11-cov below; the gated
+acceptance tests in `tests/ranker_small_sample.rs` only enforce the
+properties Q-11 actually depends on (switching threshold,
+`tp = 0` boundary, distinguishability at intermediate `(tp, fp)`,
+`prior_method` propagation through the ranker and SARIF emitter).

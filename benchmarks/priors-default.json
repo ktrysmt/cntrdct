@@ -3,36 +3,42 @@
     "tp": 15,
     "fp": 0,
     "posterior_tp": 0.9411764705882353,
-    "wilson_lower_95": 0.7961107336956521
+    "wilson_lower_95": 0.7940927857921773,
+    "prior_method": "jeffreys"
   },
   "clone-drift": {
     "tp": 8,
     "fp": 0,
     "posterior_tp": 0.9,
-    "wilson_lower_95": 0.6755843804891231
+    "wilson_lower_95": 0.6637328831200571,
+    "prior_method": "jeffreys"
   },
   "comment-code": {
     "tp": 15,
     "fp": 2,
     "posterior_tp": 0.8421052631578947,
-    "wilson_lower_95": 0.6566315750229009
+    "wilson_lower_95": 0.6528795613913281,
+    "prior_method": "jeffreys"
   },
   "config-interaction": {
     "tp": 8,
     "fp": 0,
     "posterior_tp": 0.9,
-    "wilson_lower_95": 0.6755843804891231
+    "wilson_lower_95": 0.6637328831200571,
+    "prior_method": "jeffreys"
   },
   "pr-miner": {
     "tp": 16,
     "fp": 22,
     "posterior_tp": 0.425,
-    "wilson_lower_95": 0.2785227481181953
+    "wilson_lower_95": 0.2785227481181953,
+    "prior_method": "wilson"
   },
   "unreachable-after-terminator": {
     "tp": 15,
     "fp": 0,
     "posterior_tp": 0.9411764705882353,
-    "wilson_lower_95": 0.7961107336956521
+    "wilson_lower_95": 0.7940927857921773,
+    "prior_method": "jeffreys"
   }
 }

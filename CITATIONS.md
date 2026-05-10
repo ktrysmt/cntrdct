@@ -110,6 +110,18 @@ pointing at the relevant `docs/surveys/` file.
 - `jung-kim-shin-yi-sas-2005` — Y. Jung, J. Kim, J. Shin, K. Yi, "Taming False Alarms
   from a Domain-Unaware C Analyzer by a Bayesian Statistical Post Analysis", SAS 2005.
   Languages: (general; methodological).
+- `brown-cai-dasgupta-stat-sci-2001` — L.D. Brown, T.T. Cai, A. DasGupta, "Interval
+  Estimation for a Binomial Proportion", Statistical Science 16(2), 101-133, 2001.
+  DOI 10.1214/ss/1009213286. Source for Q-11's `n < 30` switching threshold between
+  Wilson and Beta-prior credible-interval lower bounds, plus the boundary
+  modification at `tp = 0` (§4) that `jeffreys_lower_95` applies.
+  Languages: (general; methodological).
+- `thulin-ejs-2014` — M. Thulin, "The cost of using exact confidence intervals for
+  a binomial proportion", Electronic Journal of Statistics 8(1), 817-840, 2014.
+  DOI 10.1214/14-EJS909. Independent argument for using a Beta-prior credible
+  interval rather than the exact (Clopper-Pearson) interval at small `n`; provides
+  the methodological grounding for Q-11's small-N branch.
+  Languages: (general; methodological).
 
 ## Layer 3 (LLM adjudicator)
 

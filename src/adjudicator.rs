@@ -468,14 +468,19 @@ mod tests {
     }
 
     fn make_ranked(prior: Option<(f64, f64)>) -> RankedFinding {
-        let (posterior_tp, wilson_lower) = match prior {
-            Some((p, w)) => (Some(p), Some(w)),
-            None => (None, None),
+        let (posterior_tp, wilson_lower, prior_method) = match prior {
+            Some((p, w)) => (
+                Some(p),
+                Some(w),
+                Some(crate::calibration::PriorMethod::Wilson),
+            ),
+            None => (None, None, None),
         };
         RankedFinding {
             finding: make_finding(),
             posterior_tp,
             wilson_lower,
+            prior_method,
             rank_score: 1.0,
             adjudication: None,
         }

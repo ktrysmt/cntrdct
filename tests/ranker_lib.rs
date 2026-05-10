@@ -47,6 +47,7 @@ fn prior(tp: u32, fp: u32, posterior_tp: f64, wilson_lower_95: f64) -> DetectorP
         fp,
         posterior_tp,
         wilson_lower_95,
+        prior_method: cntrdct::calibration::PriorMethod::Wilson,
     }
 }
 

@@ -325,6 +325,7 @@ fn make_ranked(adj: Option<AdjudicationResult>) -> RankedFinding {
         finding: make_finding_with_class(Severity::Warning, AnomalyClass::Logic),
         posterior_tp: Some(0.6),
         wilson_lower: Some(0.4),
+        prior_method: Some(cntrdct::calibration::PriorMethod::Wilson),
         rank_score: 1.0,
         adjudication: adj,
     }

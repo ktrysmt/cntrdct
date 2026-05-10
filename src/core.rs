@@ -342,6 +342,15 @@ pub struct RankedFinding {
     pub posterior_tp: Option<f64>,
     /// `None` when no labelled corpus is available (v0).
     pub wilson_lower: Option<f64>,
+    /// Which 95% lower-bound method produced `wilson_lower`. `None`
+    /// when the ranker had no calibration data for this finding (and
+    /// therefore left `wilson_lower` as `None`). Per Q-11, this lets
+    /// downstream consumers tell whether the value came from the
+    /// Wilson formula (`n >= 30`) or the small-sample Bayes-Laplace
+    /// fallback (`n < 30`) — the switching itself is opaque to the
+    /// finding, but the auditable label is not.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prior_method: Option<crate::calibration::PriorMethod>,
     /// Final ranking score used to order the output.
     pub rank_score: f64,
     /// Layer 3 LLM adjudication. `None` unless `--adjudicate` was requested
@@ -526,6 +535,7 @@ mod tests {
             finding: make_finding(),
             posterior_tp: None,
             wilson_lower: None,
+            prior_method: None,
             rank_score: 1.0,
             adjudication: None,
         };
@@ -533,6 +543,11 @@ mod tests {
         assert!(
             !json.contains("\"adjudication\""),
             "field must be omitted when None: {}",
+            json
+        );
+        assert!(
+            !json.contains("\"prior_method\""),
+            "prior_method must be omitted when None: {}",
             json
         );
     }
@@ -543,6 +558,7 @@ mod tests {
             finding: make_finding(),
             posterior_tp: Some(0.6),
             wilson_lower: Some(0.4),
+            prior_method: Some(crate::calibration::PriorMethod::Wilson),
             rank_score: 1.0,
             adjudication: Some(AdjudicationResult {
                 verdict: AdjudicationVerdict::LikelyTruePositive,

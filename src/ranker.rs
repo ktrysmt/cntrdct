@@ -38,6 +38,7 @@ impl crate::core::Ranker for UncalibratedRanker {
                     finding: f,
                     posterior_tp: None,
                     wilson_lower: None,
+                    prior_method: None,
                     rank_score,
                     adjudication: None,
                 }
@@ -100,6 +101,7 @@ impl crate::core::Ranker for CalibratedRanker {
                         finding: f,
                         posterior_tp: Some(prior.posterior_tp),
                         wilson_lower: Some(prior.wilson_lower_95),
+                        prior_method: Some(prior.prior_method),
                         rank_score,
                         adjudication: None,
                     }
@@ -110,6 +112,7 @@ impl crate::core::Ranker for CalibratedRanker {
                         finding: f,
                         posterior_tp: None,
                         wilson_lower: None,
+                        prior_method: None,
                         rank_score,
                         adjudication: None,
                     }
