@@ -175,7 +175,7 @@ pub enum Severity {
 /// under `Documentation` for cntrdct's purposes.
 ///
 /// Each unit variant serializes as its PascalCase name (e.g., `"Logic"`).
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum AnomalyClass {
     /// Defect in the program's logic (e.g., contradictory branches).
     Logic,
@@ -390,8 +390,20 @@ pub struct AdjudicationResult {
     pub confidence: f64,
     /// Free-form rationale supplied by the adjudicator.
     pub rationale: String,
-    /// Optional calibration tag (e.g., the prompt template version).
+    /// Pre-Q-12 verbalised calibration tag (e.g. `"T1.5"`).
+    /// Read-only since Q-12 — the prompt no longer asks for it, but
+    /// the parser keeps the field so adjudication records collected
+    /// before Q-12 (or by external consumers replaying old prompts)
+    /// still round-trip.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub calibration_tag: Option<String>,
+    /// Post-hoc calibrated probability produced by Q-12's Platt
+    /// scaling step. `None` when no Platt parameters are available
+    /// for the finding's `(detector_id, anomaly_class)` cell, in
+    /// which case consumers gracefully fall back to `confidence`.
+    /// Spec: `docs/spec/llm-calibration-v0.md` F1.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub calibrated_confidence: Option<f64>,
 }
 
 /// Layer 3 adjudicator trait. The only layer permitted to invoke an LLM (P3).
@@ -565,6 +577,7 @@ mod tests {
                 confidence: 0.82,
                 rationale: "matches drift pattern".to_string(),
                 calibration_tag: Some("T1.5".to_string()),
+                calibrated_confidence: None,
             }),
         };
         let json = serde_json::to_string(&rf).expect("serializes");

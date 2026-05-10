@@ -6,10 +6,8 @@
 
 Evidence-based linter for logical contradictions and technical
 inconsistencies in Rust (and Python) code. Every finding cites the
-peer-reviewed paper that justifies the detection. Runs entirely
-offline by default.
-
-Status: alpha.
+peer-reviewed paper that justifies the detection. Alpha; runs
+entirely offline by default.
 
 ## Install
 
@@ -28,8 +26,8 @@ cargo binstall cntrdct
 curl -fsSL https://raw.githubusercontent.com/ktrysmt/cntrdct/main/scripts/install.sh | bash
 ```
 
-Pre-release versions (`-rc.N`, `-beta.N`) require an explicit
-`--version X.Y.Z-suffix` since cargo skips them by default.
+Cargo skips pre-releases by default; pass
+`--version X.Y.Z-suffix` to install an `-rc.N` / `-beta.N`.
 
 ## Usage
 
@@ -43,10 +41,10 @@ cargo cntrdct scan ./src              # via cargo subcommand
 ANTHROPIC_API_KEY=... cntrdct scan ./src --adjudicate
 ```
 
-`cntrdct --help` lists `calibrate` and `eval` for users who want to
-recalibrate the ranker priors against their own labelled corpus or
-measure precision / recall on one. Three runnable end-to-end examples
-live under [`examples/`](examples/).
+`cntrdct --help` lists `calibrate` (recalibrate ranker priors, or fit
+LLM-confidence Platt parameters with `--fit-platt`) and `eval`
+(precision / recall on a labelled corpus). Three runnable end-to-end
+examples live under [`examples/`](examples/).
 
 ## Detectors
 
@@ -79,9 +77,27 @@ do_something(b, a)
 
 ## Network access
 
-`scan`, `calibrate`, and `eval` never open a socket. The only code
-path that talks to the network is the Layer 3 LLM adjudicator, gated
-behind `--adjudicate` and `ANTHROPIC_API_KEY`.
+`scan`, `calibrate`, and `eval` never open a socket. Two subcommands
+talk to the network and both are opt-in:
+
+- `scan --adjudicate` — Layer 3 LLM adjudicator, gated behind
+  `ANTHROPIC_API_KEY`, hits the Anthropic Messages API directly.
+- `cross-model-kappa` — Q-13 cross-model audit. cntrdct itself does
+  not open sockets here; it shells out to `claude --print` and
+  `gemini -p`, and those CLIs handle their own auth (OAuth via
+  `claude auth` / `gemini auth`). No API keys are read by cntrdct.
+
+## Cross-model audit
+
+`cntrdct cross-model-kappa <corpus.jsonl>` routes the same finding
+set through `claude --print` and `gemini -p`, then reports pairwise
+Cohen's κ per `(detector_id, anomaly_class)` cell. Cells with κ < 0.6
+(Landis & Koch substantial-agreement floor) are flagged as
+low-reliability adjudication regions. Both CLIs must be installed
+and logged in (`claude auth`, `gemini auth`); a missing CLI surfaces
+as a `skipped` provider in the audit JSON. Output goes to stdout by
+default, or to `--output PATH` when set. Spec:
+[`docs/spec/cross-model-kappa-v0.md`](docs/spec/cross-model-kappa-v0.md).
 
 ## Claude Code skill
 

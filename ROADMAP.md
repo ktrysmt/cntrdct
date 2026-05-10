@@ -1,13 +1,39 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-09 (Phase G RC1-blocker Q-series Q-1..Q-5
-landed; Phase H governance items Q-6..Q-10 all landed 2026-05-07,
-closing Phase H; P-7 clone-drift residual FP cleanup landed
-2026-05-07, taking wild β clone-drift FPs to 0 in both Rust and
-Python; T3-15 git-cliff release-notes pipeline and T3-16 telemetry-free
-assurance both landed 2026-05-08; T3-14 cargo-binstall metadata and
-Homebrew tap (`ktrysmt/homebrew-cntrdct`) landed 2026-05-08, with the
-AUR sub-target dropped from scope; T3-12 LSP server Phase 1 scaffolding
+Last updated: 2026-05-11 (Q-13 cross-model κ audit redesigned to
+CLI-only same day — `PromptDispatch` trait + `ClaudeCliAdjudicator` +
+`GeminiCliAdjudicator` ship alongside the existing
+`AnthropicAdjudicator`; OpenAI / Google API-key paths and the
+nightly workflow were dropped because (a) Codex CLI's system prompt
+could not be cleanly replaced, (b) continuous monitoring was
+unsupported by measurement stationarity given silent model drift +
+sampler stochasticity. Audit is now on-demand: `cntrdct
+cross-model-kappa <CORPUS>` shells out to `claude --print` and
+`gemini -p` (auth via each CLI's OAuth, no API keys read by
+cntrdct), prints to stdout by default. `src/cross_model_kappa.rs`
+carries the pure κ math + per-`(detector_id, anomaly_class)`
+aggregation; PR CI exercises `tests/cross_model_kappa.rs` with
+`CannedDispatch` mocks plus stub-script tests for the CLI flag
+sets; citations `wataoka-2024` and `zheng-neurips-2023` added to
+Layer 3;
+Q-11 small-N Wilson → Jeffreys interval
+switching landed 2026-05-10; Q-12 LLM-calibration post-hoc Platt fit
+landed 2026-05-10 — adjudicator prompt drops the verbalised
+`calibration_tag`, post-hoc Platt scaling fit per `(detector_id,
+anomaly_class)` cell takes its place, embedded
+`benchmarks/llm-calibration/platt-default.json` ships empty in v0,
+`AdjudicationResult.calibrated_confidence` + SARIF `properties.
+adjudication.calibrated_confidence` plumbed end-to-end,
+`tests/calibration_ece.rs` pins ≥ 0.05 holdout-ECE drop on a
+constructed over-confidence fixture; Phase G RC1-blocker Q-series
+Q-1..Q-5 landed; Phase H governance items Q-6..Q-10 all landed
+2026-05-07, closing Phase H; P-7 clone-drift residual FP cleanup
+landed 2026-05-07, taking wild β clone-drift FPs to 0 in both Rust
+and Python; T3-15 git-cliff release-notes pipeline and T3-16
+telemetry-free assurance both landed 2026-05-08; T3-14
+cargo-binstall metadata and Homebrew tap
+(`ktrysmt/homebrew-cntrdct`) landed 2026-05-08, with the AUR
+sub-target dropped from scope; T3-12 LSP server Phase 1 scaffolding
 (`cntrdct-lsp` binary behind the `lsp` Cargo feature) landed
 2026-05-08, with Phase 1.b document events + Finding -> Diagnostic
 mapping (`textDocument/{didOpen,didChange,didSave,didClose}` →
@@ -804,45 +830,80 @@ Q-11. Small-N statistical interval switching
 
 Q-12. LLM calibration post-hoc Platt fit
 
-- Status: `[ ]`
-- Goal: stop asking the LLM to self-report a calibration tag
-  (`calibration_tag: T<scaling factor>` in the current
-  adjudicator prompt). Recent large-scale evidence (Spiess,
-  Koohestani & Sergeyuk 2025, on the order of 24M IDE
-  interactions) shows verbalised confidence does not improve ECE
-  on average. Replace the self-reported tag with a post-hoc
-  Platt scaling step fit per detector × anomaly_class on
-  labelled corpora.
-- Acceptance: `cntrdct calibrate --fit-platt` produces stored
-  `(a, b)` parameters under `benchmarks/llm-calibration/`; SARIF
-  output records `properties.calibrated_confidence`;
-  `tests/calibration_ece.rs` shows the post-hoc-calibrated
-  confidence has lower ECE than the raw LLM output on a held-out
-  fixture.
-- Effort: 3-4 weeks.
-- Depends on: P-4 (priors pipeline) for corpus access patterns.
+- Status: `[x]` 2026-05-10
+- Summary: the adjudicator prompt no longer requests a verbalised
+  `calibration_tag`; the response parser still reads the field
+  (`Option<String>`) so adjudication records collected before Q-12
+  round-trip cleanly. Post-hoc Platt scaling fit per
+  `(detector_id, anomaly_class)` cell replaces the verbalised tag.
+  `cntrdct calibrate --fit-platt <CORPUS>` (extension of the
+  existing `calibrate` subcommand) reads a JSONL of
+  `LabelledLlmConfidence` rows and writes the per-cell `(a, b)`
+  registry to
+  `benchmarks/llm-calibration/platt-default.json` (or `--output
+  <PATH>`); the file is `include_str!`-embedded into the binary so
+  a fresh `cargo install cntrdct` ships with calibration ready.
+  v0 ships an empty `{}` registry so `apply_llm_calibration` is a
+  no-op until a real labelled adjudication corpus is fit. Wiring:
+  `AdjudicationResult.calibrated_confidence: Option<f64>`,
+  `cntrdct::apply_llm_calibration`, SARIF
+  `result.properties.adjudication.calibrated_confidence` (omitted
+  when `None`). `tests/calibration_ece.rs` runs end-to-end on a
+  constructed-pathology fixture (over-confidence at 0.95/0.85/0.75
+  raw with empirical accuracy ≈ 0.5) and asserts holdout ECE drops
+  by ≥ 0.05 after Platt; on the shipped fixture raw ECE 0.256 →
+  calibrated ECE near 0.001. Spec
+  `docs/spec/llm-calibration-v0.md`. Citations: `platt-1999` and
+  `spiess-koohestani-sergeyuk-2025` added under Layer 3
+  (CITATIONS.md + `ADJUDICATOR_CITATIONS`).
 - Evidence: Spiess, Koohestani, Sergeyuk (2025) arXiv:2510.22614;
-  Spieß et al. (2025) ICSE 2025,
-  doi:10.1109/icse55347.2025.00040.
+  Spiess et al. (2025) ICSE 2025; J. Platt (1999), "Probabilistic
+  Outputs for Support Vector Machines and Comparisons to
+  Regularized Likelihood Methods", Advances in Large Margin
+  Classifiers (MIT Press).
 
 Q-13. Cross-model κ audit
 
-- Status: `[ ]`
-- Goal: surface self-preference bias in the LLM adjudicator by
-  running the same `RankedFinding` set through Anthropic Claude /
-  OpenAI GPT / Google Gemini in nightly CI, then computing
-  pairwise Cohen's κ on verdicts per detector × anomaly class.
-  Cells with κ < 0.6 get flagged in the published audit report
-  as low-reliability adjudication regions.
-- Acceptance: nightly job emits a JSON audit log under
-  `benchmarks/cross-model-kappa/<date>.json`; README badge
-  surfaces the worst-performing cell; deterministic mock
-  fixtures let the routine run on PR CI without third-party API
-  access.
-- Effort: 2 weeks.
-- Depends on: Q-12 (so calibrated outputs are what's compared).
+- Status: `[x]` 2026-05-11 (CLI-shellout redesign 2026-05-11)
+- Summary: on-demand 2-family κ audit between Claude Code's
+  `claude --print` and the Gemini CLI's `gemini -p`. Three providers
+  ship behind the new `PromptDispatch` trait:
+  `AnthropicAdjudicator` (HTTP via `reqwest`, retained for
+  `scan --adjudicate`), `ClaudeCliAdjudicator` (CLI shellout with
+  `--system-prompt` / `--tools ""` / `--strict-mcp-config` /
+  `--no-session-persistence` / `--output-format json` so Claude
+  Code's agentic persona and tool surface are fully stripped), and
+  `GeminiCliAdjudicator` (CLI shellout with `GEMINI_SYSTEM_MD` env
+  override pointing at a temp file, `--output-format json`). Both
+  CLI providers spawn the subprocess with `current_dir = <tempdir>`
+  to suppress CLAUDE.md / GEMINI.md auto-discovery. Auth is
+  delegated to each CLI's own login (no API keys read by cntrdct).
+  Module `src/cross_model_kappa.rs` carries the pure `cohen_kappa`
+  helper, per-`(detector_id, anomaly_class)` aggregation, the
+  audit-report serde shapes, and stdlib-only date helpers. CLI:
+  `cntrdct cross-model-kappa <CORPUS>` accepts JSONL or JSON-array
+  ranked-finding corpora; default output is pretty JSON to stdout,
+  `--output PATH` writes to disk. PR CI exercises κ aggregation via
+  `tests/cross_model_kappa.rs` with `CannedDispatch` and pins the
+  CLI flag set via stub-script tests in `src/adjudicator.rs::tests`.
+- Design pivots (documented in
+  `docs/spec/cross-model-kappa-v0.md` "Design rationale"):
+  - Codex CLI dropped because `codex exec` cannot replace the
+    system prompt (only `developer_instructions` additive), so
+    Codex's residual persona would have confounded the κ signal.
+  - OpenAI / Google API-key paths replaced by CLI shellout — users
+    authenticate via subscription, not API keys.
+  - Nightly CI workflow dropped. Continuous monitoring was unsupported
+    by measurement stationarity: commercial LLMs version-bump
+    silently, sampler stochasticity at temperature 0 still produces
+    variance, and the time-series κ would have captured noise more
+    than any cntrdct-side property. The audit ships as an
+    on-demand snapshot only.
 - Evidence: Wataoka, Takahashi, Ri (2024) arXiv:2410.21819;
-  Zheng et al. (2023) NeurIPS 36, 46595-46623.
+  Zheng et al. (2023) NeurIPS 36, 46595-46623; Cohen (1960) and
+  Landis & Koch (1977) for the κ statistic and substantial-agreement
+  threshold.
+- Spec: `docs/spec/cross-model-kappa-v0.md`.
 
 Q-14. Recall-audit harness
 
@@ -991,8 +1052,8 @@ the Phase F community items):
 Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
 
 38. Q-11 small-N statistical interval switching (landed 2026-05-10)
-39. Q-12 LLM calibration post-hoc Platt fit
-40. Q-13 cross-model κ audit
+39. Q-12 LLM calibration post-hoc Platt fit (landed 2026-05-10)
+40. Q-13 cross-model κ audit (landed 2026-05-11)
 41. Q-14 recall-audit harness
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing

@@ -63,13 +63,25 @@ enum Commands {
     /// Reads the corpus, computes per-detector TP/FP / posterior_tp /
     /// wilson_lower_95, and writes the resulting JSON to `--output` (default:
     /// `<cache_dir>/cntrdct/priors.json`).
+    ///
+    /// Pass `--fit-platt` to switch to Q-12 mode: the corpus is read as a
+    /// JSONL of `LabelledLlmConfidence` rows, Platt parameters are fit per
+    /// `(detector_id, anomaly_class)` cell, and the resulting registry is
+    /// written to `--output` (default:
+    /// `benchmarks/llm-calibration/platt-default.json`). Spec:
+    /// `docs/spec/llm-calibration-v0.md`.
     Calibrate {
         /// Path to a labelled JSONL corpus.
         corpus: PathBuf,
-        /// Output path for the priors file. Defaults to
-        /// `<cache_dir>/cntrdct/priors.json`.
+        /// Output path. Defaults to `<cache_dir>/cntrdct/priors.json` for
+        /// the priors mode, and `benchmarks/llm-calibration/platt-default.json`
+        /// for the Platt mode.
         #[arg(long)]
         output: Option<PathBuf>,
+        /// Q-12: fit Platt parameters from a labelled LLM-confidence
+        /// corpus instead of computing per-detector priors.
+        #[arg(long, default_value_t = false)]
+        fit_platt: bool,
     },
     /// Evaluate detectors against a labelled corpus and print the
     /// precision/recall/F1 report as JSON.
@@ -83,6 +95,28 @@ enum Commands {
         /// `<corpus_dir>/manifest.jsonl`.
         #[arg(long)]
         manifest: Option<PathBuf>,
+    },
+    /// Q-13: cross-model κ audit. Routes the same finding set through
+    /// `claude --print` and `gemini -p`, then reports pairwise Cohen's
+    /// κ per `(detector_id, anomaly_class)` cell. Spec:
+    /// `docs/spec/cross-model-kappa-v0.md`.
+    ///
+    /// Auth is delegated to each CLI's own login (no API keys read by
+    /// cntrdct). A missing CLI surfaces as a `skipped` provider in
+    /// the audit JSON; at least two live providers are required to
+    /// compute κ. The audit is on-demand only — there is no nightly
+    /// CI cadence behind it.
+    CrossModelKappa {
+        /// Path to a JSONL or JSON-array corpus of `RankedFinding`
+        /// rows. The shape `cntrdct scan --format json` emits is
+        /// accepted directly.
+        corpus: PathBuf,
+        /// Optional output path. When omitted, the audit JSON is
+        /// printed to stdout (composes cleanly with `> file.json`).
+        /// When set, the JSON is written to disk and a one-line
+        /// summary is printed to stderr.
+        #[arg(long)]
+        output: Option<PathBuf>,
     },
 }
 
@@ -164,6 +198,13 @@ fn main() -> ExitCode {
                             );
                             }
                         }
+                        // Q-12: post-hoc Platt calibration of LLM confidence.
+                        // No-op when the embedded registry is empty (v0
+                        // ships {}), so adjudicated findings without a
+                        // matching cell keep `calibrated_confidence = None`
+                        // and consumers fall back to raw `confidence`.
+                        let registry = cntrdct::embedded_platt_registry();
+                        cntrdct::apply_llm_calibration(&mut ranked, &registry);
                     }
 
                     let output = match format {
@@ -218,22 +259,80 @@ fn main() -> ExitCode {
                 }
             }
         }
-        Commands::Calibrate { corpus, output } => {
-            let output_path = output
-                .or_else(cntrdct::default_priors_path)
-                .unwrap_or_else(|| PathBuf::from("priors.json"));
-            match cntrdct::calibrate(&corpus, &output_path) {
-                Ok(n) => {
-                    eprintln!(
-                        "wrote priors for {} detectors to {}",
-                        n,
-                        output_path.display()
-                    );
+        Commands::CrossModelKappa { corpus, output } => {
+            match cntrdct::run_cross_model_audit(&corpus) {
+                Ok(report) => {
+                    let body = report.to_json_pretty();
+                    match output {
+                        Some(path) => {
+                            if let Err(e) = cntrdct::write_cross_model_audit(&path, &report) {
+                                eprintln!("error: {}", e);
+                                return ExitCode::from(1);
+                            }
+                            eprintln!(
+                                "wrote cross-model κ audit ({} cells) to {}",
+                                report.cells.len(),
+                                path.display()
+                            );
+                        }
+                        None => {
+                            println!("{}", body);
+                        }
+                    }
+                    if let Some(worst) = &report.worst_cell {
+                        eprintln!(
+                            "worst cell: {}:{:?} pair={} κ={:.3}",
+                            worst.detector_id, worst.anomaly_class, worst.pair, worst.kappa,
+                        );
+                    }
                     ExitCode::SUCCESS
                 }
                 Err(e) => {
                     eprintln!("error: {}", e);
                     ExitCode::from(1)
+                }
+            }
+        }
+        Commands::Calibrate {
+            corpus,
+            output,
+            fit_platt,
+        } => {
+            if fit_platt {
+                let output_path = output.unwrap_or_else(|| {
+                    PathBuf::from("benchmarks/llm-calibration/platt-default.json")
+                });
+                match cntrdct::fit_platt_calibration(&corpus, &output_path) {
+                    Ok(n) => {
+                        eprintln!(
+                            "wrote Platt parameters for {} cells to {}",
+                            n,
+                            output_path.display()
+                        );
+                        ExitCode::SUCCESS
+                    }
+                    Err(e) => {
+                        eprintln!("error: {}", e);
+                        ExitCode::from(1)
+                    }
+                }
+            } else {
+                let output_path = output
+                    .or_else(cntrdct::default_priors_path)
+                    .unwrap_or_else(|| PathBuf::from("priors.json"));
+                match cntrdct::calibrate(&corpus, &output_path) {
+                    Ok(n) => {
+                        eprintln!(
+                            "wrote priors for {} detectors to {}",
+                            n,
+                            output_path.display()
+                        );
+                        ExitCode::SUCCESS
+                    }
+                    Err(e) => {
+                        eprintln!("error: {}", e);
+                        ExitCode::from(1)
+                    }
                 }
             }
         }

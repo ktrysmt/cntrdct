@@ -349,6 +349,7 @@ fn t20_ranked_with_adjudication_surfaces_in_properties() {
         confidence: 0.85,
         rationale: "matches drift pattern".to_string(),
         calibration_tag: Some("T1.5".to_string()),
+        calibrated_confidence: None,
     };
     let s = to_sarif_with_rules_ranked(&[make_ranked(Some(adj))], &detectors);
     let a = &s["runs"][0]["results"][0]["properties"]["adjudication"];
@@ -356,6 +357,30 @@ fn t20_ranked_with_adjudication_surfaces_in_properties() {
     assert_eq!(a["confidence"], 0.85);
     assert_eq!(a["rationale"], "matches drift pattern");
     assert_eq!(a["calibration_tag"], "T1.5");
+    assert!(
+        a.get("calibrated_confidence").is_none(),
+        "calibrated_confidence must be omitted when None"
+    );
+}
+
+#[test]
+fn t21_ranked_with_calibrated_confidence_surfaces_property() {
+    let cd = FakeCloneDrift;
+    let detectors: Vec<&dyn Detector> = vec![&cd];
+    let adj = AdjudicationResult {
+        verdict: AdjudicationVerdict::LikelyTruePositive,
+        confidence: 0.85,
+        rationale: "matches drift pattern".to_string(),
+        calibration_tag: None,
+        calibrated_confidence: Some(0.62),
+    };
+    let s = to_sarif_with_rules_ranked(&[make_ranked(Some(adj))], &detectors);
+    let a = &s["runs"][0]["results"][0]["properties"]["adjudication"];
+    assert_eq!(a["calibrated_confidence"], 0.62);
+    assert!(
+        a.get("calibration_tag").is_none(),
+        "calibration_tag must be omitted when None"
+    );
 }
 
 #[test]

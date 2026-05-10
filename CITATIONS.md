@@ -128,6 +128,35 @@ pointing at the relevant `docs/surveys/` file.
 - `spiess-icse-2025` — C. Spiess et al., "Calibration and Correctness of Language
   Models for Code", ICSE 2025.
   Languages: (general; methodological — applies regardless of source language).
+- `platt-1999` — J. Platt, "Probabilistic Outputs for Support Vector Machines and
+  Comparisons to Regularized Likelihood Methods", Advances in Large Margin
+  Classifiers (MIT Press), 1999. Methodology source for Q-12's post-hoc
+  Platt-scaling step on LLM-emitted confidence values; applied per
+  `(detector_id, anomaly_class)` cell on labelled adjudication corpora
+  (see `docs/spec/llm-calibration-v0.md`).
+  Languages: (general; methodological).
+- `spiess-koohestani-sergeyuk-2025` — C. Spiess, P. Koohestani, A. Sergeyuk,
+  "Verbalized Confidence in IDEs: A Large-Scale Empirical Study",
+  arXiv:2510.22614, 2025. Empirical evidence (~24M IDE interactions) that
+  verbalised LLM confidence is not better calibrated than the raw output;
+  motivates Q-12's removal of the verbalised `calibration_tag` from the
+  adjudicator prompt in favour of the post-hoc Platt fit.
+  Languages: (general; methodological).
+- `wataoka-2024` — K. Wataoka, T. Takahashi, R. Ri, "Self-Preference Bias
+  in LLM-as-a-Judge", arXiv:2410.21819, 2024. Empirical evidence that LLM
+  judges systematically prefer outputs from their own model family in
+  pairwise comparison; motivates Q-13's cross-model agreement audit
+  reported per `(detector_id, anomaly_class)` cell rather than averaged.
+  See `docs/spec/cross-model-kappa-v0.md`.
+  Languages: (general; methodological).
+- `zheng-neurips-2023` — L. Zheng, W.-L. Chiang, Y. Sheng, S. Zhuang,
+  Z. Wu, Y. Zhuang, Z. Lin, Z. Li, D. Li, E.P. Xing, H. Zhang, J.E.
+  Gonzalez, I. Stoica, "Judging LLM-as-a-Judge with MT-Bench and Chatbot
+  Arena", NeurIPS 36, 46595–46623, 2023. Establishes the LLM-as-judge
+  baseline against human preferences and documents non-negligible verdict
+  disagreement between equally capable judges; methodological grounding
+  for Q-13's pairwise Cohen's κ surface.
+  Languages: (general; methodological).
 
 ## Layer 4 (SARIF / severity)
 

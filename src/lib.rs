@@ -23,8 +23,10 @@ pub mod adjudicator;
 pub mod calibration;
 pub mod config;
 pub mod core;
+pub mod cross_model_kappa;
 pub mod detectors;
 pub mod eval;
+pub mod llm_calibration;
 #[cfg(feature = "lsp")]
 pub mod lsp;
 pub mod parsers;
@@ -52,11 +54,17 @@ pub const ALL_DETECTOR_IDS: &[&str] = &[
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::adjudicator::{AnthropicAdjudicator, ReqwestClient};
+use crate::adjudicator::{
+    AnthropicAdjudicator, ClaudeCliAdjudicator, GeminiCliAdjudicator, ReqwestClient,
+};
 use crate::calibration::{compute_priors, load_corpus, CalibrationError, DetectorPrior};
 use crate::core::{
     register_detector, Adjudicator, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
     ParsedFile, RankedFinding, Ranker,
+};
+use crate::cross_model_kappa::{
+    current_iso8601_utc, current_utc_date, load_corpus as load_audit_corpus, run_audit,
+    write_report, AuditError, AuditReport, ProviderHandle, ProviderStatus,
 };
 use crate::detectors::arg_swap::ArgSwap;
 use crate::detectors::clone_drift::CloneDrift;
@@ -65,6 +73,9 @@ use crate::detectors::config_interaction::ConfigInteraction;
 use crate::detectors::pr_miner::PrMinerDetector;
 use crate::detectors::unreachable_after_terminator::UnreachableAfterTerminator;
 use crate::eval::{evaluate, load_manifest, EvalError, EvalReport};
+use crate::llm_calibration::{
+    apply_platt, fit_registry, load_corpus as load_llm_corpus, PlattError, PlattRegistry,
+};
 use crate::parsers::{detect_language, Language};
 use crate::ranker::{CalibratedRanker, UncalibratedRanker};
 use rayon::prelude::*;
@@ -404,6 +415,84 @@ pub fn adjudicate_top_n<A: Adjudicator>(
     Ok(())
 }
 
+// ---------- Q-12 Platt scaling for LLM calibration ----------
+
+/// Platt parameters shipped with the binary, embedded at compile time
+/// from `benchmarks/llm-calibration/platt-default.json`. v0 ships an
+/// empty object — the registry returned by [`embedded_platt_registry`]
+/// is empty, and downstream `apply_llm_calibration` becomes a no-op.
+/// A future tag that fits Platt over a real labelled corpus replaces
+/// the file contents in the same shape.
+///
+/// Spec: `docs/spec/llm-calibration-v0.md` F6.
+const EMBEDDED_PLATT_JSON: &str = include_str!("../benchmarks/llm-calibration/platt-default.json");
+
+/// Parse [`EMBEDDED_PLATT_JSON`] into a registry. Empty / `{}` JSON
+/// yields an empty registry. Malformed JSON triggers an
+/// `expect`-panic that would be caught at CI build time.
+pub fn embedded_platt_registry() -> PlattRegistry {
+    let trimmed = EMBEDDED_PLATT_JSON.trim();
+    if trimmed.is_empty() || trimmed == "{}" {
+        return PlattRegistry::new();
+    }
+    PlattRegistry::from_json(trimmed)
+        .expect("embedded benchmarks/llm-calibration/platt-default.json must parse cleanly")
+}
+
+/// Apply Q-12 Platt scaling to every adjudicated finding in `ranked`.
+///
+/// Walks each `RankedFinding` whose `adjudication` is `Some`, looks up
+/// `(detector_id, anomaly_class)` in `registry`, and writes
+/// `adjudication.calibrated_confidence`. Findings without an
+/// adjudication are untouched. Findings whose cell has no Platt entry
+/// receive `calibrated_confidence = None`. Idempotent: the helper
+/// always overwrites the field, so a stale value from a previous
+/// registry cannot persist.
+///
+/// Per design constraint P3, this is post-processing of the verdict
+/// the adjudicator already returned; the helper does not invoke the
+/// LLM and does not touch the network.
+///
+/// Spec: `docs/spec/llm-calibration-v0.md` F7.
+pub fn apply_llm_calibration(ranked: &mut [RankedFinding], registry: &PlattRegistry) {
+    for rf in ranked.iter_mut() {
+        let det_id = rf.finding.detector_id.clone();
+        let class = rf.finding.anomaly_class;
+        if let Some(adj) = rf.adjudication.as_mut() {
+            adj.calibrated_confidence = registry
+                .get(&det_id, class)
+                .map(|p| apply_platt(p, adj.confidence));
+        }
+    }
+}
+
+/// Read an LLM-confidence corpus, fit Platt parameters per
+/// `(detector_id, anomaly_class)` cell, and write the resulting
+/// registry as pretty JSON to `output_path`. Creates parent
+/// directories as needed; output is sorted by composite key on write.
+///
+/// Returns the number of cells written (so the caller can print a
+/// friendly message to stderr).
+///
+/// Spec: `docs/spec/llm-calibration-v0.md` F5.
+pub fn fit_platt_calibration(corpus_path: &Path, output_path: &Path) -> Result<usize, PlattError> {
+    let corpus = load_llm_corpus(corpus_path)?;
+    let registry = fit_registry(&corpus)?;
+    if let Some(parent) = output_path.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent).map_err(|e| PlattError::Io {
+                path: parent.to_path_buf(),
+                source: e,
+            })?;
+        }
+    }
+    fs::write(output_path, registry.to_json_pretty()).map_err(|e| PlattError::Io {
+        path: output_path.to_path_buf(),
+        source: e,
+    })?;
+    Ok(registry.len())
+}
+
 /// Build the production Anthropic adjudicator with the given API key.
 ///
 /// Wires `ReqwestClient` (rustls-backed `reqwest::blocking`) into
@@ -417,6 +506,113 @@ pub fn build_default_adjudicator(
     let client = ReqwestClient::new()
         .map_err(|e| crate::core::DetectorError::Config(format!("reqwest init: {}", e)))?;
     Ok(AnthropicAdjudicator::new(client, api_key))
+}
+
+// ---------- Q-13 cross-model audit orchestration ----------
+
+/// Probe whether `program` is invokable on the current `PATH`. Used by
+/// the audit's CLI provider builders to surface a `Skipped` status
+/// when the user has not installed the corresponding CLI.
+fn cli_is_available(program: &str) -> bool {
+    std::process::Command::new(program)
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// Build a [`ProviderHandle`] for Claude Code's `claude --print`. The
+/// provider is `Skipped` when the `claude` binary is not on `PATH` (or
+/// when its `--version` probe fails) so the audit log surfaces the
+/// omission without erroring out.
+pub fn build_audit_claude_cli_provider() -> ProviderHandle {
+    let provider_id = crate::adjudicator::CLAUDE_CLI_PROVIDER_ID.to_string();
+    let model = crate::adjudicator::CLAUDE_CLI_MODEL.to_string();
+    let program = std::env::var("CLAUDE_CLI_PROGRAM_OVERRIDE")
+        .unwrap_or_else(|_| crate::adjudicator::CLAUDE_CLI_PROGRAM.to_string());
+    if !cli_is_available(&program) {
+        return ProviderHandle {
+            provider_id,
+            model,
+            adjudicator: None,
+            status: ProviderStatus::Skipped(format!("{} CLI not available on PATH", program)),
+        };
+    }
+    match ClaudeCliAdjudicator::new() {
+        Ok(adj) => ProviderHandle {
+            provider_id,
+            model,
+            adjudicator: Some(Box::new(adj.with_program(program))),
+            status: ProviderStatus::Live,
+        },
+        Err(e) => ProviderHandle {
+            provider_id,
+            model,
+            adjudicator: None,
+            status: ProviderStatus::Skipped(format!("tempdir alloc: {}", e)),
+        },
+    }
+}
+
+/// Build a [`ProviderHandle`] for the Gemini CLI's `gemini -p`.
+/// Skipped semantics mirror [`build_audit_claude_cli_provider`].
+pub fn build_audit_gemini_cli_provider() -> ProviderHandle {
+    let provider_id = crate::adjudicator::GEMINI_CLI_PROVIDER_ID.to_string();
+    let model = crate::adjudicator::GEMINI_CLI_MODEL.to_string();
+    let program = std::env::var("GEMINI_CLI_PROGRAM_OVERRIDE")
+        .unwrap_or_else(|_| crate::adjudicator::GEMINI_CLI_PROGRAM.to_string());
+    if !cli_is_available(&program) {
+        return ProviderHandle {
+            provider_id,
+            model,
+            adjudicator: None,
+            status: ProviderStatus::Skipped(format!("{} CLI not available on PATH", program)),
+        };
+    }
+    match GeminiCliAdjudicator::new() {
+        Ok(adj) => ProviderHandle {
+            provider_id,
+            model,
+            adjudicator: Some(Box::new(adj.with_program(program))),
+            status: ProviderStatus::Live,
+        },
+        Err(e) => ProviderHandle {
+            provider_id,
+            model,
+            adjudicator: None,
+            status: ProviderStatus::Skipped(format!("tempdir alloc: {}", e)),
+        },
+    }
+}
+
+/// Q-13: run the cross-model κ audit pipeline.
+///
+/// Routes the same finding set through `claude --print` and
+/// `gemini -p`, both authenticated via their respective CLI's own
+/// login (no API keys are read or forwarded by cntrdct). Missing CLIs
+/// surface as `Skipped` provider records; the audit errors out only
+/// when fewer than two live providers remain.
+///
+/// Per design constraint P3, this entry point is the only public path
+/// that invokes the cross-model adjudicators. `scan` / `calibrate` /
+/// `eval` remain network-free.
+pub fn run_cross_model_audit(corpus_path: &Path) -> Result<AuditReport, AuditError> {
+    let inputs = load_audit_corpus(corpus_path)?;
+    let providers = vec![
+        build_audit_claude_cli_provider(),
+        build_audit_gemini_cli_provider(),
+    ];
+    let date = current_utc_date();
+    let generated_at = current_iso8601_utc();
+    run_audit(date, generated_at, providers, inputs)
+}
+
+/// Q-13: write `report` as pretty JSON to `output_path`. Re-exported
+/// from [`crate::cross_model_kappa::write_report`] for the CLI surface.
+pub fn write_cross_model_audit(output_path: &Path, report: &AuditReport) -> Result<(), AuditError> {
+    write_report(output_path, report)
 }
 
 // ---------- Calibrate subcommand ----------

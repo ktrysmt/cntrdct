@@ -248,6 +248,7 @@ fn cli_adjudicate_with_mock_server_populates_top_n() {
         confidence: 0.5,
         rationale: String::new(),
         calibration_tag: None,
+        calibrated_confidence: None,
     };
     let _ = MockResponse {
         url: String::new(),

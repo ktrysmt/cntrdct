@@ -145,6 +145,9 @@ fn adjudication_to_value(a: &AdjudicationResult) -> Value {
     if let Some(tag) = &a.calibration_tag {
         obj.insert("calibration_tag".to_string(), Value::String(tag.clone()));
     }
+    if let Some(c) = a.calibrated_confidence {
+        obj.insert("calibrated_confidence".to_string(), json!(c));
+    }
     Value::Object(obj)
 }
 

@@ -12,22 +12,31 @@ contract drift. Read this file before editing or running gates.
 - Lockfile: `Cargo.lock`
 - Build artefacts: `target/`
 - Source: `src/{lib.rs,main.rs,cargo_subcommand.rs}` plus modules
-  `core`, `parsers`, `config`, `sarif`, `calibration`, `ranker`, `eval`,
-  `adjudicator`, and `detectors::{arg_swap,clone_drift,comment_code,
-  config_interaction,pr_miner,unreachable_after_terminator}`.
+  `core`, `parsers`, `config`, `sarif`, `calibration`,
+  `llm_calibration`, `cross_model_kappa`, `ranker`, `eval`,
+  `adjudicator`, and
+  `detectors::{arg_swap,clone_drift,comment_code,config_interaction,
+  pr_miner,unreachable_after_terminator}`.
 - Tests: `tests/*.rs` (one file per integration scope).
-- Fixtures: `fixtures/*` (referenced by `tests/calibration_lib.rs`).
+- Fixtures: `fixtures/*` (referenced by `tests/calibration_lib.rs`)
+  and `tests/fixtures/*` (per-test-file inputs, e.g. the Q-12
+  calibration corpus).
 - Binaries: `cntrdct` (main) and `cargo-cntrdct` (shim that lets
   `cargo cntrdct ...` work; same code path as `cntrdct ...`).
-- Subcommands: `scan`, `calibrate`, `eval`.
+- Subcommands: `scan`, `calibrate` (`--fit-platt` switches it to
+  Q-12 LLM-confidence calibration mode; default mode produces P-4
+  detector priors), `eval`, `cross-model-kappa` (Q-13: shells out to
+  `claude --print` and `gemini -p`, reports pairwise Cohen's κ; auth
+  via each CLI's own login, no API keys read by cntrdct).
 - Scope: shippable detector / linter product, preregistered evaluation,
   citation policy, multi-language detector ports.
 - Owns at repo root: `prereg/`, `docs/surveys/`, `CITATIONS.md`,
   `ROADMAP.md`, `benchmarks/`, `examples/`, `scripts/`.
-- History: was a 15-crate workspace (`crates/{core,parsers,config,sarif,
-  calibration,ranker,eval,adjudicator-llm,detector-*,cli}`) until
-  v0.2.0-beta.0 prep collapsed everything into one package. If you find
-  a reference to `crates/<X>/src/lib.rs`, the equivalent is
+- History: collapsed from a 15-crate workspace
+  (`crates/{core,parsers,config,sarif,calibration,ranker,eval,
+  adjudicator-llm,detector-*,cli}`) into one package during
+  v0.2.0-beta.0 prep. The "Editing checklist" below has the full
+  rename table; the short version is `crates/<X>/src/lib.rs` ->
   `src/<X>.rs` (or `src/detectors/<id>.rs` for detectors).
 
 ### Research workspace (`research/`)
@@ -58,21 +67,35 @@ end-user-only and does NOT document them, so reproduce here:
   (`DetectorConfig::preregistration_id`); see also
   `## Preregistration discipline` below.
 - P3 — only the Layer 3 adjudicator may invoke an LLM. Layers 1, 2,
-  and 4 are deterministic. Operationally: `reqwest` is reachable
-  only from `src/adjudicator.rs` and `wire_adjudicator` in
-  `src/lib.rs`; no walker, parser, detector, ranker, or SARIF
-  emitter touches it. The `network-isolation` CI job in
-  `.github/workflows/ci.yml` runs `cntrdct scan` inside a fresh
-  Linux network namespace (`sudo unshare --net`) on every push and
-  PR; any unintended socket open fails the job with `ENETUNREACH` /
-  `EAI_*`. There is no opt-out. Adding a non-adjudicator code
-  path that talks to the network breaks both P3 and the netns gate.
+  and 4 are deterministic, including the Q-12 post-processing helper
+  `apply_llm_calibration`. `reqwest` is reachable only from
+  `src/adjudicator.rs::ReqwestClient` and the
+  `build_default_adjudicator` constructor in `src/lib.rs` (used by
+  `scan --adjudicate`). The Q-13 cross-model audit
+  (`run_cross_model_audit` + `build_audit_claude_cli_provider` +
+  `build_audit_gemini_cli_provider`) does NOT open a socket from
+  cntrdct itself — it shells out to `claude --print` and
+  `gemini -p`, which handle auth and HTTP themselves. The
+  `network-isolation` CI job (`.github/workflows/ci.yml`) runs
+  `cntrdct scan` inside a fresh Linux network namespace
+  (`sudo unshare --net`) on every push / PR; any unintended socket
+  open fails the job with `ENETUNREACH` / `EAI_*`. No opt-out for
+  `scan` / `calibrate` / `eval`; adding a non-adjudicator network
+  path on any of those breaks both P3 and the netns gate. The Q-13
+  `cross-model-kappa` subcommand is excluded from the netns gate by
+  design — it spawns subprocesses that themselves talk to the
+  network, same shape as `scan --adjudicate`.
 - P4 — statistical priors come from labelled corpora, not from
-  prompts or hardcoded constants. The pipeline lives under
-  `src/calibration.rs` + `src/ranker.rs`; the embedded default
-  priors at `benchmarks/priors-default.json` are produced by
+  prompts or hardcoded constants. The Layer 2 priors pipeline lives
+  under `src/calibration.rs` + `src/ranker.rs`; the embedded
+  defaults at `benchmarks/priors-default.json` come from
   `cntrdct calibrate` against `benchmarks/labelled-findings.jsonl`,
-  not authored by hand.
+  not from hand-authored numbers. The Q-12 Layer 3 extension
+  (`src/llm_calibration.rs`) follows the same rule: the embedded
+  `benchmarks/llm-calibration/platt-default.json` Platt registry is
+  produced by `cntrdct calibrate --fit-platt` against a labelled
+  LLM-confidence corpus. v0 ships an empty registry and applies a
+  no-op fallback rather than authoring numbers in code.
 - P5 — severities map to IEEE 1044-2009 anomaly classes at SARIF
   emission time. The mapping lives in `src/sarif.rs`;
   `tests/sarif_lib.rs` pins it.
@@ -91,8 +114,23 @@ but worth pinning:
   sibling count. Auto-picks calibrated vs. uncalibrated per
   `pick_ranker` in `src/lib.rs`.
 - Layer 3 — LLM adjudicator (`src/adjudicator.rs`). The sole layer
-  permitted to invoke an LLM (Anthropic Messages). Opt-in via
-  `--adjudicate` + `ANTHROPIC_API_KEY`.
+  permitted to invoke an LLM. Three providers ship:
+  `AnthropicAdjudicator` (HTTP via `reqwest`, used by
+  `scan --adjudicate`), `ClaudeCliAdjudicator` (Q-13 CLI shellout to
+  `claude --print` with `--system-prompt` / `--tools ""` /
+  `--strict-mcp-config` / `--no-session-persistence` /
+  `--output-format json`), and `GeminiCliAdjudicator` (Q-13 CLI
+  shellout to `gemini -p` with `GEMINI_SYSTEM_MD` env override and
+  `--output-format json`). All three implement `PromptDispatch`. The
+  Q-13 cross-model audit (`src/cross_model_kappa.rs`) consumes the
+  two CLI providers and reports pairwise Cohen's κ per
+  `(detector_id, anomaly_class)` cell on demand — there is no
+  nightly cadence (see `docs/spec/cross-model-kappa-v0.md`
+  "Design rationale" for why continuous monitoring was dropped).
+  Verdict confidence is post-hoc Platt-calibrated
+  (`src/llm_calibration.rs`, Q-12) when a fitted registry is
+  present; v0 ships empty so
+  `AdjudicationResult.calibrated_confidence` stays `None`.
 - Layer 4 — SARIF 2.1.0 emitter (`src/sarif.rs`). IEEE 1044-2009
   compatible severity / anomaly class mapping.
 
