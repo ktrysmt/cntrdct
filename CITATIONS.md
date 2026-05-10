@@ -122,6 +122,14 @@ pointing at the relevant `docs/surveys/` file.
   interval rather than the exact (Clopper-Pearson) interval at small `n`; provides
   the methodological grounding for Q-11's small-N branch.
   Languages: (general; methodological).
+- `heckman-williams-ist-2011` — S. Heckman, L. Williams, "A systematic
+  literature review of actionable alert identification techniques for
+  automated static code analysis", Information and Software Technology
+  53(4), 363-387, 2011. DOI 10.1016/j.infsof.2010.12.007. Selection-bias
+  warning for actionable-alert pipelines that fit priors against their
+  own filtered output; methodological grounding for Q-14's
+  external-denominator audit harness (`docs/spec/recall-audit-v0.md`).
+  Languages: (general; methodological).
 
 ## Layer 3 (LLM adjudicator)
 

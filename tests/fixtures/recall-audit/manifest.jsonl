@@ -1,0 +1,4 @@
+// Synthetic Q-14 audit-corpus fixture. Two detectors, two external sources.
+// Phase A only — real audit-corpus content lives under benchmarks/audit-corpus/.
+{"file":"files/audit_arg_swap_001.rs","expected":[{"detector_id":"arg-swap","line":8,"external_source":{"kind":"semgrep","ref":"rules.swap-test","url":"https://example.test/semgrep/rules.swap-test"}}]}
+{"file":"files/audit_unreachable_001.rs","expected":[{"detector_id":"unreachable-after-terminator","line":3,"external_source":{"kind":"clippy","ref":"unreachable_code","url":"https://example.test/clippy/unreachable_code"}}]}

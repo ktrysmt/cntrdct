@@ -1,6 +1,18 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-11 (Q-13 cross-model κ audit redesigned to
+Last updated: 2026-05-11 (Q-14 recall-audit harness Phase A
+scaffolding landed same day — `cntrdct calibrate --audit-recall
+<CORPUS_DIR>` flag wired with clap conflict against `--fit-platt`,
+new `src/recall_audit.rs` module with `audit_recall(...) ->
+RecallAuditReport` pure function and `external_source: {kind, ref,
+url}` provenance per labelled finding, `cntrdct::run_recall_audit`
+orchestrator, 12 tests (4 unit + 8 integration) pin loader / matcher
+/ byte-stable JSON / CLI conflict, `benchmarks/audit-corpus/`
+skeleton with per-detector seed targets documented, CITATIONS.md
+adds `heckman-williams-ist-2011` under Layer 2; Phase B audit-corpus
+data collection + Phase C release-tag README refresh discipline
+deferred. Spec: `docs/spec/recall-audit-v0.md`. Q-13 cross-model κ
+audit redesigned to
 CLI-only same day — `PromptDispatch` trait + `ClaudeCliAdjudicator` +
 `GeminiCliAdjudicator` ship alongside the existing
 `AnthropicAdjudicator`; OpenAI / Google API-key paths and the
@@ -907,7 +919,9 @@ Q-13. Cross-model κ audit
 
 Q-14. Recall-audit harness
 
-- Status: `[ ]`
+- Status: `[~]` (Phase A scaffolding landed 2026-05-11; Phase B
+  audit-corpus data collection and Phase C release-tag README
+  refresh still pending)
 - Goal: counter the labeller-bias loop where cntrdct's priors are
   derived from corpora it labelled itself, biasing toward
   precision and silently sacrificing recall. Build
@@ -925,6 +939,39 @@ Q-14. Recall-audit harness
 - Evidence: Heckman & Williams (2011) Information and Software
   Technology 53(4), 363-387 (selection-bias warning for
   actionable-alert pipelines).
+- Phase A — harness scaffolding (done 2026-05-11): the `cntrdct
+  calibrate --audit-recall <CORPUS_DIR> [--manifest <PATH>]
+  [--output <PATH>]` flag set ships behind `clap`'s
+  `conflicts_with` against `--fit-platt`, polymorphically
+  reinterpreting the `corpus` positional as a directory in this
+  mode. New module `src/recall_audit.rs` carries the audit-corpus
+  manifest schema (`AuditExpectedFinding` requiring an
+  `external_source: {kind, ref, url}` block per labelled
+  finding), the `audit_recall(...) -> RecallAuditReport` pure
+  function, and a `source_breakdown` per-detector tally so a
+  detector whose recall is dominated by one source surfaces
+  visibly. The orchestrator `cntrdct::run_recall_audit` mirrors
+  `run_eval` (manifest validation → scan → audit). Twelve tests
+  (4 unit + 8 integration) pin the loader edge cases, the
+  matching arithmetic, byte-stable JSON, and the CLI conflict
+  surface; `tests/fixtures/recall-audit/` carries a 2-detector /
+  2-source synthetic fixture so PR CI exercises the path
+  independently of Phase B data. `benchmarks/audit-corpus/`
+  ships as a skeleton with the source list and per-detector
+  seed targets documented; `manifest.jsonl` is empty pending
+  Phase B. CITATIONS.md adds `heckman-williams-ist-2011` under
+  Layer 2. Spec: `docs/spec/recall-audit-v0.md`.
+- Phase B — audit-corpus data collection: per-detector seed
+  lists land in `benchmarks/audit-corpus/files/` + the manifest,
+  with each `expected[].external_source.url` resolving to a
+  stable external page. Per-detector recall figures populate the
+  README's "Latest audit run" section. Out of scope for Phase A
+  per the spec's "Out of scope" clause; sequenced after T3-12
+  Phase 2 / Q-15 / Q-16 by maintainer choice.
+- Phase C — release-tag refresh discipline: documents the manual
+  refresh cadence on each `vX.Y.Z` tag and finalises the README
+  format for the audit-run figures. Lands alongside Phase B's
+  first real numbers.
 
 Q-15. SOTA baseline comparators
 
@@ -1054,7 +1101,9 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
 38. Q-11 small-N statistical interval switching (landed 2026-05-10)
 39. Q-12 LLM calibration post-hoc Platt fit (landed 2026-05-10)
 40. Q-13 cross-model κ audit (landed 2026-05-11)
-41. Q-14 recall-audit harness
+41. Q-14 recall-audit harness — Phase A scaffolding landed
+    2026-05-11; Phase B audit-corpus data collection + Phase C
+    release-tag README refresh discipline still pending
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing
 

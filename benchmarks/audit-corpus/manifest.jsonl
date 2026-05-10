@@ -1,0 +1,4 @@
+// cntrdct external-source audit corpus manifest. One JSON object per non-blank line.
+// Lines starting with `//` are skipped by the loader. See README.md for schema and source list.
+//
+// Phase A skeleton (2026-05-11): no labelled entries yet. Phase B refresh fills this in.

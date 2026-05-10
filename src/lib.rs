@@ -31,6 +31,7 @@ pub mod llm_calibration;
 pub mod lsp;
 pub mod parsers;
 pub mod ranker;
+pub mod recall_audit;
 pub mod sarif;
 
 /// Canonical set of `Detector::id()` values registered by
@@ -78,6 +79,7 @@ use crate::llm_calibration::{
 };
 use crate::parsers::{detect_language, Language};
 use crate::ranker::{CalibratedRanker, UncalibratedRanker};
+use crate::recall_audit::{audit_recall, load_audit_manifest, RecallAuditError, RecallAuditReport};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use thiserror::Error;
@@ -99,6 +101,22 @@ pub enum EvalRunError {
     Eval(#[from] EvalError),
     #[error("scan error: {0}")]
     Scan(#[from] ScanError),
+    #[error("serialize error: {0}")]
+    Serialize(#[from] serde_json::Error),
+}
+
+#[derive(Debug, Error)]
+pub enum RecallAuditRunError {
+    #[error("recall audit error: {0}")]
+    Audit(#[from] RecallAuditError),
+    #[error("scan error: {0}")]
+    Scan(#[from] ScanError),
+    #[error("io error writing {path}: {source}")]
+    Io {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
     #[error("serialize error: {0}")]
     Serialize(#[from] serde_json::Error),
 }
@@ -659,6 +677,32 @@ pub fn run_eval(corpus_dir: &Path, manifest_path: &Path) -> Result<EvalReport, E
     }
     let findings = scan(corpus_dir)?;
     Ok(evaluate(&manifest, &findings, corpus_dir))
+}
+
+// ---------- Recall-audit subcommand (Q-14) ----------
+
+/// Load an audit manifest, run `scan` over the audit corpus directory, and
+/// compute the `RecallAuditReport`. Spec: `docs/spec/recall-audit-v0.md` F7.
+///
+/// The audit corpus carries externally-sourced ground truth (CVEs / OSV.dev
+/// advisories / Semgrep / CodeQL / Clippy testset entries) so the per-detector
+/// recall numbers are not subject to the labeller-bias loop that affects
+/// `priors-default.json` (Heckman & Williams IST 2011).
+pub fn run_recall_audit(
+    corpus_dir: &Path,
+    manifest_path: &Path,
+) -> Result<RecallAuditReport, RecallAuditRunError> {
+    let manifest = load_audit_manifest(manifest_path)?;
+    for entry in &manifest.entries {
+        let abs = corpus_dir.join(&entry.file);
+        if !abs.exists() {
+            return Err(RecallAuditRunError::Audit(RecallAuditError::MissingSource(
+                abs,
+            )));
+        }
+    }
+    let findings = scan(corpus_dir)?;
+    Ok(audit_recall(&manifest, &findings, corpus_dir))
 }
 
 // ---------- File discovery ----------

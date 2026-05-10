@@ -70,18 +70,36 @@ enum Commands {
     /// written to `--output` (default:
     /// `benchmarks/llm-calibration/platt-default.json`). Spec:
     /// `docs/spec/llm-calibration-v0.md`.
+    ///
+    /// Pass `--audit-recall` to switch to Q-14 mode: the corpus argument is
+    /// interpreted as an audit-corpus DIRECTORY (not a JSONL file), and the
+    /// per-detector recall upper bound is computed against externally-sourced
+    /// ground truth recorded in `<corpus>/manifest.jsonl`. Output defaults to
+    /// stdout (or `--output PATH` to write to disk). Spec:
+    /// `docs/spec/recall-audit-v0.md`.
     Calibrate {
-        /// Path to a labelled JSONL corpus.
+        /// Path to a labelled JSONL corpus (default mode and `--fit-platt`),
+        /// or to an audit-corpus directory (`--audit-recall`).
         corpus: PathBuf,
         /// Output path. Defaults to `<cache_dir>/cntrdct/priors.json` for
         /// the priors mode, and `benchmarks/llm-calibration/platt-default.json`
-        /// for the Platt mode.
+        /// for the Platt mode. For `--audit-recall`, defaults to stdout
+        /// (the report JSON is printed) when omitted.
         #[arg(long)]
         output: Option<PathBuf>,
         /// Q-12: fit Platt parameters from a labelled LLM-confidence
         /// corpus instead of computing per-detector priors.
-        #[arg(long, default_value_t = false)]
+        #[arg(long, default_value_t = false, conflicts_with = "audit_recall")]
         fit_platt: bool,
+        /// Q-14: compute per-detector recall against an audit corpus whose
+        /// `expected` entries cite externally-sourced ground truth. The
+        /// `corpus` argument is read as a DIRECTORY in this mode.
+        #[arg(long, default_value_t = false, conflicts_with = "fit_platt")]
+        audit_recall: bool,
+        /// Audit-recall only: override the manifest path. Defaults to
+        /// `<corpus>/manifest.jsonl`. Ignored unless `--audit-recall` is set.
+        #[arg(long)]
+        manifest: Option<PathBuf>,
     },
     /// Evaluate detectors against a labelled corpus and print the
     /// precision/recall/F1 report as JSON.
@@ -297,8 +315,38 @@ fn main() -> ExitCode {
             corpus,
             output,
             fit_platt,
+            audit_recall,
+            manifest,
         } => {
-            if fit_platt {
+            if audit_recall {
+                let manifest_path = manifest.unwrap_or_else(|| corpus.join("manifest.jsonl"));
+                match cntrdct::run_recall_audit(&corpus, &manifest_path) {
+                    Ok(report) => {
+                        let body = serde_json::to_string_pretty(&report)
+                            .expect("RecallAuditReport serializes cleanly");
+                        match output {
+                            Some(path) => {
+                                if let Err(e) = std::fs::write(&path, &body) {
+                                    eprintln!("error: writing {}: {}", path.display(), e);
+                                    return ExitCode::from(1);
+                                }
+                                eprintln!(
+                                    "wrote recall audit ({} detectors, recall_upper_bound={:.3}) to {}",
+                                    report.per_detector.len(),
+                                    report.overall.recall_upper_bound,
+                                    path.display()
+                                );
+                            }
+                            None => println!("{}", body),
+                        }
+                        ExitCode::SUCCESS
+                    }
+                    Err(e) => {
+                        eprintln!("error: {}", e);
+                        ExitCode::from(1)
+                    }
+                }
+            } else if fit_platt {
                 let output_path = output.unwrap_or_else(|| {
                     PathBuf::from("benchmarks/llm-calibration/platt-default.json")
                 });
