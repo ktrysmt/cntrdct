@@ -2,207 +2,97 @@
 
 [![CI](https://github.com/ktrysmt/cntrdct/actions/workflows/ci.yml/badge.svg)](https://github.com/ktrysmt/cntrdct/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/cntrdct.svg)](https://crates.io/crates/cntrdct)
-[![docs.rs](https://img.shields.io/docsrs/cntrdct-core)](https://docs.rs/cntrdct-core)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Evidence-based linter for logical contradictions and technical
-inconsistencies in Rust code. Every finding cites the peer-reviewed
-paper or established benchmark that justifies the detection — detectors
-without citations are rejected at startup. The pipeline runs entirely
-offline by default; an optional Layer 3 LLM adjudicator can be enabled
-explicitly per-scan.
+inconsistencies in Rust (and Python) code. Every finding cites the
+peer-reviewed paper that justifies the detection. Runs entirely
+offline by default.
 
-Status: alpha. CLI and five Layer 1 detectors are working; the full
-Layer 1 → 4 pipeline (detect → rank → adjudicate → SARIF) runs end-to-end.
+Status: alpha.
 
-## Quickstart
+## Install
 
 ```sh
-# From crates.io.
+# crates.io
 cargo install cntrdct
 
-# Or, on macOS / Linux via Homebrew (uses the pre-built release archive).
+# macOS / Linux via Homebrew
 brew tap ktrysmt/cntrdct
 brew install cntrdct
 
-# Or, fetch the pre-built release archive directly from GitHub Releases
-# (no compile, ~10x faster). Requires `cargo-binstall`.
+# pre-built archive (no compile); requires cargo-binstall
 cargo binstall cntrdct
 
-# Or, pre-built binary via the install script (Linux x86_64/aarch64,
-# macOS aarch64, Windows x86_64).
+# install script (Linux x86_64/aarch64, macOS aarch64, Windows x86_64)
 curl -fsSL https://raw.githubusercontent.com/ktrysmt/cntrdct/main/scripts/install.sh | bash
-
-# Or, from source.
-git clone https://github.com/ktrysmt/cntrdct.git
-cd cntrdct
-cargo install --path .
-
-# Scan any Rust path. Default output is JSON to stdout.
-cntrdct scan ./src
-
-# Or invoke through cargo.
-cargo cntrdct scan ./src
-
-# SARIF 2.1.0 output, ready for GitHub code scanning or any SARIF viewer.
-cntrdct scan ./src --format sarif > findings.sarif
 ```
 
-Three runnable end-to-end examples (scan, calibrate, adjudicate-with-mock)
-live under [`examples/`](examples/).
-
-## Design constraints
-
-The project ships under five hard constraints. Every change is reviewed
-against them; violations are rejected at startup, in tests, or in code
-review.
-
-- P1 — every detector cites peer-reviewed prior art (`register_detector`
-  rejects detectors with empty `citations()`; CI checks that every key
-  resolves to an entry in `CITATIONS.md`).
-- P2 — empirical results carry a preregistration id
-  (`DetectorConfig::preregistration_id`).
-- P3 — only the Layer 3 adjudicator may invoke an LLM. Layers 1, 2, 4
-  are deterministic.
-- P4 — statistical priors come from labelled corpora, not from prompts
-  or hardcoded constants. They live in the ranker, not the adjudicator.
-- P5 — severities map to IEEE 1044-2009 anomaly classes at SARIF
-  emission time.
-
-## Architecture (4 layers)
-
-1. Deterministic detectors (Layer 1) — tree-sitter based, no LLM.
-2. Statistical false-positive filter (Layer 2) — Wilson lower bound,
-   Z-Ranking on labelled corpora; uncalibrated sibling-count fallback
-   when no corpus is loaded.
-3. LLM adjudicator (Layer 3) — sole layer permitted to invoke an LLM
-   (Anthropic Messages API). Opt-in via `--adjudicate`.
-4. SARIF 2.1.0 output (Layer 4) — IEEE 1044-2009 compatible severity
-   and anomaly classification.
-
-## Detectors shipped
-
-| id | what it flags | citations |
-|---|---|---|
-| `clone-drift` | a near-duplicate function whose AST diverged from a majority of its siblings | Cordy & Roy (ICPC 2008), Bettenburg et al. (MSR 2009), Krinke (ICSM 2007) |
-| `arg-swap` | a 2-arg call whose argument names are swapped relative to the same-file definition | Li & Zhou (ESEC/FSE 2005), Rice et al. (ICSE 2017) |
-| `comment-code` | doc comment claims a behaviour the implementation does not exhibit (Result/panic/deprecated patterns) | Tan et al. (SOSP 2007, PLDI 2011) |
-| `unreachable-after-terminator` | a statement following `return` / `panic!()` / `unreachable!()` / `todo!()` / `break` / `continue` within the same block | Hovemeyer & Pugh (OOPSLA 2004), Engler et al. (SOSP 2001) |
-| `config-interaction` | a top-level item bears two `#[cfg(...)]` attributes whose predicates are structurally negations of each other (item dead under any configuration) | Tartler et al. (EuroSys 2011), Nadi et al. (ICSE 2014) |
-
-See `CITATIONS.md` for the full bibliography and `docs/spec/` for
-per-detector specifications.
+Pre-release versions (`-rc.N`, `-beta.N`) require an explicit
+`--version X.Y.Z-suffix` since cargo skips them by default.
 
 ## Usage
 
-Scan a path:
-
 ```sh
-cntrdct scan ./src                    # JSON output to stdout
-cntrdct scan ./src --format sarif     # SARIF 2.1.0
-cntrdct scan ./src --adjudicate       # adds Layer 3 verdicts on top-N findings
-                                      # requires ANTHROPIC_API_KEY
+cntrdct scan ./src                    # JSON to stdout (default)
+cntrdct scan ./src --format sarif     # SARIF 2.1.0 for code-scanning tools
+cargo cntrdct scan ./src              # via cargo subcommand
+
+# Optional Layer 3 LLM adjudication on the top-N findings — sends those
+# findings to the Anthropic Messages API. Off by default.
+ANTHROPIC_API_KEY=... cntrdct scan ./src --adjudicate
 ```
 
-Build calibration priors from a labelled JSONL corpus:
+`cntrdct --help` lists `calibrate` and `eval` for users who want to
+recalibrate the ranker priors against their own labelled corpus or
+measure precision / recall on one. Three runnable end-to-end examples
+live under [`examples/`](examples/).
 
-```sh
-cntrdct calibrate corpus.jsonl                       # writes default cache path
-cntrdct calibrate corpus.jsonl --output priors.json
-```
+## Detectors
 
-Evaluate detectors against a labelled corpus and print a
-precision/recall/F1 report:
-
-```sh
-cntrdct eval benchmarks/corpus
-```
-
-The seed corpus under `benchmarks/corpus/` covers the five shipped
-detectors with a handful of positive and negative cases. See
-`benchmarks/README.md` for the manifest format and how to add cases.
-
-When a priors file is present (default cache or `--priors`), the
-calibrated ranker uses Wilson lower bound × log-scaled sibling count.
-Without one, `cntrdct scan` falls back to sibling-count ordering.
-
-## Claude Code skill
-
-`.claude/skills/cntrdct/SKILL.md` ships a thin entry-point wrapper.
-With the binary on PATH, Claude Code users can invoke `/cntrdct` to run
-a scan and have the top findings summarised in chat. The skill performs
-no detection itself (P3); it only orchestrates the binary and renders
-results.
-
-## Module layout
-
-cntrdct ships as a single crate. Internals are organised under
-`src/<module>.rs` (or `src/<module>/mod.rs` for multi-file modules):
-
-| module | role |
+| id | what it flags |
 |---|---|
-| `core` | shared traits (`Detector`, `Ranker`, `Adjudicator`), `Finding`/`RankedFinding` types, P1 enforcement |
-| `parsers` | `Language` enum, extension mapping, tree-sitter providers |
-| `detectors::clone_drift` | Layer 1 — Type-3 near-miss clone drift |
-| `detectors::arg_swap` | Layer 1 — argument-order defects |
-| `detectors::comment_code` | Layer 1 — doc/code mismatch |
-| `detectors::unreachable_after_terminator` | Layer 1 — unreachable code after divergent terminator |
-| `detectors::config_interaction` | Layer 1 — contradictory cfg attribute pair on a single item |
-| `detectors::pr_miner` | Layer 1 — frequent-itemset rule violation (Li & Zhou, FSE 2005) |
-| `ranker` | Layer 2 — `UncalibratedRanker`, `CalibratedRanker` |
-| `calibration` | Layer 2 data layer — corpus loader, Wilson bound, Laplace posterior |
-| `adjudicator` | Layer 3 — Anthropic Messages adjudicator with `HttpClient` seam |
-| `sarif` | Layer 4 — SARIF 2.1.0 emitter |
-| `eval` | precision/recall/F1 evaluation harness against a labelled corpus |
-| `config` | `cntrdct.toml` and in-source suppression |
+| `clone-drift` | a near-duplicate function whose AST diverged from a majority of its siblings |
+| `arg-swap` | a 2-arg call whose argument names are swapped relative to the same-file definition |
+| `comment-code` | doc comment claims a behaviour the implementation does not exhibit (Result / panic / deprecated patterns) |
+| `unreachable-after-terminator` | a statement following `return` / `panic!()` / `unreachable!()` / `todo!()` / `break` / `continue` within the same block |
+| `config-interaction` | a top-level item bears two `#[cfg(...)]` attributes whose predicates are structurally negations of each other |
+| `pr-miner` | a call site violating an implicit programming rule mined via frequent-itemset analysis |
+
+See [`CITATIONS.md`](CITATIONS.md) for the bibliography behind each
+detector.
+
+## Configuration
+
+A `cntrdct.toml` at the scan root tunes severity, thresholds, and
+per-path allow / deny rules. In-source suppression is also supported:
+
+```rust
+#[cntrdct::allow(clone-drift)]
+fn looks_like_a_drifted_clone_but_is_intentional() { /* ... */ }
+```
+
+```python
+# cntrdct: allow(arg-swap)
+do_something(b, a)
+```
 
 ## Network access
 
-cntrdct's `scan`, `calibrate`, and `eval` paths run entirely offline.
-The only code path that opens a socket is the Layer 3 LLM adjudicator
-(`src/adjudicator.rs`), which is gated behind the explicit
-`--adjudicate` flag and the `ANTHROPIC_API_KEY` environment variable.
-The `reqwest` dependency is reachable only from `src/adjudicator.rs`
-and the `wire_adjudicator` constructor in `src/lib.rs`; no walker,
-parser, detector, ranker, or SARIF emitter touches it.
+`scan`, `calibrate`, and `eval` never open a socket. The only code
+path that talks to the network is the Layer 3 LLM adjudicator, gated
+behind `--adjudicate` and `ANTHROPIC_API_KEY`.
 
-CI enforces this structurally. The `network-isolation` job in
-`.github/workflows/ci.yml` runs `cntrdct scan` inside a fresh Linux
-network namespace (`sudo unshare --net`) on every push and pull
-request. The namespace ships with no outbound routes; if any
-non-adjudicator code path makes an unexpected network call, it fails
-with `ENETUNREACH` / `EAI_*` and the job goes red. There is no
-opt-out — the assurance applies to every release that passes CI.
+## Claude Code skill
 
-## Release process
-
-Releases are driven entirely by pushing an annotated `vX.Y.Z` tag.
-`.github/workflows/release.yml` cross-builds binaries for the four
-supported targets (Linux x86_64 / aarch64, macOS aarch64, Windows
-x86_64), creates the GitHub Release, and publishes to crates.io.
-`git-cliff` (config at `cliff.toml`) reads Conventional Commits since
-the previous tag and produces the GitHub Release body; off-shape
-commits silently fall out of the notes by design. In parallel,
-`.github/workflows/homebrew.yml` waits for the release artifacts to
-upload, then regenerates and pushes `Formula/cntrdct.rb` in the
-`ktrysmt/homebrew-cntrdct` tap repo. Pre-release versions
-(`-beta.N`, `-rc.N`) require an explicit `cargo install cntrdct
---version X.Y.Z-suffix` because cargo skips pre-releases by default.
-
-Maintainer step-by-step: see `CLAUDE.md` "Release procedure". Per-
-tier deliverables and the rationale behind each automation: see
-`ROADMAP.md` T3-14 / T3-15.
-
-## Design notes
-
-`docs/spec/` contains the active specs that drove the TDD
-implementation. `ROADMAP.md` tracks engineering deliverables.
+With the binary on `PATH`, Claude Code users can invoke `/cntrdct` to
+run a scan and have the top findings summarised in chat
+(`.claude/skills/cntrdct/`).
 
 ## Further reading
 
 - [The Linter that Cites Its Sources](https://ktrysmt.github.io/cntrdct/essays/citation-as-api/)
-  — position essay on what the P1-P5 design constraints mean in
-  practice, and the open question of citation decay.
+  — position essay on what evidence-based linting means in practice.
 
 ## License
 

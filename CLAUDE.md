@@ -43,6 +43,59 @@ contract drift. Read this file before editing or running gates.
   `research/prereg/`, `research/surveys/`, `research/CITATIONS.md`.
   Do not share these with the root-level technical files.
 
+## Design constraints (P1 - P5)
+
+The technical package ships under five hard constraints. They are
+enforced at startup, in tests, or in code review; violating one is
+treated as a regression, not a stylistic choice. The README is
+end-user-only and does NOT document them, so reproduce here:
+
+- P1 — every detector cites peer-reviewed prior art.
+  `core::register_detector` rejects any `Detector` whose
+  `citations()` returns empty; `tests/citations_consistency.rs`
+  asserts that every key resolves to an entry in `CITATIONS.md`.
+- P2 — empirical results carry a preregistration id
+  (`DetectorConfig::preregistration_id`); see also
+  `## Preregistration discipline` below.
+- P3 — only the Layer 3 adjudicator may invoke an LLM. Layers 1, 2,
+  and 4 are deterministic. Operationally: `reqwest` is reachable
+  only from `src/adjudicator.rs` and `wire_adjudicator` in
+  `src/lib.rs`; no walker, parser, detector, ranker, or SARIF
+  emitter touches it. The `network-isolation` CI job in
+  `.github/workflows/ci.yml` runs `cntrdct scan` inside a fresh
+  Linux network namespace (`sudo unshare --net`) on every push and
+  PR; any unintended socket open fails the job with `ENETUNREACH` /
+  `EAI_*`. There is no opt-out. Adding a non-adjudicator code
+  path that talks to the network breaks both P3 and the netns gate.
+- P4 — statistical priors come from labelled corpora, not from
+  prompts or hardcoded constants. The pipeline lives under
+  `src/calibration.rs` + `src/ranker.rs`; the embedded default
+  priors at `benchmarks/priors-default.json` are produced by
+  `cntrdct calibrate` against `benchmarks/labelled-findings.jsonl`,
+  not authored by hand.
+- P5 — severities map to IEEE 1044-2009 anomaly classes at SARIF
+  emission time. The mapping lives in `src/sarif.rs`;
+  `tests/sarif_lib.rs` pins it.
+
+## Layer mapping
+
+The four-layer architecture is implicit in the module list above
+but worth pinning:
+
+- Layer 1 — deterministic detectors
+  (`src/detectors/{arg_swap, clone_drift, comment_code,
+  config_interaction, pr_miner, unreachable_after_terminator}`).
+  Tree-sitter based; no LLM, no network.
+- Layer 2 — statistical ranker (`src/ranker.rs` +
+  `src/calibration.rs`). Wilson / Jeffreys lower bound × log-scaled
+  sibling count. Auto-picks calibrated vs. uncalibrated per
+  `pick_ranker` in `src/lib.rs`.
+- Layer 3 — LLM adjudicator (`src/adjudicator.rs`). The sole layer
+  permitted to invoke an LLM (Anthropic Messages). Opt-in via
+  `--adjudicate` + `ANTHROPIC_API_KEY`.
+- Layer 4 — SARIF 2.1.0 emitter (`src/sarif.rs`). IEEE 1044-2009
+  compatible severity / anomaly class mapping.
+
 ## Boundary contract (do not violate)
 
 1. **No cross-project path dependencies.** Root `Cargo.toml` MUST NOT
