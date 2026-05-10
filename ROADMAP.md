@@ -1,6 +1,16 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-11 (Q-14 recall-audit harness Phase A
+Last updated: 2026-05-11 (Q-16 cargo-mutants nightly landed same day
+— `.cargo/mutants.toml` scopes mutation testing to
+`src/detectors/**/*.rs` via `examine_globs`,
+`.github/workflows/mutants.yml` runs `cargo mutants --no-shuffle -j 2`
+on a 06:00 UTC cron + `workflow_dispatch`, the post-run step tallies
+`mutants.out/{caught,missed,unviable,timeout}.txt` and fails the job
+when `caught / (caught + missed) < 0.80`, the missed-mutant list lands
+in `$GITHUB_STEP_SUMMARY` and `mutants.out/` is archived as a 30-day
+artifact for off-runner inspection; first nightly run on master is the
+real signal for whether the codebase already meets the 80% gate since
+local validation is multi-hour. Q-14 recall-audit harness Phase A
 scaffolding landed same day — `cntrdct calibrate --audit-recall
 <CORPUS_DIR>` flag wired with clap conflict against `--fit-platt`,
 new `src/recall_audit.rs` module with `audit_recall(...) ->
@@ -993,18 +1003,35 @@ Q-15. SOTA baseline comparators
 
 Q-16. cargo-mutants nightly mutation testing
 
-- Status: `[ ]`
-- Goal: validate detector judgement boundaries (e.g.
-  `MIN_FN_TOKENS`, `NEAR_DUPLICATE_THRESHOLD`,
-  `MIN_TRANSACTION_ITEMS`) with mutation testing. A nightly
-  `cargo-mutants` run on `src/detectors/` reports caught vs.
-  missed mutants per detector.
-- Acceptance: nightly workflow committed under
-  `.github/workflows/mutants.yml`; aggregate mutation catch rate
-  ≥ 80% on `src/detectors/`; uncaught mutants surface in the CI
-  summary.
-- Effort: 1 week.
-- Depends on: nothing.
+- Status: `[x]` 2026-05-11
+- Summary: `.github/workflows/mutants.yml` runs cargo-mutants on
+  every UTC night at 06:00 (also on `workflow_dispatch`).
+  `.cargo/mutants.toml` scopes the run to `src/detectors/**/*.rs`
+  via `examine_globs`; the rest of the codebase is intentionally
+  out of scope for this gate. The workflow installs cargo-mutants
+  via `taiki-e/install-action`, runs `cargo mutants --no-shuffle
+  -j 2`, treats exit code 2 (some missed) as expected, and tallies
+  `mutants.out/{caught,missed,unviable,timeout}.txt` to compute a
+  catch rate. The step writes a markdown table to
+  `$GITHUB_STEP_SUMMARY` plus the verbatim missed-mutant list, then
+  fails the job when `caught / (caught + missed) < 0.80`.
+  `mutants.out/` is uploaded as an artifact (30-day retention) for
+  off-runner inspection. `.gitignore` adds `/mutants.out/` and
+  `/mutants.out.old/` so accidental local runs do not leak the
+  per-mutant log dirs into commits.
+- Caveat: cargo-mutants is too slow to validate locally (multi-hour
+  runs even on six detectors), so the first nightly run on master is
+  the real signal for whether the codebase already satisfies the
+  80% gate. If the first run fails, follow-up work is to either
+  strengthen the test suite at the unguarded judgement boundaries
+  the missed-mutants list calls out, or temporarily relax the gate
+  while the detector tests catch up — both are roadmap-scope
+  decisions, not config tweaks.
+- Evidence: Just, Jalali, Inozemtseva, Ernst, Holmes, Fraser (2014)
+  "Are mutants a valid substitute for real faults in software
+  testing?" FSE 2014 (mutation-detection ↔ real-bug detection
+  agreement); cargo-mutants project documentation
+  (<https://mutants.rs/>) for the per-mutant test-rerun semantics.
 
 Future Q-series candidates (not yet scheduled):
 
@@ -1105,7 +1132,7 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     2026-05-11; Phase B audit-corpus data collection + Phase C
     release-tag README refresh discipline still pending
 42. Q-15 SOTA baseline comparators
-43. Q-16 cargo-mutants nightly mutation testing
+43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 
 The split between Phase A (Tier 1, blocking) and later phases is the
 single most important boundary in this roadmap. Everything in Phase A

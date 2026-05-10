@@ -3,3 +3,6 @@ research/target
 **/*.rs.bk
 .DS_Store
 /data/
+# Q-16 cargo-mutants output (per-mutant logs, outcomes, locks)
+/mutants.out/
+/mutants.out.old/

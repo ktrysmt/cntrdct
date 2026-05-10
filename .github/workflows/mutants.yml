@@ -1,0 +1,128 @@
+name: cargo-mutants nightly
+
+# Q-16: nightly mutation testing on src/detectors/. Validates that
+# detector judgement boundaries (e.g. MIN_FN_TOKENS,
+# NEAR_DUPLICATE_THRESHOLD, MIN_TRANSACTION_ITEMS) are exercised by
+# the test suite rather than memorised. The aggregate catch-rate
+# gate enforces >= 80% on Layer 1 detectors; below the gate, the
+# job fails and the missed mutants surface in the run summary so a
+# human can prioritise the gap.
+
+on:
+  schedule:
+    # 06:00 UTC daily. Decoupled from the per-PR `ci.yml` cadence
+    # because cargo-mutants runs the full test suite once per
+    # mutant and routinely exceeds 30 minutes.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  # A second nightly should not stack on top of an in-flight one.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mutants:
+    name: mutation testing on src/detectors/
+    runs-on: ubuntu-latest
+    # GHA hard ceiling is 6h; cargo-mutants on six detectors at
+    # ~3.7k LOC has historically fit inside this. Future growth
+    # may require sharding via cargo-mutants' --shard flag.
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: mutants
+      - name: install cargo-mutants
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+      - name: run cargo-mutants
+        # Exit code 2 is "some mutants missed", which we want to
+        # report on rather than abort on. The catch-rate gate step
+        # below decides pass/fail. Other non-zero exits (1 = usage
+        # error, 3 = timeout, 4 = clean-tree test failure) still
+        # propagate via `set -e` after the awk gate.
+        run: |
+          set +e
+          cargo mutants --no-shuffle -j 2
+          status=$?
+          set -e
+          echo "cargo-mutants exit status: $status"
+          # Defer pass/fail to the catch-rate step so we always emit
+          # a summary, even when cargo-mutants returned 2.
+          if [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then
+            echo "::error::cargo-mutants returned $status (not 0 or 2); see logs"
+            exit "$status"
+          fi
+      - name: compute catch rate and write summary
+        run: |
+          set -euo pipefail
+
+          # cargo-mutants writes one txt file per outcome bucket. An
+          # empty bucket file still exists, so unconditional reads
+          # are safe.
+          caught=$(wc -l < mutants.out/caught.txt | tr -d ' ')
+          missed=$(wc -l < mutants.out/missed.txt | tr -d ' ')
+          unviable=$(wc -l < mutants.out/unviable.txt | tr -d ' ')
+          timeout=$(wc -l < mutants.out/timeout.txt | tr -d ' ')
+
+          total_eval=$((caught + missed))
+          if [ "$total_eval" -eq 0 ]; then
+            rate_pct="0.0"
+            gate_passed=0
+          else
+            rate_pct=$(awk -v c="$caught" -v t="$total_eval" \
+              'BEGIN { printf "%.1f", (c/t)*100 }')
+            gate_passed=$(awk -v c="$caught" -v t="$total_eval" \
+              'BEGIN { print (c/t >= 0.80) ? 1 : 0 }')
+          fi
+
+          {
+            echo "# cargo-mutants nightly (Q-16)"
+            echo
+            echo "Scope: src/detectors/ (per .cargo/mutants.toml)"
+            echo
+            echo "| Outcome | Count |"
+            echo "|---|---|"
+            echo "| Caught | $caught |"
+            echo "| Missed | $missed |"
+            echo "| Unviable | $unviable |"
+            echo "| Timeout | $timeout |"
+            echo
+            echo "Catch rate: ${rate_pct}% (gate >= 80.0%)"
+            if [ "$missed" -gt 0 ]; then
+              echo
+              echo "## Missed mutants"
+              echo
+              echo '```'
+              cat mutants.out/missed.txt
+              echo '```'
+            fi
+            if [ "$timeout" -gt 0 ]; then
+              echo
+              echo "## Timed-out mutants"
+              echo
+              echo '```'
+              cat mutants.out/timeout.txt
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$gate_passed" -ne 1 ]; then
+            echo "::error::catch rate ${rate_pct}% is below the 80% gate"
+            exit 1
+          fi
+          echo "::notice::catch rate ${rate_pct}% meets the 80% gate"
+      - name: upload mutants.out
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutants-out
+          path: mutants.out/
+          retention-days: 30

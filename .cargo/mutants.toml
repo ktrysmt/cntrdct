@@ -1,0 +1,9 @@
+# Q-16: cargo-mutants configuration.
+#
+# Scope mutation testing to the Layer 1 detectors. The roadmap's
+# acceptance criterion is "aggregate mutation catch rate >= 80% on
+# src/detectors/", so the other modules (calibration, ranker, sarif,
+# parsers, lsp, adjudicator, ...) are intentionally out of scope for
+# the nightly gate. Expanding the scope is a deliberate roadmap
+# decision, not a casual config change.
+examine_globs = ["src/detectors/**/*.rs"]
