@@ -195,14 +195,16 @@ JSON shape (selected fields):
 
 ## Latest audit run
 
-Refreshed 2026-05-12 against the mid-release batch-4 binary.
+Refreshed 2026-05-12 against the v0.2.0-rc.9 binary on the Phase
+C release-tag cadence. Figures are bit-identical with the
+mid-release batch-4 numbers (same detector logic, same corpus
+since batch 4 landed earlier the same day); the re-run itself
+against the to-be-tagged binary is the Q-14 Phase C discipline.
 Batch 4 adds three `paper-appendix` arg-swap entries seeded from
 PyPIBugs (Allamanis NeurIPS 2021); all three are FN against
 cntrdct's narrow Rice-2017 arg-swap detector, so the arg-swap
-row stays at 0.00 with `fn` rising to 4, and overall
+row stays at 0.00 with `fn` at 4, and overall
 `recall_upper_bound` settles at 0.37 (down from 0.44 at batch 3).
-The next release tag will refresh these figures on the Phase C
-cadence.
 
 | detector                       | tp | fn | recall upper bound | dominant source                  |
 | ------------------------------ | --:| --:| ------------------:| -------------------------------- |
