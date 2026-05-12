@@ -1,9 +1,49 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-12 (Q-14 recall-audit Phase B batch 7
-landed same day on top of batch 6. Batch 7 introduces the
-`codeql` source kind to the corpus via the CodeQL Python
-`UnreachableCode` query test fixture
+Last updated: 2026-05-13 (Q-14 recall-audit Phase B batch 8
+landed, introducing the `semgrep` source kind and the sixth and
+final cntrdct detector — `pr-miner` — to the audit corpus in the
+same commit. The labeller is the Semgrep registry rule
+`open-never-closed`
+(`python.lang.best-practice.open-never-closed.open-never-closed`,
+pinned at semgrep/semgrep-rules@9d73d08e70fee9fc1fd940d1378ca6c601312883
+python/lang/best-practice/open-never-closed.yaml). The
+redistributed target file is from a different upstream —
+TuGraph-family/tugraph-db@672e4b1998b78e5dbd45ae44950e86b48c841437
+`release/det_ver.py` (Apache-2.0) — which sidesteps the Semgrep
+Rules License v1.0 carve-out entirely: only the rule's stable
+identity is cited, and the labelled code is Apache-2.0
+tugraph-db, not semgrep-rules itself. The single expected entry
+flags `f = open('Options.cmake','r')` inside top-level
+`def get_ver():` at upstream line 5 (corpus line 9) with no
+matching `close()` / `with` / try-finally; the companion
+`def replace_ver(...)` opens AND closes, so the rule does not
+fire on it. cntrdct's pr-miner reaches `get_ver` (spec F2,
+top-level function), but spec F3 Apriori mining at
+`MIN_SUPPORT = 0.05` / `MIN_CONFIDENCE = 0.85` cannot synthesise
+the `{open} → {close}` rule from the single corpus-wide
+transaction (`replace_ver`) that contains both items, so spec
+F4 violation detection never runs against `get_ver`. FN by
+mining sparsity, NOT by extractor scope — closing the 1.00 gap
+on pr-miner is a corpus-density problem, not an
+extractor-widening problem. Updated corpus 16 files / 30
+expected entries / overall recall_upper_bound 0.27 (down from
+0.28); pr-miner enters at tp=0 / fn=1 / 0.00 dominated by the
+new `semgrep` source kind; all five existing detectors
+(`arg-swap` 0/4/0.00, `clone-drift` 0/2/0.00, `comment-code`
+4/0/1.00, `config-interaction` 0/2/0.00,
+`unreachable-after-terminator` 4/13/0.24) are unchanged. With
+all six detectors and six external source kinds
+(`rustc-lint-testset`, `github-commit`, `paper-appendix`,
+`clippy`, `codeql`, `semgrep`) now live, the originally-named
+Phase B blockers — pr-miner detector coverage and semgrep source
+kind — are both closed; further Phase B batches deepen existing
+detector coverage rather than introduce a new detector or kind,
+with additional `open-never-closed` instances on permissive
+Python files the most tractable next step for surfacing the
+first pr-miner TP. 2026-05-12: Q-14 recall-audit Phase B batch 7
+landed on top of batch 6, introducing the `codeql` source kind
+via the CodeQL Python `UnreachableCode` query test fixture
 (`github/codeql@592c7c043734f6bb48768a56261d711446cde25f
 python/ql/test/query-tests/Statements/unreachable/test.py`,
 MIT). Six expected unreachable-statement entries land per
@@ -17,22 +57,7 @@ follower pattern reproduced in Python via
 neither constant-condition branches (`while False:` /
 `if False:` / `else` of `if True:`) nor typed-exception
 reachability (`except NameError:` for a name that is always
-defined). Updated corpus 15 files / 29 expected entries /
-overall recall_upper_bound 0.28 (down from 0.30), `arg-swap`
-0/4/0.00 unchanged, `clone-drift` 0/2/0.00 unchanged,
-`comment-code` 4/0/1.00 unchanged, `config-interaction`
-0/2/0.00 unchanged, `unreachable-after-terminator` 4/13/0.24
-(was 3/8/0.27 — +1 TP from codeql, +5 FN from codeql). The
-0.30→0.28 drop is downward for the right reason: CodeQL's
-denominator captures bug shapes outside cntrdct's statement-
-level F3 scope. Subsequent Phase B batches still owe coverage
-for pr-miner (blocked on extractor scope widening — top-level
-`fn` / `def` only per
-`src/detectors/pr_miner/extract_{rust,python}.rs`), plus the
-semgrep source kind (semgrep-rules ships under the custom
-"Semgrep Rules License v1.0" rather than a permissive
-MIT / Apache / BSD / ISC, so direct inclusion is deferred
-pending an audit-discipline carve-out). Earlier 2026-05-12: Q-14
+defined). Earlier 2026-05-12: Q-14
 recall-audit Phase B batch 6 landed same day on top of batch 5,
 introducing the `config-interaction` detector to the corpus via
 the rustc UI test for the `cfg.attr.duplicates` Rust Reference
@@ -1051,8 +1076,23 @@ Q-13. Cross-model κ audit
 Q-14. Recall-audit harness
 
 - Status: `[~]` (Phase A scaffolding + Phase B first batch
-  landed 2026-05-11; Phase B batch 2 (deepening
-  `unreachable-after-terminator` measurement) landed 2026-05-12;
+  landed 2026-05-11; Phase B batches 2-7 landed 2026-05-12 (see
+  per-batch summaries below); Phase B batch 8 landed 2026-05-13,
+  closing the originally-named Phase B blockers (pr-miner
+  detector coverage + semgrep source kind) by introducing both
+  in the same commit via the Semgrep registry rule
+  `open-never-closed` applied to TuGraph-family/tugraph-db
+  `release/det_ver.py` (Apache-2.0), sidestepping the Semgrep
+  Rules License v1.0 carve-out entirely (we cite the rule's
+  stable identity and redistribute permissive code the rule
+  fires on, NOT semgrep-rules' own test fixtures). All six
+  cntrdct detectors and six external source kinds are now live
+  in the corpus; further Phase B batches deepen coverage rather
+  than introduce a new detector or kind.
+
+  Per-batch history below for the record; Phase B batch 2
+  (deepening `unreachable-after-terminator` measurement) landed
+  2026-05-12;
   Phase B batch 3 (broadening to a third detector,
   `comment-code`, via the Tan SOSP 2007 Pattern C bug from
   `sidan-lab/whisky-archive`) landed 2026-05-12;
@@ -1091,15 +1131,41 @@ Q-14. Recall-audit harness
   corpus lines 12, 14, 20, 32, 88 — bug shapes outside the F3
   terminator set (constant-condition branches and typed-
   exception reachability)) landed 2026-05-12;
-  pr-miner was the originally chosen batch 4 detector but
-  punted on the structural blocker that the extractor walks
-  only top-level `fn` / `def`, which collides with modern Rust
-  RAII and Python `with` idioms — paired-API patterns survive
-  almost exclusively in class methods the extractor drops;
-  further Phase B batches broadening detector and source
-  coverage (pr-miner, plus the semgrep source kind pending
-  a license carve-out for the Semgrep Rules License v1.0) still
-  pending)
+  Phase B batch 8 (introducing the `semgrep` source kind AND
+  the sixth and final cntrdct detector `pr-miner` to the corpus
+  in the same commit via the Semgrep registry rule
+  `open-never-closed` (`python.lang.best-practice.open-never-closed.open-never-closed`,
+  pinned at semgrep/semgrep-rules@9d73d08e
+  python/lang/best-practice/open-never-closed.yaml) applied to
+  TuGraph-family/tugraph-db@672e4b19 `release/det_ver.py`
+  (Apache-2.0). The target file is from a DIFFERENT upstream
+  than semgrep-rules, which sidesteps the Semgrep Rules License
+  v1.0 carve-out entirely: we cite the rule's stable identity
+  and redistribute permissive Apache-2.0 code the rule fires
+  on, not semgrep-rules' own test fixtures. Single expected
+  entry: `f = open('Options.cmake','r')` inside top-level
+  `def get_ver():` (upstream line 5; corpus line 9) with no
+  matching `close()` / `with` / try-finally. cntrdct's pr-miner
+  spec F2 reaches `get_ver` (top-level fn), but spec F3 Apriori
+  mining at `MIN_SUPPORT = 0.05` / `MIN_CONFIDENCE = 0.85`
+  cannot synthesise the `{open} → {close}` rule from the
+  single corpus-wide transaction (`replace_ver`) that contains
+  both items, so spec F4 violation detection never runs against
+  `get_ver` — FN by mining sparsity, NOT by extractor scope. The
+  original blocker framing ("extractor walks only top-level
+  `fn` / `def`, which collides with modern Rust RAII and Python
+  `with` idioms — paired-API patterns survive almost exclusively
+  in class methods the extractor drops") was a false-positive
+  reading of the blocker: the bug here lives in a bare
+  top-level `def`, the extractor reaches it cleanly, and the
+  detector's inability to flag it is downstream of corpus
+  density, not extractor scope) landed 2026-05-13;
+  further Phase B batches deepen coverage on the existing six
+  detectors and six source kinds rather than introduce a new
+  detector or kind — the most tractable next step is additional
+  `open-never-closed` instances on permissive Python files to
+  push pr-miner's mined-rule confidence above the 0.85
+  threshold and surface the first pr-miner TP)
 - Goal: counter the labeller-bias loop where cntrdct's priors are
   derived from corpora it labelled itself, biasing toward
   precision and silently sacrificing recall. Build
@@ -1322,13 +1388,71 @@ Q-14. Recall-audit harness
     `unreachable-after-terminator` requires F3 widening to
     constant-condition / branch / exception-typed reasoning —
     separate engineering with its own preregistration.
-  - Subsequent batches still owe coverage for pr-miner (blocked
-    on extractor scope widening — top-level `fn` / `def` only
-    per `src/detectors/pr_miner/extract_{rust,python}.rs`) and
-    the semgrep source kind (semgrep-rules ships under the
-    custom "Semgrep Rules License v1.0" rather than a permissive
-    MIT / Apache / BSD / ISC, so direct inclusion is deferred
-    pending an audit-discipline carve-out).
+  - Eighth batch (done 2026-05-13): one expected entry
+    introducing the `semgrep` source kind AND the sixth detector
+    `pr-miner` to the corpus in the same commit, closing the
+    last two Phase B blockers (pr-miner detector coverage +
+    semgrep source kind) named at the end of batch 7. The
+    labeller is the Semgrep registry rule `open-never-closed`
+    (`python.lang.best-practice.open-never-closed.open-never-closed`,
+    pinned at semgrep/semgrep-rules@9d73d08e
+    python/lang/best-practice/open-never-closed.yaml). The
+    redistributed target file is from a DIFFERENT upstream than
+    semgrep-rules: TuGraph-family/tugraph-db@672e4b19
+    `release/det_ver.py` (Apache-2.0). Selecting permissive
+    tugraph-db code that the rule fires on — rather than
+    semgrep-rules' own `python/lang/best-practice/open-never-closed.py`
+    test fixture — sidesteps the Semgrep Rules License v1.0
+    carve-out entirely: only the rule's stable identity is
+    cited via its registry id + GitHub blob URL, and the
+    audit-corpus only ships permissive-licensed source.
+    Single expected entry maps to cntrdct's `pr-miner`:
+    `f = open('Options.cmake','r')` inside top-level
+    `def get_ver():` at upstream line 5 (corpus line 9) is
+    followed by `f.readlines()` and a `return` without any
+    matching `f.close()`, `with`, or try-finally; the companion
+    `def replace_ver(...)` at upstream line 17 (corpus 21)
+    opens AND closes, so the rule does not fire on it.
+    cntrdct's pr-miner spec F2 `function_definition` extractor
+    reaches `get_ver` (top-level def) and yields the item set
+    `{open, readlines, find, split}`, but spec F3 Apriori
+    mining at `MIN_SUPPORT = 0.05` / `MIN_CONFIDENCE = 0.85`
+    cannot synthesise the `{open} → {close}` rule from the
+    single corpus-wide transaction (`replace_ver`) that
+    contains both items, so spec F4 violation detection never
+    runs against `get_ver` — FN by mining sparsity, NOT by
+    extractor scope. The original batch-3 framing ("paired-API
+    patterns survive almost exclusively in class methods the
+    extractor drops") was a false-positive reading of the
+    blocker for this specific shape: bare top-level `def` with
+    `open()` and no `close()` is reachable cleanly. Updated
+    audit numbers: `pr-miner` tp=0 / fn=1 / 0.00 (new);
+    `arg-swap`, `clone-drift`, `comment-code`,
+    `config-interaction`, `unreachable-after-terminator`
+    unchanged; overall recall_upper_bound 0.27 (8/30, down from
+    0.28). Downward for the right reason: a new detector
+    entered the denominator with 0 TPs by detector design at
+    v0 corpus density. Closing the 1.00 gap on pr-miner is a
+    corpus-density problem (more paired open/close
+    transactions in the audit-corpus pulls the mined-rule
+    confidence above 0.85, after which v0 begins to flag
+    `get_ver` without any detector-side change), not an
+    extractor-widening problem. With all six cntrdct detectors
+    and six external source kinds now represented in the
+    corpus, future Phase B batches deepen existing coverage
+    rather than introduce a new detector or kind — the most
+    tractable next step is additional `open-never-closed`
+    instances on permissive Python files to surface the first
+    pr-miner TP.
+  - Subsequent batches deepen coverage on the existing six
+    detectors and six source kinds rather than introduce a new
+    one. Most tractable: more `open-never-closed` instances on
+    permissive Python files (pr-miner TP density);
+    `unreachable-after-terminator` widening once F3 lifts to
+    constant-condition / exception-typed reasoning;
+    arg-swap / clone-drift / config-interaction TPs once the
+    detectors' v0 scope is lifted by separate engineering with
+    its own preregistration.
 - Phase C — release-tag refresh discipline (done 2026-05-12):
   `benchmarks/audit-corpus/README.md` carries a new "Refresh
   discipline (Phase C)" section enumerating the on-tag procedure
@@ -1524,12 +1648,29 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     wrapper, introducing config-interaction at
     recall_upper_bound 0.00 and surfacing the v0
     require-`not(...)`-wrapper scope choice) all landed
-    2026-05-12; pr-miner was the originally chosen batch 4
-    detector but punted on the structural blocker that the
-    extractor walks only top-level `fn` / `def`; further
-    Phase B batches broadening detector and source coverage
-    (pr-miner, plus semgrep / codeql source kinds) still
-    pending
+    2026-05-12; Phase B batch 7 (introducing the `codeql`
+    source kind via the CodeQL Python `UnreachableCode`
+    query test fixture — `github/codeql@592c7c04
+    python/ql/test/query-tests/Statements/unreachable/test.py`,
+    MIT; six expected entries — one TP at the `for x in
+    first_unreachable_stmt():` following `return 5` Python F3
+    match, five FN on constant-condition branch and
+    typed-exception unreachability bug shapes outside cntrdct's
+    F3 terminator set) landed 2026-05-12;
+    Phase B batch 8 (introducing the `semgrep` source kind AND
+    the sixth and final cntrdct detector `pr-miner` to the
+    corpus in the same commit via the Semgrep registry rule
+    `open-never-closed` applied to TuGraph-family/tugraph-db
+    `release/det_ver.py` Apache-2.0, closing the
+    originally-named Phase B blockers without invoking a
+    Semgrep Rules License v1.0 carve-out — only the rule's
+    stable identity is cited and the redistributed target is
+    permissive code the rule fires on; the entry is FN by spec
+    F3 Apriori mining sparsity at the v0 audit-corpus density,
+    NOT by spec F2 extractor scope) landed 2026-05-13. With all
+    six detectors and six external source kinds now live in
+    the corpus, further Phase B batches deepen existing
+    coverage rather than introduce a new detector or kind
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 

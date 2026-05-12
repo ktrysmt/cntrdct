@@ -156,3 +156,47 @@
 // condition / branch / exception-typed reasoning, separate
 // engineering with its own preregistration.
 {"file":"files/codeql_python_unreachable_test.py","expected":[{"detector_id":"unreachable-after-terminator","line":12,"external_source":{"kind":"codeql","ref":"github/codeql@592c7c04 python/ql/test/query-tests/Statements/unreachable/test.py:8 (asgn = unreachable() inside while 0: body)","url":"https://github.com/github/codeql/blob/592c7c043734f6bb48768a56261d711446cde25f/python/ql/test/query-tests/Statements/unreachable/test.py#L8"}},{"detector_id":"unreachable-after-terminator","line":14,"external_source":{"kind":"codeql","ref":"github/codeql@592c7c04 python/ql/test/query-tests/Statements/unreachable/test.py:10 (return unreachable() inside while False: body)","url":"https://github.com/github/codeql/blob/592c7c043734f6bb48768a56261d711446cde25f/python/ql/test/query-tests/Statements/unreachable/test.py#L10"}},{"detector_id":"unreachable-after-terminator","line":20,"external_source":{"kind":"codeql","ref":"github/codeql@592c7c04 python/ql/test/query-tests/Statements/unreachable/test.py:16 (unreachable() inside if False: body)","url":"https://github.com/github/codeql/blob/592c7c043734f6bb48768a56261d711446cde25f/python/ql/test/query-tests/Statements/unreachable/test.py#L16"}},{"detector_id":"unreachable-after-terminator","line":25,"external_source":{"kind":"codeql","ref":"github/codeql@592c7c04 python/ql/test/query-tests/Statements/unreachable/test.py:21 (for x in first_unreachable_stmt(): following return 5)","url":"https://github.com/github/codeql/blob/592c7c043734f6bb48768a56261d711446cde25f/python/ql/test/query-tests/Statements/unreachable/test.py#L21"}},{"detector_id":"unreachable-after-terminator","line":32,"external_source":{"kind":"codeql","ref":"github/codeql@592c7c04 python/ql/test/query-tests/Statements/unreachable/test.py:28 (unreachable() inside else: of if True:)","url":"https://github.com/github/codeql/blob/592c7c043734f6bb48768a56261d711446cde25f/python/ql/test/query-tests/Statements/unreachable/test.py#L28"}},{"detector_id":"unreachable-after-terminator","line":88,"external_source":{"kind":"codeql","ref":"github/codeql@592c7c04 python/ql/test/query-tests/Statements/unreachable/test.py:84 (except NameError: handler unreachable because str is always defined)","url":"https://github.com/github/codeql/blob/592c7c043734f6bb48768a56261d711446cde25f/python/ql/test/query-tests/Statements/unreachable/test.py#L84"}}],"source":"https://github.com/github/codeql/blob/592c7c043734f6bb48768a56261d711446cde25f/python/ql/test/query-tests/Statements/unreachable/test.py","license":"MIT","sha256":"5b10f6b4a968bdb159ae360b89856d1892f41d92cd6d4c0c028d547d5f74a83a"}
+//
+// Phase B batch 8 (2026-05-13): one expected entry introducing the
+// sixth and final cntrdct detector — `pr-miner` — to the audit corpus
+// alongside the first `semgrep` source kind. The labeller is the
+// Semgrep registry rule `open-never-closed` (registry id
+// `python.lang.best-practice.open-never-closed.open-never-closed`),
+// pinned at semgrep/semgrep-rules@9d73d08e70fee9fc1fd940d1378ca6c601312883
+// python/lang/best-practice/open-never-closed.yaml. The redistributed
+// target file is from a different upstream — TuGraph-family/tugraph-db
+// at master commit 672e4b1998b78e5dbd45ae44950e86b48c841437,
+// release/det_ver.py — which avoids the semgrep-rules license
+// carve-out entirely (semgrep-rules ships under Semgrep Rules License
+// v1.0; the rule's stable identity is the only thing we cite, and the
+// labelled code is Apache-2.0 tugraph-db, not semgrep-rules itself).
+// Mapping against cntrdct's pr-miner detector:
+// - upstream line 5 (corpus line 9) defines `def get_ver():` at top
+//   level, so spec F2's `function_definition` extractor reaches it
+//   and produces the item set {open, readlines, find, split} (plus
+//   duplicates collapsed). Spec F4's violation predicate requires the
+//   mined rule {open} -> {close} to first emerge from spec F3's
+//   Apriori pass at MIN_SUPPORT = 0.05 and MIN_CONFIDENCE = 0.85.
+//   The audit corpus has only one Python function that contains both
+//   `open` and `close` — `replace_ver` in this same file at upstream
+//   line 17 (corpus 21) — so the mined-rule denominator is 1 of N
+//   transactions, well below the confidence threshold. v0 therefore
+//   never synthesises the rule, never runs F4 against `get_ver`, and
+//   the bug stays unflagged: FN by mining sparsity, NOT by extractor
+//   scope. Closing the 1.00 gap on pr-miner is a corpus-density
+//   problem, not an extractor-widening problem — every additional
+//   Python file in the audit corpus that uses paired open/close
+//   pulls the mined-rule confidence above 0.85, after which v0
+//   begins to flag `get_ver`. Separate engineering with its own
+//   preregistration; the audit-harness contribution is documenting
+//   the gap.
+// Net effect on the audit: `pr-miner` enters the denominator at
+// 0/1/0.00; the other five detectors are unchanged. Overall
+// recall_upper_bound moves from 0.28 (8/29) to 0.27 (8/30) — a
+// shallow drop because pr-miner adds only one expected entry, not
+// because the existing detectors regressed. The drop is downward
+// for the right reason: a new detector entered the corpus with a
+// 0-TP single-source bound by detector design (mining sparsity at
+// the v0 corpus density), exactly the kind of signal Heckman &
+// Williams IST 2011 motivates for the audit harness.
+{"file":"files/tugraph_det_ver.py","expected":[{"detector_id":"pr-miner","line":9,"external_source":{"kind":"semgrep","ref":"semgrep registry rule `open-never-closed` (id python.lang.best-practice.open-never-closed.open-never-closed) at semgrep/semgrep-rules@9d73d08e python/lang/best-practice/open-never-closed.yaml; fires on TuGraph-family/tugraph-db@672e4b19 release/det_ver.py:6 (f = open('Options.cmake','r') in fn get_ver without matching close()/with/try-finally)","url":"https://github.com/semgrep/semgrep-rules/blob/9d73d08e70fee9fc1fd940d1378ca6c601312883/python/lang/best-practice/open-never-closed.yaml"}}],"source":"https://github.com/TuGraph-family/tugraph-db/blob/672e4b1998b78e5dbd45ae44950e86b48c841437/release/det_ver.py","license":"Apache-2.0","sha256":"b48078be685c62ce2779a97108c85f1bdadd77b7a0e1afe84795ed0861188f3d"}
