@@ -206,12 +206,13 @@ JSON shape (selected fields):
 
 ## Latest audit run
 
-Refreshed 2026-05-12 against the v0.2.0-rc.10 binary plus batch 6
-(see "Refresh discipline (Phase C)" — the re-run itself against
-the to-be-tagged binary is the Q-14 Phase C discipline, run on
-every release tag and on any same-day corpus addition). Batch 6
-adds two `rustc-lint-testset` config-interaction entries seeded
-from the rustc UI test for the `cfg.attr.duplicates` Rust
+Refreshed 2026-05-12 against the v0.2.0-rc.11 binary on the
+Phase C release-tag cadence. Figures are bit-identical with the
+mid-release batch-6 numbers (same detector logic, same corpus
+since batch 6 landed earlier the same day); the re-run itself
+against the to-be-tagged binary is the Q-14 Phase C discipline.
+Batch 6 adds two `rustc-lint-testset` config-interaction entries
+seeded from the rustc UI test for the `cfg.attr.duplicates` Rust
 Reference behaviour (`tests/ui/cfg/both-true-false.rs` pinned at
 main commit `29b75901`); both are FN against cntrdct's
 config-interaction detector by `docs/spec/config-interaction-v0.md`
