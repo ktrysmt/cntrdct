@@ -1,6 +1,36 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-11 (Q-16 cargo-mutants nightly landed same day
+Last updated: 2026-05-12 (Q-14 recall-audit Phase B batch 2 and
+Phase C release-tag refresh discipline both landed same day.
+Phase B batch 2: six additional expected entries on
+`unreachable-after-terminator` deepening the recall ceiling on
+the existing detector via three rustc UI testset files
+(`expr_return.rs`, `expr_call.rs`, `expr_loop.rs`) that probe
+control-flow shapes cntrdct's statement-level scan misses by
+construction; corpus now 7 files / 12 expected entries / overall
+recall_upper_bound 0.25, `unreachable-after-terminator` 3 TP / 8
+FN / 0.27, `arg-swap` unchanged at 0/1. The drop from 0.50 to
+0.25 is intentional honest signal — closing the gaps is
+detector-improvement work, not audit-harness work. Phase C:
+`benchmarks/audit-corpus/README.md` adds a "Refresh discipline
+(Phase C)" section enumerating the on-tag procedure;
+`CLAUDE.md` "Release procedure" steps now include the audit
+re-run between lockfile sync and commit, and the non-negotiables
+pin the same-commit rule and a no-op refresh policy (figures
+unchanged = no-op is fine; the discipline is the re-run, not the
+delta). No CI enforcement on top — audit-recall is already gated
+indirectly via the embedded priors and detector logic CI already
+checks. Further Phase B batches still owe coverage for the
+remaining four detectors (clone-drift, comment-code,
+config-interaction, pr-miner) and the semgrep / codeql / clippy
+/ paper-appendix source kinds; initial GitHub-search probe for
+clean MIT/BSD/Apache-licensed Python `@deprecated` candidates
+hit the GitHub secondary rate limit and the cleanest hit
+(unioslo/mreg-api `Host.set_contact`) is GPL-3.0, excluded by
+audit-corpus license policy.
+2026-05-11: Q-14 recall-audit Phase B first batch landed — six
+expected entries / two detectors / two sources / overall
+recall_upper_bound 0.50; Q-16 cargo-mutants nightly landed same day
 — `.cargo/mutants.toml` scopes mutation testing to
 `src/detectors/**/*.rs` via `examine_globs`,
 `.github/workflows/mutants.yml` runs `cargo mutants --no-shuffle -j 2`
@@ -19,9 +49,20 @@ url}` provenance per labelled finding, `cntrdct::run_recall_audit`
 orchestrator, 12 tests (4 unit + 8 integration) pin loader / matcher
 / byte-stable JSON / CLI conflict, `benchmarks/audit-corpus/`
 skeleton with per-detector seed targets documented, CITATIONS.md
-adds `heckman-williams-ist-2011` under Layer 2; Phase B audit-corpus
-data collection + Phase C release-tag README refresh discipline
-deferred. Spec: `docs/spec/recall-audit-v0.md`. Q-13 cross-model κ
+adds `heckman-williams-ist-2011` under Layer 2; Q-14 Phase B first
+batch landed same day — six expected entries across two detectors
+and two sources (`rustc-lint-testset` ×5 from rust-lang/rust@4b0c9d76
+`tests/ui/reachable/{unreachable-code-ret,expr_block,expr_if}.rs`,
+`github-commit` ×1 from `wasserth/TotalSegmentator` PR #556
+`statistics.py:58`), audit numbers
+`unreachable-after-terminator` recall_upper_bound 0.60 (3 TP / 2 FN),
+`arg-swap` 0.00 (0 TP / 1 FN), overall 0.50; the rustc-testset
+copies strip the file-level `#![deny(unreachable_code)]` attribute
+because cntrdct's SUPPRESSION_TOKEN scan would otherwise honour it.
+README "Latest audit run" populated, ROADMAP Phase B entry
+expanded, further batches broadening detector and source coverage
+plus Phase C release-tag refresh discipline still pending. Spec:
+`docs/spec/recall-audit-v0.md`. Q-13 cross-model κ
 audit redesigned to
 CLI-only same day — `PromptDispatch` trait + `ClaudeCliAdjudicator` +
 `GeminiCliAdjudicator` ship alongside the existing
@@ -929,9 +970,12 @@ Q-13. Cross-model κ audit
 
 Q-14. Recall-audit harness
 
-- Status: `[~]` (Phase A scaffolding landed 2026-05-11; Phase B
-  audit-corpus data collection and Phase C release-tag README
-  refresh still pending)
+- Status: `[~]` (Phase A scaffolding + Phase B first batch
+  landed 2026-05-11; Phase B batch 2 (deepening
+  `unreachable-after-terminator` measurement) landed 2026-05-12;
+  Phase C release-tag refresh discipline landed 2026-05-12;
+  further Phase B batches broadening detector and source
+  coverage still pending)
 - Goal: counter the labeller-bias loop where cntrdct's priors are
   derived from corpora it labelled itself, biasing toward
   precision and silently sacrificing recall. Build
@@ -975,13 +1019,75 @@ Q-14. Recall-audit harness
   lists land in `benchmarks/audit-corpus/files/` + the manifest,
   with each `expected[].external_source.url` resolving to a
   stable external page. Per-detector recall figures populate the
-  README's "Latest audit run" section. Out of scope for Phase A
-  per the spec's "Out of scope" clause; sequenced after T3-12
-  Phase 2 / Q-15 / Q-16 by maintainer choice.
-- Phase C — release-tag refresh discipline: documents the manual
-  refresh cadence on each `vX.Y.Z` tag and finalises the README
-  format for the audit-run figures. Lands alongside Phase B's
-  first real numbers.
+  README's "Latest audit run" section.
+  - First batch (done 2026-05-11): six expected entries across
+    two detectors and two sources. Three rust-lang/rust ui-test
+    files for the rustc `unreachable_code` lint
+    (`tests/ui/reachable/{unreachable-code-ret,expr_block,expr_if}.rs`
+    at commit `4b0c9d76`, MIT OR Apache-2.0, stripped of the
+    file-level `#![deny(unreachable_code)]` because cntrdct's
+    SUPPRESSION_TOKEN scan would otherwise honour it) contribute
+    five entries; one minimal extract of `totalsegmentator/statistics.py`
+    at the pre-fix parent of PR #556 contributes one arg-swap
+    entry. Audit numbers: `unreachable-after-terminator`
+    tp=3 / fn=2 / recall_upper_bound=0.60; `arg-swap`
+    tp=0 / fn=1 / recall_upper_bound=0.00; overall recall_upper_bound
+    0.50. The 0.60 figure is the honest signal — cntrdct's
+    statement-level terminator scan misses cases where the
+    terminator lives inside an `if` / `if-else` expression. The
+    arg-swap miss is also expected: the reverse-permutation
+    heuristic does not catch swaps where the call-site
+    identifiers do not share names with the parameter list.
+    Source breakdown is preserved per detector so a future
+    detector dominated by a single source surfaces visibly.
+  - Second batch (done 2026-05-12): three additional rust-lang/rust
+    ui-test files at the same pinned commit `4b0c9d76` —
+    `tests/ui/reachable/{expr_return,expr_call,expr_loop}.rs`,
+    each stripped of `#![deny(unreachable_code)]` on the same
+    grounds as batch 1, contributing six additional
+    `unreachable-after-terminator` entries. The batch intentionally
+    deepens rather than broadens — every new entry pins a control-
+    flow shape cntrdct's `rust_terminator_kind` classifier ignores
+    by design: `expr_return.rs` puts `return` inside a tail
+    expression (`let x: () = {return ...};`), `expr_call.rs`
+    places `return` as a call argument (`foo(return, 22)`,
+    `bar(return)`), `expr_loop.rs` uses divergent
+    `loop { return; }` as the terminator (which the rustc lint
+    recognises as never-typed but cntrdct treats as just another
+    `loop_expression`). All six new entries are FN. Updated audit
+    numbers: `unreachable-after-terminator` tp=3 / fn=8 /
+    recall_upper_bound=0.27 (3/11); `arg-swap` unchanged at
+    tp=0 / fn=1; overall recall_upper_bound 0.25 (3/12). The
+    drop from 0.50 to 0.25 is the audit doing its job — the
+    rustc lint's denominator captures shapes cntrdct's
+    statement-level scan does not look through, and closing the
+    gap is detector-improvement work (separate engineering,
+    separate preregistration), not audit-harness work.
+  - Subsequent batches will broaden source coverage (semgrep,
+    codeql, clippy, paper-appendix) and add the four remaining
+    detectors (clone-drift, comment-code, config-interaction,
+    pr-miner). PyPIBugs (Allamanis NeurIPS 2021) is the natural
+    next external source for arg-swap and clone-drift; the
+    metadata file is hosted at Microsoft Download Center and
+    requires offline preprocessing before commits can be cited
+    with stable URLs.
+- Phase C — release-tag refresh discipline (done 2026-05-12):
+  `benchmarks/audit-corpus/README.md` carries a new "Refresh
+  discipline (Phase C)" section enumerating the on-tag procedure
+  (re-run the audit, refresh the "Latest audit run" table,
+  stage the README change in the same `chore(release): bump
+  version` commit, no follow-up). `CLAUDE.md` "Release
+  procedure" steps now include `cargo run --release --bin
+  cntrdct -- calibrate --audit-recall benchmarks/audit-corpus`
+  between the lockfile sync and the commit, and the
+  non-negotiables list pins the same-commit rule and the no-op
+  refresh policy (figures unchanged = no-op is fine; the
+  discipline is the re-run, not the delta). No CI enforcement
+  — the rationale tracks Q-13's: audit-recall is a property of
+  the embedded priors and the shipped detector logic, both of
+  which CI already gates, so a README-update gate would catch
+  the same drift twice. The release-procedure non-negotiable is
+  the gap-closer.
 
 Q-15. SOTA baseline comparators
 
@@ -1128,9 +1234,16 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
 38. Q-11 small-N statistical interval switching (landed 2026-05-10)
 39. Q-12 LLM calibration post-hoc Platt fit (landed 2026-05-10)
 40. Q-13 cross-model κ audit (landed 2026-05-11)
-41. Q-14 recall-audit harness — Phase A scaffolding landed
-    2026-05-11; Phase B audit-corpus data collection + Phase C
-    release-tag README refresh discipline still pending
+41. Q-14 recall-audit harness — Phase A scaffolding + Phase B
+    first batch landed 2026-05-11; Phase B batch 2 (deepening
+    `unreachable-after-terminator` recall measurement against
+    additional rustc UI testset files) and Phase C release-tag
+    refresh discipline (README "Refresh discipline" section +
+    CLAUDE.md release-procedure steps) both landed 2026-05-12;
+    further Phase B batches broadening detector and source
+    coverage (paper-appendix / semgrep / codeql / clippy /
+    permissive-licensed github-commit cases for clone-drift /
+    comment-code / config-interaction / pr-miner) still pending
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 

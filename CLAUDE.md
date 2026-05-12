@@ -239,7 +239,10 @@ Steps (run from repo root):
 ```sh
 $EDITOR Cargo.toml                                 # bump version to X.Y.Z
 cargo update -p cntrdct                            # sync Cargo.lock
-git add Cargo.toml Cargo.lock
+cargo run --release --bin cntrdct -- \
+  calibrate --audit-recall benchmarks/audit-corpus  # Q-14 Phase C
+$EDITOR benchmarks/audit-corpus/README.md          # refresh "Latest audit run"
+git add Cargo.toml Cargo.lock benchmarks/audit-corpus/README.md
 git commit -m "chore(release): bump version to X.Y.Z"
 git tag -a vX.Y.Z -m "release vX.Y.Z"              # MUST be annotated
 git push --follow-tags
@@ -270,6 +273,16 @@ Non-negotiable details:
   parse as Conventional Commits (or that match `chore(release)` /
   `chore(changelog)` / `Merge`) are dropped from the notes by design;
   do not bypass the parser by adding ad-hoc release-only commits.
+- The Q-14 recall-audit refresh lands in the SAME
+  `chore(release): bump version to X.Y.Z` commit, not a follow-up.
+  Re-run `cargo run --release --bin cntrdct -- calibrate
+  --audit-recall benchmarks/audit-corpus` and update the README's
+  "Latest audit run" table per `benchmarks/audit-corpus/README.md`
+  "Refresh discipline (Phase C)". A no-op refresh (figures
+  unchanged) is fine — the discipline is the re-run, not the
+  delta. CI does not enforce this; it is part of the
+  release-procedure non-negotiables for the same reason the tag
+  itself is.
 
 ## Preregistration discipline (technical workspace)
 
