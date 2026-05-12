@@ -5,33 +5,41 @@ Q-14 deliverable from `ROADMAP.md`. Houses the corpus
 per-detector recall upper bounds. Spec:
 [`docs/spec/recall-audit-v0.md`](../../docs/spec/recall-audit-v0.md).
 
-Status: Phase B batch 5 (2026-05-12). Twenty-one expected entries
-across four detectors and four external source kinds
-(`rustc-lint-testset`, `github-commit`, `paper-appendix`, and the
-new `clippy`). Batch 5 introduces the `clippy` source kind via two
-rust-clippy UI tests (MIT OR Apache-2.0) pinned at master commit
-`c4b8c6d4` — `tests/ui/if_same_then_else.rs` (statement-block
-clone pair flagged by `clippy::if_same_then_else`) and
-`tests/ui/branches_sharing_code/shared_at_top.rs` (shared
-statement-block at the start of if/else branches flagged by
-`clippy::branches_sharing_code`). Both are FNs against cntrdct's
-clone-drift detector by `docs/spec/clone-drift-v0.md` F2: cntrdct
-clone-drift v0 operates at top-level `fn` granularity only and
-requires `MIN_FN_TOKENS >= 22` + `MIN_GROUP_SIZE >= 3`, so the
-statement-block clone patterns clippy targets are out of scope by
-design. The batch therefore introduces clone-drift to the corpus
-with single-source `recall_upper_bound = 0.00`, surfacing the v0
-scope choice rather than a detector defect. Overall
-`recall_upper_bound` settles at 0.33 (down from 0.37 at batch 4) —
+Status: Phase B batch 6 (2026-05-12). Twenty-three expected
+entries across five detectors and four external source kinds
+(`rustc-lint-testset`, `github-commit`, `paper-appendix`,
+`clippy`). Batch 6 introduces the `config-interaction` detector
+to the corpus via the rustc UI test for the `cfg.attr.duplicates`
+Rust Reference behaviour (`rust-lang/rust@29b75901
+tests/ui/cfg/both-true-false.rs`, MIT OR Apache-2.0). Each of the
+two `fn foo()` items in the file carries a contradictory `#[cfg(...)]`
+pair (`cfg(false)` + `cfg(true)` and `cfg(true)` + `cfg(false)`), so
+both are disabled under every configuration. Both entries are FN
+against cntrdct's config-interaction detector by
+`docs/spec/config-interaction-v0.md` F5: the detector recognises a
+contradiction only when one predicate is structurally `not(X)` and
+the other is structurally equal to `X`, while `true` and `false`
+are atomic primitives without the `not(...)` wrapper. The batch
+therefore introduces config-interaction to the corpus with
+single-source `recall_upper_bound = 0.00`, surfacing the v0
+conservative-scope choice rather than a detector defect. Overall
+`recall_upper_bound` settles at 0.30 (down from 0.33 at batch 5) —
 the drop is the right kind of signal: a new detector entered the
-denominator with 0 TPs by design. Batch 4 (2026-05-12): three
+denominator with 0 TPs by design. Batch 5 (2026-05-12): two
+`clippy` clone-drift FNs from rust-clippy UI tests
+(`if_same_then_else`, `branches_sharing_code/shared_at_top`)
+pinned at master commit `c4b8c6d4`; both FN against cntrdct's
+clone-drift detector by `docs/spec/clone-drift-v0.md` F2 (top-level
+`fn` granularity only). Batch 4 (2026-05-12): three
 `paper-appendix` arg-swap FNs from PyPIBugs (Allamanis NeurIPS
 2021) on `c137digital/unv_app` MIT, `mwouts/nbrmd` MIT, and
 `markokr/rarfile` ISC; all three are FNs against the narrow
 Rice-2017 arg-swap detector. Batch 3 (2026-05-12): four
 `comment-code` TPs on `sidan-lab/whisky-archive` `con_str*`
 family — Tan SOSP 2007 §3.2 "bad comment". Subsequent batches
-still owe coverage for config-interaction and pr-miner, plus the
+still owe coverage for pr-miner (blocked on extractor scope
+widening — top-level `fn` / `def` only per
+`src/detectors/pr_miner/extract_{rust,python}.rs`), plus the
 semgrep / codeql source kinds. The figures under "Latest audit
 run" refresh on each release tag.
 
@@ -63,7 +71,7 @@ selection-bias issue this corpus is built to counter.
 ```
 audit-corpus/
 ├── README.md                       (this file)
-├── manifest.jsonl                  (Phase B batches 1-5)
+├── manifest.jsonl                  (Phase B batches 1-6)
 └── files/
     ├── rustc_ui_unreachable_code_ret.rs               (batch 1)
     ├── rustc_ui_expr_block.rs                         (batch 1)
@@ -77,7 +85,8 @@ audit-corpus/
     ├── nbrmd_test_ipynb_to_R.py                       (batch 4)
     ├── rarfile_set_attrs.py                           (batch 4)
     ├── clippy_ui_if_same_then_else.rs                 (batch 5)
-    └── clippy_ui_branches_sharing_code_shared_at_top.rs (batch 5)
+    ├── clippy_ui_branches_sharing_code_shared_at_top.rs (batch 5)
+    └── rustc_ui_both_true_false.rs                    (batch 6)
 ```
 
 `manifest.jsonl` follows the schema in
@@ -188,38 +197,40 @@ JSON shape (selected fields):
       "source_breakdown": { "github-commit": { "tp": 4, "fn": 0 } }
     }
   },
-  "overall": { "tp": 7, "fn": 14, "recall_upper_bound": 0.333, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 13,
-  "expected_total": 21,
-  "sources": { "clippy": 2, "github-commit": 5, "paper-appendix": 3, "rustc-lint-testset": 11 }
+  "overall": { "tp": 7, "fn": 16, "recall_upper_bound": 0.304, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 14,
+  "expected_total": 23,
+  "sources": { "clippy": 2, "github-commit": 5, "paper-appendix": 3, "rustc-lint-testset": 13 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-12 against the v0.2.0-rc.10 binary on the
-Phase C release-tag cadence. Figures are bit-identical with the
-mid-release batch-5 numbers (same detector logic, same corpus
-since batch 5 landed earlier the same day); the re-run itself
-against the to-be-tagged binary is the Q-14 Phase C discipline.
-Batch 5 adds two `clippy` clone-drift entries seeded from
-rust-clippy UI tests (`if_same_then_else`,
-`branches_sharing_code/shared_at_top` pinned at master commit
-`c4b8c6d4`); both are FN against cntrdct's clone-drift detector
-by `docs/spec/clone-drift-v0.md` F2 (top-level `fn` granularity
-only), so clone-drift enters the corpus at 0.00 and overall
-`recall_upper_bound` settles at 0.33 (down from 0.37 at batch 4).
+Refreshed 2026-05-12 against the v0.2.0-rc.10 binary plus batch 6
+(see "Refresh discipline (Phase C)" — the re-run itself against
+the to-be-tagged binary is the Q-14 Phase C discipline, run on
+every release tag and on any same-day corpus addition). Batch 6
+adds two `rustc-lint-testset` config-interaction entries seeded
+from the rustc UI test for the `cfg.attr.duplicates` Rust
+Reference behaviour (`tests/ui/cfg/both-true-false.rs` pinned at
+main commit `29b75901`); both are FN against cntrdct's
+config-interaction detector by `docs/spec/config-interaction-v0.md`
+F5 (atomic `true` / `false` predicates lack the `not(...)` wrapper
+the detector requires), so config-interaction enters the corpus
+at 0.00 and overall `recall_upper_bound` settles at 0.30 (down
+from 0.33 at batch 5).
 
 | detector                       | tp | fn | recall upper bound | dominant source                  |
 | ------------------------------ | --:| --:| ------------------:| -------------------------------- |
 | `arg-swap`                     |  0 |  4 |               0.00 | `paper-appendix` (3/4 entries)   |
 | `clone-drift`                  |  0 |  2 |               0.00 | `clippy` (2/2 entries)           |
 | `comment-code`                 |  4 |  0 |               1.00 | `github-commit` (4/4 entries)    |
+| `config-interaction`           |  0 |  2 |               0.00 | `rustc-lint-testset` (2/2)       |
 | `unreachable-after-terminator` |  3 |  8 |               0.27 | `rustc-lint-testset` (11/11)     |
-| **overall**                    |  7 | 14 |               0.33 |                                  |
+| **overall**                    |  7 | 16 |               0.30 |                                  |
 
-Corpus size: 13 files. Expected entries: 21. Source mix:
-`rustc-lint-testset` (11 entries), `github-commit` (5),
+Corpus size: 14 files. Expected entries: 23. Source mix:
+`rustc-lint-testset` (13 entries), `github-commit` (5),
 `paper-appendix` (3), `clippy` (2).
 
 Reading the figures:
@@ -301,21 +312,37 @@ Reading the figures:
     if/else branches share a prefix of statement-block code.
     Same F2 miss: cntrdct's clustering operates on whole
     top-level fns, not statement prefixes.
+- The two `config-interaction` false negatives both come from
+  the rustc UI test `tests/ui/cfg/both-true-false.rs` pinned at
+  main commit `29b75901`. Each `fn foo()` carries a syntactically
+  contradictory `#[cfg(...)]` pair (`cfg(false)` + `cfg(true)`
+  and `cfg(true)` + `cfg(false)`), so both are disabled under
+  every configuration; the rustc Reference labels this as the
+  `cfg.attr.duplicates` documented behaviour. cntrdct
+  config-interaction v0 F5 requires one predicate to be
+  structurally `not(X)` and the other to be structurally equal
+  to `X`; atomic `true` / `false` lack the `not(...)` wrapper, so
+  the detector skips the pair by design.
 
-The overall recall_upper_bound dropped from 0.37 (batch 4) to
-0.33 (batch 5). The move is downward for the right reason: a
-new detector (`clone-drift`) entered the denominator with 0 TPs
-because cntrdct's clone-drift v0 scope (top-level `fn` only) is
-strictly narrower than the bug class clippy's statement-block
-clone lints target. Closing the 0.67 gap requires both broader
-external sources and detector-side scope widening — for
-clone-drift specifically, lifting F2 to cover statement blocks
-and `impl` / `trait` methods is a separate piece of engineering
-with its own preregistration.
+The overall recall_upper_bound dropped from 0.33 (batch 5) to
+0.30 (batch 6). The move is downward for the right reason: a
+new detector (`config-interaction`) entered the denominator with
+0 TPs because cntrdct's config-interaction v0 scope (require one
+side of the contradictory pair to carry an explicit `not(...)`
+wrapper) is strictly narrower than the broader contradictory-cfg
+class the rustc Reference behaviour covers. Closing the 1.00 gap
+requires both broader external sources (Tartler EuroSys 2011 /
+Nadi ICSE 2014 catalogues target C/Linux KConfig rather than Rust
+`#[cfg]` attributes, so a Rust-side semgrep / codeql / clippy
+rule registry sweep is still owed) and detector-side scope
+widening — lifting F5 to recognise primitive `true` / `false`
+pairs and `not(...)` reductions is separate engineering with its
+own preregistration.
 
 Future batches will broaden source coverage (semgrep, codeql)
-and add the two remaining detectors (config-interaction,
-pr-miner; the latter blocked on extractor scope widening).
+and add the remaining detector (pr-miner; blocked on extractor
+scope widening — top-level `fn` / `def` only per
+`src/detectors/pr_miner/extract_{rust,python}.rs`).
 
 ## Refresh discipline (Phase C)
 

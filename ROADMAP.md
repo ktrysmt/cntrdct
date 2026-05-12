@@ -1,33 +1,45 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-12 (Q-14 recall-audit Phase B batch 5
-landed same day on top of batch 4 + Phase C. Batch 5 introduces
-the `clippy` source kind via two rust-clippy UI tests
-(MIT OR Apache-2.0) pinned at master commit
-`c4b8c6d454c648ef2d7cb86ca1bc698da829e4bc`:
+Last updated: 2026-05-12 (Q-14 recall-audit Phase B batch 6
+landed same day on top of batch 5. Batch 6 introduces the
+`config-interaction` detector to the corpus via the rustc UI test
+for the `cfg.attr.duplicates` Rust Reference behaviour
+(`rust-lang/rust@29b7590130c83542a095cdf1323ed0f78eec2bb8
+tests/ui/cfg/both-true-false.rs`, MIT OR Apache-2.0). Each of the
+two `fn foo()` items carries a syntactically contradictory
+`#[cfg(...)]` pair (`cfg(false)` + `cfg(true)` and `cfg(true)` +
+`cfg(false)`), so both are disabled under every configuration.
+Both entries are FN against cntrdct's config-interaction detector
+by `docs/spec/config-interaction-v0.md` F5: the detector requires
+one predicate to be structurally `not(X)` and the other to be
+structurally equal to `X`, while `true` and `false` are atomic
+primitives without the `not(...)` wrapper. The batch therefore
+introduces config-interaction with single-source
+`recall_upper_bound = 0.00`, surfacing the v0 conservative-scope
+choice rather than a detector defect. Updated corpus 14 files /
+23 expected entries / overall recall_upper_bound 0.30 (down from
+0.33), `arg-swap` 0/4/0.00 unchanged, `clone-drift` 0/2/0.00
+unchanged, `comment-code` 4/0/1.00 unchanged,
+`config-interaction` 0/2/0.00 (new),
+`unreachable-after-terminator` 3/8/0.27 unchanged. The 0.33→0.30
+drop is downward for the right reason: a new detector entered
+the denominator with 0 TPs by detector design. Subsequent Phase
+B batches still owe coverage for pr-miner (blocked on extractor
+scope widening — top-level `fn` / `def` only per
+`src/detectors/pr_miner/extract_{rust,python}.rs`), plus the
+semgrep / codeql source kinds. Earlier 2026-05-12: Q-14
+recall-audit Phase B batch 5 introduces the `clippy` source
+kind via two rust-clippy UI tests (MIT OR Apache-2.0) pinned at
+master commit `c4b8c6d454c648ef2d7cb86ca1bc698da829e4bc`:
 `tests/ui/if_same_then_else.rs` (statement-block clone pair
 flagged by `clippy::if_same_then_else`) and
 `tests/ui/branches_sharing_code/shared_at_top.rs` (shared
 statement-block prefix in if/else branches flagged by
 `clippy::branches_sharing_code`). Both are FN against cntrdct's
-clone-drift detector by `docs/spec/clone-drift-v0.md` F2 —
-cntrdct clone-drift v0 operates at top-level `fn` granularity
-only and requires `MIN_FN_TOKENS >= 22` + `MIN_GROUP_SIZE >= 3`,
-so the statement-block clone patterns clippy targets are out of
-scope by design. The batch therefore introduces clone-drift to
-the audit corpus with single-source `recall_upper_bound = 0.00`,
-surfacing the v0 scope choice rather than a detector defect.
-Updated corpus 13 files / 21 expected entries / overall
-recall_upper_bound 0.33 (down from 0.37), `arg-swap` 0/4/0.00
-unchanged, `clone-drift` 0/2/0.00 (new), `comment-code`
-4/0/1.00 unchanged, `unreachable-after-terminator` 3/8/0.27
-unchanged. The 0.37→0.33 drop is downward for the right reason:
-a new detector entered the denominator with 0 TPs by detector
-design. Subsequent Phase B batches still owe coverage for
-config-interaction and pr-miner (the latter blocked on extractor
-scope widening — top-level `fn` / `def` only per
-`src/detectors/pr_miner/extract_{rust,python}.rs`), plus the
-semgrep / codeql source kinds. Earlier 2026-05-12: Q-14
+clone-drift detector by `docs/spec/clone-drift-v0.md` F2 — cntrdct
+clone-drift v0 operates at top-level `fn` granularity only and
+requires `MIN_FN_TOKENS >= 22` + `MIN_GROUP_SIZE >= 3`. Earlier
+2026-05-12: Q-14
 recall-audit Phase B batch 4 introduces the `paper-appendix`
 source kind via three PyPIBugs (Allamanis NeurIPS 2021) ArgSwap
 entries on permissive-licensed Python repositories:
@@ -1047,14 +1059,24 @@ Q-14. Recall-audit harness
   `docs/spec/clone-drift-v0.md` F2, introducing clone-drift to
   the corpus with single-source recall_upper_bound 0.00 and
   surfacing the v0 fn-level scope choice) landed 2026-05-12;
+  Phase B batch 6 (introducing the `config-interaction` detector
+  to the corpus via the rustc UI test for the
+  `cfg.attr.duplicates` Rust Reference behaviour —
+  `rust-lang/rust@29b75901 tests/ui/cfg/both-true-false.rs`
+  MIT OR Apache-2.0; both `fn foo()` items in the file are FN
+  against cntrdct's config-interaction detector by
+  `docs/spec/config-interaction-v0.md` F5, introducing
+  config-interaction at single-source recall_upper_bound 0.00
+  and surfacing the v0 require-`not(...)`-wrapper scope choice)
+  landed 2026-05-12;
   pr-miner was the originally chosen batch 4 detector but
   punted on the structural blocker that the extractor walks
   only top-level `fn` / `def`, which collides with modern Rust
   RAII and Python `with` idioms — paired-API patterns survive
   almost exclusively in class methods the extractor drops;
   further Phase B batches broadening detector and source
-  coverage (config-interaction, pr-miner, plus semgrep / codeql
-  source kinds) still pending)
+  coverage (pr-miner, plus semgrep / codeql source kinds) still
+  pending)
 - Goal: counter the labeller-bias loop where cntrdct's priors are
   derived from corpora it labelled itself, biasing toward
   precision and silently sacrificing recall. Build
@@ -1209,11 +1231,42 @@ Q-14. Recall-audit harness
     0.67 gap on clone-drift requires lifting F2 to cover
     statement blocks and `impl` / `trait` methods — separate
     engineering with its own preregistration.
+  - Sixth batch (done 2026-05-12): two expected entries
+    introducing the `config-interaction` detector to the corpus
+    via a single rustc UI test for the `cfg.attr.duplicates`
+    Rust Reference behaviour
+    (`rust-lang/rust@29b75901 tests/ui/cfg/both-true-false.rs`,
+    MIT OR Apache-2.0). Each of the two `fn foo()` items
+    (upstream lines 7 and 11; audit-corpus lines 11 and 15 after
+    the 3-line header + 1 blank) carries a syntactically
+    contradictory `#[cfg(...)]` pair (`cfg(false)` + `cfg(true)`
+    and `cfg(true)` + `cfg(false)`), so both items are disabled
+    under every configuration. Both entries are FN against
+    cntrdct's config-interaction detector by
+    `docs/spec/config-interaction-v0.md` F5: the detector
+    recognises a contradiction only when one predicate is
+    structurally `not(X)` and the other is structurally equal to
+    `X`, while `true` and `false` are atomic primitives without
+    the `not(...)` wrapper. The batch therefore introduces
+    config-interaction to the corpus with single-source
+    recall_upper_bound 0.00. Updated audit numbers:
+    `config-interaction` tp=0 / fn=2 / 0.00 (new); `arg-swap`,
+    `clone-drift`, `comment-code`,
+    `unreachable-after-terminator` unchanged; overall
+    recall_upper_bound 0.30 (7/23, down from 0.33). Downward for
+    the right reason: a new detector entered the denominator
+    with 0 TPs by detector design. Closing the 1.00 gap on
+    config-interaction requires both broader external sources
+    (Tartler EuroSys 2011 / Nadi ICSE 2014 catalogues target
+    C/Linux KConfig rather than Rust `#[cfg]` attributes, so a
+    Rust-side semgrep / codeql sweep is still owed) and
+    detector-side F5 widening to recognise primitive `true` /
+    `false` pairs and `not(...)` reductions — separate
+    engineering with its own preregistration.
   - Subsequent batches will broaden source coverage (semgrep,
-    codeql) and add the two remaining detectors
-    (config-interaction, pr-miner; the latter blocked on
-    extractor scope widening — top-level `fn` / `def` only per
-    `src/detectors/pr_miner/extract_{rust,python}.rs`).
+    codeql) and add the remaining detector (pr-miner; blocked
+    on extractor scope widening — top-level `fn` / `def` only
+    per `src/detectors/pr_miner/extract_{rust,python}.rs`).
 - Phase C — release-tag refresh discipline (done 2026-05-12):
   `benchmarks/audit-corpus/README.md` carries a new "Refresh
   discipline (Phase C)" section enumerating the on-tag procedure
@@ -1391,20 +1444,30 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     `c137digital/unv_app` MIT, `mwouts/nbrmd` MIT,
     `markokr/rarfile` ISC; all three FN against cntrdct's
     narrow Rice-2017 arg-swap detector, surfacing the gap
-    rather than inflating it), and Phase B batch 5
-    (introducing the `clippy` source kind via two rust-clippy
-    UI tests pinned at master commit `c4b8c6d4` —
+    rather than inflating it), Phase B batch 5 (introducing the
+    `clippy` source kind via two rust-clippy UI tests pinned at
+    master commit `c4b8c6d4` —
     `tests/ui/if_same_then_else.rs` and
     `tests/ui/branches_sharing_code/shared_at_top.rs`; both FN
     against cntrdct's clone-drift detector by spec F2,
     introducing clone-drift to the corpus at
     recall_upper_bound 0.00 and surfacing the v0 fn-level
-    scope choice) all landed 2026-05-12; pr-miner was the
-    originally chosen batch 4 detector but punted on the
-    structural blocker that the extractor walks only top-level
-    `fn` / `def`; further Phase B batches broadening detector
-    and source coverage (semgrep / codeql cases for
-    config-interaction / pr-miner) still pending
+    scope choice), and Phase B batch 6 (introducing the
+    `config-interaction` detector via the rustc UI test for
+    the `cfg.attr.duplicates` Rust Reference behaviour —
+    `rust-lang/rust@29b75901
+    tests/ui/cfg/both-true-false.rs`; both `fn foo()` items FN
+    against cntrdct's config-interaction detector by spec F5
+    because atomic `true` / `false` lack the `not(...)`
+    wrapper, introducing config-interaction at
+    recall_upper_bound 0.00 and surfacing the v0
+    require-`not(...)`-wrapper scope choice) all landed
+    2026-05-12; pr-miner was the originally chosen batch 4
+    detector but punted on the structural blocker that the
+    extractor walks only top-level `fn` / `def`; further
+    Phase B batches broadening detector and source coverage
+    (pr-miner, plus semgrep / codeql source kinds) still
+    pending
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 

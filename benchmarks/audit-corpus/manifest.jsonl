@@ -91,3 +91,27 @@
 // c4b8c6d454c648ef2d7cb86ca1bc698da829e4bc.
 {"file":"files/clippy_ui_if_same_then_else.rs","expected":[{"detector_id":"clone-drift","line":29,"external_source":{"kind":"clippy","ref":"rust-lang/rust-clippy@c4b8c6d4 tests/ui/if_same_then_else.rs:25 (first if-same-then-else lint trigger inside fn if_same_then_else)","url":"https://github.com/rust-lang/rust-clippy/blob/c4b8c6d454c648ef2d7cb86ca1bc698da829e4bc/tests/ui/if_same_then_else.rs#L25"}}],"source":"https://github.com/rust-lang/rust-clippy/blob/c4b8c6d454c648ef2d7cb86ca1bc698da829e4bc/tests/ui/if_same_then_else.rs","license":"MIT OR Apache-2.0","sha256":"fdd27a857a7890a3977f4310ad7b4c6d75d10c095631992bde3938f00dc342e3"}
 {"file":"files/clippy_ui_branches_sharing_code_shared_at_top.rs","expected":[{"detector_id":"clone-drift","line":15,"external_source":{"kind":"clippy","ref":"rust-lang/rust-clippy@c4b8c6d4 tests/ui/branches_sharing_code/shared_at_top.rs:11 (first branches-sharing-code lint trigger inside fn simple_examples)","url":"https://github.com/rust-lang/rust-clippy/blob/c4b8c6d454c648ef2d7cb86ca1bc698da829e4bc/tests/ui/branches_sharing_code/shared_at_top.rs#L11"}}],"source":"https://github.com/rust-lang/rust-clippy/blob/c4b8c6d454c648ef2d7cb86ca1bc698da829e4bc/tests/ui/branches_sharing_code/shared_at_top.rs","license":"MIT OR Apache-2.0","sha256":"77ffc0134fe6e6b08cbb40e7b4b29ff25a6db59eee61ef8c07fd8872156da002"}
+//
+// Phase B batch 6 (2026-05-12): two additional expected entries on the new
+// `config-interaction` detector, both sourced from the rust-lang/rust ui-test
+// for the `cfg.attr.duplicates` Rust Reference behaviour
+// (`tests/ui/cfg/both-true-false.rs`, MIT OR Apache-2.0, pinned at main
+// commit 29b7590130c83542a095cdf1323ed0f78eec2bb8). Each `fn foo()` carries
+// two `#[cfg(...)]` attributes whose predicates are syntactically
+// contradictory (`#[cfg(false)] #[cfg(true)]` and `#[cfg(true)] #[cfg(false)]`),
+// so both items are disabled under every configuration; rustc treats this
+// as documented Reference behaviour rather than emitting a dedicated lint.
+// Both entries are FN against cntrdct's config-interaction detector by
+// docs/spec/config-interaction-v0.md F5: the detector recognises a
+// contradiction only when one predicate is structurally `not(X)` and the
+// other is structurally equal to `X`, while `true` and `false` are atomic
+// primitives without the `not(...)` wrapper. The batch therefore introduces
+// config-interaction to the audit corpus with single-source
+// recall_upper_bound 0.00, surfacing the v0 conservative-scope choice
+// (require explicit `not(...)` wrapper on one side of the pair) rather
+// than a detector defect; broadening F5 to recognise primitive
+// `true` / `false` pairs and equivalent `not(...)` reductions is separate
+// engineering with its own preregistration. pr-miner remains punted on
+// the structural blocker that pr-miner's extractor walks only top-level
+// `fn` / `def` (src/detectors/pr_miner/extract_{rust,python}.rs).
+{"file":"files/rustc_ui_both_true_false.rs","expected":[{"detector_id":"config-interaction","line":11,"external_source":{"kind":"rustc-lint-testset","ref":"rust-lang/rust@29b75901 tests/ui/cfg/both-true-false.rs:7 (first fn foo() with cfg(false)+cfg(true) pair)","url":"https://github.com/rust-lang/rust/blob/29b7590130c83542a095cdf1323ed0f78eec2bb8/tests/ui/cfg/both-true-false.rs#L7"}},{"detector_id":"config-interaction","line":15,"external_source":{"kind":"rustc-lint-testset","ref":"rust-lang/rust@29b75901 tests/ui/cfg/both-true-false.rs:11 (second fn foo() with cfg(true)+cfg(false) pair)","url":"https://github.com/rust-lang/rust/blob/29b7590130c83542a095cdf1323ed0f78eec2bb8/tests/ui/cfg/both-true-false.rs#L11"}}],"source":"https://github.com/rust-lang/rust/blob/29b7590130c83542a095cdf1323ed0f78eec2bb8/tests/ui/cfg/both-true-false.rs","license":"MIT OR Apache-2.0","sha256":"3585c60ff805937744653626bb832bd0fd9bb947073a9d24b0776d6e242737e1"}
