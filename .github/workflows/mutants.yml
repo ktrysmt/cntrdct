@@ -33,7 +33,7 @@ jobs:
     # may require sharding via cargo-mutants' --shard flag.
     timeout-minutes: 360
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -121,7 +121,7 @@ jobs:
           echo "::notice::catch rate ${rate_pct}% meets the 80% gate"
       - name: upload mutants.out
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: mutants-out
           path: mutants.out/
