@@ -174,8 +174,10 @@ JSON shape (selected fields):
 
 ## Latest audit run
 
-Refreshed 2026-05-12 against the v0.2.0-rc.6 binary after the
-Phase B batch-2 additions.
+Refreshed 2026-05-12 against the v0.2.0-rc.7 binary on the Phase
+C release-tag cadence. No-op refresh from the rc.6 + Phase B
+batch-2 numbers (same detector logic, same corpus); the re-run
+itself is the Q-14 Phase C discipline.
 
 | detector                       | tp | fn | recall upper bound | dominant source                  |
 | ------------------------------ | --:| --:| ------------------:| -------------------------------- |
