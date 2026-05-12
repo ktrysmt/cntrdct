@@ -5,27 +5,29 @@ Q-14 deliverable from `ROADMAP.md`. Houses the corpus
 per-detector recall upper bounds. Spec:
 [`docs/spec/recall-audit-v0.md`](../../docs/spec/recall-audit-v0.md).
 
-Status: Phase B batch 6 (2026-05-12). Twenty-three expected
-entries across five detectors and four external source kinds
+Status: Phase B batch 7 (2026-05-12). Twenty-nine expected
+entries across five detectors and five external source kinds
 (`rustc-lint-testset`, `github-commit`, `paper-appendix`,
-`clippy`). Batch 6 introduces the `config-interaction` detector
-to the corpus via the rustc UI test for the `cfg.attr.duplicates`
-Rust Reference behaviour (`rust-lang/rust@29b75901
-tests/ui/cfg/both-true-false.rs`, MIT OR Apache-2.0). Each of the
-two `fn foo()` items in the file carries a contradictory `#[cfg(...)]`
-pair (`cfg(false)` + `cfg(true)` and `cfg(true)` + `cfg(false)`), so
-both are disabled under every configuration. Both entries are FN
-against cntrdct's config-interaction detector by
-`docs/spec/config-interaction-v0.md` F5: the detector recognises a
-contradiction only when one predicate is structurally `not(X)` and
-the other is structurally equal to `X`, while `true` and `false`
-are atomic primitives without the `not(...)` wrapper. The batch
-therefore introduces config-interaction to the corpus with
-single-source `recall_upper_bound = 0.00`, surfacing the v0
-conservative-scope choice rather than a detector defect. Overall
-`recall_upper_bound` settles at 0.30 (down from 0.33 at batch 5) —
-the drop is the right kind of signal: a new detector entered the
-denominator with 0 TPs by design. Batch 5 (2026-05-12): two
+`clippy`, `codeql`). Batch 7 introduces the `codeql` source kind
+via the CodeQL Python `UnreachableCode` query test fixture
+(`github/codeql@592c7c04
+python/ql/test/query-tests/Statements/unreachable/test.py`, MIT).
+Six expected unreachable-statement entries land per CodeQL's
+matching `UnreachableCode.expected`; one matches cntrdct's Python
+unreachable-after-terminator detector exactly (`for x in
+first_unreachable_stmt():` directly following `return 5`) and is
+a TP, while the other five are FN by spec F3 — cntrdct's
+terminator set does not include constant-condition branches
+(`while False:` / `if False:` / `else` of `if True:`) or
+typed-exception reasoning (`except NameError:` for a name that is
+always defined). Overall `recall_upper_bound` settles at 0.28
+(down from 0.30 at batch 6) — the drop is the right kind of
+signal: CodeQL's denominator captures bug shapes outside cntrdct's
+statement-level F3 scope. Batch 6 (2026-05-12): two
+`rustc-lint-testset` config-interaction FNs from
+`rust-lang/rust@29b75901 tests/ui/cfg/both-true-false.rs`; both
+FN by `docs/spec/config-interaction-v0.md` F5 (atomic `true` /
+`false` lack the `not(...)` wrapper). Batch 5 (2026-05-12): two
 `clippy` clone-drift FNs from rust-clippy UI tests
 (`if_same_then_else`, `branches_sharing_code/shared_at_top`)
 pinned at master commit `c4b8c6d4`; both FN against cntrdct's
@@ -40,8 +42,11 @@ family — Tan SOSP 2007 §3.2 "bad comment". Subsequent batches
 still owe coverage for pr-miner (blocked on extractor scope
 widening — top-level `fn` / `def` only per
 `src/detectors/pr_miner/extract_{rust,python}.rs`), plus the
-semgrep / codeql source kinds. The figures under "Latest audit
-run" refresh on each release tag.
+semgrep source kind (semgrep-rules ships under the custom
+"Semgrep Rules License v1.0" rather than a permissive
+MIT / Apache / BSD / ISC, so direct inclusion in this corpus is
+deferred pending an audit-discipline carve-out). The figures
+under "Latest audit run" refresh on each release tag.
 
 ## Why this corpus is separate from `wild-corpus/`
 
@@ -71,7 +76,7 @@ selection-bias issue this corpus is built to counter.
 ```
 audit-corpus/
 ├── README.md                       (this file)
-├── manifest.jsonl                  (Phase B batches 1-6)
+├── manifest.jsonl                  (Phase B batches 1-7)
 └── files/
     ├── rustc_ui_unreachable_code_ret.rs               (batch 1)
     ├── rustc_ui_expr_block.rs                         (batch 1)
@@ -86,7 +91,8 @@ audit-corpus/
     ├── rarfile_set_attrs.py                           (batch 4)
     ├── clippy_ui_if_same_then_else.rs                 (batch 5)
     ├── clippy_ui_branches_sharing_code_shared_at_top.rs (batch 5)
-    └── rustc_ui_both_true_false.rs                    (batch 6)
+    ├── rustc_ui_both_true_false.rs                    (batch 6)
+    └── codeql_python_unreachable_test.py              (batch 7)
 ```
 
 `manifest.jsonl` follows the schema in
@@ -197,42 +203,42 @@ JSON shape (selected fields):
       "source_breakdown": { "github-commit": { "tp": 4, "fn": 0 } }
     }
   },
-  "overall": { "tp": 7, "fn": 16, "recall_upper_bound": 0.304, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 14,
-  "expected_total": 23,
-  "sources": { "clippy": 2, "github-commit": 5, "paper-appendix": 3, "rustc-lint-testset": 13 }
+  "overall": { "tp": 8, "fn": 21, "recall_upper_bound": 0.276, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 15,
+  "expected_total": 29,
+  "sources": { "clippy": 2, "codeql": 6, "github-commit": 5, "paper-appendix": 3, "rustc-lint-testset": 13 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-12 against the v0.2.0-rc.11 binary on the
-Phase C release-tag cadence. Figures are bit-identical with the
-mid-release batch-6 numbers (same detector logic, same corpus
-since batch 6 landed earlier the same day); the re-run itself
-against the to-be-tagged binary is the Q-14 Phase C discipline.
-Batch 6 adds two `rustc-lint-testset` config-interaction entries
-seeded from the rustc UI test for the `cfg.attr.duplicates` Rust
-Reference behaviour (`tests/ui/cfg/both-true-false.rs` pinned at
-main commit `29b75901`); both are FN against cntrdct's
-config-interaction detector by `docs/spec/config-interaction-v0.md`
-F5 (atomic `true` / `false` predicates lack the `not(...)` wrapper
-the detector requires), so config-interaction enters the corpus
-at 0.00 and overall `recall_upper_bound` settles at 0.30 (down
-from 0.33 at batch 5).
+Refreshed 2026-05-12 against the v0.2.0-rc.11 binary, then
+re-run later the same day after batch 7 landed. Batch 7
+introduces the `codeql` source kind via the CodeQL Python
+`UnreachableCode` query test fixture (`github/codeql@592c7c04
+python/ql/test/query-tests/Statements/unreachable/test.py`, MIT).
+Of the six CodeQL-flagged unreachable statements one is TP
+against cntrdct's Python unreachable-after-terminator detector
+(`for x in first_unreachable_stmt():` directly following
+`return 5` — F3 match); the other five are FN by F3 — cntrdct's
+terminator set does not recognise constant-condition branches
+(`while False:` / `if False:` / `else` of `if True:`) or
+typed-exception reasoning (`except NameError:` for a name that
+is always defined). Overall `recall_upper_bound` settles at 0.28
+(down from 0.30 at batch 6).
 
-| detector                       | tp | fn | recall upper bound | dominant source                  |
-| ------------------------------ | --:| --:| ------------------:| -------------------------------- |
-| `arg-swap`                     |  0 |  4 |               0.00 | `paper-appendix` (3/4 entries)   |
-| `clone-drift`                  |  0 |  2 |               0.00 | `clippy` (2/2 entries)           |
-| `comment-code`                 |  4 |  0 |               1.00 | `github-commit` (4/4 entries)    |
-| `config-interaction`           |  0 |  2 |               0.00 | `rustc-lint-testset` (2/2)       |
-| `unreachable-after-terminator` |  3 |  8 |               0.27 | `rustc-lint-testset` (11/11)     |
-| **overall**                    |  7 | 16 |               0.30 |                                  |
+| detector                       | tp | fn | recall upper bound | dominant source                          |
+| ------------------------------ | --:| --:| ------------------:| ---------------------------------------- |
+| `arg-swap`                     |  0 |  4 |               0.00 | `paper-appendix` (3/4 entries)           |
+| `clone-drift`                  |  0 |  2 |               0.00 | `clippy` (2/2 entries)                   |
+| `comment-code`                 |  4 |  0 |               1.00 | `github-commit` (4/4 entries)            |
+| `config-interaction`           |  0 |  2 |               0.00 | `rustc-lint-testset` (2/2)               |
+| `unreachable-after-terminator` |  4 | 13 |               0.24 | `rustc-lint-testset` (11/17 entries)     |
+| **overall**                    |  8 | 21 |               0.28 |                                          |
 
-Corpus size: 14 files. Expected entries: 23. Source mix:
-`rustc-lint-testset` (13 entries), `github-commit` (5),
-`paper-appendix` (3), `clippy` (2).
+Corpus size: 15 files. Expected entries: 29. Source mix:
+`rustc-lint-testset` (13 entries), `codeql` (6), `github-commit`
+(5), `paper-appendix` (3), `clippy` (2).
 
 Reading the figures:
 
@@ -248,11 +254,16 @@ Reading the figures:
   reflects that a Pattern C bug-class within cntrdct's detection
   scope (top-level `fn` items) is captured cleanly when the
   upstream surface matches the spec assumptions.
-- The three `unreachable-after-terminator` true positives all
-  come from rust-lang/rust ui-tests where the rustc lint and
-  cntrdct's tree-sitter scan converge on the same pattern
-  (statement-level `return;` followed by a normal statement).
-- The eight `unreachable-after-terminator` false negatives
+- The four `unreachable-after-terminator` true positives split
+  by source: three come from rust-lang/rust ui-tests where the
+  rustc lint and cntrdct's tree-sitter scan converge on the same
+  pattern (statement-level `return;` followed by a normal
+  statement), and the fourth (batch 7, `codeql`) comes from the
+  CodeQL Python `UnreachableCode` test fixture at corpus line 25
+  (`for x in first_unreachable_stmt():` directly following
+  `return 5`) — the F3 terminator + follower pattern reproduced
+  in Python via cntrdct's `analyze_python_block`.
+- The thirteen `unreachable-after-terminator` false negatives
   partition by detector limitation:
   - Two from `rustc_ui_expr_if.rs` (batch 1): the divergent
     control flow lives inside an `if` / `if-else` expression
@@ -273,6 +284,18 @@ Reading the figures:
     nested non-breaking loop construct. The rustc lint reasons
     about the loop's never-type return; cntrdct does not
     recognise `loop_expression` itself as a terminator.
+  - Five from `codeql_python_unreachable_test.py` (batch 7,
+    `codeql`). Two flag bodies of `while 0:` / `while False:`
+    (constant-false loop bodies, corpus lines 12 and 14); two
+    flag bodies of `if False:` and the `else:` of `if True:`
+    (constant-condition branches, corpus lines 20 and 32); one
+    flags an `except NameError:` handler that can never fire
+    because `str` is always defined in Python 3 (corpus line
+    88). cntrdct's spec F3 terminator set covers neither
+    constant-condition branches (Non-goal "Branch-merging
+    analysis") nor typed-exception reachability, so all five are
+    structural FNs surfacing the same scope choice the Rust-side
+    `if`-expression FNs do.
 - The four `arg-swap` false negatives partition by external
   source and FN class:
   - One from `totalsegmentator_statistics.py` (batch 1,
@@ -325,24 +348,30 @@ Reading the figures:
   to `X`; atomic `true` / `false` lack the `not(...)` wrapper, so
   the detector skips the pair by design.
 
-The overall recall_upper_bound dropped from 0.33 (batch 5) to
-0.30 (batch 6). The move is downward for the right reason: a
-new detector (`config-interaction`) entered the denominator with
-0 TPs because cntrdct's config-interaction v0 scope (require one
-side of the contradictory pair to carry an explicit `not(...)`
-wrapper) is strictly narrower than the broader contradictory-cfg
-class the rustc Reference behaviour covers. Closing the 1.00 gap
-requires both broader external sources (Tartler EuroSys 2011 /
-Nadi ICSE 2014 catalogues target C/Linux KConfig rather than Rust
-`#[cfg]` attributes, so a Rust-side semgrep / codeql / clippy
-rule registry sweep is still owed) and detector-side scope
-widening — lifting F5 to recognise primitive `true` / `false`
-pairs and `not(...)` reductions is separate engineering with its
-own preregistration.
+The overall recall_upper_bound dropped from 0.30 (batch 6) to
+0.28 (batch 7). The move is downward for the right reason: the
+new `codeql` source kind contributed five FN entries on bug
+shapes outside cntrdct's spec F3 terminator set (constant-
+condition branches and typed-exception unreachability) plus one
+TP on the Python `return` → following-statement pattern F3
+already catches. Closing the 0.76 gap on
+`unreachable-after-terminator` requires F3 widening to constant-
+condition / branch / exception-typed reasoning (separate
+engineering with its own preregistration), not audit-harness
+work. The earlier 0.33 → 0.30 drop at batch 6 came from the
+`config-interaction` detector entering the denominator with
+0 TPs because cntrdct's v0 F5 scope (require an explicit
+`not(...)` wrapper on one side of the contradictory pair) is
+strictly narrower than the broader contradictory-cfg class the
+rustc Reference behaviour covers; broader external sources
+(Tartler EuroSys 2011 / Nadi ICSE 2014 catalogues target C/Linux
+KConfig rather than Rust `#[cfg]` attributes) and detector-side
+F5 widening are still owed.
 
-Future batches will broaden source coverage (semgrep, codeql)
-and add the remaining detector (pr-miner; blocked on extractor
-scope widening — top-level `fn` / `def` only per
+Future batches will broaden source coverage (semgrep, pending
+the Semgrep Rules License v1.0 carve-out) and add the remaining
+detector (pr-miner; blocked on extractor scope widening —
+top-level `fn` / `def` only per
 `src/detectors/pr_miner/extract_{rust,python}.rs`).
 
 ## Refresh discipline (Phase C)

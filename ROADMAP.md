@@ -1,33 +1,46 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-12 (Q-14 recall-audit Phase B batch 6
-landed same day on top of batch 5. Batch 6 introduces the
-`config-interaction` detector to the corpus via the rustc UI test
-for the `cfg.attr.duplicates` Rust Reference behaviour
-(`rust-lang/rust@29b7590130c83542a095cdf1323ed0f78eec2bb8
-tests/ui/cfg/both-true-false.rs`, MIT OR Apache-2.0). Each of the
-two `fn foo()` items carries a syntactically contradictory
-`#[cfg(...)]` pair (`cfg(false)` + `cfg(true)` and `cfg(true)` +
-`cfg(false)`), so both are disabled under every configuration.
-Both entries are FN against cntrdct's config-interaction detector
-by `docs/spec/config-interaction-v0.md` F5: the detector requires
-one predicate to be structurally `not(X)` and the other to be
-structurally equal to `X`, while `true` and `false` are atomic
-primitives without the `not(...)` wrapper. The batch therefore
-introduces config-interaction with single-source
-`recall_upper_bound = 0.00`, surfacing the v0 conservative-scope
-choice rather than a detector defect. Updated corpus 14 files /
-23 expected entries / overall recall_upper_bound 0.30 (down from
-0.33), `arg-swap` 0/4/0.00 unchanged, `clone-drift` 0/2/0.00
-unchanged, `comment-code` 4/0/1.00 unchanged,
-`config-interaction` 0/2/0.00 (new),
-`unreachable-after-terminator` 3/8/0.27 unchanged. The 0.33→0.30
-drop is downward for the right reason: a new detector entered
-the denominator with 0 TPs by detector design. Subsequent Phase
-B batches still owe coverage for pr-miner (blocked on extractor
-scope widening — top-level `fn` / `def` only per
+Last updated: 2026-05-12 (Q-14 recall-audit Phase B batch 7
+landed same day on top of batch 6. Batch 7 introduces the
+`codeql` source kind to the corpus via the CodeQL Python
+`UnreachableCode` query test fixture
+(`github/codeql@592c7c043734f6bb48768a56261d711446cde25f
+python/ql/test/query-tests/Statements/unreachable/test.py`,
+MIT). Six expected unreachable-statement entries land per
+CodeQL's matching `UnreachableCode.expected`: corpus line 25
+(`for x in first_unreachable_stmt():` directly following
+`return 5`) is TP against cntrdct's Python
+unreachable-after-terminator detector — the F3 terminator +
+follower pattern reproduced in Python via
+`analyze_python_block`. The other five (corpus lines 12, 14,
+20, 32, 88) are FN by spec F3: cntrdct's terminator set covers
+neither constant-condition branches (`while False:` /
+`if False:` / `else` of `if True:`) nor typed-exception
+reachability (`except NameError:` for a name that is always
+defined). Updated corpus 15 files / 29 expected entries /
+overall recall_upper_bound 0.28 (down from 0.30), `arg-swap`
+0/4/0.00 unchanged, `clone-drift` 0/2/0.00 unchanged,
+`comment-code` 4/0/1.00 unchanged, `config-interaction`
+0/2/0.00 unchanged, `unreachable-after-terminator` 4/13/0.24
+(was 3/8/0.27 — +1 TP from codeql, +5 FN from codeql). The
+0.30→0.28 drop is downward for the right reason: CodeQL's
+denominator captures bug shapes outside cntrdct's statement-
+level F3 scope. Subsequent Phase B batches still owe coverage
+for pr-miner (blocked on extractor scope widening — top-level
+`fn` / `def` only per
 `src/detectors/pr_miner/extract_{rust,python}.rs`), plus the
-semgrep / codeql source kinds. Earlier 2026-05-12: Q-14
+semgrep source kind (semgrep-rules ships under the custom
+"Semgrep Rules License v1.0" rather than a permissive
+MIT / Apache / BSD / ISC, so direct inclusion is deferred
+pending an audit-discipline carve-out). Earlier 2026-05-12: Q-14
+recall-audit Phase B batch 6 landed same day on top of batch 5,
+introducing the `config-interaction` detector to the corpus via
+the rustc UI test for the `cfg.attr.duplicates` Rust Reference
+behaviour (`rust-lang/rust@29b7590130c83542a095cdf1323ed0f78eec2bb8
+tests/ui/cfg/both-true-false.rs`, MIT OR Apache-2.0); both
+entries FN by `docs/spec/config-interaction-v0.md` F5 (atomic
+`true` / `false` predicates lack the `not(...)` wrapper).
+Earlier 2026-05-12: Q-14
 recall-audit Phase B batch 5 introduces the `clippy` source
 kind via two rust-clippy UI tests (MIT OR Apache-2.0) pinned at
 master commit `c4b8c6d454c648ef2d7cb86ca1bc698da829e4bc`:
@@ -1069,13 +1082,23 @@ Q-14. Recall-audit harness
   config-interaction at single-source recall_upper_bound 0.00
   and surfacing the v0 require-`not(...)`-wrapper scope choice)
   landed 2026-05-12;
+  Phase B batch 7 (introducing the `codeql` source kind via the
+  CodeQL Python `UnreachableCode` query test fixture —
+  `github/codeql@592c7c04
+  python/ql/test/query-tests/Statements/unreachable/test.py`
+  MIT; one TP at corpus line 25 (`for ...` after `return 5`,
+  F3 terminator + follower match in Python) and five FN at
+  corpus lines 12, 14, 20, 32, 88 — bug shapes outside the F3
+  terminator set (constant-condition branches and typed-
+  exception reachability)) landed 2026-05-12;
   pr-miner was the originally chosen batch 4 detector but
   punted on the structural blocker that the extractor walks
   only top-level `fn` / `def`, which collides with modern Rust
   RAII and Python `with` idioms — paired-API patterns survive
   almost exclusively in class methods the extractor drops;
   further Phase B batches broadening detector and source
-  coverage (pr-miner, plus semgrep / codeql source kinds) still
+  coverage (pr-miner, plus the semgrep source kind pending
+  a license carve-out for the Semgrep Rules License v1.0) still
   pending)
 - Goal: counter the labeller-bias loop where cntrdct's priors are
   derived from corpora it labelled itself, biasing toward
@@ -1263,10 +1286,49 @@ Q-14. Recall-audit harness
     detector-side F5 widening to recognise primitive `true` /
     `false` pairs and `not(...)` reductions — separate
     engineering with its own preregistration.
-  - Subsequent batches will broaden source coverage (semgrep,
-    codeql) and add the remaining detector (pr-miner; blocked
+  - Seventh batch (done 2026-05-12): six expected entries
+    introducing the `codeql` source kind via the CodeQL Python
+    `UnreachableCode` query test fixture
+    (`github/codeql@592c7c043734f6bb48768a56261d711446cde25f
+    python/ql/test/query-tests/Statements/unreachable/test.py`,
+    MIT). CodeQL's matching `UnreachableCode.expected` flags six
+    unreachable statements at upstream lines 8, 10, 16, 21, 28,
+    84 (audit-corpus lines 12, 14, 20, 25, 32, 88 after the
+    3-line header + 1 blank). Mapping against cntrdct's Python
+    unreachable-after-terminator implementation: corpus line 25
+    is TP — the `for x in first_unreachable_stmt():` statement
+    directly follows `return 5` in the same function-body block,
+    matching spec F3 (return-statement terminator + follower)
+    and the Python codepath in
+    `src/detectors/unreachable_after_terminator.rs::analyze_python_block`.
+    Corpus lines 12, 14, 20, 32 are FN: bodies of `while 0:` /
+    `while False:` (constant-false loop bodies) and `if False:` /
+    `else` of `if True:` (constant-condition branches) are
+    unreachable for reasons outside cntrdct's F3 terminator set —
+    the detector recognises only return / raise / break /
+    continue / `assert False` / exit-call terminators inside a
+    block, not constant-condition branches (Non-goal
+    "Branch-merging analysis"). Corpus line 88 is FN: the
+    `except NameError:` handler is unreachable because the bound
+    name `str` is always defined in Python 3, a typed-exception
+    reasoning step cntrdct's AST-only detector cannot perform.
+    Updated audit numbers: `unreachable-after-terminator`
+    tp=4 / fn=13 / 0.235 (was 3/8/0.27 — +1 TP and +5 FN from
+    codeql); `arg-swap`, `clone-drift`, `comment-code`,
+    `config-interaction` unchanged; overall recall_upper_bound
+    0.276 (8/29, down from 0.30). Downward for the right reason:
+    CodeQL's denominator captures bug shapes outside cntrdct's
+    statement-level F3 scope. Closing the 0.76 gap on
+    `unreachable-after-terminator` requires F3 widening to
+    constant-condition / branch / exception-typed reasoning —
+    separate engineering with its own preregistration.
+  - Subsequent batches still owe coverage for pr-miner (blocked
     on extractor scope widening — top-level `fn` / `def` only
-    per `src/detectors/pr_miner/extract_{rust,python}.rs`).
+    per `src/detectors/pr_miner/extract_{rust,python}.rs`) and
+    the semgrep source kind (semgrep-rules ships under the
+    custom "Semgrep Rules License v1.0" rather than a permissive
+    MIT / Apache / BSD / ISC, so direct inclusion is deferred
+    pending an audit-discipline carve-out).
 - Phase C — release-tag refresh discipline (done 2026-05-12):
   `benchmarks/audit-corpus/README.md` carries a new "Refresh
   discipline (Phase C)" section enumerating the on-tag procedure

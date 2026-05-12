@@ -115,3 +115,44 @@
 // the structural blocker that pr-miner's extractor walks only top-level
 // `fn` / `def` (src/detectors/pr_miner/extract_{rust,python}.rs).
 {"file":"files/rustc_ui_both_true_false.rs","expected":[{"detector_id":"config-interaction","line":11,"external_source":{"kind":"rustc-lint-testset","ref":"rust-lang/rust@29b75901 tests/ui/cfg/both-true-false.rs:7 (first fn foo() with cfg(false)+cfg(true) pair)","url":"https://github.com/rust-lang/rust/blob/29b7590130c83542a095cdf1323ed0f78eec2bb8/tests/ui/cfg/both-true-false.rs#L7"}},{"detector_id":"config-interaction","line":15,"external_source":{"kind":"rustc-lint-testset","ref":"rust-lang/rust@29b75901 tests/ui/cfg/both-true-false.rs:11 (second fn foo() with cfg(true)+cfg(false) pair)","url":"https://github.com/rust-lang/rust/blob/29b7590130c83542a095cdf1323ed0f78eec2bb8/tests/ui/cfg/both-true-false.rs#L11"}}],"source":"https://github.com/rust-lang/rust/blob/29b7590130c83542a095cdf1323ed0f78eec2bb8/tests/ui/cfg/both-true-false.rs","license":"MIT OR Apache-2.0","sha256":"3585c60ff805937744653626bb832bd0fd9bb947073a9d24b0776d6e242737e1"}
+//
+// Phase B batch 7 (2026-05-12): six additional expected entries on
+// `unreachable-after-terminator`, all sourced from the CodeQL Python
+// `UnreachableCode` query test fixture — the first `codeql` source kind
+// in the corpus. github/codeql is MIT-licensed (per the root LICENSE
+// at commit 592c7c043734f6bb48768a56261d711446cde25f). The fixture
+// `python/ql/test/query-tests/Statements/unreachable/test.py` ships
+// six expected unreachable-statement results per the matching
+// `UnreachableCode.expected` file (upstream lines 8, 10, 16, 21, 28,
+// 84; audit-corpus lines 12, 14, 20, 25, 32, 88 after the 3-line
+// header + 1 blank). Mapping against cntrdct's Python
+// unreachable-after-terminator implementation:
+// - upstream line 21 (audit-corpus 25) is TP — the `for x in
+//   first_unreachable_stmt():` statement directly follows
+//   `return 5` (upstream 20 / corpus 24) in the same function-body
+//   block, matching spec F3 (return-statement terminator + follower
+//   in the same block) and the Python codepath in
+//   src/detectors/unreachable_after_terminator.rs::analyze_python_block.
+// - upstream lines 8 / 10 (corpus 12 / 14) are FN: bodies of
+//   `while 0:` and `while False:` are unreachable because the
+//   loop condition is constant-false, a bug class outside cntrdct's
+//   spec F3 terminator set. Tunable constants
+//   `TERMINATOR_MACROS` and the Python `python_terminator_kind`
+//   matcher have no concept of constant-condition branches.
+// - upstream lines 16 / 28 (corpus 20 / 32) are FN: bodies of
+//   `if False:` and the `else:` of `if True:` are unreachable for
+//   the same constant-condition reason. cntrdct's detector does
+//   not reason about branch reachability — Non-goal §
+//   "Branch-merging analysis".
+// - upstream line 84 (corpus 88) is FN: the `except NameError:`
+//   handler at corpus line 88 is unreachable because the bound
+//   name `str` is always defined in Python 3, a typed-exception
+//   reasoning step cntrdct's AST-only detector cannot perform.
+// Net effect on the audit: `unreachable-after-terminator` gains
+// 1 TP + 5 FN, so its recall_upper_bound drops from 0.27 (3/11) to
+// 0.24 (4/17) for the right reason — the CodeQL denominator
+// captures bug shapes cntrdct's statement-level F3 scan does not
+// reach. Closing the 0.76 gap requires lifting F3 to constant-
+// condition / branch / exception-typed reasoning, separate
+// engineering with its own preregistration.
+{"file":"files/codeql_python_unreachable_test.py","expected":[{"detector_id":"unreachable-after-terminator","line":12,"external_source":{"kind":"codeql","ref":"github/codeql@592c7c04 python/ql/test/query-tests/Statements/unreachable/test.py:8 (asgn = unreachable() inside while 0: body)","url":"https://github.com/github/codeql/blob/592c7c043734f6bb48768a56261d711446cde25f/python/ql/test/query-tests/Statements/unreachable/test.py#L8"}},{"detector_id":"unreachable-after-terminator","line":14,"external_source":{"kind":"codeql","ref":"github/codeql@592c7c04 python/ql/test/query-tests/Statements/unreachable/test.py:10 (return unreachable() inside while False: body)","url":"https://github.com/github/codeql/blob/592c7c043734f6bb48768a56261d711446cde25f/python/ql/test/query-tests/Statements/unreachable/test.py#L10"}},{"detector_id":"unreachable-after-terminator","line":20,"external_source":{"kind":"codeql","ref":"github/codeql@592c7c04 python/ql/test/query-tests/Statements/unreachable/test.py:16 (unreachable() inside if False: body)","url":"https://github.com/github/codeql/blob/592c7c043734f6bb48768a56261d711446cde25f/python/ql/test/query-tests/Statements/unreachable/test.py#L16"}},{"detector_id":"unreachable-after-terminator","line":25,"external_source":{"kind":"codeql","ref":"github/codeql@592c7c04 python/ql/test/query-tests/Statements/unreachable/test.py:21 (for x in first_unreachable_stmt(): following return 5)","url":"https://github.com/github/codeql/blob/592c7c043734f6bb48768a56261d711446cde25f/python/ql/test/query-tests/Statements/unreachable/test.py#L21"}},{"detector_id":"unreachable-after-terminator","line":32,"external_source":{"kind":"codeql","ref":"github/codeql@592c7c04 python/ql/test/query-tests/Statements/unreachable/test.py:28 (unreachable() inside else: of if True:)","url":"https://github.com/github/codeql/blob/592c7c043734f6bb48768a56261d711446cde25f/python/ql/test/query-tests/Statements/unreachable/test.py#L28"}},{"detector_id":"unreachable-after-terminator","line":88,"external_source":{"kind":"codeql","ref":"github/codeql@592c7c04 python/ql/test/query-tests/Statements/unreachable/test.py:84 (except NameError: handler unreachable because str is always defined)","url":"https://github.com/github/codeql/blob/592c7c043734f6bb48768a56261d711446cde25f/python/ql/test/query-tests/Statements/unreachable/test.py#L84"}}],"source":"https://github.com/github/codeql/blob/592c7c043734f6bb48768a56261d711446cde25f/python/ql/test/query-tests/Statements/unreachable/test.py","license":"MIT","sha256":"5b10f6b4a968bdb159ae360b89856d1892f41d92cd6d4c0c028d547d5f74a83a"}
