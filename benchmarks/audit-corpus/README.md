@@ -197,7 +197,11 @@ JSON shape (selected fields):
 
 ## Latest audit run
 
-Refreshed 2026-05-12 against the mid-release batch-5 binary.
+Refreshed 2026-05-12 against the v0.2.0-rc.10 binary on the
+Phase C release-tag cadence. Figures are bit-identical with the
+mid-release batch-5 numbers (same detector logic, same corpus
+since batch 5 landed earlier the same day); the re-run itself
+against the to-be-tagged binary is the Q-14 Phase C discipline.
 Batch 5 adds two `clippy` clone-drift entries seeded from
 rust-clippy UI tests (`if_same_then_else`,
 `branches_sharing_code/shared_at_top` pinned at master commit
@@ -205,8 +209,6 @@ rust-clippy UI tests (`if_same_then_else`,
 by `docs/spec/clone-drift-v0.md` F2 (top-level `fn` granularity
 only), so clone-drift enters the corpus at 0.00 and overall
 `recall_upper_bound` settles at 0.33 (down from 0.37 at batch 4).
-The next release tag will refresh these figures on the Phase C
-cadence.
 
 | detector                       | tp | fn | recall upper bound | dominant source                  |
 | ------------------------------ | --:| --:| ------------------:| -------------------------------- |
