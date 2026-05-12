@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/suzuki-shunsuke/pinact/refs/heads/main/json-schema/pinact.json
+# pinact - https://github.com/suzuki-shunsuke/pinact
+version: 3
+# files:
+#   - pattern: action.yaml
+#   - pattern: */action.yaml
+
+# separator: "  # "
+
+ignore_actions:
+  # dtolnay/rust-toolchain ships only floating refs (stable, beta, nightly,
+  # 1.NN.M). Pinning to a SHA freezes the Rust toolchain forever, defeating
+  # the action's stated purpose.
+  - name: dtolnay/rust-toolchain
+    ref: stable

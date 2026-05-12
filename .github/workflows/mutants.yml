@@ -33,13 +33,13 @@ jobs:
     # may require sharding via cargo-mutants' --shard flag.
     timeout-minutes: 360
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           key: mutants
       - name: install cargo-mutants
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@c070f87102a1c75b3183910f391c1cb887fe13c8 # v2.77.6
         with:
           tool: cargo-mutants
       - name: run cargo-mutants
@@ -121,7 +121,7 @@ jobs:
           echo "::notice::catch rate ${rate_pct}% meets the 80% gate"
       - name: upload mutants.out
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: mutants-out
           path: mutants.out/

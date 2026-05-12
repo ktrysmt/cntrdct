@@ -36,8 +36,8 @@ jobs:
     name: retraction monitor (cited DOIs)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.x"
       - name: cache integrity (sha256 pin)
@@ -69,8 +69,8 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.x"
       - name: refresh cache from Crossref Labs
@@ -83,7 +83,7 @@ jobs:
           fi
           python3 scripts/check_retractions.py --refresh-cache
       - name: open PR if cache changed
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6.1.0
         with:
           commit-message: "chore(citations): refresh Retraction Watch cache"
           title: "chore(citations): refresh Retraction Watch cache"

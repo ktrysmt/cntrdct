@@ -41,11 +41,11 @@ jobs:
             use_cross: false
             archive: zip
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           key: ${{ matrix.target }}
 
@@ -89,7 +89,7 @@ jobs:
           "$($hash.Hash.ToLower())  $stage.zip" | Out-File -Encoding ascii "dist/$stage.zip.sha256"
 
       - name: upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cntrdct-${{ matrix.target }}
           path: dist/cntrdct-*.${{ matrix.archive }}*
@@ -101,10 +101,10 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           path: dist
           merge-multiple: true
@@ -112,7 +112,7 @@ jobs:
         run: ls -la dist
       - name: generate release notes (git-cliff)
         id: git-cliff
-        uses: orhun/git-cliff-action@v4
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4.8.0
         with:
           config: cliff.toml
           args: --latest --strip header
@@ -120,7 +120,7 @@ jobs:
           OUTPUT: RELEASE_NOTES.md
           GITHUB_REPO: ${{ github.repository }}
       - name: create release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           files: |
             dist/cntrdct-*.tar.gz
@@ -138,9 +138,9 @@ jobs:
     env:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           key: publish-crate
       - name: verify tag matches Cargo.toml version
