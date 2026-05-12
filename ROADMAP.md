@@ -1,38 +1,41 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-12 (Q-14 recall-audit Phase B batch 4
-landed same day on top of batch 3 + Phase C. Batch 4 introduces
-the `paper-appendix` source kind via three PyPIBugs (Allamanis
-NeurIPS 2021) ArgSwap entries on permissive-licensed Python
-repositories: `c137digital/unv_app@d217fa0d` MIT
-(cross-file imported `update_dict_recur` call),
-`mwouts/nbrmd@dfa96996` MIT (cross-file imported
-`compare_notebooks` call in a pytest test), and
-`markokr/rarfile@7fd6b2ca` ISC (`self._set_attrs(dst, inf)`
-method call). All three are FN against cntrdct's narrow
-Rice-2017 arg-swap detector by `docs/spec/arg-swap-v0.md`
-F3 / F4 / F5 — qualified-path / method-call call sites are
-out of scope, cross-file definitions are not resolved, and a
-hypothetical method-resolving extension would still need a
-reverse-permutation name match (which rarfile lacks). Updated
-corpus 11 files / 19 expected entries / overall
-recall_upper_bound 0.37 (down from 0.44), `arg-swap` 0 TP /
-4 FN / 0.00 (up from 0/1/0.00), `comment-code` 4/0/1.00
-unchanged, `unreachable-after-terminator` 3/8/0.27 unchanged.
-The 0.44→0.37 drop is downward for the right reason: PyPIBugs
-labels arg-swap bugs cntrdct's detector cannot catch by design,
-so adding paper-appendix entries surfaces the gap rather than
-inflating it. pr-miner was the originally chosen batch-4
-detector but punted on the structural blocker that the
-extractor (top-level `fn` / `def` only per
-`src/detectors/pr_miner/extract_{rust,python}.rs`) collides
-with modern Rust RAII and Python `with` idioms — paired-API
-patterns survive almost exclusively in class methods that the
-extractor drops, and the PR-Miner paper's published bugs
-(Linux / PostgreSQL / Apache HTTPd) are all C and therefore
-outside pr-miner's supported languages. Earlier 2026-05-12:
-Q-14 recall-audit Phase B batch 3 broadens the corpus to a
-third detector, `comment-code`, via the textbook Pattern C bug
+Last updated: 2026-05-12 (Q-14 recall-audit Phase B batch 5
+landed same day on top of batch 4 + Phase C. Batch 5 introduces
+the `clippy` source kind via two rust-clippy UI tests
+(MIT OR Apache-2.0) pinned at master commit
+`c4b8c6d454c648ef2d7cb86ca1bc698da829e4bc`:
+`tests/ui/if_same_then_else.rs` (statement-block clone pair
+flagged by `clippy::if_same_then_else`) and
+`tests/ui/branches_sharing_code/shared_at_top.rs` (shared
+statement-block prefix in if/else branches flagged by
+`clippy::branches_sharing_code`). Both are FN against cntrdct's
+clone-drift detector by `docs/spec/clone-drift-v0.md` F2 —
+cntrdct clone-drift v0 operates at top-level `fn` granularity
+only and requires `MIN_FN_TOKENS >= 22` + `MIN_GROUP_SIZE >= 3`,
+so the statement-block clone patterns clippy targets are out of
+scope by design. The batch therefore introduces clone-drift to
+the audit corpus with single-source `recall_upper_bound = 0.00`,
+surfacing the v0 scope choice rather than a detector defect.
+Updated corpus 13 files / 21 expected entries / overall
+recall_upper_bound 0.33 (down from 0.37), `arg-swap` 0/4/0.00
+unchanged, `clone-drift` 0/2/0.00 (new), `comment-code`
+4/0/1.00 unchanged, `unreachable-after-terminator` 3/8/0.27
+unchanged. The 0.37→0.33 drop is downward for the right reason:
+a new detector entered the denominator with 0 TPs by detector
+design. Subsequent Phase B batches still owe coverage for
+config-interaction and pr-miner (the latter blocked on extractor
+scope widening — top-level `fn` / `def` only per
+`src/detectors/pr_miner/extract_{rust,python}.rs`), plus the
+semgrep / codeql source kinds. Earlier 2026-05-12: Q-14
+recall-audit Phase B batch 4 introduces the `paper-appendix`
+source kind via three PyPIBugs (Allamanis NeurIPS 2021) ArgSwap
+entries on permissive-licensed Python repositories:
+`c137digital/unv_app@d217fa0d` MIT, `mwouts/nbrmd@dfa96996` MIT,
+`markokr/rarfile@7fd6b2ca` ISC; all three are FN against
+cntrdct's narrow Rice-2017 arg-swap detector. Q-14
+recall-audit Phase B batch 3 broadens the corpus to a third
+detector, `comment-code`, via the textbook Pattern C bug
 (Tan SOSP 2007 §3.2 "bad comment": `/// Deprecated` prose
 without the runtime `#[deprecated]` attribute). Seeded from
 Apache-2.0 `sidan-lab/whisky-archive`
@@ -1036,14 +1039,22 @@ Q-14. Recall-audit harness
   against cntrdct's narrow Rice-2017 arg-swap detector,
   documenting the gap between PyPIBugs labels and the detector's
   same-file + bare-identifier scope) landed 2026-05-12;
+  Phase B batch 5 (introducing the `clippy` source kind via two
+  rust-clippy UI tests pinned at master commit `c4b8c6d4` —
+  `tests/ui/if_same_then_else.rs` and
+  `tests/ui/branches_sharing_code/shared_at_top.rs`; both are
+  FN against cntrdct's clone-drift detector by
+  `docs/spec/clone-drift-v0.md` F2, introducing clone-drift to
+  the corpus with single-source recall_upper_bound 0.00 and
+  surfacing the v0 fn-level scope choice) landed 2026-05-12;
   pr-miner was the originally chosen batch 4 detector but
   punted on the structural blocker that the extractor walks
   only top-level `fn` / `def`, which collides with modern Rust
   RAII and Python `with` idioms — paired-API patterns survive
   almost exclusively in class methods the extractor drops;
   further Phase B batches broadening detector and source
-  coverage (clone-drift, config-interaction, pr-miner, plus
-  semgrep / codeql / clippy source kinds) still pending)
+  coverage (config-interaction, pr-miner, plus semgrep / codeql
+  source kinds) still pending)
 - Goal: counter the labeller-bias loop where cntrdct's priors are
   derived from corpora it labelled itself, biasing toward
   precision and silently sacrificing recall. Build
@@ -1158,14 +1169,51 @@ Q-14. Recall-audit harness
     genealogies (mia1q/code-clone-DL-frameworks replication
     CSVs) expose size-2 clone pairs that fall under cntrdct's
     `MIN_GROUP_SIZE = 3` floor by construction.
+  - Fourth batch (done 2026-05-12): three expected entries
+    introducing the `paper-appendix` source kind via three
+    PyPIBugs (Allamanis NeurIPS 2021) ArgSwap labels on
+    permissive-licensed Python repositories —
+    `c137digital/unv_app@d217fa0d` MIT (cross-file imported
+    `update_dict_recur` call), `mwouts/nbrmd@dfa96996` MIT
+    (cross-file imported `compare_notebooks` call in a pytest
+    test), `markokr/rarfile@7fd6b2ca` ISC
+    (`self._set_attrs(dst, inf)` method call). All three are FN
+    against cntrdct's narrow Rice-2017 arg-swap detector by
+    `docs/spec/arg-swap-v0.md` F3 / F4 / F5. Updated audit
+    numbers: `arg-swap` tp=0 / fn=4 / 0.00 (up from 0/1/0.00);
+    `comment-code` and `unreachable-after-terminator` unchanged;
+    overall recall_upper_bound 0.37 (7/19, down from 0.44). The
+    drop is downward for the right reason: PyPIBugs labels
+    arg-swap bugs cntrdct's detector cannot catch by design.
+  - Fifth batch (done 2026-05-12): two expected entries
+    introducing the `clippy` source kind via two rust-clippy UI
+    tests (MIT OR Apache-2.0, pinned at master commit
+    `c4b8c6d454c648ef2d7cb86ca1bc698da829e4bc`):
+    `tests/ui/if_same_then_else.rs:25` (the first
+    `clippy::if_same_then_else` trigger, audit-corpus line 29)
+    and `tests/ui/branches_sharing_code/shared_at_top.rs:11`
+    (the first `clippy::branches_sharing_code` trigger,
+    audit-corpus line 15). Both are FN against cntrdct's
+    clone-drift detector by `docs/spec/clone-drift-v0.md` F2:
+    cntrdct clone-drift v0 operates at top-level `fn`
+    granularity only and requires `MIN_FN_TOKENS >= 22` +
+    `MIN_GROUP_SIZE >= 3`, so the statement-block clone
+    patterns clippy's lints target are out of scope. The batch
+    therefore introduces clone-drift to the audit corpus with
+    single-source recall_upper_bound 0.00. Updated audit
+    numbers: `clone-drift` tp=0 / fn=2 / 0.00 (new);
+    `arg-swap`, `comment-code`, `unreachable-after-terminator`
+    unchanged; overall recall_upper_bound 0.33 (7/21, down from
+    0.37). Downward for the right reason: a new detector entered
+    the denominator with 0 TPs by detector design. Closing the
+    0.67 gap on clone-drift requires lifting F2 to cover
+    statement blocks and `impl` / `trait` methods — separate
+    engineering with its own preregistration.
   - Subsequent batches will broaden source coverage (semgrep,
-    codeql, clippy, paper-appendix) and add the three remaining
-    detectors (clone-drift, config-interaction, pr-miner).
-    PyPIBugs (Allamanis NeurIPS 2021) is the natural next
-    external source for arg-swap and clone-drift; the metadata
-    file is hosted at Microsoft Download Center and requires
-    offline preprocessing before commits can be cited with
-    stable URLs.
+    codeql) and add the two remaining detectors
+    (config-interaction, pr-miner; the latter blocked on
+    extractor scope widening — top-level `fn` / `def` only per
+    `src/detectors/pr_miner/extract_{rust,python}.rs`).
 - Phase C — release-tag refresh discipline (done 2026-05-12):
   `benchmarks/audit-corpus/README.md` carries a new "Refresh
   discipline (Phase C)" section enumerating the on-tag procedure
@@ -1337,19 +1385,26 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     Tan SOSP 2007 Pattern C bug in `sidan-lab/whisky-archive`),
     Phase C release-tag refresh discipline (README
     "Refresh discipline" section + CLAUDE.md release-procedure
-    steps), and Phase B batch 4 (introducing the
+    steps), Phase B batch 4 (introducing the
     `paper-appendix` source kind via three PyPIBugs ArgSwap
     entries on permissive-licensed Python repositories —
     `c137digital/unv_app` MIT, `mwouts/nbrmd` MIT,
     `markokr/rarfile` ISC; all three FN against cntrdct's
     narrow Rice-2017 arg-swap detector, surfacing the gap
-    rather than inflating it) all landed 2026-05-12; pr-miner
-    was the originally chosen batch 4 detector but punted on
-    the structural blocker that the extractor walks only
-    top-level `fn` / `def`; further Phase B batches broadening
-    detector and source coverage (semgrep / codeql / clippy
-    cases for clone-drift / config-interaction / pr-miner)
-    still pending
+    rather than inflating it), and Phase B batch 5
+    (introducing the `clippy` source kind via two rust-clippy
+    UI tests pinned at master commit `c4b8c6d4` —
+    `tests/ui/if_same_then_else.rs` and
+    `tests/ui/branches_sharing_code/shared_at_top.rs`; both FN
+    against cntrdct's clone-drift detector by spec F2,
+    introducing clone-drift to the corpus at
+    recall_upper_bound 0.00 and surfacing the v0 fn-level
+    scope choice) all landed 2026-05-12; pr-miner was the
+    originally chosen batch 4 detector but punted on the
+    structural blocker that the extractor walks only top-level
+    `fn` / `def`; further Phase B batches broadening detector
+    and source coverage (semgrep / codeql cases for
+    config-interaction / pr-miner) still pending
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 

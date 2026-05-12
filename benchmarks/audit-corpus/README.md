@@ -5,35 +5,35 @@ Q-14 deliverable from `ROADMAP.md`. Houses the corpus
 per-detector recall upper bounds. Spec:
 [`docs/spec/recall-audit-v0.md`](../../docs/spec/recall-audit-v0.md).
 
-Status: Phase B batch 4 (2026-05-12). Nineteen expected entries
-across three detectors and three external source kinds
-(`rustc-lint-testset`, `github-commit`, and the new
-`paper-appendix`). Batch 4 introduces the `paper-appendix` source
-kind via three PyPIBugs (Allamanis NeurIPS 2021) ArgSwap labels
-on permissive-licensed Python repositories — `c137digital/unv_app`
-(MIT, cross-file imported function), `mwouts/nbrmd` (MIT,
-cross-file imported function inside a pytest test), and
-`markokr/rarfile` (ISC, `self._set_attrs(...)` method call). All
-three are FNs against cntrdct's narrow Rice-2017 arg-swap detector
-by `docs/spec/arg-swap-v0.md` F3 / F4 (qualified-path call sites
-are out of scope; cross-file definitions are not resolved). The
-arg-swap row therefore stays at 0.00 while overall
-`recall_upper_bound` settles at 0.37 (down from 0.44 at batch 3) —
-the drop is the right kind of signal: external labels grew faster
-than the detector's catchable subset. pr-miner was the originally
-chosen batch-4 detector but punted to a later batch on the
-structural blocker that the extractor (top-level `fn` / `def`
-only) collides with modern Rust RAII and Python `with` idioms,
-which push paired-API patterns almost exclusively into class
-methods. Batch 3 (2026-05-12): four `comment-code` TPs on
-`sidan-lab/whisky-archive` `con_str*` family — Tan SOSP 2007 §3.2
-"bad comment" (`/// Deprecated` prose absent the `#[deprecated]`
-runtime attribute); clone-drift was investigated and punted on
-the C/Java orientation of Bettenburg MSR 2009 / Krinke ICSM 2007
-and the size-2 clone pairs in Assi TOSEM 2025. Subsequent batches
-still owe coverage for clone-drift, config-interaction, and
-pr-miner, plus the semgrep / codeql / clippy source kinds. The
-figures under "Latest audit run" refresh on each release tag.
+Status: Phase B batch 5 (2026-05-12). Twenty-one expected entries
+across four detectors and four external source kinds
+(`rustc-lint-testset`, `github-commit`, `paper-appendix`, and the
+new `clippy`). Batch 5 introduces the `clippy` source kind via two
+rust-clippy UI tests (MIT OR Apache-2.0) pinned at master commit
+`c4b8c6d4` — `tests/ui/if_same_then_else.rs` (statement-block
+clone pair flagged by `clippy::if_same_then_else`) and
+`tests/ui/branches_sharing_code/shared_at_top.rs` (shared
+statement-block at the start of if/else branches flagged by
+`clippy::branches_sharing_code`). Both are FNs against cntrdct's
+clone-drift detector by `docs/spec/clone-drift-v0.md` F2: cntrdct
+clone-drift v0 operates at top-level `fn` granularity only and
+requires `MIN_FN_TOKENS >= 22` + `MIN_GROUP_SIZE >= 3`, so the
+statement-block clone patterns clippy targets are out of scope by
+design. The batch therefore introduces clone-drift to the corpus
+with single-source `recall_upper_bound = 0.00`, surfacing the v0
+scope choice rather than a detector defect. Overall
+`recall_upper_bound` settles at 0.33 (down from 0.37 at batch 4) —
+the drop is the right kind of signal: a new detector entered the
+denominator with 0 TPs by design. Batch 4 (2026-05-12): three
+`paper-appendix` arg-swap FNs from PyPIBugs (Allamanis NeurIPS
+2021) on `c137digital/unv_app` MIT, `mwouts/nbrmd` MIT, and
+`markokr/rarfile` ISC; all three are FNs against the narrow
+Rice-2017 arg-swap detector. Batch 3 (2026-05-12): four
+`comment-code` TPs on `sidan-lab/whisky-archive` `con_str*`
+family — Tan SOSP 2007 §3.2 "bad comment". Subsequent batches
+still owe coverage for config-interaction and pr-miner, plus the
+semgrep / codeql source kinds. The figures under "Latest audit
+run" refresh on each release tag.
 
 ## Why this corpus is separate from `wild-corpus/`
 
@@ -63,19 +63,21 @@ selection-bias issue this corpus is built to counter.
 ```
 audit-corpus/
 ├── README.md                       (this file)
-├── manifest.jsonl                  (Phase B batches 1-4)
+├── manifest.jsonl                  (Phase B batches 1-5)
 └── files/
-    ├── rustc_ui_unreachable_code_ret.rs    (batch 1)
-    ├── rustc_ui_expr_block.rs              (batch 1)
-    ├── rustc_ui_expr_if.rs                 (batch 1)
-    ├── rustc_ui_expr_return.rs             (batch 2)
-    ├── rustc_ui_expr_call.rs               (batch 2)
-    ├── rustc_ui_expr_loop.rs               (batch 2)
-    ├── totalsegmentator_statistics.py      (batch 1)
-    ├── whisky_archive_constructors.rs      (batch 3)
-    ├── unv_app_settings.py                 (batch 4)
-    ├── nbrmd_test_ipynb_to_R.py            (batch 4)
-    └── rarfile_set_attrs.py                (batch 4)
+    ├── rustc_ui_unreachable_code_ret.rs               (batch 1)
+    ├── rustc_ui_expr_block.rs                         (batch 1)
+    ├── rustc_ui_expr_if.rs                            (batch 1)
+    ├── rustc_ui_expr_return.rs                        (batch 2)
+    ├── rustc_ui_expr_call.rs                          (batch 2)
+    ├── rustc_ui_expr_loop.rs                          (batch 2)
+    ├── totalsegmentator_statistics.py                 (batch 1)
+    ├── whisky_archive_constructors.rs                 (batch 3)
+    ├── unv_app_settings.py                            (batch 4)
+    ├── nbrmd_test_ipynb_to_R.py                       (batch 4)
+    ├── rarfile_set_attrs.py                           (batch 4)
+    ├── clippy_ui_if_same_then_else.rs                 (batch 5)
+    └── clippy_ui_branches_sharing_code_shared_at_top.rs (batch 5)
 ```
 
 `manifest.jsonl` follows the schema in
@@ -186,36 +188,37 @@ JSON shape (selected fields):
       "source_breakdown": { "github-commit": { "tp": 4, "fn": 0 } }
     }
   },
-  "overall": { "tp": 7, "fn": 12, "recall_upper_bound": 0.368, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 11,
-  "expected_total": 19,
-  "sources": { "github-commit": 5, "paper-appendix": 3, "rustc-lint-testset": 11 }
+  "overall": { "tp": 7, "fn": 14, "recall_upper_bound": 0.333, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 13,
+  "expected_total": 21,
+  "sources": { "clippy": 2, "github-commit": 5, "paper-appendix": 3, "rustc-lint-testset": 11 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-12 against the v0.2.0-rc.9 binary on the Phase
-C release-tag cadence. Figures are bit-identical with the
-mid-release batch-4 numbers (same detector logic, same corpus
-since batch 4 landed earlier the same day); the re-run itself
-against the to-be-tagged binary is the Q-14 Phase C discipline.
-Batch 4 adds three `paper-appendix` arg-swap entries seeded from
-PyPIBugs (Allamanis NeurIPS 2021); all three are FN against
-cntrdct's narrow Rice-2017 arg-swap detector, so the arg-swap
-row stays at 0.00 with `fn` at 4, and overall
-`recall_upper_bound` settles at 0.37 (down from 0.44 at batch 3).
+Refreshed 2026-05-12 against the mid-release batch-5 binary.
+Batch 5 adds two `clippy` clone-drift entries seeded from
+rust-clippy UI tests (`if_same_then_else`,
+`branches_sharing_code/shared_at_top` pinned at master commit
+`c4b8c6d4`); both are FN against cntrdct's clone-drift detector
+by `docs/spec/clone-drift-v0.md` F2 (top-level `fn` granularity
+only), so clone-drift enters the corpus at 0.00 and overall
+`recall_upper_bound` settles at 0.33 (down from 0.37 at batch 4).
+The next release tag will refresh these figures on the Phase C
+cadence.
 
 | detector                       | tp | fn | recall upper bound | dominant source                  |
 | ------------------------------ | --:| --:| ------------------:| -------------------------------- |
 | `arg-swap`                     |  0 |  4 |               0.00 | `paper-appendix` (3/4 entries)   |
+| `clone-drift`                  |  0 |  2 |               0.00 | `clippy` (2/2 entries)           |
 | `comment-code`                 |  4 |  0 |               1.00 | `github-commit` (4/4 entries)    |
 | `unreachable-after-terminator` |  3 |  8 |               0.27 | `rustc-lint-testset` (11/11)     |
-| **overall**                    |  7 | 12 |               0.37 |                                  |
+| **overall**                    |  7 | 14 |               0.33 |                                  |
 
-Corpus size: 11 files. Expected entries: 19. Source mix:
+Corpus size: 13 files. Expected entries: 21. Source mix:
 `rustc-lint-testset` (11 entries), `github-commit` (5),
-`paper-appendix` (3).
+`paper-appendix` (3), `clippy` (2).
 
 Reading the figures:
 
@@ -282,20 +285,35 @@ Reading the figures:
     permutation of the definition's parameter names
     (`info`, `dstfn`), so F5 would also miss.
 
-The overall recall_upper_bound dropped from 0.44 (batch 3) to
-0.37 (batch 4). The move is downward for the right reason:
-PyPIBugs labels arg-swap bugs that cntrdct's detector cannot
-catch by detector design (F3 + F4 + F5 conjunction is strict),
-so adding paper-appendix entries surfaces the gap rather than
-inflating it. Closing the 0.63 gap requires both broader
-external sources and detector-side scope widening (e.g.
-cross-file resolution, method-dispatch handling, n-ary swap
-detection) — each of which is a separate piece of engineering
+- The two `clone-drift` false negatives both come from
+  rust-clippy UI tests pinned at master commit `c4b8c6d4`:
+  - `clippy_ui_if_same_then_else.rs` (batch 5, `clippy`):
+    `clippy::if_same_then_else` fires on a statement-block
+    clone pair (`if true { ... } else { ... }`) inside `fn
+    if_same_then_else()`. cntrdct clone-drift v0 operates at
+    top-level `fn` granularity only per
+    `docs/spec/clone-drift-v0.md` F2, so the clone pair never
+    enters the candidate set.
+  - `clippy_ui_branches_sharing_code_shared_at_top.rs` (batch 5,
+    `clippy`): `clippy::branches_sharing_code` fires when
+    if/else branches share a prefix of statement-block code.
+    Same F2 miss: cntrdct's clustering operates on whole
+    top-level fns, not statement prefixes.
+
+The overall recall_upper_bound dropped from 0.37 (batch 4) to
+0.33 (batch 5). The move is downward for the right reason: a
+new detector (`clone-drift`) entered the denominator with 0 TPs
+because cntrdct's clone-drift v0 scope (top-level `fn` only) is
+strictly narrower than the bug class clippy's statement-block
+clone lints target. Closing the 0.67 gap requires both broader
+external sources and detector-side scope widening — for
+clone-drift specifically, lifting F2 to cover statement blocks
+and `impl` / `trait` methods is a separate piece of engineering
 with its own preregistration.
 
-Future batches will broaden source coverage (semgrep, codeql,
-clippy) and add the three remaining detectors (clone-drift,
-config-interaction, pr-miner).
+Future batches will broaden source coverage (semgrep, codeql)
+and add the two remaining detectors (config-interaction,
+pr-miner; the latter blocked on extractor scope widening).
 
 ## Refresh discipline (Phase C)
 

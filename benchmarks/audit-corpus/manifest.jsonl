@@ -74,3 +74,20 @@
 {"file":"files/unv_app_settings.py","expected":[{"detector_id":"arg-swap","line":41,"external_source":{"kind":"paper-appendix","ref":"Allamanis NeurIPS 2021 PyPIBugs ArgSwap (rewrite=ArgSwap(idxs=0<->1 @(37,23)->(37,40))) @ c137digital/unv_app commit d217fa0d src/unv/app/settings.py:37 (cross-file import)","url":"https://github.com/c137digital/unv_app/commit/d217fa0d780bc6f2acbbf4ea307630c78a695653"}}],"source":"https://github.com/c137digital/unv_app/blob/6a997f9c834841487765dae7f3c60d23ac8b0938/src/unv/app/settings.py","license":"MIT","sha256":"c66c28669ada7d5fd5ec7849aaf584a9a07c3f2892651b6939c207bd6c42441a"}
 {"file":"files/nbrmd_test_ipynb_to_R.py","expected":[{"detector_id":"arg-swap","line":26,"external_source":{"kind":"paper-appendix","ref":"Allamanis NeurIPS 2021 PyPIBugs ArgSwap (rewrite=ArgSwap(idxs=0<->1 @(22,4)->(22,21))) @ mwouts/nbrmd commit dfa96996 tests/test_ipynb_to_R.py:22 (cross-file import in test)","url":"https://github.com/mwouts/nbrmd/commit/dfa96996445cbc7514b93337dbf94d592ba06bad"}}],"source":"https://github.com/mwouts/nbrmd/blob/4ecf608f0ed2ec2bd1dfaa2c4cdc3b08f2072a46/tests/test_ipynb_to_R.py","license":"MIT","sha256":"75ed355511108857618448a7e68e8f64953035f9743cffd05d26c68791fe2b5a"}
 {"file":"files/rarfile_set_attrs.py","expected":[{"detector_id":"arg-swap","line":14,"external_source":{"kind":"paper-appendix","ref":"Allamanis NeurIPS 2021 PyPIBugs ArgSwap (rewrite=ArgSwap(idxs=0<->1 @(836,16)->(836,31))) @ markokr/rarfile commit 7fd6b2ca rarfile.py:836 (method call on self)","url":"https://github.com/markokr/rarfile/commit/7fd6b2ca3efb81f7c4dffa6b6cef347b7d6ba043"}}],"source":"https://github.com/markokr/rarfile/blob/31a8791da5718bdb578f3bc465a19123a3364d84/rarfile.py","license":"ISC","sha256":"1d08053a283c7d24a3a2bdc5f4a49e65415333a664d223bb9c192d85729ddf2b"}
+//
+// Phase B batch 5 (2026-05-12): two additional expected entries on the new
+// `clone-drift` detector, both sourced from rust-clippy UI tests — the first
+// `clippy` source kind in the corpus. rust-clippy ships dual-licensed
+// (MIT OR Apache-2.0). Both entries are FN against cntrdct's clone-drift
+// detector by docs/spec/clone-drift-v0.md F2: cntrdct clone-drift v0
+// operates at top-level `fn` granularity only and requires
+// MIN_FN_TOKENS >= 22 + MIN_GROUP_SIZE >= 3, so the statement-block clone
+// patterns clippy::if_same_then_else and clippy::branches_sharing_code
+// target are out of scope by design. The batch introduces clone-drift to
+// the audit corpus with single-source recall_upper_bound 0.00, surfacing
+// the v0 scope choice (fn-level only) rather than a detector defect; the
+// statement-block / impl-method extension is separate engineering with
+// its own preregistration. Pinned at master commit
+// c4b8c6d454c648ef2d7cb86ca1bc698da829e4bc.
+{"file":"files/clippy_ui_if_same_then_else.rs","expected":[{"detector_id":"clone-drift","line":29,"external_source":{"kind":"clippy","ref":"rust-lang/rust-clippy@c4b8c6d4 tests/ui/if_same_then_else.rs:25 (first if-same-then-else lint trigger inside fn if_same_then_else)","url":"https://github.com/rust-lang/rust-clippy/blob/c4b8c6d454c648ef2d7cb86ca1bc698da829e4bc/tests/ui/if_same_then_else.rs#L25"}}],"source":"https://github.com/rust-lang/rust-clippy/blob/c4b8c6d454c648ef2d7cb86ca1bc698da829e4bc/tests/ui/if_same_then_else.rs","license":"MIT OR Apache-2.0","sha256":"fdd27a857a7890a3977f4310ad7b4c6d75d10c095631992bde3938f00dc342e3"}
+{"file":"files/clippy_ui_branches_sharing_code_shared_at_top.rs","expected":[{"detector_id":"clone-drift","line":15,"external_source":{"kind":"clippy","ref":"rust-lang/rust-clippy@c4b8c6d4 tests/ui/branches_sharing_code/shared_at_top.rs:11 (first branches-sharing-code lint trigger inside fn simple_examples)","url":"https://github.com/rust-lang/rust-clippy/blob/c4b8c6d454c648ef2d7cb86ca1bc698da829e4bc/tests/ui/branches_sharing_code/shared_at_top.rs#L11"}}],"source":"https://github.com/rust-lang/rust-clippy/blob/c4b8c6d454c648ef2d7cb86ca1bc698da829e4bc/tests/ui/branches_sharing_code/shared_at_top.rs","license":"MIT OR Apache-2.0","sha256":"77ffc0134fe6e6b08cbb40e7b4b29ff25a6db59eee61ef8c07fd8872156da002"}
