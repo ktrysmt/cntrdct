@@ -105,11 +105,6 @@ With the binary on `PATH`, Claude Code users can invoke `/cntrdct` to
 run a scan and have the top findings summarised in chat
 (`.claude/skills/cntrdct/`).
 
-## Further reading
-
-- [The Linter that Cites Its Sources](https://ktrysmt.github.io/cntrdct/essays/citation-as-api/)
-  — position essay on what evidence-based linting means in practice.
-
 ## License
 
 MIT. See [LICENSE](LICENSE).

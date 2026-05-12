@@ -343,13 +343,21 @@ T1-6. LICENSE coverage review
 
 T1-7. GitHub Pages essay site
 
-- Status: `[x]`
+- Status: `[ ]` (retired 2026-05-12 without ever serving)
 - Summary: Jekyll site under `docs/site/` (`_config.yml`, `index.md`,
-  `essays/`) auto-deployed via `.github/workflows/pages.yml` on
-  pushes touching the site directory. Canonical URL
-  <https://ktrysmt.github.io/cntrdct/> is linked from `README.md`;
-  the first essay ("The Linter that Cites Its Sources") is live at
-  `essays/citation-as-api/`.
+  `essays/`) plus a `.github/workflows/pages.yml` deploy step were
+  staged on 2026-05-03, but GitHub Pages was never enabled on the
+  repository (`gh api repos/.../pages` returns 404 and
+  `https://ktrysmt.github.io/cntrdct/` returns HTTP 404). The
+  workflow's path filter kept it dormant until 2026-05-12, when an
+  unrelated bump to the workflow file itself triggered the first
+  run — which failed at `actions/configure-pages@v5` with
+  `Get Pages site failed ... verify that the repository has Pages
+  enabled`. `pages.yml` retired the same day; `docs/site/` source
+  survives pending the external-blog migration scheduled under
+  T3-13, and the broken README link to
+  `https://ktrysmt.github.io/cntrdct/essays/citation-as-api/` was
+  removed.
 
 ## Tier 2 — adoption-grade (drives external usage)
 
@@ -482,10 +490,13 @@ T3-13. mdBook user guide
 - Effort: 2-3 weeks.
 - Note: the existing Jekyll essays under `docs/site/essays/` are
   scheduled to migrate to a separate external blog rather than be
-  absorbed into mdBook. Plan: keep `docs/site/` in place during the
-  user-guide build-out; once the external blog has the content,
-  retire the Jekyll site (and its `pages.yml` deploy step) so the
-  GitHub Pages URL serves the mdBook user guide alone.
+  absorbed into mdBook. `pages.yml` was retired on 2026-05-12 (see
+  T1-7) because GitHub Pages was never enabled on the repository
+  and the workflow had failed on its first ever invocation; the
+  `docs/site/` source itself stays in place until the external
+  blog has absorbed the content, after which `docs/site/` will
+  also be retired and the (re-enabled) GitHub Pages URL will serve
+  the mdBook user guide alone.
 
 T3-14. Distribution channels beyond crates.io
 
