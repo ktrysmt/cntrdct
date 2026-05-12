@@ -182,16 +182,14 @@ JSON shape (selected fields):
 
 ## Latest audit run
 
-Refreshed 2026-05-12 against the post-rc.7 master binary, mid-
-release as part of the Q-14 Phase B batch-3 landing. Comment-code
-joins the corpus with four expected TPs from
-`sidan-lab/whisky-archive`; the existing per-detector rows for
-arg-swap and unreachable-after-terminator pass through unchanged
-because the new file does not exercise either detector. The
-release-tag refresh discipline (Phase C) still applies: the next
-`vX.Y.Z` commit will re-run the audit against the to-be-tagged
-binary and update this section in the same commit, even if the
-figures are bit-identical.
+Refreshed 2026-05-12 against the v0.2.0-rc.8 binary on the Phase
+C release-tag cadence. Figures are bit-identical with the
+mid-release batch-3 numbers (same detector logic, same corpus
+since batch 3 landed earlier the same day); the re-run itself
+against the to-be-tagged binary is the Q-14 Phase C discipline.
+Comment-code remains the newest detector in the corpus, joining
+with four expected TPs from `sidan-lab/whisky-archive`; arg-swap
+and unreachable-after-terminator pass through unchanged.
 
 | detector                       | tp | fn | recall upper bound | dominant source                  |
 | ------------------------------ | --:| --:| ------------------:| -------------------------------- |
