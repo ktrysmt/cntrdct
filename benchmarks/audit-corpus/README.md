@@ -5,18 +5,25 @@ Q-14 deliverable from `ROADMAP.md`. Houses the corpus
 per-detector recall upper bounds. Spec:
 [`docs/spec/recall-audit-v0.md`](../../docs/spec/recall-audit-v0.md).
 
-Status: Phase B batch 2 (2026-05-12). Twelve expected entries
-across two detectors and two external sources after the batch-2
-addition. Batch 2 deepens the recall ceiling on
-`unreachable-after-terminator` rather than broadening detector
-coverage — the six new entries all sit on patterns cntrdct's
-statement-level scan misses by construction (return-as-expression-
-tail, return-as-call-argument, divergent-loop terminator), so the
-new figures sharpen the honest gap rather than hide it. Subsequent
-batches still owe coverage for the remaining four detectors
-(clone-drift, comment-code, config-interaction, pr-miner) and for
-the semgrep / codeql / clippy / paper-appendix source kinds. The
-figures under "Latest audit run" refresh on each release tag.
+Status: Phase B batch 3 (2026-05-12). Sixteen expected entries
+across three detectors and one external source kind (`rustc-lint-
+testset` and `github-commit`, both already in scope before this
+batch). Batch 3 broadens detector coverage with the textbook
+comment-code Pattern C bug (Tan SOSP 2007 §3.2: `/// Deprecated`
+prose absent the `#[deprecated]` runtime attribute), seeded from
+the Apache-2.0 `sidan-lab/whisky-archive` `con_str*` family pinned
+at commit `99243766`. All four expected entries are TPs so
+comment-code joins the corpus with recall_upper_bound 1.0 on this
+source. Clone-drift was investigated as the original batch-3
+target but punted — the published peer-reviewed bug catalogues
+(Bettenburg MSR 2009, Krinke ICSM 2007) target C/Java rather than
+Rust/Python, and the Assi TOSEM 2025 deep-learning-framework
+genealogies expose size-2 clone pairs that fall under cntrdct's
+`MIN_GROUP_SIZE = 3` floor by construction. Subsequent batches
+still owe coverage for clone-drift, config-interaction, and
+pr-miner, plus the semgrep / codeql / clippy / paper-appendix
+source kinds. The figures under "Latest audit run" refresh on
+each release tag.
 
 ## Why this corpus is separate from `wild-corpus/`
 
@@ -46,7 +53,7 @@ selection-bias issue this corpus is built to counter.
 ```
 audit-corpus/
 ├── README.md                       (this file)
-├── manifest.jsonl                  (Phase B batches 1-2)
+├── manifest.jsonl                  (Phase B batches 1-3)
 └── files/
     ├── rustc_ui_unreachable_code_ret.rs    (batch 1)
     ├── rustc_ui_expr_block.rs              (batch 1)
@@ -54,7 +61,8 @@ audit-corpus/
     ├── rustc_ui_expr_return.rs             (batch 2)
     ├── rustc_ui_expr_call.rs               (batch 2)
     ├── rustc_ui_expr_loop.rs               (batch 2)
-    └── totalsegmentator_statistics.py      (batch 1)
+    ├── totalsegmentator_statistics.py      (batch 1)
+    └── whisky_archive_constructors.rs      (batch 3)
 ```
 
 `manifest.jsonl` follows the schema in
@@ -158,43 +166,63 @@ JSON shape (selected fields):
 ```jsonc
 {
   "per_detector": {
-    "arg-swap": {
-      "tp": 0,
-      "fn": 1,
-      "recall_upper_bound": 0.0,
-      "source_breakdown": { "github-commit": { "tp": 0, "fn": 1 } }
+    "comment-code": {
+      "tp": 4,
+      "fn": 0,
+      "recall_upper_bound": 1.0,
+      "source_breakdown": { "github-commit": { "tp": 4, "fn": 0 } }
     }
   },
-  "overall": { "tp": 3, "fn": 9, "recall_upper_bound": 0.25, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 7,
-  "expected_total": 12,
-  "sources": { "github-commit": 1, "rustc-lint-testset": 11 }
+  "overall": { "tp": 7, "fn": 9, "recall_upper_bound": 0.4375, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 8,
+  "expected_total": 16,
+  "sources": { "github-commit": 5, "rustc-lint-testset": 11 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-12 against the v0.2.0-rc.7 binary on the Phase
-C release-tag cadence. No-op refresh from the rc.6 + Phase B
-batch-2 numbers (same detector logic, same corpus); the re-run
-itself is the Q-14 Phase C discipline.
+Refreshed 2026-05-12 against the post-rc.7 master binary, mid-
+release as part of the Q-14 Phase B batch-3 landing. Comment-code
+joins the corpus with four expected TPs from
+`sidan-lab/whisky-archive`; the existing per-detector rows for
+arg-swap and unreachable-after-terminator pass through unchanged
+because the new file does not exercise either detector. The
+release-tag refresh discipline (Phase C) still applies: the next
+`vX.Y.Z` commit will re-run the audit against the to-be-tagged
+binary and update this section in the same commit, even if the
+figures are bit-identical.
 
 | detector                       | tp | fn | recall upper bound | dominant source                  |
 | ------------------------------ | --:| --:| ------------------:| -------------------------------- |
 | `arg-swap`                     |  0 |  1 |               0.00 | `github-commit` (1/1 entries)    |
+| `comment-code`                 |  4 |  0 |               1.00 | `github-commit` (4/4 entries)    |
 | `unreachable-after-terminator` |  3 |  8 |               0.27 | `rustc-lint-testset` (11/11)     |
-| **overall**                    |  3 |  9 |               0.25 |                                  |
+| **overall**                    |  7 |  9 |               0.44 |                                  |
 
-Corpus size: 7 files. Expected entries: 12. Source mix:
-`rustc-lint-testset` (11 entries), `github-commit` (1).
+Corpus size: 8 files. Expected entries: 16. Source mix:
+`rustc-lint-testset` (11 entries), `github-commit` (5).
 
 Reading the figures:
 
+- The four `comment-code` true positives all come from the
+  `con_str` / `con_str0` / `con_str1` / `con_str2` family in
+  `sidan-lab/whisky-archive@99243766` (a Cardano Plutus-data
+  helper crate). Each function carries a `/// Deprecated: Use
+  ...` doc comment but ships without the `#[deprecated]` runtime
+  attribute, so downstream consumers receive no compiler
+  warning. cntrdct's Pattern C
+  (`docs/spec/comment-code-v0.md` F5) flags exactly this
+  prose / attribute disagreement. The recall_upper_bound of 1.00
+  reflects that a Pattern C bug-class within cntrdct's detection
+  scope (top-level `fn` items) is captured cleanly when the
+  upstream surface matches the spec assumptions.
 - The three `unreachable-after-terminator` true positives all
   come from rust-lang/rust ui-tests where the rustc lint and
   cntrdct's tree-sitter scan converge on the same pattern
   (statement-level `return;` followed by a normal statement).
-- The eight false negatives partition by detector limitation:
+- The eight `unreachable-after-terminator` false negatives
+  partition by detector limitation:
   - Two from `rustc_ui_expr_if.rs` (batch 1): the divergent
     control flow lives inside an `if` / `if-else` expression
     and cntrdct's detector does not look through expression
@@ -224,17 +252,16 @@ Reading the figures:
   catch the swap semantically. This is a documented detector
   limitation, not a defect.
 
-The shape of batch 2's contribution is intentional: every new
-entry pins a known cntrdct-side limitation against rustc's
-ground truth, lowering the recall ceiling from 0.50 to 0.25 on
-the same external lint. The "upper bound" qualifier keeps the
-figures honest — closing these gaps is detector-improvement work
-(separate engineering, separate preregistrations), not audit-
-harness work.
+The overall recall_upper_bound rose from 0.25 to 0.44 between
+batch 2 and batch 3. The move is upward for the right reason: a
+new detector entered the corpus with high single-source recall,
+not because cntrdct's existing detectors improved. Closing the
+0.56 gap requires more diverse external sources and more
+detectors, not detector-side changes.
 
 Future batches will broaden source coverage (semgrep, codeql,
-clippy, paper-appendix) and add the four remaining detectors
-(clone-drift, comment-code, config-interaction, pr-miner).
+clippy, paper-appendix) and add the three remaining detectors
+(clone-drift, config-interaction, pr-miner).
 
 ## Refresh discipline (Phase C)
 

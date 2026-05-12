@@ -15,6 +15,24 @@
 // paper-appendix source kinds. See `docs/spec/recall-audit-v0.md` and
 // the README "Latest audit run" for the refreshed figures.
 //
+// Phase B batch 3 (2026-05-12): broadens the corpus to a third
+// detector, `comment-code`, via the textbook Pattern C bug (the
+// `/// Deprecated` prose / `#[deprecated]` attribute mismatch Tan
+// SOSP 2007 §3.2 calls "bad comment"). Source: Apache-2.0
+// `sidan-lab/whisky-archive` `packages/whisky-common/src/data/
+// primitives/constructors.rs` pinned at commit `99243766`. The
+// `con_str` / `con_str0` / `con_str1` / `con_str2` family documents
+// itself as deprecated in prose but ships without the runtime
+// `#[deprecated]` attribute that Rust's deprecation lints honour,
+// so downstream consumers get no compiler warning. Four expected
+// TP entries; clone-drift was investigated first per the original
+// batch 3 plan but punted to a later batch because the published
+// peer-reviewed clone-drift bug catalogues (Bettenburg MSR 2009,
+// Krinke ICSM 2007) target C/Java rather than Rust/Python, and the
+// Assi TOSEM 2025 deep-learning-framework genealogies expose size-2
+// clone pairs that fall under cntrdct's `MIN_GROUP_SIZE = 3` floor
+// by construction.
+//
 // All rustc-testset files strip the upstream
 // `#![deny(unreachable_code)]` attribute because cntrdct's
 // SUPPRESSION_TOKEN scan otherwise treats it as an in-source
@@ -27,3 +45,4 @@
 {"file":"files/rustc_ui_expr_call.rs","expected":[{"detector_id":"unreachable-after-terminator","line":15,"external_source":{"kind":"rustc-lint-testset","ref":"tests/ui/reachable/expr_call.rs#L13","url":"https://github.com/rust-lang/rust/blob/4b0c9d76ae7d387229caea55cfa73c280b08b8a7/tests/ui/reachable/expr_call.rs#L13"}},{"detector_id":"unreachable-after-terminator","line":20,"external_source":{"kind":"rustc-lint-testset","ref":"tests/ui/reachable/expr_call.rs#L18","url":"https://github.com/rust-lang/rust/blob/4b0c9d76ae7d387229caea55cfa73c280b08b8a7/tests/ui/reachable/expr_call.rs#L18"}}],"source":"https://github.com/rust-lang/rust/blob/4b0c9d76ae7d387229caea55cfa73c280b08b8a7/tests/ui/reachable/expr_call.rs","license":"MIT OR Apache-2.0","sha256":"5beb6c1f8bb0d33fbced5ddc0fbeca9e84c9126ab8e4564f4d980828e981ae86"}
 {"file":"files/rustc_ui_expr_loop.rs","expected":[{"detector_id":"unreachable-after-terminator","line":10,"external_source":{"kind":"rustc-lint-testset","ref":"tests/ui/reachable/expr_loop.rs#L8","url":"https://github.com/rust-lang/rust/blob/4b0c9d76ae7d387229caea55cfa73c280b08b8a7/tests/ui/reachable/expr_loop.rs#L8"}},{"detector_id":"unreachable-after-terminator","line":23,"external_source":{"kind":"rustc-lint-testset","ref":"tests/ui/reachable/expr_loop.rs#L21","url":"https://github.com/rust-lang/rust/blob/4b0c9d76ae7d387229caea55cfa73c280b08b8a7/tests/ui/reachable/expr_loop.rs#L21"}},{"detector_id":"unreachable-after-terminator","line":34,"external_source":{"kind":"rustc-lint-testset","ref":"tests/ui/reachable/expr_loop.rs#L32","url":"https://github.com/rust-lang/rust/blob/4b0c9d76ae7d387229caea55cfa73c280b08b8a7/tests/ui/reachable/expr_loop.rs#L32"}}],"source":"https://github.com/rust-lang/rust/blob/4b0c9d76ae7d387229caea55cfa73c280b08b8a7/tests/ui/reachable/expr_loop.rs","license":"MIT OR Apache-2.0","sha256":"0194bc49da778aeae4cbd773d06b3f182c8aca163bb73f87f7edb889feb85712"}
 {"file":"files/totalsegmentator_statistics.py","expected":[{"detector_id":"arg-swap","line":10,"external_source":{"kind":"github-commit","ref":"wasserth/TotalSegmentator PR #556 statistics.py:58","url":"https://github.com/wasserth/TotalSegmentator/pull/556/files"}}],"source":"https://github.com/wasserth/TotalSegmentator/blob/812adff1b80e9ffb7a11a9acf210b868f7a5c66f/totalsegmentator/statistics.py","license":"Apache-2.0","sha256":"31192d58838b634d85383a028e95d3624bac7c2c8926d38d519b195935b525b5"}
+{"file":"files/whisky_archive_constructors.rs","expected":[{"detector_id":"comment-code","line":68,"external_source":{"kind":"github-commit","ref":"sidan-lab/whisky-archive@99243766 packages/whisky-common/src/data/primitives/constructors.rs:64 (con_str: deprecated prose, no #[deprecated] attribute)","url":"https://github.com/sidan-lab/whisky-archive/blob/99243766deec7b2741a1c10ad4e8b88337cda831/packages/whisky-common/src/data/primitives/constructors.rs#L64"}},{"detector_id":"comment-code","line":73,"external_source":{"kind":"github-commit","ref":"sidan-lab/whisky-archive@99243766 packages/whisky-common/src/data/primitives/constructors.rs:69 (con_str0)","url":"https://github.com/sidan-lab/whisky-archive/blob/99243766deec7b2741a1c10ad4e8b88337cda831/packages/whisky-common/src/data/primitives/constructors.rs#L69"}},{"detector_id":"comment-code","line":78,"external_source":{"kind":"github-commit","ref":"sidan-lab/whisky-archive@99243766 packages/whisky-common/src/data/primitives/constructors.rs:74 (con_str1)","url":"https://github.com/sidan-lab/whisky-archive/blob/99243766deec7b2741a1c10ad4e8b88337cda831/packages/whisky-common/src/data/primitives/constructors.rs#L74"}},{"detector_id":"comment-code","line":83,"external_source":{"kind":"github-commit","ref":"sidan-lab/whisky-archive@99243766 packages/whisky-common/src/data/primitives/constructors.rs:79 (con_str2)","url":"https://github.com/sidan-lab/whisky-archive/blob/99243766deec7b2741a1c10ad4e8b88337cda831/packages/whisky-common/src/data/primitives/constructors.rs#L79"}}],"source":"https://github.com/sidan-lab/whisky-archive/blob/99243766deec7b2741a1c10ad4e8b88337cda831/packages/whisky-common/src/data/primitives/constructors.rs","license":"Apache-2.0","sha256":"3e42ab56a472a899b90d8f4c485111252de79bfd97657ca1ad5ee138b524fbc6"}

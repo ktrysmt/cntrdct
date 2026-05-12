@@ -1,16 +1,41 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-12 (Q-14 recall-audit Phase B batch 2 and
-Phase C release-tag refresh discipline both landed same day.
-Phase B batch 2: six additional expected entries on
+Last updated: 2026-05-12 (Q-14 recall-audit Phase B batch 3
+landed same day on top of batch 2 + Phase C. Batch 3 broadens
+the corpus to a third detector, `comment-code`, via the
+textbook Pattern C bug (Tan SOSP 2007 §3.2 "bad comment":
+`/// Deprecated` prose without the runtime `#[deprecated]`
+attribute). Seeded from Apache-2.0 `sidan-lab/whisky-archive`
+`packages/whisky-common/src/data/primitives/constructors.rs`
+pinned at commit `99243766` — the `con_str` / `con_str0` /
+`con_str1` / `con_str2` family contributes four expected TP
+entries, so comment-code enters the corpus with single-source
+recall_upper_bound 1.0. Updated corpus 8 files / 16 expected
+entries / overall recall_upper_bound 0.44 (up from 0.25),
+`comment-code` 4 TP / 0 FN / 1.00, `unreachable-after-terminator`
+3 TP / 8 FN / 0.27 unchanged, `arg-swap` 0/1 unchanged. The
+0.25→0.44 lift is upward for the right reason: a new detector
+entered with high single-source recall, not because the
+existing detectors improved. Clone-drift was investigated as
+the original batch-3 target but punted to a later batch: the
+published peer-reviewed clone-drift bug catalogues (Bettenburg
+MSR 2009, Krinke ICSM 2007) target C/Java rather than
+Rust/Python, and the Assi TOSEM 2025 deep-learning-framework
+genealogies (mia1q/code-clone-DL-frameworks replication CSVs)
+expose size-2 clone pairs that fall under cntrdct's
+`MIN_GROUP_SIZE = 3` floor by construction. Further Phase B
+batches still owe coverage for clone-drift, config-interaction,
+and pr-miner, plus the semgrep / codeql / clippy / paper-
+appendix source kinds. 2026-05-12 earlier: Q-14 recall-audit
+Phase B batch 2 and Phase C release-tag refresh discipline both
+landed. Phase B batch 2: six additional expected entries on
 `unreachable-after-terminator` deepening the recall ceiling on
 the existing detector via three rustc UI testset files
 (`expr_return.rs`, `expr_call.rs`, `expr_loop.rs`) that probe
 control-flow shapes cntrdct's statement-level scan misses by
-construction; corpus now 7 files / 12 expected entries / overall
-recall_upper_bound 0.25, `unreachable-after-terminator` 3 TP / 8
-FN / 0.27, `arg-swap` unchanged at 0/1. The drop from 0.50 to
-0.25 is intentional honest signal — closing the gaps is
+construction; corpus before batch 3 was 7 files / 12 expected
+entries / overall recall_upper_bound 0.25. The drop from 0.50
+to 0.25 is intentional honest signal — closing the gaps is
 detector-improvement work, not audit-harness work. Phase C:
 `benchmarks/audit-corpus/README.md` adds a "Refresh discipline
 (Phase C)" section enumerating the on-tag procedure;
@@ -20,14 +45,7 @@ pin the same-commit rule and a no-op refresh policy (figures
 unchanged = no-op is fine; the discipline is the re-run, not the
 delta). No CI enforcement on top — audit-recall is already gated
 indirectly via the embedded priors and detector logic CI already
-checks. Further Phase B batches still owe coverage for the
-remaining four detectors (clone-drift, comment-code,
-config-interaction, pr-miner) and the semgrep / codeql / clippy
-/ paper-appendix source kinds; initial GitHub-search probe for
-clean MIT/BSD/Apache-licensed Python `@deprecated` candidates
-hit the GitHub secondary rate limit and the cleanest hit
-(unioslo/mreg-api `Host.set_contact`) is GPL-3.0, excluded by
-audit-corpus license policy.
+checks.
 2026-05-11: Q-14 recall-audit Phase B first batch landed — six
 expected entries / two detectors / two sources / overall
 recall_upper_bound 0.50; Q-16 cargo-mutants nightly landed same day
@@ -973,9 +991,14 @@ Q-14. Recall-audit harness
 - Status: `[~]` (Phase A scaffolding + Phase B first batch
   landed 2026-05-11; Phase B batch 2 (deepening
   `unreachable-after-terminator` measurement) landed 2026-05-12;
+  Phase B batch 3 (broadening to a third detector,
+  `comment-code`, via the Tan SOSP 2007 Pattern C bug from
+  `sidan-lab/whisky-archive`) landed 2026-05-12;
   Phase C release-tag refresh discipline landed 2026-05-12;
   further Phase B batches broadening detector and source
-  coverage still pending)
+  coverage (clone-drift, config-interaction, pr-miner, plus
+  semgrep / codeql / clippy / paper-appendix source kinds)
+  still pending)
 - Goal: counter the labeller-bias loop where cntrdct's priors are
   derived from corpora it labelled itself, biasing toward
   precision and silently sacrificing recall. Build
@@ -1063,14 +1086,41 @@ Q-14. Recall-audit harness
     statement-level scan does not look through, and closing the
     gap is detector-improvement work (separate engineering,
     separate preregistration), not audit-harness work.
+  - Third batch (done 2026-05-12): four expected entries adding
+    a third detector, `comment-code`, to the corpus. Source:
+    `sidan-lab/whisky-archive` `packages/whisky-common/src/data/
+    primitives/constructors.rs` at commit `99243766`,
+    Apache-2.0 licensed, verbatim copy. The `con_str` /
+    `con_str0` / `con_str1` / `con_str2` family (upstream lines
+    64 / 69 / 74 / 79; audit-corpus lines 68 / 73 / 78 / 83
+    after the 3-line provenance header + 1 blank-line offset)
+    each carries `/// Deprecated: Use ... instead.` prose but
+    ships without the `#[deprecated]` runtime attribute — the
+    textbook Pattern C bug Tan SOSP 2007 §3.2 ("bad comment")
+    describes. All four are TP, so comment-code enters the
+    corpus with single-source recall_upper_bound 1.00. Updated
+    audit numbers: `comment-code` tp=4 / fn=0 / 1.00;
+    `unreachable-after-terminator` tp=3 / fn=8 / 0.27 unchanged;
+    `arg-swap` tp=0 / fn=1 / 0.00 unchanged; overall
+    recall_upper_bound 0.4375 (7/16, up from 0.25). The lift is
+    upward for the right reason: a new detector entered with
+    high single-source recall, not because the existing
+    detectors improved. Clone-drift was the original batch-3
+    target but punted to a later batch: the published
+    peer-reviewed clone-drift bug catalogues (Bettenburg MSR
+    2009, Krinke ICSM 2007) target C/Java rather than
+    Rust/Python, and the Assi TOSEM 2025 deep-learning-framework
+    genealogies (mia1q/code-clone-DL-frameworks replication
+    CSVs) expose size-2 clone pairs that fall under cntrdct's
+    `MIN_GROUP_SIZE = 3` floor by construction.
   - Subsequent batches will broaden source coverage (semgrep,
-    codeql, clippy, paper-appendix) and add the four remaining
-    detectors (clone-drift, comment-code, config-interaction,
-    pr-miner). PyPIBugs (Allamanis NeurIPS 2021) is the natural
-    next external source for arg-swap and clone-drift; the
-    metadata file is hosted at Microsoft Download Center and
-    requires offline preprocessing before commits can be cited
-    with stable URLs.
+    codeql, clippy, paper-appendix) and add the three remaining
+    detectors (clone-drift, config-interaction, pr-miner).
+    PyPIBugs (Allamanis NeurIPS 2021) is the natural next
+    external source for arg-swap and clone-drift; the metadata
+    file is hosted at Microsoft Download Center and requires
+    offline preprocessing before commits can be cited with
+    stable URLs.
 - Phase C — release-tag refresh discipline (done 2026-05-12):
   `benchmarks/audit-corpus/README.md` carries a new "Refresh
   discipline (Phase C)" section enumerating the on-tag procedure
@@ -1237,13 +1287,16 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
 41. Q-14 recall-audit harness — Phase A scaffolding + Phase B
     first batch landed 2026-05-11; Phase B batch 2 (deepening
     `unreachable-after-terminator` recall measurement against
-    additional rustc UI testset files) and Phase C release-tag
-    refresh discipline (README "Refresh discipline" section +
-    CLAUDE.md release-procedure steps) both landed 2026-05-12;
-    further Phase B batches broadening detector and source
-    coverage (paper-appendix / semgrep / codeql / clippy /
-    permissive-licensed github-commit cases for clone-drift /
-    comment-code / config-interaction / pr-miner) still pending
+    additional rustc UI testset files), Phase B batch 3
+    (broadening to a third detector, `comment-code`, via the
+    Tan SOSP 2007 Pattern C bug in `sidan-lab/whisky-archive`),
+    and Phase C release-tag refresh discipline (README
+    "Refresh discipline" section + CLAUDE.md release-procedure
+    steps) all landed 2026-05-12; further Phase B batches
+    broadening detector and source coverage (paper-appendix /
+    semgrep / codeql / clippy / permissive-licensed
+    github-commit cases for clone-drift / config-interaction /
+    pr-miner) still pending
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 
