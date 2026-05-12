@@ -1,23 +1,47 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-12 (Q-14 recall-audit Phase B batch 3
-landed same day on top of batch 2 + Phase C. Batch 3 broadens
-the corpus to a third detector, `comment-code`, via the
-textbook Pattern C bug (Tan SOSP 2007 §3.2 "bad comment":
-`/// Deprecated` prose without the runtime `#[deprecated]`
-attribute). Seeded from Apache-2.0 `sidan-lab/whisky-archive`
+Last updated: 2026-05-12 (Q-14 recall-audit Phase B batch 4
+landed same day on top of batch 3 + Phase C. Batch 4 introduces
+the `paper-appendix` source kind via three PyPIBugs (Allamanis
+NeurIPS 2021) ArgSwap entries on permissive-licensed Python
+repositories: `c137digital/unv_app@d217fa0d` MIT
+(cross-file imported `update_dict_recur` call),
+`mwouts/nbrmd@dfa96996` MIT (cross-file imported
+`compare_notebooks` call in a pytest test), and
+`markokr/rarfile@7fd6b2ca` ISC (`self._set_attrs(dst, inf)`
+method call). All three are FN against cntrdct's narrow
+Rice-2017 arg-swap detector by `docs/spec/arg-swap-v0.md`
+F3 / F4 / F5 — qualified-path / method-call call sites are
+out of scope, cross-file definitions are not resolved, and a
+hypothetical method-resolving extension would still need a
+reverse-permutation name match (which rarfile lacks). Updated
+corpus 11 files / 19 expected entries / overall
+recall_upper_bound 0.37 (down from 0.44), `arg-swap` 0 TP /
+4 FN / 0.00 (up from 0/1/0.00), `comment-code` 4/0/1.00
+unchanged, `unreachable-after-terminator` 3/8/0.27 unchanged.
+The 0.44→0.37 drop is downward for the right reason: PyPIBugs
+labels arg-swap bugs cntrdct's detector cannot catch by design,
+so adding paper-appendix entries surfaces the gap rather than
+inflating it. pr-miner was the originally chosen batch-4
+detector but punted on the structural blocker that the
+extractor (top-level `fn` / `def` only per
+`src/detectors/pr_miner/extract_{rust,python}.rs`) collides
+with modern Rust RAII and Python `with` idioms — paired-API
+patterns survive almost exclusively in class methods that the
+extractor drops, and the PR-Miner paper's published bugs
+(Linux / PostgreSQL / Apache HTTPd) are all C and therefore
+outside pr-miner's supported languages. Earlier 2026-05-12:
+Q-14 recall-audit Phase B batch 3 broadens the corpus to a
+third detector, `comment-code`, via the textbook Pattern C bug
+(Tan SOSP 2007 §3.2 "bad comment": `/// Deprecated` prose
+without the runtime `#[deprecated]` attribute). Seeded from
+Apache-2.0 `sidan-lab/whisky-archive`
 `packages/whisky-common/src/data/primitives/constructors.rs`
 pinned at commit `99243766` — the `con_str` / `con_str0` /
 `con_str1` / `con_str2` family contributes four expected TP
 entries, so comment-code enters the corpus with single-source
-recall_upper_bound 1.0. Updated corpus 8 files / 16 expected
-entries / overall recall_upper_bound 0.44 (up from 0.25),
-`comment-code` 4 TP / 0 FN / 1.00, `unreachable-after-terminator`
-3 TP / 8 FN / 0.27 unchanged, `arg-swap` 0/1 unchanged. The
-0.25→0.44 lift is upward for the right reason: a new detector
-entered with high single-source recall, not because the
-existing detectors improved. Clone-drift was investigated as
-the original batch-3 target but punted to a later batch: the
+recall_upper_bound 1.0. Clone-drift was investigated as the
+original batch-3 target but punted to a later batch: the
 published peer-reviewed clone-drift bug catalogues (Bettenburg
 MSR 2009, Krinke ICSM 2007) target C/Java rather than
 Rust/Python, and the Assi TOSEM 2025 deep-learning-framework
@@ -25,8 +49,7 @@ genealogies (mia1q/code-clone-DL-frameworks replication CSVs)
 expose size-2 clone pairs that fall under cntrdct's
 `MIN_GROUP_SIZE = 3` floor by construction. Further Phase B
 batches still owe coverage for clone-drift, config-interaction,
-and pr-miner, plus the semgrep / codeql / clippy / paper-
-appendix source kinds. 2026-05-12 earlier: Q-14 recall-audit
+and pr-miner, plus the semgrep / codeql / clippy source kinds. 2026-05-12 earlier: Q-14 recall-audit
 Phase B batch 2 and Phase C release-tag refresh discipline both
 landed. Phase B batch 2: six additional expected entries on
 `unreachable-after-terminator` deepening the recall ceiling on
@@ -995,10 +1018,21 @@ Q-14. Recall-audit harness
   `comment-code`, via the Tan SOSP 2007 Pattern C bug from
   `sidan-lab/whisky-archive`) landed 2026-05-12;
   Phase C release-tag refresh discipline landed 2026-05-12;
+  Phase B batch 4 (introducing the `paper-appendix` source kind
+  via three PyPIBugs ArgSwap entries on permissive-licensed
+  Python repositories — `c137digital/unv_app` MIT,
+  `mwouts/nbrmd` MIT, `markokr/rarfile` ISC; all three are FN
+  against cntrdct's narrow Rice-2017 arg-swap detector,
+  documenting the gap between PyPIBugs labels and the detector's
+  same-file + bare-identifier scope) landed 2026-05-12;
+  pr-miner was the originally chosen batch 4 detector but
+  punted on the structural blocker that the extractor walks
+  only top-level `fn` / `def`, which collides with modern Rust
+  RAII and Python `with` idioms — paired-API patterns survive
+  almost exclusively in class methods the extractor drops;
   further Phase B batches broadening detector and source
   coverage (clone-drift, config-interaction, pr-miner, plus
-  semgrep / codeql / clippy / paper-appendix source kinds)
-  still pending)
+  semgrep / codeql / clippy source kinds) still pending)
 - Goal: counter the labeller-bias loop where cntrdct's priors are
   derived from corpora it labelled itself, biasing toward
   precision and silently sacrificing recall. Build
@@ -1290,13 +1324,21 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     additional rustc UI testset files), Phase B batch 3
     (broadening to a third detector, `comment-code`, via the
     Tan SOSP 2007 Pattern C bug in `sidan-lab/whisky-archive`),
-    and Phase C release-tag refresh discipline (README
+    Phase C release-tag refresh discipline (README
     "Refresh discipline" section + CLAUDE.md release-procedure
-    steps) all landed 2026-05-12; further Phase B batches
-    broadening detector and source coverage (paper-appendix /
-    semgrep / codeql / clippy / permissive-licensed
-    github-commit cases for clone-drift / config-interaction /
-    pr-miner) still pending
+    steps), and Phase B batch 4 (introducing the
+    `paper-appendix` source kind via three PyPIBugs ArgSwap
+    entries on permissive-licensed Python repositories —
+    `c137digital/unv_app` MIT, `mwouts/nbrmd` MIT,
+    `markokr/rarfile` ISC; all three FN against cntrdct's
+    narrow Rice-2017 arg-swap detector, surfacing the gap
+    rather than inflating it) all landed 2026-05-12; pr-miner
+    was the originally chosen batch 4 detector but punted on
+    the structural blocker that the extractor walks only
+    top-level `fn` / `def`; further Phase B batches broadening
+    detector and source coverage (semgrep / codeql / clippy
+    cases for clone-drift / config-interaction / pr-miner)
+    still pending
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 

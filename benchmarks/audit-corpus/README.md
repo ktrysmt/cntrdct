@@ -5,25 +5,35 @@ Q-14 deliverable from `ROADMAP.md`. Houses the corpus
 per-detector recall upper bounds. Spec:
 [`docs/spec/recall-audit-v0.md`](../../docs/spec/recall-audit-v0.md).
 
-Status: Phase B batch 3 (2026-05-12). Sixteen expected entries
-across three detectors and one external source kind (`rustc-lint-
-testset` and `github-commit`, both already in scope before this
-batch). Batch 3 broadens detector coverage with the textbook
-comment-code Pattern C bug (Tan SOSP 2007 §3.2: `/// Deprecated`
-prose absent the `#[deprecated]` runtime attribute), seeded from
-the Apache-2.0 `sidan-lab/whisky-archive` `con_str*` family pinned
-at commit `99243766`. All four expected entries are TPs so
-comment-code joins the corpus with recall_upper_bound 1.0 on this
-source. Clone-drift was investigated as the original batch-3
-target but punted — the published peer-reviewed bug catalogues
-(Bettenburg MSR 2009, Krinke ICSM 2007) target C/Java rather than
-Rust/Python, and the Assi TOSEM 2025 deep-learning-framework
-genealogies expose size-2 clone pairs that fall under cntrdct's
-`MIN_GROUP_SIZE = 3` floor by construction. Subsequent batches
+Status: Phase B batch 4 (2026-05-12). Nineteen expected entries
+across three detectors and three external source kinds
+(`rustc-lint-testset`, `github-commit`, and the new
+`paper-appendix`). Batch 4 introduces the `paper-appendix` source
+kind via three PyPIBugs (Allamanis NeurIPS 2021) ArgSwap labels
+on permissive-licensed Python repositories — `c137digital/unv_app`
+(MIT, cross-file imported function), `mwouts/nbrmd` (MIT,
+cross-file imported function inside a pytest test), and
+`markokr/rarfile` (ISC, `self._set_attrs(...)` method call). All
+three are FNs against cntrdct's narrow Rice-2017 arg-swap detector
+by `docs/spec/arg-swap-v0.md` F3 / F4 (qualified-path call sites
+are out of scope; cross-file definitions are not resolved). The
+arg-swap row therefore stays at 0.00 while overall
+`recall_upper_bound` settles at 0.37 (down from 0.44 at batch 3) —
+the drop is the right kind of signal: external labels grew faster
+than the detector's catchable subset. pr-miner was the originally
+chosen batch-4 detector but punted to a later batch on the
+structural blocker that the extractor (top-level `fn` / `def`
+only) collides with modern Rust RAII and Python `with` idioms,
+which push paired-API patterns almost exclusively into class
+methods. Batch 3 (2026-05-12): four `comment-code` TPs on
+`sidan-lab/whisky-archive` `con_str*` family — Tan SOSP 2007 §3.2
+"bad comment" (`/// Deprecated` prose absent the `#[deprecated]`
+runtime attribute); clone-drift was investigated and punted on
+the C/Java orientation of Bettenburg MSR 2009 / Krinke ICSM 2007
+and the size-2 clone pairs in Assi TOSEM 2025. Subsequent batches
 still owe coverage for clone-drift, config-interaction, and
-pr-miner, plus the semgrep / codeql / clippy / paper-appendix
-source kinds. The figures under "Latest audit run" refresh on
-each release tag.
+pr-miner, plus the semgrep / codeql / clippy source kinds. The
+figures under "Latest audit run" refresh on each release tag.
 
 ## Why this corpus is separate from `wild-corpus/`
 
@@ -53,7 +63,7 @@ selection-bias issue this corpus is built to counter.
 ```
 audit-corpus/
 ├── README.md                       (this file)
-├── manifest.jsonl                  (Phase B batches 1-3)
+├── manifest.jsonl                  (Phase B batches 1-4)
 └── files/
     ├── rustc_ui_unreachable_code_ret.rs    (batch 1)
     ├── rustc_ui_expr_block.rs              (batch 1)
@@ -62,7 +72,10 @@ audit-corpus/
     ├── rustc_ui_expr_call.rs               (batch 2)
     ├── rustc_ui_expr_loop.rs               (batch 2)
     ├── totalsegmentator_statistics.py      (batch 1)
-    └── whisky_archive_constructors.rs      (batch 3)
+    ├── whisky_archive_constructors.rs      (batch 3)
+    ├── unv_app_settings.py                 (batch 4)
+    ├── nbrmd_test_ipynb_to_R.py            (batch 4)
+    └── rarfile_set_attrs.py                (batch 4)
 ```
 
 `manifest.jsonl` follows the schema in
@@ -173,33 +186,34 @@ JSON shape (selected fields):
       "source_breakdown": { "github-commit": { "tp": 4, "fn": 0 } }
     }
   },
-  "overall": { "tp": 7, "fn": 9, "recall_upper_bound": 0.4375, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 8,
-  "expected_total": 16,
-  "sources": { "github-commit": 5, "rustc-lint-testset": 11 }
+  "overall": { "tp": 7, "fn": 12, "recall_upper_bound": 0.368, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 11,
+  "expected_total": 19,
+  "sources": { "github-commit": 5, "paper-appendix": 3, "rustc-lint-testset": 11 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-12 against the v0.2.0-rc.8 binary on the Phase
-C release-tag cadence. Figures are bit-identical with the
-mid-release batch-3 numbers (same detector logic, same corpus
-since batch 3 landed earlier the same day); the re-run itself
-against the to-be-tagged binary is the Q-14 Phase C discipline.
-Comment-code remains the newest detector in the corpus, joining
-with four expected TPs from `sidan-lab/whisky-archive`; arg-swap
-and unreachable-after-terminator pass through unchanged.
+Refreshed 2026-05-12 against the mid-release batch-4 binary.
+Batch 4 adds three `paper-appendix` arg-swap entries seeded from
+PyPIBugs (Allamanis NeurIPS 2021); all three are FN against
+cntrdct's narrow Rice-2017 arg-swap detector, so the arg-swap
+row stays at 0.00 with `fn` rising to 4, and overall
+`recall_upper_bound` settles at 0.37 (down from 0.44 at batch 3).
+The next release tag will refresh these figures on the Phase C
+cadence.
 
 | detector                       | tp | fn | recall upper bound | dominant source                  |
 | ------------------------------ | --:| --:| ------------------:| -------------------------------- |
-| `arg-swap`                     |  0 |  1 |               0.00 | `github-commit` (1/1 entries)    |
+| `arg-swap`                     |  0 |  4 |               0.00 | `paper-appendix` (3/4 entries)   |
 | `comment-code`                 |  4 |  0 |               1.00 | `github-commit` (4/4 entries)    |
 | `unreachable-after-terminator` |  3 |  8 |               0.27 | `rustc-lint-testset` (11/11)     |
-| **overall**                    |  7 |  9 |               0.44 |                                  |
+| **overall**                    |  7 | 12 |               0.37 |                                  |
 
-Corpus size: 8 files. Expected entries: 16. Source mix:
-`rustc-lint-testset` (11 entries), `github-commit` (5).
+Corpus size: 11 files. Expected entries: 19. Source mix:
+`rustc-lint-testset` (11 entries), `github-commit` (5),
+`paper-appendix` (3).
 
 Reading the figures:
 
@@ -240,26 +254,46 @@ Reading the figures:
     nested non-breaking loop construct. The rustc lint reasons
     about the loop's never-type return; cntrdct does not
     recognise `loop_expression` itself as a terminator.
-- The single `arg-swap` false negative is from a real bug-fix
-  PR (wasserth/TotalSegmentator #556) where two args to
-  `get_radiomics_features` were swapped. cntrdct's `arg-swap`
-  detector fires only when the call-site identifier multiset is
-  a reverse permutation of the parameter-name multiset; in this
-  bug the call identifiers (`ct_file`, `mask`) do not match the
-  parameter names (`seg_file`, `img_file`), so cntrdct cannot
-  catch the swap semantically. This is a documented detector
-  limitation, not a defect.
+- The four `arg-swap` false negatives partition by external
+  source and FN class:
+  - One from `totalsegmentator_statistics.py` (batch 1,
+    `github-commit`): the call identifiers (`ct_file`, `mask`)
+    do not match the parameter names (`seg_file`, `img_file`),
+    so the reverse-permutation check in
+    `docs/spec/arg-swap-v0.md` F5 returns no match.
+  - One from `unv_app_settings.py` (batch 4, `paper-appendix`,
+    PyPIBugs MIT label on `c137digital/unv_app@d217fa0d`): the
+    callee `update_dict_recur` is imported from
+    `unv.utils.collections`, so spec F4 (same-file resolution)
+    cannot resolve the definition and the call is skipped.
+  - One from `nbrmd_test_ipynb_to_R.py` (batch 4,
+    `paper-appendix`, PyPIBugs MIT label on
+    `mwouts/nbrmd@dfa96996`): the callee `compare_notebooks` is
+    imported from `jupytext.compare` (test code); same F4 miss
+    as unv_app.
+  - One from `rarfile_set_attrs.py` (batch 4, `paper-appendix`,
+    PyPIBugs ISC label on `markokr/rarfile@7fd6b2ca`): the
+    buggy call is `self._set_attrs(dst, inf)`, a method call on
+    `self`. Spec F3 drops qualified-path / method-call call
+    sites entirely; even with a hypothetical method-resolving
+    extension the call args (`dst`, `inf`) are not a reverse
+    permutation of the definition's parameter names
+    (`info`, `dstfn`), so F5 would also miss.
 
-The overall recall_upper_bound rose from 0.25 to 0.44 between
-batch 2 and batch 3. The move is upward for the right reason: a
-new detector entered the corpus with high single-source recall,
-not because cntrdct's existing detectors improved. Closing the
-0.56 gap requires more diverse external sources and more
-detectors, not detector-side changes.
+The overall recall_upper_bound dropped from 0.44 (batch 3) to
+0.37 (batch 4). The move is downward for the right reason:
+PyPIBugs labels arg-swap bugs that cntrdct's detector cannot
+catch by detector design (F3 + F4 + F5 conjunction is strict),
+so adding paper-appendix entries surfaces the gap rather than
+inflating it. Closing the 0.63 gap requires both broader
+external sources and detector-side scope widening (e.g.
+cross-file resolution, method-dispatch handling, n-ary swap
+detection) — each of which is a separate piece of engineering
+with its own preregistration.
 
 Future batches will broaden source coverage (semgrep, codeql,
-clippy, paper-appendix) and add the three remaining detectors
-(clone-drift, config-interaction, pr-miner).
+clippy) and add the three remaining detectors (clone-drift,
+config-interaction, pr-miner).
 
 ## Refresh discipline (Phase C)
 
