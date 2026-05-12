@@ -212,8 +212,11 @@ JSON shape (selected fields):
 
 ## Latest audit run
 
-Refreshed 2026-05-12 against the v0.2.0-rc.11 binary, then
-re-run later the same day after batch 7 landed. Batch 7
+Refreshed 2026-05-12 against the v0.2.0-rc.12 binary on the
+Phase C release-tag cadence. Figures are bit-identical with the
+mid-release batch-7 numbers (same Layer 1 detector logic, same
+corpus); the re-run itself against the to-be-tagged binary is
+the Q-14 Phase C discipline. Batch 7
 introduces the `codeql` source kind via the CodeQL Python
 `UnreachableCode` query test fixture (`github/codeql@592c7c04
 python/ql/test/query-tests/Statements/unreachable/test.py`, MIT).
