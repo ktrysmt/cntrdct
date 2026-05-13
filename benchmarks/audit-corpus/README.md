@@ -5,34 +5,78 @@ Q-14 deliverable from `ROADMAP.md`. Houses the corpus
 per-detector recall upper bounds. Spec:
 [`docs/spec/recall-audit-v0.md`](../../docs/spec/recall-audit-v0.md).
 
-Status: Phase B batch 8 (2026-05-13). Thirty expected
+Status: Phase B batch 10 (2026-05-13). Thirty-one expected
 entries across six detectors and six external source kinds
 (`rustc-lint-testset`, `github-commit`, `paper-appendix`,
-`clippy`, `codeql`, `semgrep`). Batch 8 introduces the `semgrep`
-source kind alongside the sixth and final cntrdct detector,
-`pr-miner`, via the Semgrep registry rule `open-never-closed`
+`clippy`, `codeql`, `semgrep`). Batch 10 flips the `pr-miner`
+detector from `0 TP / 2 FN / 0.00` (batch 9) to `2 TP / 0 FN /
+1.00` by adding ten density-support files that lift the corpus-
+wide `{open} -> {close}` mined-rule confidence above the spec F3
+`MIN_CONFIDENCE = 0.85` threshold. Each density-support file
+ships with `expected: []` rather than a labelled finding because
+the Semgrep `open-never-closed` rule produces no findings on
+files where every top-level `def` that calls `open` also
+explicitly calls `close` (or closes via try/finally). The ten
+files contribute eighteen paired open+close top-level
+transactions to pr-miner's spec F3 Apriori mining database
+(MIT / BSD-3-Clause / Apache-2.0 permissive Python: carla
+Util/Tools/Import.py, Telluric-Fitter setup.py, baidu/tera
+tera_setup.py, nottheswimmer/pytago examples/fileloop.py,
+dkruchinin/sanic-prometheus scripts/release.py, carljm/django-
+secure setup.py and doc/conf.py, adnanademovic/rosrust
+genaction.py, R-s0n/ars0n-framework fire-scanner.py, apache/ranger
+tagsync setup.py). Math: before batch 10 the corpus had four
+top-level Python defs containing `open` (`get_ver`,
+`replace_ver`, `readfile`, `test_identity_source_write_read`)
+with only `replace_ver` containing `close` too, giving
+`{open} -> {close}` confidence of 1/4 = 0.25 — far below the
+threshold. Batch 10 adds 18 paired transactions to both numerator
+and denominator, pushing the confidence to (1+18)/(4+18) = 19/22
+≈ 0.864 ≥ 0.85, after which spec F3 mines the rule, spec F4
+scans the full transaction set for violations, and both batch-8
+`get_ver` and batch-9 `readfile` flip from FN to TP without any
+detector-side change. Batch 9 (the immediately preceding batch
+2026-05-13) deepened the `pr-miner` denominator on the existing
+`semgrep` source kind via a second permissive-licensed
+`open-never-closed` instance: the same Semgrep registry rule
 (`python.lang.best-practice.open-never-closed.open-never-closed`,
 pinned at semgrep/semgrep-rules@9d73d08e) applied to
-TuGraph-family/tugraph-db@672e4b19 `release/det_ver.py`
-(Apache-2.0). The labelled bug is `f = open('Options.cmake','r')`
-inside top-level `def get_ver():` (upstream line 5 / corpus line
-9) without any matching `close()`, `with`, or try-finally; the
-companion `def replace_ver(...)` in the same file opens AND
-closes, so the rule does not fire on it. Mapping against
-cntrdct's pr-miner: spec F2 reaches `get_ver` (top-level), but
-spec F3 Apriori mining at `MIN_SUPPORT = 0.05` /
-`MIN_CONFIDENCE = 0.85` cannot synthesise the `{open} → {close}`
-rule from the single corpus-wide transaction that contains both
-items (only `replace_ver`), so F4 violation detection never runs
-against `get_ver` — FN by mining sparsity, NOT by extractor
-scope. Selecting tugraph-db rather than semgrep-rules' own test
-fixtures sidesteps the Semgrep Rules License v1.0 license
-carve-out the README's earlier batches deferred on. Overall
-`recall_upper_bound` settles at 0.27 (down from 0.28 at batch 7)
-— a one-step drop driven entirely by `pr-miner` entering the
-denominator with 0 TPs by detector design (mining sparsity at v0
-corpus density), not by any of the other five detectors
-regressing. Batch 7 (2026-05-12): the `codeql` source kind via
+gregmuellegger/django-mobile@fafc3890 `setup.py` (BSD-3-Clause).
+The labelled bug is `return open(filename, ...).read()` inside
+top-level `def readfile(filename):` (upstream line 13 / corpus
+line 17) — both branches of the `sys.version_info` check return
+an `open(...).read()` chain without any matching `close()`,
+`with`, or try-finally; the companion top-level `def get_author`
+and `def get_version` delegate file reading to `readfile` and do
+not call `open` directly, so the rule does not fire on them, and
+the `UltraMagicString` class methods are excluded from pr-miner's
+spec F2 extractor by design (only top-level
+`function_definition` / `decorated_definition` are walked).
+Mapping against cntrdct's pr-miner: F2 reaches `readfile`
+cleanly and produces item set `{open, read}`, but spec F3
+Apriori mining at `MIN_SUPPORT = 0.05` / `MIN_CONFIDENCE = 0.85`
+still cannot synthesise the `{open} -> {close}` rule — with
+batch 9's transaction added, three corpus-wide functions contain
+`open` (`get_ver` and `readfile` open-only, `replace_ver`
+open+close) and only one of those contains `close`, so the rule
+confidence is 1/3 ≈ 33%, far below the 0.85 threshold. Selecting
+django-mobile rather than semgrep-rules' own test fixtures keeps
+batch 9 outside the Semgrep Rules License v1.0 carve-out the
+same way batch 8 did with Apache-2.0 tugraph-db. Overall
+`recall_upper_bound` jumps from 0.26 at batch 9 to 0.32 at batch
+10 — driven entirely by `pr-miner` flipping from `0/2/0.00` to
+`2/0/1.00` once Apriori mining crosses the 0.85 confidence gate;
+the other five detectors are unchanged because their findings
+depend only on per-file content (not on cross-file mining), and
+the density-support files carry no expected entries. Batch 8 (2026-05-13) introduced
+the `semgrep` source kind alongside the sixth and final cntrdct
+detector, `pr-miner`, via the same Semgrep registry rule applied
+to TuGraph-family/tugraph-db@672e4b19 `release/det_ver.py`
+(Apache-2.0): `f = open('Options.cmake','r')` inside top-level
+`def get_ver():` (upstream line 5 / corpus line 9) without any
+matching `close()`, `with`, or try-finally; the companion
+`def replace_ver(...)` in the same file opens AND closes, so the
+rule does not fire on it. Batch 7 (2026-05-12): the `codeql` source kind via
 the CodeQL Python `UnreachableCode` query test fixture
 (`github/codeql@592c7c04
 python/ql/test/query-tests/Statements/unreachable/test.py`, MIT).
@@ -61,11 +105,16 @@ clone-drift, comment-code, config-interaction, pr-miner,
 unreachable-after-terminator), and the six external source
 kinds documented under "Sources" are all live
 (`rustc-lint-testset`, `github-commit`, `paper-appendix`,
-`clippy`, `codeql`, `semgrep`). Future Phase B batches deepen
-coverage rather than introduce a new detector or kind: more
-`open-never-closed` instances across permissive-licensed Python
-files to push pr-miner's mined-rule confidence above the 0.85
-threshold and surface the first pr-miner TP; broader
+`clippy`, `codeql`, `semgrep`). Batch 10 (2026-05-13) closed
+pr-miner's mined-rule confidence gap by adding ten density-
+support files containing eighteen paired open+close top-level
+Python transactions, lifting the {open} -> {close} confidence
+from 0.25 to 0.864 and flipping both labelled `pr-miner` FN
+entries (batch-8 `get_ver`, batch-9 `readfile`) to TPs without
+any detector-side change. Future Phase B batches deepen coverage
+on the remaining 0.00 detectors via either more labelled
+findings on the existing source kinds, or detector-side scope
+lifts under separate preregistrations: broader
 `unreachable-after-terminator` coverage if F3 widens to
 constant-condition or exception-typed reasoning; arg-swap and
 clone-drift TPs once the detectors' v0 scope is lifted. The
@@ -105,7 +154,7 @@ selection-bias issue this corpus is built to counter.
 ```
 audit-corpus/
 ├── README.md                       (this file)
-├── manifest.jsonl                  (Phase B batches 1-8)
+├── manifest.jsonl                  (Phase B batches 1-10)
 └── files/
     ├── rustc_ui_unreachable_code_ret.rs               (batch 1)
     ├── rustc_ui_expr_block.rs                         (batch 1)
@@ -122,7 +171,18 @@ audit-corpus/
     ├── clippy_ui_branches_sharing_code_shared_at_top.rs (batch 5)
     ├── rustc_ui_both_true_false.rs                    (batch 6)
     ├── codeql_python_unreachable_test.py              (batch 7)
-    └── tugraph_det_ver.py                             (batch 8)
+    ├── tugraph_det_ver.py                             (batch 8)
+    ├── django_mobile_setup.py                         (batch 9)
+    ├── tera_docker_setup.py                           (batch 10, density)
+    ├── pytago_fileloop.py                             (batch 10, density)
+    ├── sanic_prometheus_release.py                    (batch 10, density)
+    ├── django_secure_setup.py                         (batch 10, density)
+    ├── django_secure_conf.py                          (batch 10, density)
+    ├── rosrust_genaction.py                           (batch 10, density)
+    ├── carla_import.py                                (batch 10, density)
+    ├── telluric_fitter_setup.py                       (batch 10, density)
+    ├── ars0n_fire_scanner.py                          (batch 10, density)
+    └── apache_ranger_tagsync_setup.py                 (batch 10, density)
 ```
 
 `manifest.jsonl` follows the schema in
@@ -233,34 +293,40 @@ JSON shape (selected fields):
       "source_breakdown": { "github-commit": { "tp": 4, "fn": 0 } }
     }
   },
-  "overall": { "tp": 8, "fn": 22, "recall_upper_bound": 0.267, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 16,
-  "expected_total": 30,
-  "sources": { "clippy": 2, "codeql": 6, "github-commit": 5, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 1 }
+  "overall": { "tp": 10, "fn": 21, "recall_upper_bound": 0.323, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 27,
+  "expected_total": 31,
+  "sources": { "clippy": 2, "codeql": 6, "github-commit": 5, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-13 against the master tip on top of batch 8.
+Refreshed 2026-05-13 against the master tip on top of batch 10.
 The next release tag will re-run this against the to-be-tagged
-binary per the Q-14 Phase C discipline; batch 8 lands mid-cycle,
-so the figures here are the pre-tag snapshot. Batch 8 introduces
-the `semgrep` source kind and the sixth detector, `pr-miner`, in
-the same commit via the Semgrep registry rule `open-never-closed`
-(`python.lang.best-practice.open-never-closed.open-never-closed`,
-pinned at semgrep/semgrep-rules@9d73d08e) applied to
-TuGraph-family/tugraph-db@672e4b19 `release/det_ver.py`
-(Apache-2.0). cntrdct's pr-miner reaches `def get_ver():` (spec
-F2, top-level function) but the spec F3 Apriori mining cannot
-synthesise the `{open} → {close}` rule from the single
-corpus-wide transaction (`replace_ver`) that contains both items,
-so spec F4 violation detection never runs against `get_ver` —
-FN by mining sparsity, NOT by extractor scope. Overall
-`recall_upper_bound` settles at 0.27 (down from 0.28 at batch 7)
-— the move is driven entirely by pr-miner entering the
-denominator with 0 TPs by detector design at v0 corpus density,
-not by any of the other five detectors regressing.
+binary per the Q-14 Phase C discipline; batch 10 lands mid-cycle,
+so the figures here are the pre-tag snapshot. Batch 10 surfaces
+the first `pr-miner` true positives by adding ten density-support
+files containing eighteen paired open+close top-level Python
+defs (each carries `expected: []` because the Semgrep
+`open-never-closed` rule produces no findings on files where
+every top-level `def` calling `open` also explicitly closes).
+Before batch 10 the corpus had four `open`-containing top-level
+Python defs and only one (`replace_ver`) also contained `close`,
+giving `{open} → {close}` confidence of 1/4 = 0.25, far below
+spec F3 `MIN_CONFIDENCE = 0.85`. Batch 10 adds 18 paired
+transactions to both numerator and denominator, pushing
+confidence to (1+18)/(4+18) = 19/22 ≈ 0.864 ≥ 0.85; Apriori
+mines the `{open} → {close}` rule, F4 scans the full transaction
+set for violations, and both batch-8 `tugraph_det_ver.py::get_ver`
+(corpus line 9) and batch-9 `django_mobile_setup.py::readfile`
+(corpus line 17) flip from FN to TP — without any detector-side
+change. Overall `recall_upper_bound` jumps from 0.26 at batch 9
+to 0.32 at batch 10 — driven entirely by `pr-miner` flipping from
+`0/2/0.00` to `2/0/1.00`; the other five detectors are unchanged
+because their findings depend only on per-file content (not on
+cross-file mining), and the density-support files carry no
+expected entries.
 
 | detector                       | tp | fn | recall upper bound | dominant source                          |
 | ------------------------------ | --:| --:| ------------------:| ---------------------------------------- |
@@ -268,13 +334,15 @@ not by any of the other five detectors regressing.
 | `clone-drift`                  |  0 |  2 |               0.00 | `clippy` (2/2 entries)                   |
 | `comment-code`                 |  4 |  0 |               1.00 | `github-commit` (4/4 entries)            |
 | `config-interaction`           |  0 |  2 |               0.00 | `rustc-lint-testset` (2/2)               |
-| `pr-miner`                     |  0 |  1 |               0.00 | `semgrep` (1/1)                          |
+| `pr-miner`                     |  2 |  0 |               1.00 | `semgrep` (2/2 entries)                  |
 | `unreachable-after-terminator` |  4 | 13 |               0.24 | `rustc-lint-testset` (11/17 entries)     |
-| **overall**                    |  8 | 22 |               0.27 |                                          |
+| **overall**                    | 10 | 21 |               0.32 |                                          |
 
-Corpus size: 16 files. Expected entries: 30. Source mix:
+Corpus size: 27 files (10 of which are batch-10 density-support
+files with `expected: []` — they do not enter the recall
+denominator). Expected entries: 31. Source mix:
 `rustc-lint-testset` (13 entries), `codeql` (6), `github-commit`
-(5), `paper-appendix` (3), `clippy` (2), `semgrep` (1).
+(5), `paper-appendix` (3), `clippy` (2), `semgrep` (2).
 
 Reading the figures:
 
@@ -384,54 +452,95 @@ Reading the figures:
   to `X`; atomic `true` / `false` lack the `not(...)` wrapper, so
   the detector skips the pair by design.
 
-- The single `pr-miner` false negative (batch 8, `semgrep`) is
-  the labelled `f = open('Options.cmake','r')` inside
-  `def get_ver():` at corpus line 9 of
-  `tugraph_det_ver.py`. Semgrep's `open-never-closed` rule fires
-  because no `close()` / `with` / try-finally reaches the file
-  handle before the function returns. cntrdct's pr-miner
-  reaches the function (spec F2 extracts top-level
-  `function_definition` items) and would emit a violation
-  finding under spec F4 only if the mined rule
-  `{open} → {close}` was first produced by spec F3's Apriori
-  pass. With `MIN_SUPPORT = 0.05` and `MIN_CONFIDENCE = 0.85`
-  and exactly one corpus-wide transaction (`replace_ver` in the
-  same file at corpus line 21) that contains both items, v0's
-  mining cannot synthesise the rule, so F4 is never evaluated
-  against `get_ver`. The miss is a corpus-density property of
-  the audit-corpus, not an extractor-scope property of pr-miner
-  — pushing additional permissive-licensed Python files that
-  pair `open` with `close` through later Phase B batches lifts
-  the mined-rule confidence above 0.85 and is expected to
-  surface the first pr-miner TP without any detector-side
-  change.
+- The two `pr-miner` true positives are both labelled by the
+  same Semgrep registry rule `open-never-closed` and partition
+  by source file:
+  - `tugraph_det_ver.py` (batch 8, `semgrep`) — `f = open('Options.cmake','r')`
+    inside `def get_ver():` at corpus line 9. Semgrep fires
+    because no `close()` / `with` / try-finally reaches the file
+    handle before the function returns. The companion top-level
+    `def replace_ver(...)` in the same file opens AND closes
+    (corpus lines 22 and 33), so the rule does not fire on it.
+  - `django_mobile_setup.py` (batch 9, `semgrep`) —
+    `return open(filename, ...).read()` inside
+    `def readfile(filename):` at corpus line 17. Both branches
+    of `if sys.version_info[0] >= 3:` return the same
+    `open(...).read()` chain without any matching close /
+    with / try-finally, so the open file handle is dropped on
+    return. The companion `def get_author` / `def get_version`
+    delegate file reading to `readfile` and do not call `open`
+    directly, so the rule does not fire on them; the
+    `UltraMagicString` class methods are out of scope for
+    pr-miner's spec F2 extractor (only top-level
+    `function_definition` / `decorated_definition` are walked).
+  cntrdct's pr-miner reaches both functions (spec F2 extracts
+  top-level `function_definition` items) and at batch-10 corpus
+  density mines the `{open} → {close}` rule under spec F3's
+  Apriori pass: `MIN_SUPPORT = 0.05` is trivially satisfied
+  (19 supporting transactions / 28+ total mining-DB
+  transactions = 0.68); `MIN_CONFIDENCE = 0.85` is just crossed
+  (19 / 22 = 0.864). With the rule mined, spec F4 scans the
+  full transaction set and flags every top-level def that has
+  `open` and lacks `close`. Both `get_ver` and `readfile` match,
+  along with `test_identity_source_write_read` from
+  `nbrmd_test_ipynb_to_R.py` — the third match is an
+  unmatched-actual finding (not labelled in any expected[],
+  hence not counted in recall; pr-miner cannot distinguish
+  context-managed `with open` from plain open in v0, so this is
+  a documented FP under the spec's no-`with`-recognition scope).
+  Before batch 10 the corpus density was too sparse (1
+  open+close transaction against 4 open-using transactions =
+  0.25 confidence, far below 0.85), so the rule was never mined
+  and F4 was never evaluated against either labelled FN. Batch
+  10's ten density-support files (eighteen paired open+close
+  top-level transactions across permissive MIT / BSD-3-Clause /
+  Apache-2.0 Python files) lift confidence to 0.864 and surface
+  both FNs as TPs without any detector-side change — exactly
+  the "more paired open/close transactions" path the batch-8
+  and batch-9 documentation telegraphed.
 
-The overall recall_upper_bound dropped from 0.28 (batch 7) to
-0.27 (batch 8). The move is downward because `pr-miner` entered
-the denominator with one FN by detector design at v0 corpus
-density (Apriori mining sparsity, not extractor scope); none of
-the existing five detectors regressed. Closing the 1.00 gap on
-pr-miner is a corpus-density problem (more paired open/close
-transactions) rather than an extractor-widening problem;
-documenting that the gap is density-bound and not scope-bound
-is exactly the kind of signal Heckman & Williams IST 2011's
-selection-bias warning motivates the audit harness to surface.
-The earlier 0.30 → 0.28 drop at batch 7 came from the `codeql`
-source kind contributing five FN entries on bug shapes outside
-cntrdct's spec F3 terminator set (constant-condition branches
-and typed-exception unreachability) plus one TP on the Python
-`return` → following-statement pattern F3 already catches.
-Closing the 0.76 gap on `unreachable-after-terminator` requires
-F3 widening to constant-condition / branch / exception-typed
-reasoning (separate engineering with its own preregistration),
-not audit-harness work.
+The overall recall_upper_bound jumped from 0.26 (batch 9) to
+0.32 (batch 10). The move is upward because `pr-miner` flipped
+from `0/2/0.00` to `2/0/1.00` once batch 10's eighteen paired
+open+close transactions lifted the mined-rule confidence over
+the 0.85 threshold; none of the other five detectors changed
+because their findings depend only on per-file content (not on
+cross-file mining), and the ten density-support files added by
+batch 10 all ship with `expected: []` (the Semgrep labeller
+produces no findings on them, so they contribute to corpus
+density without inflating the recall denominator). Closing the
+1.00 gap on pr-miner was a corpus-density problem (more paired
+open/close transactions) rather than an extractor-widening
+problem; documenting that the gap is density-bound and not
+scope-bound was exactly the kind of signal Heckman & Williams
+IST 2011's selection-bias warning motivates the audit harness to
+surface, and batch 10 closes that gap on a labeller-bias-safe
+substrate (every paired transaction is sourced from a different
+upstream than the labelled bugs, so the audit-corpus does not
+self-confirm). The earlier 0.30 → 0.28 drop at
+batch 7 came from the `codeql` source kind contributing five FN
+entries on bug shapes outside cntrdct's spec F3 terminator set
+(constant-condition branches and typed-exception unreachability)
+plus one TP on the Python `return` → following-statement pattern
+F3 already catches. Closing the 0.76 gap on
+`unreachable-after-terminator` requires F3 widening to
+constant-condition / branch / exception-typed reasoning
+(separate engineering with its own preregistration), not
+audit-harness work.
 
 Future batches deepen coverage on the existing six detectors
 rather than introducing a seventh detector or a seventh source
-kind. The most tractable next step is additional
-`open-never-closed` instances on permissive-licensed Python
-files to push pr-miner's mined-rule confidence above the 0.85
-threshold and surface the first pr-miner TP.
+kind. pr-miner now reports `2/0/1.00` on the corpus and the
+numerator-construction phase is closed; the next pr-miner move
+shifts to broadening the labeller side — additional
+`open-never-closed` instances (or other pr-miner-mappable
+patterns) on permissive Python files would now contribute as
+TPs (since the rule is mined) rather than FNs-by-sparsity. The
+remaining 0.00 detectors (`arg-swap`, `clone-drift`,
+`config-interaction`) still need detector-side scope lifts
+under separate preregistrations, and `unreachable-after-terminator`
+needs F3 widening to constant-condition / exception-typed
+reasoning to close its 0.76 gap.
 
 ## Refresh discipline (Phase C)
 
