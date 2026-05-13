@@ -299,3 +299,46 @@
 {"file":"files/ars0n_fire_scanner.py","expected":[],"source":"https://github.com/R-s0n/ars0n-framework/blob/a68b5120e0cbb8098d2fd68d2b660cd0257d79dc/toolkit/toolkit/fire-scanner.py","license":"MIT","sha256":"9d2fefeda830b2e031ce0794caebc9f709ce32f65c061ed28e22df2cfeeabfdf"}
 {"file":"files/django_secure_conf.py","expected":[],"source":"https://github.com/carljm/django-secure/blob/cfad71fec00d28fdb2256930df4ce861a94a6056/doc/conf.py","license":"BSD-3-Clause","sha256":"e7cce2e1eb7b34032f323cf90f5bd6e4a4fdc6cf1327c0dc2ff6faaf98eb9ea0"}
 {"file":"files/apache_ranger_tagsync_setup.py","expected":[],"source":"https://github.com/apache/ranger/blob/a61d9c08e36c753078c3b00aea790b117d6a20d0/tagsync/scripts/setup.py","license":"Apache-2.0","sha256":"0774661a05c4d1700d2ffb10847343a9e79ece6405d4fd5e9a4abe9d5652b2b1"}
+//
+// Phase B batch 11 (2026-05-13): two additional expected entries on the
+// existing `comment-code` detector via a second permissive-licensed source —
+// rusticata/tls-parser@6554155918278531370e7d0addbd5d759e3a4cc9 src/tls_handshake.rs
+// (MIT OR Apache-2.0). Both `pub fn parse_tls_handshake_next_protocol(...)`
+// (upstream line 850 / corpus line 10) and `pub fn parse_tls_handshake_msg_next_protocol(...)`
+// (upstream line 865 / corpus line 25) carry a `///` doc block whose last line
+// reads `Deprecated in favour of ALPN.` but neither carries the `#[deprecated]`
+// runtime attribute — the same Tan SOSP 2007 §3.2 Pattern C ("bad comment")
+// bug shape the batch-3 `sidan-lab/whisky-archive` con_str* family flags.
+// Mapping against cntrdct's comment-code detector: spec F5 trigger (doc
+// contains `deprecated` substring after lowercasing) fires on both functions
+// because the doc-walk in `collect_preceding_doc` reaches every `///`-
+// prefixed line back to the first non-`///` ancestor (the file-level `//`
+// header breaks the walk cleanly because `//` does not start with `///`),
+// and `preceding_siblings_have_deprecated` finds no `#[deprecated]`
+// attribute between the doc block and the `function_item`. Both entries are
+// TP. The batch's value-add is dual: (a) `comment-code` source-of-evidence
+// diversifies from a single upstream (`sidan-lab/whisky-archive`, 4/4 in
+// batch 3) to two upstreams (whisky-archive 4 + tls-parser 2), so a regression
+// triggered by a whisky-archive-specific quirk would no longer go undetected;
+// (b) the source-kind footprint stays at the existing six external kinds
+// (this batch contributes under `github-commit`, already populated by
+// batches 1 / 3 / 4), so no new kind is invented and the source-list
+// registry under README "Source list" remains unchanged. Selection
+// rationale: rusticata/tls-parser is a long-lived TLS-parser crate
+// (`6554155918278531370e7d0addbd5d759e3a4cc9` is master tip 2025-08-13)
+// whose deprecation prose dates to the v0 NextProtocolNegotiation /
+// ALPN transition and has remained without `#[deprecated]` across many
+// releases — a stable upstream commit and a stable bug shape, the same
+// stability profile the batch-3 whisky-archive entries have. Updated
+// audit numbers: `comment-code` tp=6 / fn=0 / 1.00 (up from 4/0/1.00,
+// source_breakdown github-commit 6/6); the other five detectors unchanged;
+// overall recall_upper_bound moves from 0.32 (10/31) to 0.36 (12/33). The
+// move is upward because two new TP entries land cleanly within the
+// existing 1.00 detector; the audit's denominator widens by 2 expected
+// entries (from 31 to 33), so the percentage figure reflects the new
+// labelled sample size rather than detector improvement. No detector-side
+// change, no pr-miner mining-DB perturbation (the file is Rust; pr-miner's
+// Python `{open} -> {close}` mining stays at batch-10's 19/22 ≈ 0.864
+// confidence), and the two existing pr-miner TPs (`get_ver`, `readfile`)
+// remain TPs.
+{"file":"files/rusticata_tls_handshake_next_protocol.rs","expected":[{"detector_id":"comment-code","line":10,"external_source":{"kind":"github-commit","ref":"rusticata/tls-parser@65541559 src/tls_handshake.rs:850 (parse_tls_handshake_next_protocol: deprecated prose, no #[deprecated] attribute)","url":"https://github.com/rusticata/tls-parser/blob/6554155918278531370e7d0addbd5d759e3a4cc9/src/tls_handshake.rs#L850"}},{"detector_id":"comment-code","line":25,"external_source":{"kind":"github-commit","ref":"rusticata/tls-parser@65541559 src/tls_handshake.rs:865 (parse_tls_handshake_msg_next_protocol: deprecated prose, no #[deprecated] attribute)","url":"https://github.com/rusticata/tls-parser/blob/6554155918278531370e7d0addbd5d759e3a4cc9/src/tls_handshake.rs#L865"}}],"source":"https://github.com/rusticata/tls-parser/blob/6554155918278531370e7d0addbd5d759e3a4cc9/src/tls_handshake.rs","license":"MIT OR Apache-2.0","sha256":"2b1537692a8e2425c4fe96ce4c4b72aa4e461bcdbe72a731748216e9baac090f"}

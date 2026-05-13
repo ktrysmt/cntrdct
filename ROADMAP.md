@@ -1,6 +1,37 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-13 (Q-14 recall-audit Phase B batch 10
+Last updated: 2026-05-13 (Q-14 recall-audit Phase B batch 11
+landed on top of batch 10, adding two `comment-code` TPs from
+a second permissive-licensed Rust upstream
+rusticata/tls-parser@6554155918278531370e7d0addbd5d759e3a4cc9
+`src/tls_handshake.rs` (MIT OR Apache-2.0). Both
+`pub fn parse_tls_handshake_next_protocol(...)` (upstream line
+850 / corpus line 10) and
+`pub fn parse_tls_handshake_msg_next_protocol(...)` (upstream
+line 865 / corpus line 25) carry a `///` doc block ending in
+`Deprecated in favour of ALPN.` without a matching
+`#[deprecated]` runtime attribute — the textbook Tan SOSP 2007
+§3.2 Pattern C ("bad comment") bug shape the batch-3
+`sidan-lab/whisky-archive` con_str* family flags. The
+diversification matters: before batch 11 all four
+`comment-code` TPs came from a single upstream
+(`sidan-lab/whisky-archive`, batch 3), so a regression
+triggered by a whisky-archive-specific quirk (Plutus-data
+formatting, JSON serialisation idioms, the `con_str` ↔
+`constr` naming pair) would have gone undetected; with batch
+11 the detector's audit evidence spans two upstreams on
+unrelated domains (Cardano Plutus-data helpers and a TLS
+parser). The source-kind footprint stays at six
+(`github-commit` absorbs the new entries; no new kind invented).
+Updated corpus 28 files / 33 expected entries / overall
+recall_upper_bound 0.36 (12 TP / 21 FN, up from 0.32 at
+batch 10); `comment-code` moves to tp=6 / fn=0 / 1.00 (was
+4/0/1.00, source_breakdown github-commit 6/6); the other five
+detectors are unchanged. Batch 11 preserves the pr-miner
+mining margin because the new file is Rust — Python `{open} →
+{close}` mining-DB confidence stays at batch-10's 19/22 ≈
+0.864 ≥ 0.85, and both pr-miner TPs (`get_ver`, `readfile`)
+remain TPs. Earlier 2026-05-13: Q-14 recall-audit Phase B batch 10
 landed on top of batch 9, surfacing the first pr-miner true
 positives by adding ten density-support files containing
 eighteen paired open+close top-level Python transactions. The
@@ -1149,12 +1180,21 @@ Q-14. Recall-audit harness
   the F3 mining gate and both batch-8/9 FN entries flip to TPs
   without any detector-side change. pr-miner moves from
   0/2/0.00 to 2/0/1.00; overall recall_upper_bound jumps from
-  0.26 to 0.32. All six cntrdct detectors and six external
-  source kinds are live in the corpus; pr-miner's numerator-
-  construction phase is closed and the next moves shift to
-  detector-side scope lifts on the remaining 0.00 detectors
-  (arg-swap, clone-drift, config-interaction) and F3 widening
-  on unreachable-after-terminator.
+  0.26 to 0.32. Phase B batch 11 landed 2026-05-13 on top of
+  batch 10, adding two `comment-code` TPs from a second
+  permissive-licensed Rust upstream (rusticata/tls-parser
+  `src/tls_handshake.rs`, MIT OR Apache-2.0) carrying the same
+  Tan SOSP 2007 §3.2 Pattern C bug shape (`/// Deprecated`
+  prose without `#[deprecated]` attribute) the batch-3
+  `sidan-lab/whisky-archive` con_str* family flags;
+  `comment-code` moves to 6/0/1.00 and overall
+  recall_upper_bound to 0.36 (12 TP / 21 FN / 33 expected).
+  All six cntrdct detectors and six external source kinds are
+  live in the corpus; pr-miner's numerator-construction phase
+  is closed and the next moves shift to detector-side scope
+  lifts on the remaining 0.00 detectors (arg-swap, clone-drift,
+  config-interaction) and F3 widening on unreachable-after-
+  terminator.
 
   Per-batch history below for the record; Phase B batch 2
   (deepening `unreachable-after-terminator` measurement) landed
@@ -1644,17 +1684,90 @@ Q-14. Recall-audit harness
     verbatim copies (5 files) carry the upstream file's
     SHA-256; minimal extracts (5 files) carry the SHA-256 of
     the audit-corpus file as committed.
+  - Eleventh batch (done 2026-05-13): two expected entries
+    deepening the `comment-code` detector with a second
+    permissive-licensed Rust upstream — rusticata/tls-parser
+    at commit `6554155918278531370e7d0addbd5d759e3a4cc9`
+    `src/tls_handshake.rs` (MIT OR Apache-2.0). Both
+    `pub fn parse_tls_handshake_next_protocol(...)` at
+    upstream line 850 (corpus line 10) and
+    `pub fn parse_tls_handshake_msg_next_protocol(...)` at
+    upstream line 865 (corpus line 25) carry a `///` doc
+    block ending in `Deprecated in favour of ALPN.` but
+    neither carries the `#[deprecated]` runtime attribute the
+    Rust deprecation lints honour — the same Tan SOSP 2007
+    §3.2 Pattern C ("bad comment") bug shape the batch-3
+    `sidan-lab/whisky-archive` con_str* family flags.
+    Mapping against cntrdct's comment-code detector: spec F5
+    trigger (rendered doc string contains `deprecated`
+    substring after lowercasing) fires on both functions
+    because `collect_preceding_doc` walks every `///`-
+    prefixed line back to the first non-`///` ancestor (the
+    file-level `// Source: ...` header breaks the walk
+    cleanly because `//` does not start with `///`), and
+    `preceding_siblings_have_deprecated` finds no
+    `#[deprecated]` attribute between the doc block and the
+    `function_item`. Both entries are TP. The batch's value-
+    add is dual: (a) `comment-code` source-of-evidence
+    diversifies from a single upstream (`sidan-lab/whisky-
+    archive`, 4/4 in batch 3) to two upstreams on unrelated
+    domains (whisky-archive Plutus-data helpers 4 + tls-
+    parser TLS-handshake parsers 2), so a regression
+    triggered by a whisky-archive-specific quirk would
+    surface in the audit rather than going undetected;
+    (b) the source-kind footprint stays at the existing six
+    external kinds (this batch contributes under
+    `github-commit`, already populated by batches 1 / 3 / 4),
+    so no new kind is invented and the source-list registry
+    under README "Source list" remains unchanged. Selection
+    rationale: rusticata/tls-parser is a long-lived TLS-
+    parser crate whose deprecation prose dates to the v0
+    NextProtocolNegotiation / ALPN transition and has
+    remained without `#[deprecated]` across many releases —
+    a stable upstream commit and a stable bug shape, the
+    same stability profile the batch-3 whisky-archive
+    entries have. Updated audit numbers: `comment-code`
+    tp=6 / fn=0 / 1.00 (up from 4/0/1.00, source_breakdown
+    `github-commit` 6/6); `arg-swap`, `clone-drift`,
+    `config-interaction`, `pr-miner`,
+    `unreachable-after-terminator` unchanged; overall
+    recall_upper_bound 0.36 (12 TP / 21 FN / 33 expected, up
+    from 0.32 at batch 10). Corpus size 28 files (18
+    labelled + 10 density-support). Upward for the right
+    reason: a new TP class entered the corpus on an
+    independent upstream, broadening the detector's audit
+    evidence base without retreating any existing detector.
+    Batch 11 also preserves the pr-miner mining margin
+    because the new file is Rust — Python `{open} →
+    {close}` mining-DB confidence stays at batch-10's
+    19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs (`get_ver`,
+    `readfile`) remain TPs (a labelled `open-never-closed`
+    instance on a NEW Python file would have lowered the
+    ratio because each open-only addition to the mining DB
+    requires ≥ 4 paired density-support transactions to
+    maintain the margin; staying on the Rust side bypasses
+    the constraint entirely). SHA-256 is of the audit-
+    corpus file as committed (minimal extract, per
+    `benchmarks/audit-corpus/README.md` `Per-detector seed
+    targets` item 4).
   - Subsequent batches deepen coverage on the remaining 0.00
     detectors via either more labelled findings on the existing
     source kinds (now that pr-miner mines the
     `{open} → {close}` rule, future `open-never-closed`
-    instances contribute as TPs rather than FN-by-sparsity), or
+    instances contribute as TPs rather than FN-by-sparsity
+    provided each is accompanied by ≥ 4 paired density-
+    support transactions to preserve the mining margin), or
     detector-side scope lifts under separate preregistrations:
     `unreachable-after-terminator` widening once F3 lifts to
     constant-condition / exception-typed reasoning; arg-swap /
     clone-drift / config-interaction TPs once the detectors'
     v0 scope is lifted by separate engineering with its own
-    preregistration.
+    preregistration. `comment-code` is now at 1.00 on two
+    upstreams, so further batches on this detector would
+    either add a third upstream (further reducing single-
+    source dominance) or shift to Pattern A / Pattern B
+    coverage which v0 already detects but the audit corpus
+    has not yet exercised.
 - Phase C — release-tag refresh discipline (done 2026-05-12):
   `benchmarks/audit-corpus/README.md` carries a new "Refresh
   discipline (Phase C)" section enumerating the on-tag procedure
@@ -1896,11 +2009,25 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     `readfile` flip from FN to TP without any detector-side
     change — pr-miner moves from 0/2/0.00 to 2/0/1.00 and
     overall recall_upper_bound jumps from 0.26 to 0.32) landed
-    2026-05-13. With all six detectors and six external source
-    kinds now live in the corpus and pr-miner's numerator-
-    construction phase closed, further Phase B batches deepen
-    existing coverage rather than introduce a new detector or
-    kind
+    2026-05-13; Phase B batch 11 (two `comment-code` TPs from
+    a second permissive-licensed Rust upstream rusticata/tls-
+    parser@65541559 `src/tls_handshake.rs` MIT OR Apache-2.0;
+    both `pub fn parse_tls_handshake_next_protocol` and
+    `pub fn parse_tls_handshake_msg_next_protocol` carry a
+    `///` doc block ending in `Deprecated in favour of ALPN.`
+    without `#[deprecated]` — the same Tan SOSP 2007 §3.2
+    Pattern C bug shape the batch-3 `sidan-lab/whisky-archive`
+    con_str* family flags. Diversifies `comment-code`'s audit
+    evidence from a single upstream to two upstreams on
+    unrelated domains; `comment-code` moves to 6/0/1.00 and
+    overall recall_upper_bound to 0.36 (12 TP / 21 FN / 33
+    expected). pr-miner mining margin preserved because the
+    new file is Rust — Python `{open} → {close}` confidence
+    stays at 19/22 ≈ 0.864) landed 2026-05-13. With all six
+    detectors and six external source kinds now live in the
+    corpus and pr-miner's numerator-construction phase closed,
+    further Phase B batches deepen existing coverage rather
+    than introduce a new detector or kind
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 
