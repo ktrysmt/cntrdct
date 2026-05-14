@@ -5,26 +5,29 @@ Q-14 deliverable from `ROADMAP.md`. Houses the corpus
 per-detector recall upper bounds. Spec:
 [`docs/spec/recall-audit-v0.md`](../../docs/spec/recall-audit-v0.md).
 
-Status: Phase B batch 12 (2026-05-13). Thirty-four expected
+Status: Phase B batch 13 (2026-05-14). Thirty-five expected
 entries across six detectors and six external source kinds
 (`rustc-lint-testset`, `github-commit`, `paper-appendix`,
-`clippy`, `codeql`, `semgrep`). Batch 12 adds one
-`comment-code` TP from a third permissive-licensed Rust
-upstream (glium/glium `src/draw_parameters/mod.rs`,
-Apache-2.0) carrying the same Tan SOSP 2007 §3.2 Pattern C
-("bad comment") bug shape the batch-3 `sidan-lab/whisky-archive`
-con_str* family and batch-11 `rusticata/tls-parser`
-`parse_tls_handshake_*next_protocol` family flag — `///`
-doc block `DEPRECATED. Checks parameters and returns an error
-if something is wrong.` on a top-level `pub fn` without the
-`#[deprecated]` runtime attribute. After batch 12 the detector's
-audit evidence spans three upstreams on unrelated domains
-(whisky-archive Cardano Plutus-data helpers 4 + tls-parser TLS
-NextProtocol parsers 2 + glium OpenGL draw-parameter check 1),
-further reducing the regression-detection risk of single-source
-dominance the batch-11 second upstream already broke. The
-source-kind footprint stays at six (`github-commit` absorbs the
-new entry; no new kind invented). Batch 11 (the immediately
+`clippy`, `codeql`, `semgrep`). Batch 13 adds one
+`comment-code` TP from a fourth permissive-licensed Rust
+upstream (rust-lang/pkg-config-rs `src/lib.rs`,
+MIT OR Apache-2.0) carrying the same Tan SOSP 2007 §3.2
+Pattern C ("bad comment") bug shape the batch-3
+`sidan-lab/whisky-archive` con_str* family, batch-11
+`rusticata/tls-parser` `parse_tls_handshake_*next_protocol`
+family, and batch-12 `glium/glium` `validate` flag — `///`
+doc block `Deprecated in favor of the probe_library function`
+on a top-level `pub fn` carrying only `#[doc(hidden)]` (not
+`#[deprecated]`), so downstream consumers receive no compiler
+warning. After batch 13 the detector's audit evidence spans
+four upstreams on unrelated domains (whisky-archive Cardano
+Plutus-data helpers 4 + tls-parser TLS NextProtocol parsers 2
++ glium OpenGL draw-parameter check 1 + pkg-config-rs
+build-tool / system-package bindings 1), further reducing the
+regression-detection risk of single-source dominance the
+batch-11 / 12 second / third upstreams already broke. The
+source-kind footprint stays at six (`github-commit` absorbs
+the new entry; no new kind invented). Batch 11 (the immediately
 preceding batch 2026-05-13) added two `comment-code` TPs from
 the second permissive-licensed Rust upstream
 (rusticata/tls-parser `src/tls_handshake.rs`, MIT OR Apache-2.0):
@@ -178,7 +181,7 @@ selection-bias issue this corpus is built to counter.
 ```
 audit-corpus/
 ├── README.md                       (this file)
-├── manifest.jsonl                  (Phase B batches 1-11)
+├── manifest.jsonl                  (Phase B batches 1-13)
 └── files/
     ├── rustc_ui_unreachable_code_ret.rs               (batch 1)
     ├── rustc_ui_expr_block.rs                         (batch 1)
@@ -207,7 +210,9 @@ audit-corpus/
     ├── telluric_fitter_setup.py                       (batch 10, density)
     ├── ars0n_fire_scanner.py                          (batch 10, density)
     ├── apache_ranger_tagsync_setup.py                 (batch 10, density)
-    └── rusticata_tls_handshake_next_protocol.rs       (batch 11)
+    ├── rusticata_tls_handshake_next_protocol.rs      (batch 11)
+    ├── glium_draw_parameters_validate.rs              (batch 12)
+    └── pkg_config_rs_find_library.rs                  (batch 13)
 ```
 
 `manifest.jsonl` follows the schema in
@@ -312,48 +317,66 @@ JSON shape (selected fields):
 {
   "per_detector": {
     "comment-code": {
-      "tp": 7,
+      "tp": 8,
       "fn": 0,
       "recall_upper_bound": 1.0,
-      "source_breakdown": { "github-commit": { "tp": 7, "fn": 0 } }
+      "source_breakdown": { "github-commit": { "tp": 8, "fn": 0 } }
     }
   },
-  "overall": { "tp": 13, "fn": 21, "recall_upper_bound": 0.382, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 29,
-  "expected_total": 34,
-  "sources": { "clippy": 2, "codeql": 6, "github-commit": 8, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
+  "overall": { "tp": 14, "fn": 21, "recall_upper_bound": 0.4, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 30,
+  "expected_total": 35,
+  "sources": { "clippy": 2, "codeql": 6, "github-commit": 9, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-13 against the master tip on top of batch 12.
+Refreshed 2026-05-14 against the master tip on top of batch 13.
 The next release tag will re-run this against the to-be-tagged
-binary per the Q-14 Phase C discipline; batches 10, 11, and 12
-land mid-cycle, so the figures here are the pre-tag snapshot.
-Batch 12 adds one `comment-code` TP from a third permissive-
-licensed Rust upstream — glium/glium@8d6fd34d9171172928771657fc5c9103107ff978
-`src/draw_parameters/mod.rs` (Apache-2.0).
+binary per the Q-14 Phase C discipline; batches 10, 11, 12, and
+13 land mid-cycle, so the figures here are the pre-tag snapshot.
+Batch 13 adds one `comment-code` TP from a fourth permissive-
+licensed Rust upstream — rust-lang/pkg-config-rs@f36d32a09824a6b2c18475c8a4b7df1cb2c50c95
+`src/lib.rs` (MIT OR Apache-2.0).
+`pub fn find_library(name: &str) -> Result<Library, String>` at
+upstream line 453 (corpus line 7) carries a single-line `///`
+doc block reading `Deprecated in favor of the probe_library
+function` and a `#[doc(hidden)]` attribute, but does not carry
+the `#[deprecated]` runtime attribute the Rust deprecation
+lints honour — the same Tan SOSP 2007 §3.2 Pattern C
+("bad comment") bug shape the batch-3
+`sidan-lab/whisky-archive` con_str* family, batch-11
+`rusticata/tls-parser`
+`parse_tls_handshake_*next_protocol` family, and batch-12
+`glium/glium` `validate` flag. The `#[doc(hidden)]` attribute
+is the wrinkle in this batch: cntrdct's Pattern C
+`preceding_siblings_have_deprecated` walker checks the first
+identifier inside each `#[...]` attribute_item against the
+literal string `deprecated`, so `#[doc(hidden)]` (first
+identifier `doc`) does NOT suppress the trigger — Pattern C
+correctly distinguishes the visibility-hiding `#[doc(hidden)]`
+from the runtime-lint-enforcing `#[deprecated]` (the actual
+fix the maintainers would need to apply for downstream
+consumers to receive a compiler warning). After batch 13 the
+detector's audit evidence spans four upstreams on four
+unrelated domains (Cardano Plutus-data helpers 4 + TLS parser
+2 + OpenGL bindings 1 + build-tool / system-package bindings
+1), so the single-upstream regression-detection risk that the
+batch-11 / 12 second / third upstreams already broke is
+reduced further by adding a fourth independent witness — a
+regression triggered by an upstream-specific quirk on any one
+of them still surfaces in the audit via the other three. The
+source-kind footprint stays at six (`github-commit` absorbs
+the new entry; batch 13 does not introduce a new kind). Batch
+12 (2026-05-13) added one `comment-code` TP from
+glium/glium@8d6fd34d9171172928771657fc5c9103107ff978
+`src/draw_parameters/mod.rs` (Apache-2.0):
 `pub fn validate(...)` at upstream line 531 (corpus line 6)
 carries a single-line `///` doc block reading `DEPRECATED.
 Checks parameters and returns an error if something is wrong.`
-but does not carry the `#[deprecated]` runtime attribute the
-Rust deprecation lints honour — the same Tan SOSP 2007 §3.2
-Pattern C ("bad comment") bug shape the batch-3
-`sidan-lab/whisky-archive` con_str* family and batch-11
-`rusticata/tls-parser` `parse_tls_handshake_*next_protocol`
-family flag. After batch 12 the detector's audit evidence
-spans three upstreams on three unrelated domains (Cardano
-Plutus-data helpers 4 + TLS parser 2 + OpenGL bindings 1), so
-the single-upstream regression-detection risk that the
-batch-11 second upstream already broke is reduced further by
-adding a third independent witness — a regression triggered by
-an upstream-specific quirk on any one of them still surfaces
-in the audit via the other two. The source-kind footprint
-stays at six (`github-commit` absorbs the new entry; batch 12
-does not introduce a new kind). Batch 11 (the immediately
-preceding batch 2026-05-13) added two `comment-code` TPs from
-the second permissive-licensed Rust upstream
+without a matching `#[deprecated]` runtime attribute. Batch 11
+(2026-05-13) added two `comment-code` TPs from
 rusticata/tls-parser@6554155918278531370e7d0addbd5d759e3a4cc9
 `src/tls_handshake.rs` (MIT OR Apache-2.0): both
 `pub fn parse_tls_handshake_next_protocol(...)` (upstream line
@@ -382,59 +405,73 @@ flip from FN to TP — without any detector-side change. Overall
 batch 10 (driven entirely by `pr-miner` flipping from
 `0/2/0.00` to `2/0/1.00`), to 0.36 at batch 11 (driven by
 `comment-code` adding two TPs on a new upstream without
-retreating the existing detectors), and now to 0.38 at batch
-12 (driven by `comment-code` adding one more TP on a third
-upstream). Batch 12's pr-miner mining margin is preserved
-because the new file is Rust — Python `{open} → {close}`
-confidence stays at 19/22 ≈ 0.864 ≥ 0.85, and both pr-miner
-TPs (`get_ver`, `readfile`) remain TPs.
+retreating the existing detectors), to 0.38 at batch 12
+(driven by `comment-code` adding one more TP on a third
+upstream), and now to 0.40 at batch 13 (driven by
+`comment-code` adding one more TP on a fourth upstream).
+Batch 13's pr-miner mining margin is preserved because the
+new file is Rust — Python `{open} → {close}` confidence
+stays at 19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs
+(`get_ver`, `readfile`) remain TPs.
 
 | detector                       | tp | fn | recall upper bound | dominant source                          |
 | ------------------------------ | --:| --:| ------------------:| ---------------------------------------- |
 | `arg-swap`                     |  0 |  4 |               0.00 | `paper-appendix` (3/4 entries)           |
 | `clone-drift`                  |  0 |  2 |               0.00 | `clippy` (2/2 entries)                   |
-| `comment-code`                 |  7 |  0 |               1.00 | `github-commit` (7/7 entries)            |
+| `comment-code`                 |  8 |  0 |               1.00 | `github-commit` (8/8 entries)            |
 | `config-interaction`           |  0 |  2 |               0.00 | `rustc-lint-testset` (2/2)               |
 | `pr-miner`                     |  2 |  0 |               1.00 | `semgrep` (2/2 entries)                  |
 | `unreachable-after-terminator` |  4 | 13 |               0.24 | `rustc-lint-testset` (11/17 entries)     |
-| **overall**                    | 13 | 21 |               0.38 |                                          |
+| **overall**                    | 14 | 21 |               0.40 |                                          |
 
-Corpus size: 29 files (10 of which are batch-10 density-support
+Corpus size: 30 files (10 of which are batch-10 density-support
 files with `expected: []` — they do not enter the recall
-denominator). Expected entries: 34. Source mix:
-`rustc-lint-testset` (13 entries), `github-commit` (8), `codeql`
+denominator). Expected entries: 35. Source mix:
+`rustc-lint-testset` (13 entries), `github-commit` (9), `codeql`
 (6), `paper-appendix` (3), `clippy` (2), `semgrep` (2).
 
 Reading the figures:
 
-- The seven `comment-code` true positives split across three
+- The eight `comment-code` true positives split across four
   permissive-licensed upstreams: four from `sidan-lab/whisky-
   archive@99243766` (Cardano Plutus-data helper, batch 3), two
   from `rusticata/tls-parser@65541559` (TLS-parser crate, batch
-  11), and one from `glium/glium@8d6fd34d` (OpenGL bindings,
-  batch 12). All seven share the textbook Tan SOSP 2007 §3.2
-  Pattern C ("bad comment") shape — a `///` doc block whose
-  rendered prose contains `deprecated` (case-folded) without a
-  matching `#[deprecated]` runtime attribute on the same
-  top-level `function_item`. The whisky-archive entries are the
+  11), one from `glium/glium@8d6fd34d` (OpenGL bindings, batch
+  12), and one from `rust-lang/pkg-config-rs@f36d32a0`
+  (build-tool / system-package bindings, batch 13). All eight
+  share the textbook Tan SOSP 2007 §3.2 Pattern C ("bad
+  comment") shape — a `///` doc block whose rendered prose
+  contains `deprecated` (case-folded) without a matching
+  `#[deprecated]` runtime attribute on the same top-level
+  `function_item`. The whisky-archive entries are the
   `con_str` / `con_str0` / `con_str1` / `con_str2` family
   (constructors superseded by `constr` / `constr0` / etc.); the
   tls-parser entries are `parse_tls_handshake_next_protocol`
   and `parse_tls_handshake_msg_next_protocol` (NextProtocol
   parsers superseded by ALPN); the glium entry is `validate`
   (draw-parameter check superseded by glium's draw-time
-  validation). cntrdct's Pattern C
-  (`docs/spec/comment-code-v0.md` F5) flags exactly this
-  prose / attribute disagreement, and the recall_upper_bound
-  of 1.00 reflects that a Pattern C bug-class within cntrdct's
-  detection scope (top-level `fn` items) is captured cleanly
-  when the upstream surface matches the spec assumptions. The
-  three-upstream coverage on three unrelated domains (Cardano
-  Plutus-data helpers, TLS parser, OpenGL bindings) reduces
-  the single-upstream regression-detection risk that batch 11's
-  second upstream already broke — a regression triggered by an
-  upstream-specific quirk on any one of them still surfaces in
-  the audit via the other two.
+  validation); the pkg-config-rs entry is `find_library`
+  (string-error helper superseded by `probe_library`'s typed
+  `Error`). The pkg-config-rs entry is also the first audit
+  evidence that Pattern C's
+  `preceding_siblings_have_deprecated` walker correctly skips
+  the orthogonal `#[doc(hidden)]` attribute_item (first
+  identifier `doc`) and continues looking for `#[deprecated]`
+  — the two attributes serve different purposes (visibility
+  hiding vs. runtime lint enforcement), and Pattern C
+  distinguishes them by literal identifier match. cntrdct's
+  Pattern C (`docs/spec/comment-code-v0.md` F5) flags exactly
+  this prose / attribute disagreement, and the
+  recall_upper_bound of 1.00 reflects that a Pattern C
+  bug-class within cntrdct's detection scope (top-level `fn`
+  items) is captured cleanly when the upstream surface matches
+  the spec assumptions. The four-upstream coverage on four
+  unrelated domains (Cardano Plutus-data helpers, TLS parser,
+  OpenGL bindings, build-tool / system-package bindings)
+  reduces the single-upstream regression-detection risk that
+  batch 11 / 12 second / third upstreams already broke — a
+  regression triggered by an upstream-specific quirk on any
+  one of them still surfaces in the audit via the other three.
 - The four `unreachable-after-terminator` true positives split
   by source: three come from rust-lang/rust ui-tests where the
   rustc lint and cntrdct's tree-sitter scan converge on the same
@@ -578,30 +615,35 @@ Reading the figures:
 
 The overall recall_upper_bound moved from 0.26 (batch 9) to
 0.32 (batch 10), then to 0.36 (batch 11), then to 0.38 (batch
-12). The batch-10 move was upward because `pr-miner` flipped
-from `0/2/0.00` to `2/0/1.00` once batch 10's eighteen paired
-open+close transactions lifted the mined-rule confidence over
-the 0.85 threshold; none of the other five detectors changed
-because their findings depend only on per-file content (not on
-cross-file mining), and the ten density-support files added
-by batch 10 all ship with `expected: []` (the Semgrep labeller
-produces no findings on them, so they contribute to corpus
-density without inflating the recall denominator). The
-batch-11 move was upward because `comment-code` added two TPs
-from a second permissive-licensed Rust upstream
-(rusticata/tls-parser, MIT OR Apache-2.0) covering the same
-Tan SOSP 2007 Pattern C bug shape on an unrelated domain — the
-diversification broke the single-upstream dependence the
-batch-3 `whisky-archive` entries had, so a regression triggered
-by a whisky-archive-specific quirk would no longer go
-undetected. The batch-12 move is upward for the same reason
-on a third independent upstream — `comment-code` adds one TP
-from glium/glium@8d6fd34d (Apache-2.0), an OpenGL bindings
-crate unrelated to either Cardano Plutus-data helpers or TLS
-parsing. Batch 12 also preserves the pr-miner mining margin
-because the new file is Rust (Python `{open} → {close}`
-confidence stays at batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both
-pr-miner TPs remain TPs). Closing the 1.00 gap on pr-miner
+12), and now to 0.40 (batch 13). The batch-10 move was upward
+because `pr-miner` flipped from `0/2/0.00` to `2/0/1.00` once
+batch 10's eighteen paired open+close transactions lifted the
+mined-rule confidence over the 0.85 threshold; none of the
+other five detectors changed because their findings depend
+only on per-file content (not on cross-file mining), and the
+ten density-support files added by batch 10 all ship with
+`expected: []` (the Semgrep labeller produces no findings on
+them, so they contribute to corpus density without inflating
+the recall denominator). The batch-11 move was upward because
+`comment-code` added two TPs from a second permissive-licensed
+Rust upstream (rusticata/tls-parser, MIT OR Apache-2.0)
+covering the same Tan SOSP 2007 Pattern C bug shape on an
+unrelated domain — the diversification broke the
+single-upstream dependence the batch-3 `whisky-archive`
+entries had, so a regression triggered by a
+whisky-archive-specific quirk would no longer go undetected.
+The batch-12 move was upward for the same reason on a third
+independent upstream — `comment-code` adds one TP from
+glium/glium@8d6fd34d (Apache-2.0), an OpenGL bindings crate
+unrelated to either Cardano Plutus-data helpers or TLS
+parsing. The batch-13 move is upward for the same reason on a
+fourth independent upstream — `comment-code` adds one TP from
+rust-lang/pkg-config-rs@f36d32a0 (MIT OR Apache-2.0), a
+build-tool / system-package wrapper unrelated to any of the
+prior three domains. Batch 13 also preserves the pr-miner
+mining margin because the new file is Rust (Python
+`{open} → {close}` confidence stays at batch-10's 19/22 ≈
+0.864 ≥ 0.85, and both pr-miner TPs remain TPs). Closing the 1.00 gap on pr-miner
 was a corpus-density problem (more paired open/close
 transactions) rather than an extractor-widening problem;
 documenting that the gap is density-bound and not scope-bound
@@ -639,8 +681,8 @@ maintain the margin). The remaining 0.00 detectors (`arg-swap`,
 scope lifts under separate preregistrations, and
 `unreachable-after-terminator` needs F3 widening to constant-
 condition / exception-typed reasoning to close its 0.76 gap.
-`comment-code` is now at 1.00 on three upstreams, so further
-batches on this detector would either add a fourth upstream
+`comment-code` is now at 1.00 on four upstreams, so further
+batches on this detector would either add a fifth upstream
 (diminishing-returns regression-detection insurance) or shift
 to Pattern A / Pattern B coverage which v0 already detects but
 the audit corpus has not yet exercised.

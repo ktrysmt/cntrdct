@@ -389,3 +389,73 @@
 // confidence), and the two existing pr-miner TPs (`get_ver`,
 // `readfile`) remain TPs.
 {"file":"files/glium_draw_parameters_validate.rs","expected":[{"detector_id":"comment-code","line":6,"external_source":{"kind":"github-commit","ref":"glium/glium@8d6fd34d src/draw_parameters/mod.rs:531 (validate: deprecated prose, no #[deprecated] attribute)","url":"https://github.com/glium/glium/blob/8d6fd34d9171172928771657fc5c9103107ff978/src/draw_parameters/mod.rs#L531"}}],"source":"https://github.com/glium/glium/blob/8d6fd34d9171172928771657fc5c9103107ff978/src/draw_parameters/mod.rs","license":"Apache-2.0","sha256":"b851a8e7c31da3cfe7b6f740082568d75486a72604748473927ba39b968366cf"}
+//
+// Phase B batch 13 (2026-05-14): one additional `comment-code` TP from a
+// fourth permissive-licensed Rust upstream — rust-lang/pkg-config-rs at
+// commit `f36d32a09824a6b2c18475c8a4b7df1cb2c50c95` `src/lib.rs`
+// (MIT OR Apache-2.0). `pub fn find_library(name: &str) -> Result<Library, String>`
+// at upstream line 453 (audit-corpus line 7) carries a single-line `///`
+// doc block reading `Deprecated in favor of the probe_library function`
+// and a `#[doc(hidden)]` attribute, but does not carry the
+// `#[deprecated]` runtime attribute the Rust deprecation lints honour,
+// so downstream consumers receive no compiler warning — the same Tan
+// SOSP 2007 §3.2 Pattern C ("bad comment") bug shape the batch-3
+// `sidan-lab/whisky-archive` con_str* family, batch-11
+// `rusticata/tls-parser` `parse_tls_handshake_*next_protocol` family,
+// and batch-12 `glium/glium` `validate` flag. Mapping against cntrdct's
+// comment-code detector: spec F5 trigger (rendered doc string contains
+// `deprecated` substring after `to_lowercase`) fires because the doc
+// `Deprecated in favor of the probe_library function` lowercases to a
+// string containing `deprecated`; `collect_preceding_doc` walks the
+// single `///` line back to the `}` of the previous fn (non-`///` /
+// non-attribute_item ancestor) cleanly; `preceding_siblings_have_deprecated`
+// skips the `#[doc(hidden)]` attribute_item (its first identifier is
+// `doc`, not `deprecated`) and reaches the previous fn's closing `}`
+// without finding a `#[deprecated]` attribute. The entry is TP. The
+// batch's value-add is dual: (a) `comment-code`'s source-of-evidence
+// diversifies from three upstreams (whisky-archive 4 + tls-parser 2 +
+// glium 1) to four upstreams (whisky-archive 4 + tls-parser 2 +
+// glium 1 + pkg-config-rs 1) on four unrelated domains (Cardano
+// Plutus-data helpers, TLS parser, OpenGL bindings, build-tool /
+// system-package bindings), further reducing the regression-detection
+// risk of single-source dominance the batch-11 and batch-12 second /
+// third upstreams already broke — a regression triggered by an
+// upstream-specific quirk on any one of them still surfaces in the
+// audit via the other three; (b) the source-kind footprint stays at
+// the existing six external kinds (this batch contributes under
+// `github-commit`, already populated by batches 1 / 3 / 4 / 11 / 12),
+// so no new kind is invented and the source-list registry under README
+// "Source list" remains unchanged. Selection rationale: pkg-config-rs
+// is a long-lived (2014-) build-script helper maintained under the
+// rust-lang GitHub organisation, the canonical wrapper for invoking
+// `pkg-config` from Cargo build scripts; the `pub fn find_library`
+// deprecation prose marks an API the maintainers stopped recommending
+// without removing (note that `#[doc(hidden)]` IS attached but is
+// orthogonal to the runtime deprecation lint), a stable upstream
+// commit and a stable bug shape — the same stability profile the
+// batch-3 / 11 / 12 entries have. The `#[doc(hidden)]` attribute is
+// the most interesting wrinkle in this batch: cntrdct's Pattern C
+// `preceding_siblings_have_deprecated` walker checks the first
+// identifier inside each `#[...]` attribute_item against the literal
+// string `deprecated`, so `#[doc(hidden)]` (first identifier `doc`)
+// does NOT suppress the trigger — confirming that Pattern C
+// distinguishes the visibility-hiding `#[doc(hidden)]` from the
+// runtime-lint-enforcing `#[deprecated]` (the actual fix the
+// maintainers would need to apply for downstream consumers to receive
+// a compiler warning). Updated audit numbers: `comment-code` tp=8 /
+// fn=0 / 1.00 (up from 7/0/1.00, source_breakdown `github-commit`
+// 8/8); `arg-swap`, `clone-drift`, `config-interaction`, `pr-miner`,
+// `unreachable-after-terminator` unchanged; overall recall_upper_bound
+// 0.40 (14 TP / 21 FN / 35 expected, up from 0.38 at batch 12). Corpus
+// size 30 files (20 labelled + 10 density-support). Upward for the
+// right reason: a new TP entry lands cleanly within the existing 1.00
+// detector; the audit's denominator widens by 1 expected entry (from
+// 34 to 35), so the percentage figure reflects the new labelled sample
+// size rather than detector improvement. Batch 13 also preserves the
+// pr-miner mining margin because the new file is Rust — Python
+// `{open} -> {close}` mining-DB confidence stays at batch-10's 19/22
+// ≈ 0.864 ≥ 0.85, and both pr-miner TPs (`get_ver`, `readfile`)
+// remain TPs. SHA-256 is of the audit-corpus file as committed
+// (minimal extract, per `benchmarks/audit-corpus/README.md`
+// `Per-detector seed targets` item 4).
+{"file":"files/pkg_config_rs_find_library.rs","expected":[{"detector_id":"comment-code","line":7,"external_source":{"kind":"github-commit","ref":"rust-lang/pkg-config-rs@f36d32a0 src/lib.rs:453 (find_library: deprecated prose, no #[deprecated] attribute)","url":"https://github.com/rust-lang/pkg-config-rs/blob/f36d32a09824a6b2c18475c8a4b7df1cb2c50c95/src/lib.rs#L453"}}],"source":"https://github.com/rust-lang/pkg-config-rs/blob/f36d32a09824a6b2c18475c8a4b7df1cb2c50c95/src/lib.rs","license":"MIT OR Apache-2.0","sha256":"9a415fb400cefcad78089b0bd2314b736aa41c19df4969415a1e1586a94973d0"}

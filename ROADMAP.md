@@ -1,9 +1,49 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-13 (Q-14 recall-audit Phase B batch 12
-landed on top of batch 11, adding one `comment-code` TP from
-a third permissive-licensed Rust upstream
-glium/glium@8d6fd34d9171172928771657fc5c9103107ff978
+Last updated: 2026-05-14 (Q-14 recall-audit Phase B batch 13
+landed on top of batch 12, adding one `comment-code` TP from
+a fourth permissive-licensed Rust upstream
+rust-lang/pkg-config-rs@f36d32a09824a6b2c18475c8a4b7df1cb2c50c95
+`src/lib.rs` (MIT OR Apache-2.0).
+`pub fn find_library(name: &str) -> Result<Library, String>`
+at upstream line 453 (corpus line 7) carries a single-line
+`///` doc block reading `Deprecated in favor of the
+probe_library function` and a `#[doc(hidden)]` attribute, but
+does not carry the `#[deprecated]` runtime attribute the Rust
+deprecation lints honour — the same Tan SOSP 2007 §3.2
+Pattern C ("bad comment") bug shape the batch-3
+`sidan-lab/whisky-archive` con_str* family, batch-11
+`rusticata/tls-parser`
+`parse_tls_handshake_*next_protocol` family, and batch-12
+`glium/glium` `validate` flag. The `#[doc(hidden)]` attribute
+is the wrinkle in this batch: cntrdct's Pattern C
+`preceding_siblings_have_deprecated` walker checks the first
+identifier inside each `#[...]` attribute_item against the
+literal string `deprecated`, so `#[doc(hidden)]` (first
+identifier `doc`) does NOT suppress the trigger — Pattern C
+correctly distinguishes the visibility-hiding `#[doc(hidden)]`
+from the runtime-lint-enforcing `#[deprecated]` (the actual
+fix the maintainers would need to apply for downstream
+consumers to receive a compiler warning). After batch 13 the
+detector's audit evidence spans four upstreams on four
+unrelated domains (Cardano Plutus-data helpers 4 + TLS parser
+2 + OpenGL bindings 1 + build-tool / system-package bindings
+1), further reducing the regression-detection risk of
+single-source dominance that batch 11 / 12 second / third
+upstreams already broke. The source-kind footprint stays at
+six (`github-commit` absorbs the new entry; no new kind
+invented). Updated corpus 30 files / 35 expected entries /
+overall recall_upper_bound 0.40 (14 TP / 21 FN, up from 0.38
+at batch 12); `comment-code` moves to tp=8 / fn=0 / 1.00 (was
+7/0/1.00, source_breakdown github-commit 8/8); the other five
+detectors are unchanged. Batch 13 preserves the pr-miner
+mining margin because the new file is Rust — Python
+`{open} → {close}` mining-DB confidence stays at batch-10's
+19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs (`get_ver`,
+`readfile`) remain TPs. Earlier 2026-05-13: Q-14 recall-audit
+Phase B batch 12 landed on top of batch 11, adding one
+`comment-code` TP from a third permissive-licensed Rust
+upstream glium/glium@8d6fd34d9171172928771657fc5c9103107ff978
 `src/draw_parameters/mod.rs` (Apache-2.0). `pub fn validate(...)`
 at upstream line 531 (corpus line 6) carries a single-line
 `///` doc block reading `DEPRECATED. Checks parameters and
@@ -17,19 +57,9 @@ con_str* family and batch-11 `rusticata/tls-parser`
 three unrelated domains (Cardano Plutus-data helpers 4 + TLS
 parser 2 + OpenGL bindings 1), further reducing the
 regression-detection risk of single-source dominance that
-batch 11's second upstream already broke. The source-kind
-footprint stays at six (`github-commit` absorbs the new entry;
-no new kind invented). Updated corpus 29 files / 34 expected
-entries / overall recall_upper_bound 0.38 (13 TP / 21 FN, up
-from 0.36 at batch 11); `comment-code` moves to tp=7 / fn=0 /
-1.00 (was 6/0/1.00, source_breakdown github-commit 7/7); the
-other five detectors are unchanged. Batch 12 preserves the
-pr-miner mining margin because the new file is Rust — Python
-`{open} → {close}` mining-DB confidence stays at batch-10's
-19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs (`get_ver`,
-`readfile`) remain TPs. Earlier 2026-05-13: Q-14 recall-audit
-Phase B batch 11 added two `comment-code` TPs from a second
-permissive-licensed Rust upstream
+batch 11's second upstream already broke. Earlier 2026-05-13:
+Q-14 recall-audit Phase B batch 11 added two `comment-code`
+TPs from a second permissive-licensed Rust upstream
 rusticata/tls-parser@6554155918278531370e7d0addbd5d759e3a4cc9
 `src/tls_handshake.rs` (MIT OR Apache-2.0): both
 `pub fn parse_tls_handshake_next_protocol(...)` (upstream line
@@ -1206,15 +1236,29 @@ Q-14. Recall-audit harness
   Apache-2.0) carrying the same Pattern C bug shape on a third
   unrelated domain (OpenGL bindings); `comment-code` moves to
   7/0/1.00 and overall recall_upper_bound to 0.38 (13 TP /
-  21 FN / 34 expected). All six cntrdct detectors and six
-  external source kinds are live in the corpus; comment-code
-  now spans three independent upstreams, further reducing the
-  regression-detection risk of single-source dominance that
-  batch 11's second upstream already broke; pr-miner's
-  numerator-construction phase remains closed and the next
-  moves shift to detector-side scope lifts on the remaining
-  0.00 detectors (arg-swap, clone-drift, config-interaction)
-  and F3 widening on unreachable-after-terminator.
+  21 FN / 34 expected). Phase B batch 13 landed 2026-05-14 on
+  top of batch 12, adding one `comment-code` TP from a fourth
+  permissive-licensed Rust upstream (rust-lang/pkg-config-rs
+  `src/lib.rs`, MIT OR Apache-2.0) carrying the same Pattern C
+  bug shape on a fourth unrelated domain (build-tool /
+  system-package bindings); the `#[doc(hidden)]` attribute the
+  function carries does NOT suppress Pattern C because the
+  walker checks the literal first identifier (`doc` vs.
+  `deprecated`), confirming Pattern C distinguishes
+  visibility-hiding from runtime-lint enforcement;
+  `comment-code` moves to 8/0/1.00 and overall
+  recall_upper_bound to 0.40 (14 TP / 21 FN / 35 expected).
+  All six cntrdct detectors and six external source kinds are
+  live in the corpus; comment-code now spans four independent
+  upstreams, further reducing the regression-detection risk of
+  single-source dominance that batch 11 / 12 second / third
+  upstreams already broke; pr-miner's numerator-construction
+  phase remains closed and the next moves shift to
+  detector-side scope lifts on the remaining 0.00 detectors
+  (arg-swap, clone-drift, config-interaction) and F3 widening
+  on unreachable-after-terminator, or Pattern A / Pattern B
+  coverage of comment-code which v0 already detects but the
+  audit corpus has not yet exercised.
 
   Per-batch history below for the record; Phase B batch 2
   (deepening `unreachable-after-terminator` measurement) landed
@@ -1832,6 +1876,94 @@ Q-14. Recall-audit harness
     audit-corpus file as committed (minimal extract, per
     `benchmarks/audit-corpus/README.md` `Per-detector seed
     targets` item 4).
+  - Thirteenth batch (done 2026-05-14): one expected entry
+    deepening the `comment-code` detector with a fourth
+    permissive-licensed Rust upstream — rust-lang/pkg-config-rs
+    at commit `f36d32a09824a6b2c18475c8a4b7df1cb2c50c95`
+    `src/lib.rs` (MIT OR Apache-2.0).
+    `pub fn find_library(name: &str) -> Result<Library, String>`
+    at upstream line 453 (corpus line 7) carries a single-line
+    `///` doc block reading `Deprecated in favor of the
+    probe_library function` and a `#[doc(hidden)]` attribute,
+    but does not carry the `#[deprecated]` runtime attribute
+    the Rust deprecation lints honour — the same Tan SOSP 2007
+    §3.2 Pattern C ("bad comment") bug shape the batch-3
+    `sidan-lab/whisky-archive` con_str* family, batch-11
+    `rusticata/tls-parser`
+    `parse_tls_handshake_*next_protocol` family, and batch-12
+    `glium/glium` `validate` flag. Mapping against cntrdct's
+    comment-code detector: spec F5 trigger (rendered doc string
+    contains `deprecated` substring after lowercasing) fires
+    because `Deprecated in favor of the probe_library function`
+    lowercases to `deprecated in favor of the probe_library
+    function` which contains the `deprecated` substring;
+    `collect_preceding_doc` walks the single `///` line back
+    to the `}` of the previous fn cleanly (the
+    `#[doc(hidden)]` attribute_item sitting between the doc
+    block and the `function_item` is skipped per the comment-
+    code detector's attribute_item passthrough);
+    `preceding_siblings_have_deprecated` checks each
+    `#[...]` attribute_item's first identifier against the
+    literal string `deprecated`, so `#[doc(hidden)]` (first
+    identifier `doc`) does NOT suppress the trigger, and the
+    walker reaches the previous fn's closing `}` without
+    finding a `#[deprecated]` attribute. The entry is TP. The
+    batch's value-add is dual: (a) `comment-code`
+    source-of-evidence diversifies from three upstreams
+    (whisky-archive 4 + tls-parser 2 + glium 1) to four
+    upstreams on four unrelated domains (whisky-archive
+    Cardano Plutus-data helpers 4 + tls-parser TLS
+    NextProtocol parsers 2 + glium OpenGL draw-parameter
+    check 1 + pkg-config-rs build-tool / system-package
+    bindings 1), further reducing the regression-detection
+    risk of single-source dominance the batch-11 / 12 second /
+    third upstreams already broke — a regression triggered by
+    an upstream-specific quirk on any one of them still
+    surfaces in the audit via the other three; (b) the
+    source-kind footprint stays at the existing six external
+    kinds (this batch contributes under `github-commit`,
+    already populated by batches 1 / 3 / 4 / 11 / 12), so no
+    new kind is invented and the source-list registry under
+    README "Source list" remains unchanged. Selection
+    rationale: pkg-config-rs is a long-lived (2014-)
+    build-script helper maintained under the rust-lang GitHub
+    organisation, the canonical wrapper for invoking
+    `pkg-config` from Cargo build scripts; the
+    `pub fn find_library` deprecation prose marks an API the
+    maintainers stopped recommending without removing (the
+    `#[doc(hidden)]` attribute IS attached but is orthogonal
+    to the runtime deprecation lint), a stable upstream commit
+    and a stable bug shape — the same stability profile the
+    batch-3 / 11 / 12 entries have. The `#[doc(hidden)]`
+    attribute is the most interesting wrinkle in this batch:
+    cntrdct's Pattern C `preceding_siblings_have_deprecated`
+    walker checks the first identifier inside each `#[...]`
+    attribute_item against the literal string `deprecated`,
+    so `#[doc(hidden)]` (first identifier `doc`) does NOT
+    suppress the trigger — confirming Pattern C correctly
+    distinguishes the visibility-hiding `#[doc(hidden)]` from
+    the runtime-lint-enforcing `#[deprecated]` (the actual fix
+    the maintainers would need to apply for downstream
+    consumers to receive a compiler warning). Updated audit
+    numbers: `comment-code` tp=8 / fn=0 / 1.00 (up from
+    7/0/1.00, source_breakdown `github-commit` 8/8);
+    `arg-swap`, `clone-drift`, `config-interaction`,
+    `pr-miner`, `unreachable-after-terminator` unchanged;
+    overall recall_upper_bound 0.40 (14 TP / 21 FN / 35
+    expected, up from 0.38 at batch 12). Corpus size 30 files
+    (20 labelled + 10 density-support). Upward for the right
+    reason: a new TP entry lands cleanly within the existing
+    1.00 detector; the audit's denominator widens by 1
+    expected entry (from 34 to 35), so the percentage figure
+    reflects the new labelled sample size rather than detector
+    improvement. Batch 13 also preserves the pr-miner mining
+    margin because the new file is Rust — Python
+    `{open} → {close}` mining-DB confidence stays at
+    batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs
+    (`get_ver`, `readfile`) remain TPs. SHA-256 is of the
+    audit-corpus file as committed (minimal extract, per
+    `benchmarks/audit-corpus/README.md` `Per-detector seed
+    targets` item 4).
   - Subsequent batches deepen coverage on the remaining 0.00
     detectors via either more labelled findings on the existing
     source kinds (now that pr-miner mines the
@@ -2118,11 +2250,29 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     tls-parser 2 + glium 1); `comment-code` moves to 7/0/1.00
     and overall recall_upper_bound to 0.38 (13 TP / 21 FN /
     34 expected). pr-miner mining margin preserved because
-    the new file is Rust) landed 2026-05-13. With all six
-    detectors and six external source kinds now live in the
-    corpus and pr-miner's numerator-construction phase closed,
-    further Phase B batches deepen existing coverage rather
-    than introduce a new detector or kind
+    the new file is Rust) landed 2026-05-13; Phase B batch 13
+    (one `comment-code` TP from a fourth permissive-licensed
+    Rust upstream rust-lang/pkg-config-rs@f36d32a0 `src/lib.rs`
+    MIT OR Apache-2.0; `pub fn find_library` carries a
+    single-line `///` doc block reading `Deprecated in favor
+    of the probe_library function` and a `#[doc(hidden)]`
+    attribute but no `#[deprecated]` runtime attribute — the
+    same Pattern C bug shape on a fourth unrelated domain
+    (build-tool / system-package bindings). The
+    `#[doc(hidden)]` attribute does NOT suppress Pattern C
+    because the walker checks the literal first identifier
+    (`doc` vs. `deprecated`), confirming Pattern C
+    distinguishes visibility-hiding from runtime-lint
+    enforcement. Diversifies `comment-code`'s audit evidence
+    to four upstreams (whisky-archive 4 + tls-parser 2 +
+    glium 1 + pkg-config-rs 1); `comment-code` moves to
+    8/0/1.00 and overall recall_upper_bound to 0.40 (14 TP /
+    21 FN / 35 expected). pr-miner mining margin preserved
+    because the new file is Rust) landed 2026-05-14. With all
+    six detectors and six external source kinds now live in
+    the corpus and pr-miner's numerator-construction phase
+    closed, further Phase B batches deepen existing coverage
+    rather than introduce a new detector or kind
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 
