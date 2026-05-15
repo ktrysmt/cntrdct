@@ -5,14 +5,52 @@ Q-14 deliverable from `ROADMAP.md`. Houses the corpus
 per-detector recall upper bounds. Spec:
 [`docs/spec/recall-audit-v0.md`](../../docs/spec/recall-audit-v0.md).
 
-Status: Phase B batch 14 (2026-05-15). Forty-one expected
+Status: Phase B batch 15 (2026-05-15). Forty-two expected
 entries across six detectors and six external source kinds
 (`rustc-lint-testset`, `github-commit`, `paper-appendix`,
-`clippy`, `codeql`, `semgrep`). Batch 14 shifts `comment-code`
-audit coverage from Pattern C only (deprecated prose without
-`#[deprecated]` attribute, batches 3 / 11 / 12 / 13) to
-Pattern B + Pattern C by adding six TPs from a fifth
-permissive-licensed Rust upstream (zarrs/zarrs
+`clippy`, `codeql`, `semgrep`). Batch 15 shifts `comment-code`
+audit coverage from two-pattern (Pattern B + Pattern C,
+batches 3 / 11 / 12 / 13 / 14) to the complete three-pattern
+(Pattern A + Pattern B + Pattern C) triple by adding one TP
+from a sixth permissive-licensed Rust upstream
+(boundless-xyz/boundless
+`crates/executor/src/backends/mod.rs`, Apache-2.0).
+`pub fn default_registry() -> Registry` at upstream line 44
+(corpus line 10) carries a `///` doc block whose prose
+contains the Pattern A trigger phrase `may fail` (per spec F3
+the six case-folded substrings are `returns err`,
+`returns result`, `may fail`, `fallible`, `returns option`,
+`may return none`), but the function signature
+`() -> Registry` lacks the `Result` / `Option` substring
+required by F3's return-type negation, so the doc claim of
+fallibility is not propagated to the caller. The body absorbs
+constructor failures via `tracing::warn!` and returns a
+partially-populated `Registry` rather than propagating an
+error type — the textbook Tan SOSP 2007 §3.1 Pattern A
+("Description Comments that describe what the function
+returns") bug shape, previously not exercised by the audit
+corpus. The companion documentation prose ("on failure the
+backend is omitted and a warning is logged so the rest of
+the service can still start") explains the absorb-and-log
+behaviour but does not move the failure information into the
+type system, so callers cannot distinguish a fully-populated
+`Registry` from a partially-populated one programmatically.
+After batch 15 the `comment-code` detector's audit evidence
+spans all three `docs/spec/comment-code-v0.md` patterns on
+six upstreams across six unrelated domains (whisky-archive
+Cardano Plutus-data helpers 4 Pattern C + tls-parser TLS
+NextProtocol parsers 2 Pattern C + glium OpenGL
+draw-parameter check 1 Pattern C + pkg-config-rs build-tool /
+system-package bindings 1 Pattern C + zarrs Zarr-format
+data-type bindings 6 Pattern B + boundless zkVM executor
+registry 1 Pattern A) — a regression that broke any one of
+the three patterns while preserving the other two would now
+surface in the audit rather than going undetected. The
+source-kind footprint stays at six (`github-commit` absorbs
+the new entry; batch 15 does not introduce a new kind).
+Batch 14 (2026-05-15) added six `comment-code` Pattern B TPs
+from the fifth permissive-licensed Rust upstream
+(zarrs/zarrs
 `zarrs_data_type/src/codec_traits/bitround.rs`,
 MIT OR Apache-2.0). Each of `round_bytes_int16` /
 `round_bytes_int32` / `round_bytes_int64` /
@@ -30,17 +68,8 @@ so trailing bytes that don't form a complete N-byte chunk are
 ignored rather than triggering the documented panic. The
 textbook Tan SOSP 2007 §3.2 Pattern B ("bad comment": panic
 claim without panicking constructs in the body) bug shape,
-previously not exercised by the audit corpus. After batch 14
-the `comment-code` detector's audit evidence spans two of the
-three `docs/spec/comment-code-v0.md` patterns (Pattern A —
-Result / Option claim without matching return type — still
-owed) on five upstreams across five unrelated domains
-(whisky-archive Cardano Plutus-data helpers 4 + tls-parser
-TLS NextProtocol parsers 2 + glium OpenGL draw-parameter
-check 1 + pkg-config-rs build-tool / system-package bindings 1
-+ zarrs Zarr-format data-type bindings 6). The source-kind
-footprint stays at six (`github-commit` absorbs the new
-entries; no new kind invented). Batch 11 (the immediately
+previously not exercised by the audit corpus before batch 14.
+Batch 11 (the immediately
 preceding batch 2026-05-13) added two `comment-code` TPs from
 the second permissive-licensed Rust upstream
 (rusticata/tls-parser `src/tls_handshake.rs`, MIT OR Apache-2.0):
@@ -194,7 +223,7 @@ selection-bias issue this corpus is built to counter.
 ```
 audit-corpus/
 ├── README.md                       (this file)
-├── manifest.jsonl                  (Phase B batches 1-14)
+├── manifest.jsonl                  (Phase B batches 1-15)
 └── files/
     ├── rustc_ui_unreachable_code_ret.rs               (batch 1)
     ├── rustc_ui_expr_block.rs                         (batch 1)
@@ -226,7 +255,8 @@ audit-corpus/
     ├── rusticata_tls_handshake_next_protocol.rs      (batch 11)
     ├── glium_draw_parameters_validate.rs              (batch 12)
     ├── pkg_config_rs_find_library.rs                  (batch 13)
-    └── zarrs_bitround_round_bytes.rs                  (batch 14)
+    ├── zarrs_bitround_round_bytes.rs                  (batch 14)
+    └── boundless_default_registry.rs                  (batch 15)
 ```
 
 `manifest.jsonl` follows the schema in
@@ -331,31 +361,71 @@ JSON shape (selected fields):
 {
   "per_detector": {
     "comment-code": {
-      "tp": 14,
+      "tp": 15,
       "fn": 0,
       "recall_upper_bound": 1.0,
-      "source_breakdown": { "github-commit": { "tp": 14, "fn": 0 } }
+      "source_breakdown": { "github-commit": { "tp": 15, "fn": 0 } }
     }
   },
-  "overall": { "tp": 20, "fn": 21, "recall_upper_bound": 0.49, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 31,
-  "expected_total": 41,
-  "sources": { "clippy": 2, "codeql": 6, "github-commit": 15, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
+  "overall": { "tp": 21, "fn": 21, "recall_upper_bound": 0.5, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 32,
+  "expected_total": 42,
+  "sources": { "clippy": 2, "codeql": 6, "github-commit": 16, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-15 against `v0.2.0-rc.17` per the Q-14 Phase C
-discipline. The figures match the batch-14 mid-cycle snapshot
-bit-for-bit (no detector or audit-corpus change since the same
-day), so this refresh is a no-op for the figures but keeps the
-assertion live, the same way CI runs the rest of the suite on
-every push.
-Batch 14 shifts `comment-code` audit coverage from
-single-pattern (Pattern C only, batches 3 / 11 / 12 / 13) to
-two-pattern (Pattern B + Pattern C) by adding six TPs from a
-fifth permissive-licensed Rust upstream — zarrs/zarrs@3b944c57a0b7af127ae73ea250d3ffce60e51f0b
+Refreshed 2026-05-15 against the master tip on top of batch 15.
+The next release tag will re-run this against the to-be-tagged
+binary per the Q-14 Phase C discipline; batch 15 lands
+mid-cycle, so the figures here are the pre-tag snapshot.
+Batch 15 shifts `comment-code` audit coverage from two-pattern
+(Pattern B + Pattern C, batches 3 / 11 / 12 / 13 / 14) to the
+complete three-pattern (Pattern A + Pattern B + Pattern C)
+triple by adding one TP from a sixth permissive-licensed Rust
+upstream — boundless-xyz/boundless@1a2770b2d824df7d931f3fdf3907ae1633f9bc80
+`crates/executor/src/backends/mod.rs` (Apache-2.0).
+`pub fn default_registry() -> Registry` at upstream line 44
+(corpus line 10) carries a `///` doc block whose prose
+contains the Pattern A trigger phrase `may fail` (per spec F3
+the six case-folded substrings are `returns err`,
+`returns result`, `may fail`, `fallible`, `returns option`,
+`may return none`), but the function signature
+`() -> Registry` lacks the `Result` / `Option` substring
+required by F3's return-type negation, so the doc claim of
+fallibility is not propagated to the caller. The body absorbs
+constructor failures via `tracing::warn!` and returns a
+partially-populated `Registry` rather than propagating an
+error type — the textbook Tan SOSP 2007 §3.1 Pattern A
+("Description Comments that describe what the function
+returns") bug shape, previously not exercised by the audit
+corpus. The companion documentation prose ("on failure the
+backend is omitted and a warning is logged so the rest of
+the service can still start") explains the absorb-and-log
+behaviour but does not move the failure information into the
+type system, so callers cannot distinguish a fully-populated
+`Registry` from a partially-populated one programmatically.
+The entry is TP, taking the detector's audit evidence from
+five upstreams (batches 3 / 11 / 12 / 13 / 14) to six
+upstreams across six unrelated domains (whisky-archive
+Cardano Plutus-data helpers 4 Pattern C + tls-parser TLS
+NextProtocol parsers 2 Pattern C + glium OpenGL
+draw-parameter check 1 Pattern C + pkg-config-rs build-tool /
+system-package bindings 1 Pattern C + zarrs Zarr-format
+data-type bindings 6 Pattern B + boundless zkVM executor
+registry 1 Pattern A) AND from two-pattern (Pattern B +
+Pattern C) to the complete three-pattern (Pattern A + Pattern
+B + Pattern C) coverage — a regression that broke any one of
+the three patterns while preserving the other two would now
+surface in the audit rather than going undetected. The
+source-kind footprint stays at six (`github-commit` absorbs
+the new entry; batch 15 does not introduce a new kind).
+Batch 14 (2026-05-15) shifted `comment-code` audit coverage
+from single-pattern (Pattern C only, batches 3 / 11 / 12 /
+13) to two-pattern (Pattern B + Pattern C) by adding six TPs
+from a fifth permissive-licensed Rust upstream —
+zarrs/zarrs@3b944c57a0b7af127ae73ea250d3ffce60e51f0b
 `zarrs_data_type/src/codec_traits/bitround.rs` (MIT OR Apache-2.0).
 Six top-level `pub fn` items —
 `round_bytes_int16` (upstream line 58 / corpus line 42),
@@ -384,22 +454,8 @@ check finds none of `panic!`, `unwrap`, `expect(`,
 `for chunk in bytes.as_chunks_mut::<N>().0 { ... }` body (the
 `assert!(N != 0)` inside `slice::as_chunks_mut` lives in std,
 not the call-site body, so the substring check sees no marker).
-All six entries are TP, taking the detector's audit evidence
-from four upstreams (batches 3 / 11 / 12 / 13, all Pattern C)
-to five upstreams across five unrelated domains
-(whisky-archive Cardano Plutus-data helpers 4 + tls-parser TLS
-NextProtocol parsers 2 + glium OpenGL draw-parameter check 1
-+ pkg-config-rs build-tool / system-package bindings 1 + zarrs
-Zarr-format data-type bindings 6) AND from single-pattern
-(Pattern C) to two-pattern (Pattern B + Pattern C) coverage —
-a regression that broke Pattern B but preserved Pattern C
-would now surface in the audit rather than going undetected.
-Pattern A coverage (Result / Option claim without matching
-return type) remains owed; v0 already detects Pattern A but
-the audit corpus has not yet exercised it. The source-kind
-footprint stays at six (`github-commit` absorbs the six new
-entries; batch 14 does not introduce a new kind). Batch 13
-(2026-05-14) added one `comment-code` TP from
+All six entries are TP. Batch 13 (2026-05-14) added one
+`comment-code` TP from
 rust-lang/pkg-config-rs@f36d32a09824a6b2c18475c8a4b7df1cb2c50c95
 `src/lib.rs` (MIT OR Apache-2.0).
 `pub fn find_library(name: &str) -> Result<Library, String>` at
@@ -437,46 +493,52 @@ batch 11 (driven by `comment-code` adding two TPs on a new
 upstream without retreating the existing detectors), to 0.38
 at batch 12 (driven by `comment-code` adding one more TP on a
 third upstream), to 0.40 at batch 13 (driven by `comment-code`
-adding one more TP on a fourth upstream), and now to 0.49 at
-batch 14 (driven by `comment-code` adding six TPs on a fifth
-upstream that also extends pattern coverage from Pattern C
-only to Pattern B + Pattern C). Batch 14's pr-miner mining
-margin is preserved because the new file is Rust — Python
-`{open} → {close}` confidence stays at 19/22 ≈ 0.864 ≥ 0.85,
-and both pr-miner TPs (`get_ver`, `readfile`) remain TPs.
+adding one more TP on a fourth upstream), to 0.49 at batch 14
+(driven by `comment-code` adding six TPs on a fifth upstream
+that also extends pattern coverage from Pattern C only to
+Pattern B + Pattern C), and now to 0.50 at batch 15 (driven
+by `comment-code` adding one TP on a sixth upstream that
+extends pattern coverage from Pattern B + Pattern C to the
+complete Pattern A + Pattern B + Pattern C triple). Batch
+15's pr-miner mining margin is preserved because the new file
+is Rust — Python `{open} → {close}` confidence stays at
+19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs (`get_ver`,
+`readfile`) remain TPs.
 
 | detector                       | tp | fn | recall upper bound | dominant source                          |
 | ------------------------------ | --:| --:| ------------------:| ---------------------------------------- |
 | `arg-swap`                     |  0 |  4 |               0.00 | `paper-appendix` (3/4 entries)           |
 | `clone-drift`                  |  0 |  2 |               0.00 | `clippy` (2/2 entries)                   |
-| `comment-code`                 | 14 |  0 |               1.00 | `github-commit` (14/14 entries)          |
+| `comment-code`                 | 15 |  0 |               1.00 | `github-commit` (15/15 entries)          |
 | `config-interaction`           |  0 |  2 |               0.00 | `rustc-lint-testset` (2/2)               |
 | `pr-miner`                     |  2 |  0 |               1.00 | `semgrep` (2/2 entries)                  |
 | `unreachable-after-terminator` |  4 | 13 |               0.24 | `rustc-lint-testset` (11/17 entries)     |
-| **overall**                    | 20 | 21 |               0.49 |                                          |
+| **overall**                    | 21 | 21 |               0.50 |                                          |
 
-Corpus size: 31 files (10 of which are batch-10 density-support
+Corpus size: 32 files (10 of which are batch-10 density-support
 files with `expected: []` — they do not enter the recall
-denominator). Expected entries: 41. Source mix:
-`github-commit` (15 entries), `rustc-lint-testset` (13),
+denominator). Expected entries: 42. Source mix:
+`github-commit` (16 entries), `rustc-lint-testset` (13),
 `codeql` (6), `paper-appendix` (3), `clippy` (2), `semgrep`
 (2).
 
 Reading the figures:
 
-- The fourteen `comment-code` true positives split across five
-  permissive-licensed upstreams and two of the three
+- The fifteen `comment-code` true positives split across six
+  permissive-licensed upstreams and all three of the
   `docs/spec/comment-code-v0.md` patterns: eight Pattern C
   entries — four from `sidan-lab/whisky-archive@99243766`
   (Cardano Plutus-data helper, batch 3), two from
   `rusticata/tls-parser@65541559` (TLS-parser crate, batch 11),
   one from `glium/glium@8d6fd34d` (OpenGL bindings, batch 12),
   and one from `rust-lang/pkg-config-rs@f36d32a0` (build-tool /
-  system-package bindings, batch 13) — and six Pattern B
-  entries from `zarrs/zarrs@3b944c57` (Zarr-format data-type
-  bindings, batch 14). The eight Pattern C entries share the
-  textbook Tan SOSP 2007 §3.2 Pattern C ("bad comment") shape:
-  a `///` doc block whose rendered prose contains `deprecated`
+  system-package bindings, batch 13); six Pattern B entries
+  from `zarrs/zarrs@3b944c57` (Zarr-format data-type bindings,
+  batch 14); and one Pattern A entry from
+  `boundless-xyz/boundless@1a2770b2` (zkVM executor registry,
+  batch 15). The eight Pattern C entries share the textbook
+  Tan SOSP 2007 §3.2 Pattern C ("bad comment") shape: a `///`
+  doc block whose rendered prose contains `deprecated`
   (case-folded) without a matching `#[deprecated]` runtime
   attribute on the same top-level `function_item`. The
   whisky-archive entries are the
@@ -507,24 +569,37 @@ Reading the figures:
   panicking constructs (no `panic!` / `unwrap` / `expect(` /
   `unreachable!` / `assert!` / `assert_eq!` / `assert_ne!` /
   `todo!` / `unimplemented!` / `debug_assert` in the body
-  source text). The Pattern B / Pattern C split surfaces the
-  first audit signal that breaking either pattern would not be
-  masked by the other — a regression that loosens Pattern B
-  while Pattern C still fires (or vice versa) would now reduce
+  source text). The one Pattern A entry from boundless is
+  `default_registry`: its `///` doc block contains the trigger
+  phrase `may fail` (case-folded substring match against the
+  rendered doc), but the function signature `() -> Registry`
+  lacks the `Result` / `Option` substring required by spec
+  F3's return-type negation, and the body absorbs constructor
+  failures via `tracing::warn!` rather than propagating an
+  error type — the textbook Tan SOSP 2007 §3.1 Pattern A bug
+  shape (doc claim of fallibility without an error-type return).
+  The three-pattern split surfaces the first audit signal that
+  breaking any one pattern would not be masked by the other two
+  — a regression that loosens any of Pattern A / Pattern B /
+  Pattern C while the other two still fire would now reduce
   the corresponding TP count rather than going undetected.
-  cntrdct's Pattern B (`docs/spec/comment-code-v0.md` F4) and
-  Pattern C (F5) both fire on the syntactic surface, and the
-  recall_upper_bound of 1.00 reflects that both bug-classes
-  within cntrdct's detection scope (top-level `fn` items) are
-  captured cleanly. The five-upstream / two-pattern coverage on
-  five unrelated domains (Cardano Plutus-data helpers, TLS
-  parser, OpenGL bindings, build-tool / system-package bindings,
-  Zarr-format data-type bindings) reduces the single-upstream
-  and single-pattern regression-detection risk that
-  batch 11 / 12 / 13 / 14 already broke. Pattern A (Result /
-  Option claim without matching return type) remains owed; v0
-  already detects Pattern A but the audit corpus has not yet
-  exercised it.
+  cntrdct's Pattern A (`docs/spec/comment-code-v0.md` F3),
+  Pattern B (F4), and Pattern C (F5) all fire on the syntactic
+  surface, and the recall_upper_bound of 1.00 reflects that
+  all three bug-classes within cntrdct's detection scope
+  (top-level `fn` items) are captured cleanly. The
+  six-upstream / three-pattern coverage on six unrelated
+  domains (Cardano Plutus-data helpers, TLS parser, OpenGL
+  bindings, build-tool / system-package bindings, Zarr-format
+  data-type bindings, zkVM executor registry) reduces the
+  single-upstream and single-pattern regression-detection risk
+  that batches 11 / 12 / 13 / 14 / 15 progressively broke.
+  After batch 15, `comment-code`'s audit coverage of all three
+  `docs/spec/comment-code-v0.md` patterns is complete; further
+  batches on this detector deepen existing patterns on
+  additional upstreams (regression-detection insurance for the
+  existing three patterns) rather than introduce a fourth
+  pattern.
 - The four `unreachable-after-terminator` true positives split
   by source: three come from rust-lang/rust ui-tests where the
   rustc lint and cntrdct's tree-sitter scan converge on the same
@@ -667,36 +742,54 @@ Reading the figures:
   and batch-9 documentation telegraphed.
 
 The overall recall_upper_bound moved from 0.26 (batch 9) to
-0.32 (batch 10), then to 0.36 (batch 11), then to 0.38 (batch
-12), and now to 0.40 (batch 13). The batch-10 move was upward
-because `pr-miner` flipped from `0/2/0.00` to `2/0/1.00` once
-batch 10's eighteen paired open+close transactions lifted the
-mined-rule confidence over the 0.85 threshold; none of the
-other five detectors changed because their findings depend
-only on per-file content (not on cross-file mining), and the
-ten density-support files added by batch 10 all ship with
-`expected: []` (the Semgrep labeller produces no findings on
-them, so they contribute to corpus density without inflating
-the recall denominator). The batch-11 move was upward because
-`comment-code` added two TPs from a second permissive-licensed
-Rust upstream (rusticata/tls-parser, MIT OR Apache-2.0)
-covering the same Tan SOSP 2007 Pattern C bug shape on an
-unrelated domain — the diversification broke the
-single-upstream dependence the batch-3 `whisky-archive`
-entries had, so a regression triggered by a
-whisky-archive-specific quirk would no longer go undetected.
-The batch-12 move was upward for the same reason on a third
-independent upstream — `comment-code` adds one TP from
-glium/glium@8d6fd34d (Apache-2.0), an OpenGL bindings crate
-unrelated to either Cardano Plutus-data helpers or TLS
-parsing. The batch-13 move is upward for the same reason on a
-fourth independent upstream — `comment-code` adds one TP from
-rust-lang/pkg-config-rs@f36d32a0 (MIT OR Apache-2.0), a
-build-tool / system-package wrapper unrelated to any of the
-prior three domains. Batch 13 also preserves the pr-miner
-mining margin because the new file is Rust (Python
-`{open} → {close}` confidence stays at batch-10's 19/22 ≈
-0.864 ≥ 0.85, and both pr-miner TPs remain TPs). Closing the 1.00 gap on pr-miner
+0.32 (batch 10), then to 0.36 (batch 11), 0.38 (batch 12),
+0.40 (batch 13), 0.49 (batch 14), and now 0.50 (batch 15).
+The batch-10 move was upward because `pr-miner` flipped from
+`0/2/0.00` to `2/0/1.00` once batch 10's eighteen paired
+open+close transactions lifted the mined-rule confidence over
+the 0.85 threshold; none of the other five detectors changed
+because their findings depend only on per-file content (not
+on cross-file mining), and the ten density-support files
+added by batch 10 all ship with `expected: []` (the Semgrep
+labeller produces no findings on them, so they contribute to
+corpus density without inflating the recall denominator). The
+batch-11 move was upward because `comment-code` added two TPs
+from a second permissive-licensed Rust upstream
+(rusticata/tls-parser, MIT OR Apache-2.0) covering the same
+Tan SOSP 2007 Pattern C bug shape on an unrelated domain —
+the diversification broke the single-upstream dependence the
+batch-3 `whisky-archive` entries had, so a regression
+triggered by a whisky-archive-specific quirk would no longer
+go undetected. The batch-12 move was upward for the same
+reason on a third independent upstream — `comment-code` adds
+one TP from glium/glium@8d6fd34d (Apache-2.0), an OpenGL
+bindings crate unrelated to either Cardano Plutus-data helpers
+or TLS parsing. The batch-13 move was upward for the same
+reason on a fourth independent upstream — `comment-code` adds
+one TP from rust-lang/pkg-config-rs@f36d32a0 (MIT OR
+Apache-2.0), a build-tool / system-package wrapper unrelated
+to any of the prior three domains. The batch-14 move was
+upward for two reasons on a fifth independent upstream —
+`comment-code` adds six TPs from zarrs/zarrs@3b944c57
+(MIT OR Apache-2.0), Zarr-format data-type bindings unrelated
+to any of the prior four domains, AND the six entries
+exercise spec F4 Pattern B (panic claim without panicking
+constructs) for the first time in the audit corpus, taking
+pattern coverage from single-pattern (Pattern C only) to
+two-pattern (Pattern B + Pattern C). The batch-15 move is
+upward for two reasons on a sixth independent upstream —
+`comment-code` adds one TP from
+boundless-xyz/boundless@1a2770b2 (Apache-2.0), a zkVM
+executor registry unrelated to any of the prior five domains,
+AND the one entry exercises spec F3 Pattern A (Result /
+Option claim without matching return type) for the first time
+in the audit corpus, taking pattern coverage from two-pattern
+(Pattern B + Pattern C) to the complete three-pattern
+(Pattern A + Pattern B + Pattern C) triple. Batches 13 / 14 /
+15 each preserve the pr-miner mining margin because every new
+file in those batches is Rust (Python `{open} → {close}`
+confidence stays at batch-10's 19/22 ≈ 0.864 ≥ 0.85, and
+both pr-miner TPs remain TPs). Closing the 1.00 gap on pr-miner
 was a corpus-density problem (more paired open/close
 transactions) rather than an extractor-widening problem;
 documenting that the gap is density-bound and not scope-bound
@@ -734,14 +827,14 @@ maintain the margin). The remaining 0.00 detectors (`arg-swap`,
 scope lifts under separate preregistrations, and
 `unreachable-after-terminator` needs F3 widening to constant-
 condition / exception-typed reasoning to close its 0.76 gap.
-`comment-code` is now at 1.00 on five upstreams across two of
-the three `docs/spec/comment-code-v0.md` patterns (Pattern B
-from zarrs batch 14, Pattern C from batches 3 / 11 / 12 / 13),
-so further batches on this detector would either add a sixth
-upstream (diminishing-returns regression-detection insurance
-for the existing two patterns) or shift to Pattern A coverage
-(Result / Option claim without matching return type) which v0
-already detects but the audit corpus has not yet exercised.
+`comment-code` is now at 1.00 on six upstreams across all
+three `docs/spec/comment-code-v0.md` patterns (Pattern A from
+boundless batch 15, Pattern B from zarrs batch 14, Pattern C
+from batches 3 / 11 / 12 / 13), so further batches on this
+detector deepen existing patterns on additional upstreams
+(diminishing-returns regression-detection insurance for the
+existing three patterns) rather than introduce a fourth
+pattern.
 
 ## Refresh discipline (Phase C)
 

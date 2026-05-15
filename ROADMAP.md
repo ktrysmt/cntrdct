@@ -2439,14 +2439,49 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     Pattern B + Pattern C; `comment-code` moves to 14/0/1.00
     and overall recall_upper_bound to 0.49 (20 TP / 21 FN /
     41 expected). pr-miner mining margin preserved because
-    the new file is Rust) landed 2026-05-15. With all six
-    detectors and six external source kinds now live in the
-    corpus, pr-miner's numerator-construction phase closed,
-    and comment-code now exercised on Pattern B + Pattern C,
-    further Phase B batches deepen existing coverage rather
-    than introduce a new detector or kind — Pattern A
-    coverage of comment-code remains the most tractable next
-    audit-side move, since v0 already detects Pattern A
+    the new file is Rust) landed 2026-05-15; Phase B batch 15
+    (one `comment-code` TP shifting the detector's audit
+    coverage from two-pattern Pattern B + Pattern C to the
+    complete three-pattern Pattern A + Pattern B + Pattern C
+    triple, via a sixth permissive-licensed Rust upstream
+    boundless-xyz/boundless@1a2770b2
+    `crates/executor/src/backends/mod.rs` Apache-2.0;
+    `pub fn default_registry() -> Registry` at upstream line
+    44 carries a `///` doc block whose prose contains the
+    Pattern A trigger phrase `may fail` (per spec F3 the six
+    case-folded substrings are `returns err`,
+    `returns result`, `may fail`, `fallible`,
+    `returns option`, `may return none`), but the function
+    signature `() -> Registry` lacks the `Result` / `Option`
+    substring required by F3's return-type negation, so the
+    doc claim of fallibility is not propagated to the caller.
+    The body absorbs constructor failures via
+    `tracing::warn!` and returns a partially-populated
+    `Registry` rather than propagating an error type — the
+    textbook Tan SOSP 2007 §3.1 Pattern A bug shape
+    ("Description Comments that describe what the function
+    returns"), previously not exercised by the audit corpus;
+    the companion documentation prose explains the
+    absorb-and-log behaviour but does not move the failure
+    information into the type system, so callers cannot
+    distinguish a fully-populated `Registry` from a
+    partially-populated one programmatically. Diversifies
+    `comment-code`'s audit evidence to six upstreams
+    (whisky-archive 4 Pattern C + tls-parser 2 Pattern C +
+    glium 1 Pattern C + pkg-config-rs 1 Pattern C + zarrs 6
+    Pattern B + boundless 1 Pattern A) AND from two-pattern
+    Pattern B + Pattern C to the complete three-pattern
+    Pattern A + Pattern B + Pattern C triple; `comment-code`
+    moves to 15/0/1.00 and overall recall_upper_bound to
+    0.50 (21 TP / 21 FN / 42 expected). pr-miner mining
+    margin preserved because the new file is Rust) landed
+    2026-05-15. With all six detectors and six external
+    source kinds now live in the corpus, pr-miner's
+    numerator-construction phase closed, and comment-code
+    now exercised on all three `docs/spec/comment-code-v0.md`
+    patterns, further Phase B batches deepen existing pattern
+    coverage on additional upstreams rather than introduce a
+    new detector or pattern
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 
