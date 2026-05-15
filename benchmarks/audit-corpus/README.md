@@ -387,9 +387,12 @@ JSON shape (selected fields):
 
 ## Latest audit run
 
-Refreshed 2026-05-15 mid-cycle against the to-be-tagged
-`v0.2.0-rc.19` build after Q-14 Phase B batch 16 landed. Final
-release-tag refresh will reconfirm under the Phase C discipline.
+Refreshed 2026-05-15 against `v0.2.0-rc.19` per the Q-14 Phase C
+discipline. The figures match the batch-16 same-day snapshot
+bit-for-bit (no detector or audit-corpus change since the same
+day), so this refresh is a no-op for the figures but keeps the
+assertion live, the same way CI runs the rest of the suite on
+every push.
 
 Batch 16 diversifies `comment-code` Pattern B audit coverage from
 a single upstream (zarrs Zarr-format data-type bindings, 6
