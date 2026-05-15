@@ -1,11 +1,75 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-15 (Q-14 recall-audit Phase B batch 20
-landed on top of batch 19, diversifying `comment-code` Pattern
-C audit coverage from four upstreams (whisky-archive +
-tls-parser + glium + pkg-config-rs, batches 3 / 11 / 12 / 13)
-to five upstreams by adding two `comment-code` Pattern C TPs
-from an eleventh permissive-licensed Rust upstream
+Last updated: 2026-05-16 (Q-14 recall-audit Phase B batch 21
+landed on top of batch 20, diversifying `comment-code` Pattern
+C audit coverage from five upstreams (whisky-archive +
+tls-parser + glium + pkg-config-rs + sui mysten-metrics,
+batches 3 / 11 / 12 / 13 / 20) to six upstreams by adding one
+`comment-code` Pattern C TP from a twelfth permissive-licensed
+Rust upstream mcgoo/vcpkg-rs@fa42994af157924e44223f2559a95c906e00c1fa
+`src/lib.rs` (MIT OR Apache-2.0). One top-level `pub fn` item —
+`probe_package` (upstream line 293 / corpus line 7) — carries
+a single-line `///` doc block reading `Deprecated in favor of
+the find_package function` and a `#[doc(hidden)]` non-
+suppressive attribute, but no `#[deprecated]` runtime
+attribute the Rust deprecation lints honour. cntrdct's spec F5
+Pattern C trigger fires on the `deprecated` substring; the
+walker checks the literal first identifier of the attribute
+path (`doc` vs. `deprecated`) so `#[doc(hidden)]` does NOT
+suppress the firing — the textbook Tan SOSP 2007 §3.2 Pattern
+C bug shape. The function signature
+`pub fn probe_package(name: &str) -> Result<Library, Error>`
+has Result return so spec F3 Pattern A's return-type negation
+fails (Pattern A does not fire); the body `Config::new()
+.probe(name)` delegates to the replacement function and
+contains no `panic!` / `unwrap` / `expect(` / `unreachable!` /
+`assert!` / `assert_eq!` / `assert_ne!` / `todo!` /
+`unimplemented!` / `debug_assert` substrings, but the doc
+contains no `panic` substring either, so spec F4 Pattern B
+does not fire — only Pattern C fires. Structurally pairs with
+batch-13 pkg-config-rs as the Windows side of the build-script
+system-package binding family: pkg-config-rs covers Unix
+pkg-config tool bindings; vcpkg-rs covers Microsoft Windows
+vcpkg C/C++ package manager bindings. Both upstreams
+independently exhibit the same Pattern C bug shape
+(`/// Deprecated in favor of X` single-line doc +
+`#[doc(hidden)]` non-suppressive attribute + body delegating
+to the replacement function) on functionally-paired
+native-library-discovery crates targeting different platform
+ecosystems — exercising cntrdct's Pattern C check on
+cross-platform-paired upstreams that independently
+rediscovered the same `Deprecated`-prose-without-
+`#[deprecated]`-attribute oversight. The entry is TP. After
+batch 21 the detector's audit evidence spans twelve upstreams
+across twelve unrelated domains (Cardano Plutus-data helpers 4
+Pattern C + TLS parser 2 Pattern C + OpenGL bindings 1 Pattern
+C + Unix pkg-config bindings 1 Pattern C + Zarr-format
+data-type bindings 6 Pattern B + zkVM executor registry 1
+Pattern A + parking_lot_core synchronization primitives 2
+Pattern B + cranelift-assembler-x64 fuzzer infrastructure 1
+Pattern A + S3-client configuration setter 1 Pattern A +
+vortex-buffer bit-packed bitmap helpers 1 Pattern B + sui
+mysten-metrics async-channel metrics wrapper 2 Pattern C +
+Windows vcpkg bindings 1 Pattern C), with Pattern A and
+Pattern B saturated at three sub-shapes on three upstreams
+each (batches 18 and 19) and Pattern C now exercised on six
+unrelated upstreams (lifted from five at batch 20). The
+source-kind footprint stays at six (`github-commit` absorbs
+the new entry). Updated corpus 38 files / 50 expected entries
+/ overall recall_upper_bound 0.58 (29 TP / 21 FN, up from 0.57
+at batch 20); `comment-code` moves to tp=23 / fn=0 / 1.00 (was
+22/0/1.00, source_breakdown github-commit 23/23); the other
+five detectors are unchanged. Batch 21 preserves the pr-miner
+mining margin because the new file is Rust — Python `{open}
+→ {close}` mining-DB confidence stays at batch-10's 19/22 ≈
+0.864 ≥ 0.85, and both pr-miner TPs (`get_ver`, `readfile`)
+remain TPs. Earlier 2026-05-15: Q-14 recall-audit Phase B
+batch 20 (comment-code Pattern C diversification via sui
+mysten-metrics eleventh upstream) shifted Pattern C audit
+coverage from four upstreams (whisky-archive + tls-parser +
+glium + pkg-config-rs, batches 3 / 11 / 12 / 13) to five
+upstreams by adding two `comment-code` Pattern C TPs from an
+eleventh permissive-licensed Rust upstream
 MystenLabs/sui@add9d4722104173186e78df5aac4b07b6e019b40
 `crates/mysten-metrics/src/metered_channel.rs` (Apache-2.0).
 Two top-level `pub fn` items — `channel` (upstream line 321 /
@@ -1414,6 +1478,46 @@ Q-14. Recall-audit harness
   visibility-hiding from runtime-lint enforcement;
   `comment-code` moves to 8/0/1.00 and overall
   recall_upper_bound to 0.40 (14 TP / 21 FN / 35 expected).
+  Phase B batch 21 landed 2026-05-16 on top of batch 20,
+  diversifying `comment-code` Pattern C audit coverage from
+  five upstreams (whisky-archive Cardano Plutus-data helpers 4
+  + tls-parser TLS NextProtocol parsers 2 + glium OpenGL
+  draw-parameter check 1 + pkg-config-rs build-tool /
+  system-package bindings 1 + sui mysten-metrics async-channel
+  metrics wrapper 2, batches 3 / 11 / 12 / 13 / 20) to six
+  upstreams by adding one TP from a twelfth permissive-
+  licensed Rust upstream (mcgoo/vcpkg-rs@fa42994a `src/lib.rs`,
+  MIT OR Apache-2.0). `pub fn probe_package(name: &str) ->
+  Result<Library, Error>` at upstream line 293 (corpus line 7)
+  carries a single-line `///` doc block reading `Deprecated in
+  favor of the find_package function` and a `#[doc(hidden)]`
+  attribute, but no `#[deprecated]` runtime attribute the Rust
+  deprecation lints honour, so spec F5 Pattern C fires — the
+  textbook Tan SOSP 2007 §3.2 Pattern C bug shape. Structurally
+  pairs with batch-13 pkg-config-rs as the Windows side of the
+  build-script system-package binding family: pkg-config-rs
+  covers Unix pkg-config tool bindings; vcpkg-rs covers
+  Microsoft Windows vcpkg C/C++ package manager bindings. Both
+  upstreams independently exhibit the same Pattern C bug shape
+  (`/// Deprecated in favor of X` single-line doc +
+  `#[doc(hidden)]` non-suppressive attribute + body delegating
+  to the replacement function) on functionally-paired
+  native-library-discovery crates targeting different platform
+  ecosystems — exercising cntrdct's Pattern C check on cross-
+  platform-paired upstreams that independently rediscovered the
+  same `Deprecated`-prose-without-`#[deprecated]`-attribute
+  oversight. The `#[doc(hidden)]` attribute does NOT suppress
+  Pattern C because the walker checks the literal first
+  identifier (`doc` vs. `deprecated`), confirming again that
+  Pattern C distinguishes visibility-hiding from runtime-lint
+  enforcement. `comment-code` moves to 23/0/1.00 and overall
+  recall_upper_bound to 0.58 (29 TP / 21 FN / 50 expected, up
+  from 0.57 at batch 20); Pattern C is now exercised on six
+  unrelated upstreams (Cardano Plutus-data + TLS NextProtocol
+  + OpenGL draw-parameters + Unix pkg-config + async-channel
+  metrics + Windows vcpkg), lifted from five at batch 20.
+  Pattern A and Pattern B remain saturated at three sub-shapes
+  across three upstreams each (batches 18 and 19).
   Phase B batch 20 landed 2026-05-15 on top of batch 19,
   diversifying `comment-code` Pattern C audit coverage from
   four upstreams (whisky-archive Cardano Plutus-data helpers
@@ -3137,7 +3241,40 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     `comment-code` moves to 22/0/1.00 and overall
     recall_upper_bound to 0.57 (28 TP / 21 FN / 49 expected).
     pr-miner mining margin preserved because the new file is
-    Rust) landed 2026-05-15. With all
+    Rust) landed 2026-05-15; Phase B batch 21 (one
+    `comment-code` Pattern C TP diversifying Pattern C audit
+    coverage from five upstreams (whisky-archive 4 + tls-parser
+    2 + glium 1 + pkg-config-rs 1 + sui mysten-metrics 2,
+    batches 3 / 11 / 12 / 13 / 20) to six upstreams, via a
+    twelfth permissive-licensed Rust upstream
+    mcgoo/vcpkg-rs@fa42994a `src/lib.rs`, MIT OR Apache-2.0.
+    `pub fn probe_package(name: &str) -> Result<Library, Error>`
+    at upstream line 293 (corpus line 7) carries a single-line
+    `///` doc block reading `Deprecated in favor of the
+    find_package function` and a `#[doc(hidden)]` non-
+    suppressive attribute, but no `#[deprecated]` runtime
+    attribute, so spec F5 Pattern C fires. Structurally pairs
+    with batch-13 pkg-config-rs as the Windows side of the
+    build-script system-package binding family: pkg-config-rs
+    covers Unix pkg-config tool bindings; vcpkg-rs covers
+    Microsoft Windows vcpkg C/C++ package manager bindings.
+    Both upstreams independently exhibit the same Pattern C bug
+    shape (`/// Deprecated in favor of X` single-line doc +
+    `#[doc(hidden)]` non-suppressive attribute + body
+    delegating to the replacement function) on functionally-
+    paired native-library-discovery crates targeting different
+    platform ecosystems. Diversifies `comment-code`'s audit
+    evidence to twelve upstreams (whisky-archive 4 Pattern C +
+    tls-parser 2 Pattern C + glium 1 Pattern C + pkg-config-rs
+    1 Pattern C + zarrs 6 Pattern B + boundless 1 Pattern A +
+    parking_lot_core 2 Pattern B + wasmtime 1 Pattern A +
+    rust-s3 1 Pattern A + vortex-buffer 1 Pattern B + sui
+    mysten-metrics 2 Pattern C + vcpkg-rs 1 Pattern C), lifting
+    Pattern C from five upstreams to six without introducing a
+    new pattern; `comment-code` moves to 23/0/1.00 and overall
+    recall_upper_bound to 0.58 (29 TP / 21 FN / 50 expected).
+    pr-miner mining margin preserved because the new file is
+    Rust) landed 2026-05-16. With all
     six detectors and six external source kinds now live in
     the corpus, pr-miner's numerator-construction phase
     closed, comment-code exercised on all three
@@ -3146,10 +3283,10 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     batches 17 and 16 respectively AND Pattern A's and Pattern
     B's sub-shape coverage completed at batches 18 and 19
     respectively (all three syntactic sub-shapes exercised on
-    each pattern) AND Pattern C lifted from four to five
-    upstreams at batch 20, further Phase B batches deepen
-    existing pattern coverage on additional upstreams rather
-    than introduce a new detector or pattern
+    each pattern) AND Pattern C lifted from four to six
+    upstreams at batches 20 and 21, further Phase B batches
+    deepen existing pattern coverage on additional upstreams
+    rather than introduce a new detector or pattern
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 
