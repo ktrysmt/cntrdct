@@ -376,10 +376,12 @@ JSON shape (selected fields):
 
 ## Latest audit run
 
-Refreshed 2026-05-15 against the master tip on top of batch 15.
-The next release tag will re-run this against the to-be-tagged
-binary per the Q-14 Phase C discipline; batch 15 lands
-mid-cycle, so the figures here are the pre-tag snapshot.
+Refreshed 2026-05-15 against `v0.2.0-rc.18` per the Q-14 Phase C
+discipline. The figures match the batch-15 mid-cycle snapshot
+bit-for-bit (no detector or audit-corpus change since the same
+day), so this refresh is a no-op for the figures but keeps the
+assertion live, the same way CI runs the rest of the suite on
+every push.
 Batch 15 shifts `comment-code` audit coverage from two-pattern
 (Pattern B + Pattern C, batches 3 / 11 / 12 / 13 / 14) to the
 complete three-pattern (Pattern A + Pattern B + Pattern C)
