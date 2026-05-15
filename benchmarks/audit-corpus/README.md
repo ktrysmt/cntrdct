@@ -332,10 +332,12 @@ JSON shape (selected fields):
 
 ## Latest audit run
 
-Refreshed 2026-05-14 against the master tip on top of batch 13.
-The next release tag will re-run this against the to-be-tagged
-binary per the Q-14 Phase C discipline; batches 10, 11, 12, and
-13 land mid-cycle, so the figures here are the pre-tag snapshot.
+Refreshed 2026-05-15 against `v0.2.0-rc.16` per the Q-14 Phase C
+discipline. The figures match the batch-13 mid-cycle snapshot
+bit-for-bit (no detector or audit-corpus change since
+2026-05-14), so this refresh is a no-op for the figures but
+keeps the assertion live, the same way CI runs the rest of the
+suite on every push.
 Batch 13 adds one `comment-code` TP from a fourth permissive-
 licensed Rust upstream — rust-lang/pkg-config-rs@f36d32a09824a6b2c18475c8a4b7df1cb2c50c95
 `src/lib.rs` (MIT OR Apache-2.0).
