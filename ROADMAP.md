@@ -1,64 +1,89 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-15 (Q-14 recall-audit Phase B batch 18
-landed on top of batch 17, diversifying `comment-code` Pattern
-A audit coverage from two upstreams (boundless +
-wasmtime, batches 15 and 17) to three upstreams by adding one
-`comment-code` Pattern A TP from a ninth permissive-licensed
-Rust upstream
+Last updated: 2026-05-15 (Q-14 recall-audit Phase B batch 19
+landed on top of batch 18, diversifying `comment-code` Pattern
+B audit coverage from two upstreams (zarrs +
+parking_lot_core, batches 14 and 16) to three upstreams by
+adding one `comment-code` Pattern B TP from a tenth
+permissive-licensed Rust upstream
+vortex-data/vortex@4c1ae92d20856fbea29ed92d8554a3832b5a540c
+`vortex-buffer/src/bit/mod.rs` (v0.70.0 release tag,
+Apache-2.0). One top-level `pub fn` item — `get_bit` (upstream
+line 33 / corpus line 11) — carries a `///` doc block whose
+`# Panics` section reads `Panics if `index` is not between 0
+and length of `buf * 8`.`; cntrdct's spec F4 Pattern B trigger
+fires on the case-folded `panic` substring (within both
+`# panics` and `panics if`). The function signature
+`pub fn get_bit(buf: &[u8], index: usize) -> bool` has primitive
+`bool` return; the body `buf[index / 8] & (1 << (index % 8)) !=
+0` contains NONE of the Pattern B body markers (`panic!` /
+`unwrap` / `expect(` / `unreachable!` / `assert!` /
+`assert_eq!` / `assert_ne!` / `todo!` / `unimplemented!` /
+`debug_assert`), so spec F4's body-marker negation passes and
+Pattern B fires. The body DOES panic on the documented
+out-of-bounds condition (slice bracket indexing on `&[u8]`
+panics through the `core::ops::Index` impl for `[T]` when
+`index / 8 >= buf.len()`, equivalent to `index >= buf.len() *
+8` modulo the upstream `buf * 8` typo for `buf.len() * 8`),
+but the panic is implicit in the slice `Index` impl rather
+than expressed via any of cntrdct's syntactic body-marker
+substrings, so cntrdct's spec F4 fires on syntactic substring
+rule rather than semantic correctness. The doc contains no
+Pattern A trigger phrases (`returns err` / `returns result` /
+`may fail` / `fallible` / `returns option` / `may return
+none`), so Pattern A does NOT fire. The doc contains no
+`deprecated` substring, so spec F5 Pattern C does NOT fire —
+only Pattern B fires on this function. This is the third
+Pattern B upstream in the audit corpus, introducing the
+implicit-indexing-panic sub-shape (body uses bracket indexing
+that panics on OOB through the slice `Index` impl without any
+of cntrdct's body-marker substrings) alongside batch 14's
+zarrs silent-drop-on-mismatch sub-shape (body uses
+`as_chunks_mut().0` which silently drops the trailing
+remainder rather than panicking — the documented panic never
+fires) and batch 16's parking_lot_core callback-contract
+sub-shape (doc says "must not panic" is a contract on the
+supplied callback, the function body has no panic-producing
+constructs), so the Pattern B denominator now exercises all
+three syntactic-Pattern-B sub-shapes on three unrelated
+upstreams. The entry is TP. After batch 19 the detector's
+audit evidence spans ten upstreams across ten unrelated
+domains (Cardano Plutus-data helpers 4 Pattern C + TLS parser
+2 Pattern C + OpenGL bindings 1 Pattern C + build-tool /
+system-package bindings 1 Pattern C + Zarr-format data-type
+bindings 6 Pattern B + zkVM executor registry 1 Pattern A +
+parking_lot_core synchronization primitives 2 Pattern B +
+cranelift-assembler-x64 fuzzer infrastructure 1 Pattern A +
+S3-client configuration setter 1 Pattern A + vortex-buffer
+bit-packed bitmap helpers 1 Pattern B), with both Pattern A
+and Pattern B now exercised across three sub-shapes on three
+upstreams each — every `docs/spec/comment-code-v0.md` pattern
+has at least two upstreams of regression-detection insurance
+and both Pattern A and Pattern B cover all three syntactic
+sub-shapes. The source-kind footprint stays at six
+(`github-commit` absorbs the new entry). Updated corpus 36
+files / 47 expected entries / overall recall_upper_bound 0.55
+(26 TP / 21 FN, up from 0.54 at batch 18); `comment-code`
+moves to tp=20 / fn=0 / 1.00 (was 19/0/1.00, source_breakdown
+github-commit 20/20); the other five detectors are unchanged.
+Batch 19 preserves the pr-miner mining margin because the new
+file is Rust — Python `{open} → {close}` mining-DB confidence
+stays at batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs
+(`get_ver`, `readfile`) remain TPs. Earlier 2026-05-15: Q-14
+recall-audit Phase B batch 18 (comment-code Pattern A
+diversification via rust-s3 ninth upstream) shifted Pattern A
+audit coverage from two upstreams (boundless + wasmtime,
+batches 15 and 17) to three upstreams by adding one
+`comment-code` Pattern A TP from
 durch/rust-s3@771be1650c23bf9aa482907c2d88dcf55d2e3ebc
-`s3/src/lib.rs` (MIT). One top-level `pub fn` item —
-`set_retries` (upstream line 54 / corpus line 23) — carries a
-`///` doc block whose first line reads `Sets the number of
-retries for operations that may fail and need to be retried.`
-cntrdct's spec F3 Pattern A trigger fires on the substring
-`may fail` (one of the six case-folded trigger phrases), the
-function signature `pub fn set_retries(retries: u8)` has unit
-return so the return type contains neither `Result` nor
-`Option` — spec F3's return-type negation passes and Pattern A
-fires. The body is
-`RETRIES.store(retries, std::sync::atomic::Ordering::SeqCst);`,
-an unconditionally infallible atomic store, so spec F4 Pattern
-B does NOT fire (the doc contains no `panic` substring) and
-spec F5 Pattern C does NOT fire (the doc contains no
-`deprecated` substring) — only Pattern A fires on this function.
-This is the third Pattern A upstream in the audit corpus,
-introducing the configuration-doc-references-external-
-fallibility sub-shape (the doc's `may fail` substring describes
-downstream S3 request operations the configured retries protect
-against, not the function body itself, while the function body
-is unconditionally infallible) alongside batch 15's boundless
-silent-absorb-and-log sub-shape (body uses `tracing::warn!`
-and returns a partial `Registry`) and batch 17's wasmtime
-documented-panic-on-failure sub-shape (body uses `unwrap` /
-`assert_eq!` to surface failure intentionally), so the Pattern
-A denominator now exercises all three syntactic-Pattern-A
-sub-shapes on three unrelated upstreams. The entry is TP. After
-batch 18 the detector's audit evidence spans nine upstreams
-across nine unrelated domains (Cardano Plutus-data helpers 4
-Pattern C + TLS parser 2 Pattern C + OpenGL bindings 1 Pattern
-C + build-tool / system-package bindings 1 Pattern C +
-Zarr-format data-type bindings 6 Pattern B + zkVM executor
-registry 1 Pattern A + parking_lot_core synchronization
-primitives 2 Pattern B + cranelift-assembler-x64 fuzzer
-infrastructure 1 Pattern A + S3-client configuration setter 1
-Pattern A), and Pattern A is now exercised across three
-sub-shapes on three upstreams — every
-`docs/spec/comment-code-v0.md` pattern now has at least two
-upstreams of regression-detection insurance and Pattern A
-covers all three syntactic sub-shapes. The source-kind
-footprint stays at six (`github-commit` absorbs the new
-entry). Updated corpus 35 files / 46 expected entries /
-overall recall_upper_bound 0.54 (25 TP / 21 FN, up from 0.53
-at batch 17); `comment-code` moves to tp=19 / fn=0 / 1.00
-(was 18/0/1.00, source_breakdown github-commit 19/19); the
-other five detectors are unchanged. Batch 18 preserves the
-pr-miner mining margin because the new file is Rust — Python
-`{open} → {close}` mining-DB confidence stays at batch-10's
-19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs (`get_ver`,
-`readfile`) remain TPs. Earlier 2026-05-15: Q-14 recall-audit
-Phase B batch 17 (comment-code Pattern A diversification via
-wasmtime eighth upstream) shifted Pattern A audit coverage from
+`s3/src/lib.rs` (MIT). `pub fn set_retries(retries: u8)` at
+upstream line 54 (corpus line 23) carries a `///` doc block
+whose first line reads `Sets the number of retries for
+operations that may fail and need to be retried.` —
+configuration-doc-references-external-fallibility sub-shape
+of Tan SOSP 2007 §3.1 Pattern A. Earlier 2026-05-15: Q-14
+recall-audit Phase B batch 17 (comment-code Pattern A
+diversification via wasmtime eighth upstream) shifted Pattern A audit coverage from
 a single upstream (boundless only, batch 15) to two upstreams
 by adding one `comment-code` Pattern A TP from
 bytecodealliance/wasmtime@63330f11f50f6721a0f4b41ae366bba00a58536d
@@ -1379,7 +1404,52 @@ Q-14. Recall-audit harness
   visibility-hiding from runtime-lint enforcement;
   `comment-code` moves to 8/0/1.00 and overall
   recall_upper_bound to 0.40 (14 TP / 21 FN / 35 expected).
-  Phase B batch 18 landed 2026-05-15 on top of batch 17,
+  Phase B batch 19 landed 2026-05-15 on top of batch 18,
+  diversifying `comment-code` Pattern B audit coverage from
+  two upstreams (zarrs silent-drop-on-mismatch +
+  parking_lot_core callback-contract) to three upstreams by
+  adding one TP from a tenth permissive-licensed Rust upstream
+  (vortex-data/vortex@4c1ae92d `vortex-buffer/src/bit/mod.rs`,
+  v0.70.0 release tag, Apache-2.0). `pub fn get_bit(buf: &[u8],
+  index: usize) -> bool` at upstream line 33 (corpus line 11)
+  carries a `///` doc block whose `# Panics` section reads
+  `Panics if `index` is not between 0 and length of `buf * 8`.`
+  cntrdct's spec F4 Pattern B trigger fires on the case-folded
+  `panic` substring; the body `buf[index / 8] & (1 << (index %
+  8)) != 0` contains NONE of the Pattern B body markers
+  (`panic!` / `unwrap` / `expect(` / `unreachable!` /
+  `assert!` / `assert_eq!` / `assert_ne!` / `todo!` /
+  `unimplemented!` / `debug_assert`), so spec F4's body-marker
+  negation passes and Pattern B fires. The body DOES panic on
+  the documented out-of-bounds condition (slice bracket
+  indexing on `&[u8]` panics through the `core::ops::Index`
+  impl for `[T]` when `index / 8 >= buf.len()`, equivalent to
+  `index >= buf.len() * 8` modulo the upstream `buf * 8` typo
+  for `buf.len() * 8`), but the panic is implicit in the
+  slice `Index` impl rather than expressed via any of
+  cntrdct's syntactic body-marker substrings, so cntrdct's
+  spec F4 fires on syntactic substring rule rather than
+  semantic correctness. Introduces the third Pattern B
+  sub-shape: implicit-indexing-panic (body uses bracket
+  indexing that panics on OOB through the slice `Index` impl
+  without any of cntrdct's body-marker substrings),
+  contrasting batch 14's zarrs silent-drop-on-mismatch sub-
+  shape (body uses `as_chunks_mut().0` which silently drops
+  the trailing remainder rather than panicking) and batch
+  16's parking_lot_core callback-contract sub-shape (doc says
+  "must not panic" as a contract on the supplied callback,
+  function body has no panic-producing constructs).
+  `comment-code` moves to 20/0/1.00 and overall
+  recall_upper_bound to 0.55 (26 TP / 21 FN / 47 expected, up
+  from 0.54 at batch 18); Pattern B is now exercised across
+  all three syntactic-Pattern-B sub-shapes on three unrelated
+  upstreams (Zarr-format codec helpers + parking_lot queue
+  primitives + vortex-buffer bit-packed bitmap helpers), and
+  every `docs/spec/comment-code-v0.md` pattern has at least
+  two upstreams of regression-detection insurance after batch
+  19 — with both Pattern A and Pattern B exercised across all
+  three sub-shapes on three upstreams each. Phase B batch 18
+  landed 2026-05-15 on top of batch 17,
   diversifying `comment-code` Pattern A audit coverage from
   two upstreams (boundless silent-absorb-and-log + wasmtime
   documented-panic-on-failure) to three upstreams by adding
@@ -2928,15 +2998,63 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     `comment-code` moves to 19/0/1.00 and overall
     recall_upper_bound to 0.54 (25 TP / 21 FN / 46 expected).
     pr-miner mining margin preserved because the new file is
-    Rust) landed 2026-05-15. With all six detectors and six
-    external source kinds now live in the corpus, pr-miner's
-    numerator-construction phase closed, comment-code
-    exercised on all three `docs/spec/comment-code-v0.md`
-    patterns AND both Pattern A's and Pattern B's
-    single-upstream dominance broken at batches 17 and 16
-    respectively AND Pattern A's sub-shape coverage completed
-    at batch 18 (all three syntactic-Pattern-A sub-shapes
-    exercised), further Phase B batches deepen existing
+    Rust) landed 2026-05-15; Phase B batch 19 (one
+    `comment-code` Pattern B TP diversifying Pattern B audit
+    coverage from two upstreams (zarrs + parking_lot_core) to
+    three upstreams, via a tenth permissive-licensed Rust
+    upstream vortex-data/vortex@4c1ae92d
+    `vortex-buffer/src/bit/mod.rs` v0.70.0 release tag,
+    Apache-2.0. `pub fn get_bit(buf: &[u8], index: usize) ->
+    bool` at upstream line 33 (corpus line 11) carries a `///`
+    doc block whose `# Panics` section reads `Panics if `index`
+    is not between 0 and length of `buf * 8`.`; the substring
+    `panic` fires the same Pattern B check, and the body
+    `buf[index / 8] & (1 << (index % 8)) != 0` contains NONE of
+    cntrdct's Pattern B body markers (panic-bang, unwrap,
+    expect-paren, unreachable-bang, assert-bang, assert-eq-
+    bang, assert-ne-bang, todo-bang, unimplemented-bang,
+    debug-assert), so spec F4's body-marker negation passes and
+    Pattern B fires. The body DOES panic on the documented
+    out-of-bounds condition (slice bracket indexing on `&[u8]`
+    panics through the `core::ops::Index` impl for `[T]` when
+    `index / 8 >= buf.len()`), but the panic is implicit in
+    the slice `Index` impl rather than expressed via any of
+    cntrdct's syntactic body-marker substrings, so spec F4
+    fires on syntactic substring rule rather than semantic
+    correctness. Introduces the third Pattern B sub-shape
+    (implicit-indexing-panic: body uses bracket indexing that
+    panics on OOB through the slice `Index` impl without any
+    of cntrdct's body-marker substrings) contrasting batch
+    14's zarrs silent-drop-on-mismatch sub-shape (body uses
+    `as_chunks_mut().0` which silently drops the trailing
+    remainder rather than panicking) and batch 16's
+    parking_lot_core callback-contract sub-shape (doc says
+    "must not panic" as a contract on the supplied callback,
+    function body has no panic-producing constructs); the
+    labelled Pattern B denominator in the audit corpus now
+    exercises all three syntactic-Pattern-B sub-shapes on
+    three unrelated upstreams (Zarr-format codec helpers +
+    parking_lot queue primitives + vortex-buffer bit-packed
+    bitmap helpers). Diversifies `comment-code`'s audit
+    evidence to ten upstreams (whisky-archive 4 Pattern C +
+    tls-parser 2 Pattern C + glium 1 Pattern C + pkg-config-rs
+    1 Pattern C + zarrs 6 Pattern B + boundless 1 Pattern A +
+    parking_lot_core 2 Pattern B + wasmtime 1 Pattern A +
+    rust-s3 1 Pattern A + vortex-buffer 1 Pattern B),
+    completing Pattern B's sub-shape coverage without
+    introducing a new pattern; `comment-code` moves to
+    20/0/1.00 and overall recall_upper_bound to 0.55 (26 TP /
+    21 FN / 47 expected). pr-miner mining margin preserved
+    because the new file is Rust) landed 2026-05-15. With all
+    six detectors and six external source kinds now live in
+    the corpus, pr-miner's numerator-construction phase
+    closed, comment-code exercised on all three
+    `docs/spec/comment-code-v0.md` patterns AND both Pattern
+    A's and Pattern B's single-upstream dominance broken at
+    batches 17 and 16 respectively AND Pattern A's and Pattern
+    B's sub-shape coverage completed at batches 18 and 19
+    respectively (all three syntactic sub-shapes exercised on
+    each pattern), further Phase B batches deepen existing
     pattern coverage on additional upstreams rather than
     introduce a new detector or pattern
 42. Q-15 SOTA baseline comparators

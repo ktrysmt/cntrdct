@@ -635,3 +635,47 @@
 // `benchmarks/audit-corpus/README.md` `Per-detector seed targets`
 // item 4).
 {"file":"files/rust_s3_set_retries.rs","expected":[{"detector_id":"comment-code","line":23,"external_source":{"kind":"github-commit","ref":"durch/rust-s3@771be165 s3/src/lib.rs:54 (set_retries: 'may fail' prose in `///` doc block, signature `pub fn set_retries(retries: u8)` has unit return so lacks Result/Option — spec F3 Pattern A fires; body is unconditionally infallible (`AtomicU8::store` cannot fail) so neither spec F4 Pattern B nor any panic suppression applies — configuration-doc-references-external-fallibility sub-shape of Tan SOSP 2007 §3.1 Pattern A, contrasting batch-15 boundless silent-absorb-and-log sub-shape and batch-17 wasmtime documented-panic-on-failure sub-shape)","url":"https://github.com/durch/rust-s3/blob/771be1650c23bf9aa482907c2d88dcf55d2e3ebc/s3/src/lib.rs#L54"}}],"source":"https://github.com/durch/rust-s3/blob/771be1650c23bf9aa482907c2d88dcf55d2e3ebc/s3/src/lib.rs","license":"MIT","sha256":"46c82d8196557d59a63c7711c36b1150497f034e04e13a1df45c395b27fa0edb"}
+//
+// Phase B batch 19 (2026-05-15): one `comment-code` Pattern B TP from
+// vortex-data/vortex@4c1ae92d (v0.70.0 release tag, Apache-2.0 — bit-
+// packed bitmap helpers in the vortex-buffer crate). `pub fn get_bit(
+// buf: &[u8], index: usize) -> bool` at upstream line 33 carries a
+// `///` doc block whose `# Panics` section reads `Panics if `index` is
+// not between 0 and length of `buf * 8`.` After spec F2 rendering the
+// case-folded doc contains the substring `panic` (within both
+// `# panics` and `panics if`), which is spec F4's Pattern B trigger;
+// the body `buf[index / 8] & (1 << (index % 8)) != 0` contains NONE
+// of the Pattern B body markers (panic-bang, unwrap, expect-paren,
+// unreachable-bang, assert-bang, assert-eq-bang, assert-ne-bang,
+// todo-bang, unimplemented-bang, debug-assert), so spec F4's body-
+// marker negation passes and Pattern B fires. The body DOES panic on
+// the documented out-of-bounds condition (slice bracket indexing on
+// `&[u8]` panics through the `core::ops::Index` impl for `[T]` when
+// `index / 8 >= buf.len()`, equivalent to `index >= buf.len() * 8`
+// modulo the upstream `buf * 8` typo for `buf.len() * 8`), but the
+// panic is implicit in the slice `Index` impl rather than expressed
+// via any of cntrdct's syntactic body-marker substrings — so spec F4
+// fires on syntactic substring rule rather than semantic correctness.
+// Diversifies `comment-code`'s Pattern B evidence from two upstreams
+// (zarrs Zarr-format data-type bindings 6 entries silent-drop-on-
+// mismatch sub-shape, batch 14; parking_lot_core synchronization
+// primitives 2 entries callback-contract sub-shape, batch 16) to
+// three upstreams by adding the implicit-indexing-panic sub-shape
+// (body uses bracket indexing that panics on OOB through the slice
+// `Index` impl without any of cntrdct's body-marker substrings).
+// All three are syntactic Pattern B hits — the body lacks the marker
+// substrings — regardless of whether the implementation panics
+// correctly on the documented condition (vortex), absorbs the
+// documented condition without panicking (zarrs), or expresses a
+// callback contract rather than an implementation claim
+// (parking_lot_core). vortex-data/vortex is an Apache-2.0 columnar-
+// compression / file-format project (Linux Foundation incubation
+// under LFAI&Data, formerly Spiral DB), and bit/mod.rs is the
+// bit-packed bitmap helper module the rest of the vortex-buffer
+// crate's BoolBuffer / BitBuffer types build on — a stable upstream
+// commit at the v0.70.0 release tag and a stable bug shape, the same
+// stability profile the batch 13 / 14 / 15 / 16 / 17 / 18 entries
+// have. SHA-256 is of the audit-corpus file as committed (minimal
+// extract, per `benchmarks/audit-corpus/README.md` `Per-detector seed
+// targets` item 4).
+{"file":"files/vortex_buffer_get_bit.rs","expected":[{"detector_id":"comment-code","line":11,"external_source":{"kind":"github-commit","ref":"vortex-data/vortex@4c1ae92d vortex-buffer/src/bit/mod.rs:33 (get_bit: '# Panics' prose in `///` doc block, signature `pub fn get_bit(buf: &[u8], index: usize) -> bool` — spec F4 Pattern B trigger fires on case-folded `panic` substring; body `buf[index / 8] & (1 << (index % 8)) != 0` contains NONE of cntrdct's Pattern B body markers (panic-bang, unwrap, expect-paren, unreachable-bang, assert-bang, assert-eq-bang, assert-ne-bang, todo-bang, unimplemented-bang, debug-assert), so spec F4's body-marker negation passes and Pattern B fires — implicit-indexing-panic sub-shape of Tan SOSP 2007 §3.2 Pattern B, contrasting batch-14 zarrs silent-drop-on-mismatch sub-shape and batch-16 parking_lot_core callback-contract sub-shape; body DOES panic on the documented OOB condition through the slice `Index` impl, but cntrdct's syntactic substring check cannot see the implicit panic)","url":"https://github.com/vortex-data/vortex/blob/4c1ae92d20856fbea29ed92d8554a3832b5a540c/vortex-buffer/src/bit/mod.rs#L33"}}],"source":"https://github.com/vortex-data/vortex/blob/4c1ae92d20856fbea29ed92d8554a3832b5a540c/vortex-buffer/src/bit/mod.rs","license":"Apache-2.0","sha256":"db68f20458f4e5f0d9d3989bfb9a105d4eaba377a508db68a9e48befbb933644"}
