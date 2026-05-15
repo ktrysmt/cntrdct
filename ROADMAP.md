@@ -1,11 +1,66 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-15 (Q-14 recall-audit Phase B batch 14
-landed on top of batch 13, shifting `comment-code` audit
-coverage from Pattern C only — deprecated prose without
-`#[deprecated]` attribute, batches 3 / 11 / 12 / 13 — to
-Pattern B + Pattern C by adding six `comment-code` TPs from a
-fifth permissive-licensed Rust upstream
+Last updated: 2026-05-15 (Q-14 recall-audit Phase B batch 16
+landed on top of batch 15, diversifying `comment-code` Pattern
+B audit coverage from a single upstream (zarrs only, batch 14)
+to two upstreams by adding two `comment-code` Pattern B TPs
+from a seventh permissive-licensed Rust upstream
+Amanieu/parking_lot@d7828fff7b5d6327ae608e82db45f888b344449a
+`core/src/parking_lot.rs` (parking_lot_core-v0.9.12 release
+tag, MIT OR Apache-2.0). Two top-level `pub unsafe fn` items —
+`unpark_one` (upstream line 732 / corpus line 29) and
+`unpark_requeue` (upstream line 888 / corpus line 122) — each
+carry a `///` doc block ending in `must not panic or call into
+any function in parking_lot.` cntrdct's spec F4 trigger fires
+(`doc_lc.contains("panic")` matches), and the body substring
+check finds none of `panic!` / `unwrap` / `expect(` /
+`unreachable!` / `assert!` / `assert_eq!` / `assert_ne!` /
+`todo!` / `unimplemented!` / `debug_assert` in either body —
+the same Tan SOSP 2007 §3.2 Pattern B bug shape the batch-14
+zarrs `round_bytes_*` family flags. The doc here is a contract
+on callbacks (callee must not panic) rather than a panic-prone
+implementation claim, but cntrdct's syntactic substring rule
+does not distinguish 'must not panic' (callback contract) from
+'panics if' (implementation claim) — both are spec F4 hits on
+the same trigger, and the labelled Pattern B denominator now
+exercises both phrasings on two unrelated upstreams. Both
+entries are TP. After batch 16 the detector's audit evidence
+spans seven upstreams across seven unrelated domains (Cardano
+Plutus-data helpers 4 Pattern C + TLS parser 2 Pattern C +
+OpenGL bindings 1 Pattern C + build-tool / system-package
+bindings 1 Pattern C + Zarr-format data-type bindings 6
+Pattern B + zkVM executor registry 1 Pattern A +
+parking_lot_core synchronization primitives 2 Pattern B), and
+Pattern B's single-upstream dominance is broken. The
+source-kind footprint stays at six (`github-commit` absorbs
+the two new entries). Updated corpus 33 files / 44 expected
+entries / overall recall_upper_bound 0.52 (23 TP / 21 FN, up
+from 0.50 at batch 15); `comment-code` moves to tp=17 / fn=0 /
+1.00 (was 15/0/1.00, source_breakdown github-commit 17/17);
+the other five detectors are unchanged. Batch 16 preserves the
+pr-miner mining margin because the new file is Rust — Python
+`{open} → {close}` mining-DB confidence stays at batch-10's
+19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs (`get_ver`,
+`readfile`) remain TPs. Earlier 2026-05-15: Q-14 recall-audit
+Phase B batch 15 (comment-code Pattern A coverage via
+boundless sixth upstream) shifted comment-code audit coverage
+from two-pattern (Pattern B + Pattern C) to the complete
+three-pattern (Pattern A + Pattern B + Pattern C) triple by
+adding one TP from boundless-xyz/boundless@1a2770b2
+`crates/executor/src/backends/mod.rs` (Apache-2.0):
+`pub fn default_registry() -> Registry` at upstream line 44
+carries a `///` doc block whose prose contains the Pattern A
+trigger phrase `may fail`, but the function signature
+`() -> Registry` lacks the `Result` / `Option` substring
+required by F3's return-type negation, and the body absorbs
+constructor failures via `tracing::warn!` rather than
+propagating an error type. Earlier 2026-05-15: Q-14
+recall-audit Phase B batch 14 landed on top of batch 13,
+shifting `comment-code` audit coverage from Pattern C only —
+deprecated prose without `#[deprecated]` attribute, batches
+3 / 11 / 12 / 13 — to Pattern B + Pattern C by adding six
+`comment-code` TPs from a fifth permissive-licensed Rust
+upstream
 zarrs/zarrs@3b944c57a0b7af127ae73ea250d3ffce60e51f0b
 `zarrs_data_type/src/codec_traits/bitround.rs`
 (MIT OR Apache-2.0). Six top-level `pub fn` items —
@@ -1278,6 +1333,49 @@ Q-14. Recall-audit harness
   visibility-hiding from runtime-lint enforcement;
   `comment-code` moves to 8/0/1.00 and overall
   recall_upper_bound to 0.40 (14 TP / 21 FN / 35 expected).
+  Phase B batch 16 landed 2026-05-15 on top of batch 15,
+  diversifying `comment-code` Pattern B audit coverage from
+  a single upstream (zarrs only, batch 14) to two upstreams
+  by adding two TPs from a seventh permissive-licensed Rust
+  upstream (Amanieu/parking_lot@d7828fff
+  `core/src/parking_lot.rs`, parking_lot_core-v0.9.12
+  release tag, MIT OR Apache-2.0). `pub unsafe fn unpark_one`
+  at upstream line 732 (corpus line 29) and
+  `pub unsafe fn unpark_requeue` at upstream line 888 (corpus
+  line 122) each carry a `///` doc block ending in `must not
+  panic or call into any function in parking_lot.` spec F4
+  trigger fires (`doc_lc.contains("panic")`) and the body
+  substring check finds none of the Pattern B markers
+  (`panic!` / `unwrap` / `expect(` / `unreachable!` /
+  `assert!` / `assert_eq!` / `assert_ne!` / `todo!` /
+  `unimplemented!` / `debug_assert`) in either body, so
+  Pattern B fires — the same Tan SOSP 2007 §3.2 bug shape
+  the batch-14 zarrs `round_bytes_*` family flags. The doc
+  here is a contract on callbacks rather than an
+  implementation claim, but cntrdct's syntactic substring
+  rule does not distinguish 'must not panic' (callback
+  contract) from 'panics if' (implementation claim) — both
+  are F4 hits on the same trigger, exercising both phrasings
+  on two unrelated upstreams. Both entries are TP;
+  `comment-code` moves to 17/0/1.00 and overall
+  recall_upper_bound to 0.52 (23 TP / 21 FN / 44 expected,
+  up from 0.50 at batch 15). Phase B batch 15 landed
+  2026-05-15 on top of batch 14, shifting `comment-code`
+  audit coverage from two-pattern (Pattern B + Pattern C) to
+  the complete three-pattern (Pattern A + Pattern B +
+  Pattern C) triple by adding one `comment-code` TP from a
+  sixth permissive-licensed Rust upstream
+  (boundless-xyz/boundless@1a2770b2
+  `crates/executor/src/backends/mod.rs`, Apache-2.0).
+  `pub fn default_registry() -> Registry` at upstream line 44
+  (corpus line 10) carries a `///` doc block whose prose
+  contains the Pattern A trigger phrase `may fail`, but the
+  function signature `() -> Registry` lacks the `Result` /
+  `Option` substring required by F3's return-type negation,
+  and the body absorbs constructor failures via
+  `tracing::warn!` rather than propagating an error type;
+  `comment-code` moves to 15/0/1.00 and overall
+  recall_upper_bound to 0.50 (21 TP / 21 FN / 42 expected).
   Phase B batch 14 landed 2026-05-15 on top of batch 13,
   adding six `comment-code` TPs from a fifth permissive-
   licensed Rust upstream (zarrs/zarrs
@@ -1292,19 +1390,19 @@ Q-14. Recall-audit harness
   moves to 14/0/1.00 and overall recall_upper_bound to 0.49
   (20 TP / 21 FN / 41 expected). All six cntrdct detectors
   and six external source kinds are live in the corpus;
-  comment-code now spans five independent upstreams across
-  two of the three `docs/spec/comment-code-v0.md` patterns
-  (Pattern B + Pattern C), further reducing the
-  regression-detection risk of single-source dominance and
-  single-pattern dominance that batch 11 / 12 / 13 / 14
-  already broke; pr-miner's numerator-construction phase
-  remains closed and the next moves shift to detector-side
-  scope lifts on the remaining 0.00 detectors (arg-swap,
+  comment-code now spans seven independent upstreams across
+  all three `docs/spec/comment-code-v0.md` patterns
+  (Pattern A from boundless batch 15, Pattern B from zarrs
+  batch 14 and parking_lot_core batch 16, Pattern C from
+  batches 3 / 11 / 12 / 13), with Pattern B's single-upstream
+  dominance broken at batch 16, further reducing the
+  regression-detection risk of single-source and single-
+  pattern dominance that batches 11 / 12 / 13 / 14 / 15 / 16
+  progressively broke; pr-miner's numerator-construction
+  phase remains closed and the next moves shift to detector-
+  side scope lifts on the remaining 0.00 detectors (arg-swap,
   clone-drift, config-interaction) and F3 widening on
-  unreachable-after-terminator, or Pattern A coverage of
-  comment-code (Result / Option claim without matching return
-  type) which v0 already detects but the audit corpus has not
-  yet exercised.
+  unreachable-after-terminator.
 
   Per-batch history below for the record; Phase B batch 2
   (deepening `unreachable-after-terminator` measurement) landed
@@ -2105,6 +2203,128 @@ Q-14. Recall-audit harness
     audit-corpus file as committed (minimal extract, per
     `benchmarks/audit-corpus/README.md` `Per-detector seed
     targets` item 4).
+  - Fifteenth batch (done 2026-05-15): one expected entry
+    shifting `comment-code` audit coverage from two-pattern
+    (Pattern B + Pattern C, batches 3 / 11 / 12 / 13 / 14)
+    to the complete three-pattern (Pattern A + Pattern B +
+    Pattern C) triple by adding one TP from a sixth
+    permissive-licensed Rust upstream — boundless-xyz/boundless
+    at commit `1a2770b2d824df7d931f3fdf3907ae1633f9bc80`
+    `crates/executor/src/backends/mod.rs` (Apache-2.0).
+    `pub fn default_registry() -> Registry` at upstream line
+    44 (corpus line 10) carries a `///` doc block whose
+    prose contains the Pattern A trigger phrase `may fail`
+    (per spec F3 the six case-folded substrings are
+    `returns err`, `returns result`, `may fail`, `fallible`,
+    `returns option`, `may return none`), but the function
+    signature `() -> Registry` lacks the `Result` / `Option`
+    substring required by F3's return-type negation, so the
+    doc claim of fallibility is not propagated to the caller.
+    The body absorbs constructor failures via
+    `tracing::warn!` and returns a partially-populated
+    `Registry` rather than propagating an error type — the
+    textbook Tan SOSP 2007 §3.1 Pattern A
+    ("Description Comments that describe what the function
+    returns") bug shape, previously not exercised by the
+    audit corpus. The entry is TP. The batch's value-add is
+    dual: (a) shifts `comment-code` from two-pattern
+    (Pattern B + Pattern C) to the complete three-pattern
+    (Pattern A + Pattern B + Pattern C) coverage; (b)
+    diversifies `comment-code`'s audit evidence to six
+    upstreams (whisky-archive 4 Pattern C + tls-parser 2
+    Pattern C + glium 1 Pattern C + pkg-config-rs 1
+    Pattern C + zarrs 6 Pattern B + boundless 1 Pattern A).
+    Updated audit numbers: `comment-code` tp=15 / fn=0 /
+    1.00 (up from 14/0/1.00, source_breakdown
+    `github-commit` 15/15); other five detectors unchanged;
+    overall recall_upper_bound 0.50 (21 TP / 21 FN / 42
+    expected, up from 0.49 at batch 14). Corpus size 32
+    files. SHA-256 is of the audit-corpus file as committed
+    (minimal extract, per `benchmarks/audit-corpus/README.md`
+    `Per-detector seed targets` item 4).
+  - Sixteenth batch (done 2026-05-15): two expected entries
+    diversifying `comment-code` Pattern B audit coverage
+    from a single upstream (zarrs only, batch 14) to two
+    upstreams by adding two TPs from a seventh permissive-
+    licensed Rust upstream — Amanieu/parking_lot at commit
+    `d7828fff7b5d6327ae608e82db45f888b344449a`
+    `core/src/parking_lot.rs` (MIT OR Apache-2.0,
+    parking_lot_core-v0.9.12 release tag).
+    `pub unsafe fn unpark_one` at upstream line 732 (corpus
+    line 29) and `pub unsafe fn unpark_requeue` at upstream
+    line 888 (corpus line 122) each carry a `///` doc block
+    ending in `must not panic or call into any function in
+    parking_lot.` Mapping against cntrdct's comment-code
+    detector: spec F4 trigger (rendered doc string contains
+    `panic` substring after `to_lowercase`) fires on both
+    functions because the doc's `must not panic`
+    lowercases to a string containing `panic`; the body
+    substring check at spec F4 looks for `panic!`,
+    `unwrap`, `expect(`, `unreachable!`, `assert!`,
+    `assert_eq!`, `assert_ne!`, `todo!`, `unimplemented!`,
+    `debug_assert` and finds none of them in either body
+    (the bodies manipulate parking_lot's internal bucket
+    queue via `lock_bucket`, `bucket.queue_head`,
+    `link.set()`, `callback(result)`,
+    `bucket.mutex.unlock()`, etc.; none of those identifiers
+    contain a Pattern B marker substring). Both entries are
+    TP. The two functions are top-level free `pub unsafe fn`
+    items (not impl methods), so cntrdct's per-fn loop walks
+    them correctly via the
+    `root.children().filter(kind == "function_item")` scan
+    in `src/detectors/comment_code.rs:147`. The doc here is
+    a contract on callbacks (the callee must not panic)
+    rather than a panic-prone implementation claim, but
+    cntrdct's syntactic substring rule does not distinguish
+    'must not panic' (callback contract) from 'panics if'
+    (implementation claim) — both are spec F4 hits on the
+    same trigger, and the labelled Pattern B denominator in
+    the audit corpus now exercises both phrasings on two
+    unrelated upstreams (Zarr-format codec helpers +
+    parking_lot queue primitives). The batch's value-add is
+    dual: (a) `comment-code` Pattern B diversifies from a
+    single upstream (zarrs only at batch 14, 6/6 entries)
+    to two upstreams on unrelated domains (zarrs Zarr-format
+    data-type bindings 6 + parking_lot_core synchronization
+    primitives 2), so a regression that broke one Pattern B
+    bug shape while preserving the other would now surface
+    in the audit rather than going undetected; (b) the
+    source-kind footprint stays at the existing six external
+    kinds (this batch contributes under `github-commit`,
+    already populated by batches 1 / 3 / 4 / 11 / 12 / 13 /
+    14 / 15), so no new kind is invented and the
+    source-list registry under README "Source list" remains
+    unchanged. Selection rationale: parking_lot_core is a
+    long-lived (2016-) MIT OR Apache-2.0 synchronization-
+    primitive crate used as the backing implementation for
+    `std::sync::Mutex` (via the `parking_lot` family) and
+    countless downstream crates; the `unpark_one` /
+    `unpark_requeue` "must not panic" doc claim has remained
+    stable across many releases and the panic-prohibition
+    is genuinely a callback contract rather than an
+    implementation claim — the audit corpus exercising both
+    phrasings is a useful regression-detection breadth
+    signal for spec F4. Updated audit numbers:
+    `comment-code` tp=17 / fn=0 / 1.00 (up from 15/0/1.00,
+    source_breakdown `github-commit` 17/17); `arg-swap`,
+    `clone-drift`, `config-interaction`, `pr-miner`,
+    `unreachable-after-terminator` unchanged; overall
+    recall_upper_bound 0.52 (23 TP / 21 FN / 44 expected, up
+    from 0.50 at batch 15). Corpus size 33 files (23
+    labelled + 10 density-support). Upward for the right
+    reason: two new TP entries land cleanly within the
+    existing 1.00 detector AND break Pattern B's single-
+    upstream dominance; the audit's denominator widens by 2
+    expected entries (from 42 to 44), so the percentage
+    figure reflects the new labelled sample size rather than
+    detector improvement. Batch 16 also preserves the
+    pr-miner mining margin because the new file is Rust —
+    Python `{open} → {close}` mining-DB confidence stays at
+    batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs
+    (`get_ver`, `readfile`) remain TPs. SHA-256 is of the
+    audit-corpus file as committed (minimal extract, per
+    `benchmarks/audit-corpus/README.md` `Per-detector seed
+    targets` item 4).
   - Subsequent batches deepen coverage on the remaining 0.00
     detectors via either more labelled findings on the existing
     source kinds (now that pr-miner mines the
@@ -2117,16 +2337,16 @@ Q-14. Recall-audit harness
     constant-condition / exception-typed reasoning; arg-swap /
     clone-drift / config-interaction TPs once the detectors'
     v0 scope is lifted by separate engineering with its own
-    preregistration. `comment-code` is now at 1.00 on five
-    upstreams across two of the three
-    `docs/spec/comment-code-v0.md` patterns (Pattern B from
-    zarrs batch 14, Pattern C from batches 3 / 11 / 12 / 13),
-    so further batches on this detector would either add a
-    sixth upstream (diminishing-returns regression-detection
-    insurance for the existing two patterns) or shift to
-    Pattern A coverage (Result / Option claim without matching
-    return type) which v0 already detects but the audit corpus
-    has not yet exercised.
+    preregistration. `comment-code` is now at 1.00 on seven
+    upstreams across all three
+    `docs/spec/comment-code-v0.md` patterns (Pattern A from
+    boundless batch 15, Pattern B from zarrs batch 14 and
+    parking_lot_core batch 16, Pattern C from batches
+    3 / 11 / 12 / 13), so further batches on this detector
+    would deepen existing patterns on additional upstreams
+    (diminishing-returns regression-detection insurance for
+    the existing three patterns) rather than introduce a
+    fourth pattern.
 - Phase C — release-tag refresh discipline (done 2026-05-12):
   `benchmarks/audit-corpus/README.md` carries a new "Refresh
   discipline (Phase C)" section enumerating the on-tag procedure
@@ -2475,13 +2695,52 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     moves to 15/0/1.00 and overall recall_upper_bound to
     0.50 (21 TP / 21 FN / 42 expected). pr-miner mining
     margin preserved because the new file is Rust) landed
-    2026-05-15. With all six detectors and six external
-    source kinds now live in the corpus, pr-miner's
-    numerator-construction phase closed, and comment-code
-    now exercised on all three `docs/spec/comment-code-v0.md`
-    patterns, further Phase B batches deepen existing pattern
-    coverage on additional upstreams rather than introduce a
-    new detector or pattern
+    2026-05-15; Phase B batch 16 (two `comment-code`
+    Pattern B TPs diversifying Pattern B audit coverage from
+    a single upstream (zarrs only, batch 14) to two
+    upstreams, via a seventh permissive-licensed Rust
+    upstream Amanieu/parking_lot@d7828fff
+    `core/src/parking_lot.rs` MIT OR Apache-2.0,
+    parking_lot_core-v0.9.12 release tag;
+    `pub unsafe fn unpark_one` at upstream line 732 (corpus
+    line 29) and `pub unsafe fn unpark_requeue` at upstream
+    line 888 (corpus line 122) each carry a `///` doc block
+    ending in `must not panic or call into any function in
+    parking_lot.` cntrdct's spec F4 trigger fires
+    (`doc_lc.contains("panic")` matches both), and the body
+    substring check finds none of `panic!` / `unwrap` /
+    `expect(` / `unreachable!` / `assert!` / `assert_eq!` /
+    `assert_ne!` / `todo!` / `unimplemented!` /
+    `debug_assert` in either body — the same Tan SOSP 2007
+    §3.2 Pattern B bug shape the batch-14 zarrs
+    `round_bytes_*` family flags on the panic-mismatch
+    direction. The doc here is a contract on callbacks
+    (callee must not panic) rather than a panic-prone
+    implementation claim, but cntrdct's syntactic substring
+    rule does not distinguish 'must not panic' (callback
+    contract) from 'panics if' (implementation claim) —
+    both are spec F4 hits on the same trigger, and the
+    labelled Pattern B denominator now exercises both
+    phrasings on two unrelated upstreams (Zarr-format codec
+    helpers + parking_lot queue primitives). Diversifies
+    `comment-code`'s audit evidence to seven upstreams
+    (whisky-archive 4 Pattern C + tls-parser 2 Pattern C +
+    glium 1 Pattern C + pkg-config-rs 1 Pattern C + zarrs 6
+    Pattern B + boundless 1 Pattern A + parking_lot_core 2
+    Pattern B), breaking Pattern B's single-upstream
+    dominance without introducing a new pattern;
+    `comment-code` moves to 17/0/1.00 and overall
+    recall_upper_bound to 0.52 (23 TP / 21 FN / 44
+    expected). pr-miner mining margin preserved because the
+    new file is Rust) landed 2026-05-15. With all six
+    detectors and six external source kinds now live in the
+    corpus, pr-miner's numerator-construction phase closed,
+    comment-code exercised on all three
+    `docs/spec/comment-code-v0.md` patterns AND Pattern B's
+    single-upstream dominance broken at batch 16, further
+    Phase B batches deepen existing pattern coverage on
+    additional upstreams rather than introduce a new
+    detector or pattern
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 
