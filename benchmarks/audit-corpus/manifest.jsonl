@@ -596,3 +596,42 @@
 // `benchmarks/audit-corpus/README.md` `Per-detector seed targets`
 // item 4).
 {"file":"files/wasmtime_fuzz_roundtrip.rs","expected":[{"detector_id":"comment-code","line":13,"external_source":{"kind":"github-commit","ref":"bytecodealliance/wasmtime@63330f11 cranelift/assembler-x64/src/fuzz.rs:26 (roundtrip: 'may fail' prose in `///` doc block, signature `pub fn roundtrip(inst: &Inst<FuzzRegs>)` has unit return so lacks Result/Option — spec F3 Pattern A fires; body uses `unwrap` / `assert_eq!` so spec F4 Pattern B is suppressed even though doc contains `panic` substring — documented-panic-on-failure sub-shape of Tan SOSP 2007 §3.1 Pattern A, contrasting batch-15 boundless silent-absorb-and-log sub-shape)","url":"https://github.com/bytecodealliance/wasmtime/blob/63330f11f50f6721a0f4b41ae366bba00a58536d/cranelift/assembler-x64/src/fuzz.rs#L26"}}],"source":"https://github.com/bytecodealliance/wasmtime/blob/63330f11f50f6721a0f4b41ae366bba00a58536d/cranelift/assembler-x64/src/fuzz.rs","license":"Apache-2.0 WITH LLVM-exception","sha256":"715e5970d500c546394505517b24df93b6d75265bf69c462d56b82e2936cb665"}
+//
+// Phase B batch 18 (2026-05-15): one `comment-code` Pattern A TP from
+// durch/rust-s3@771be165 (rust-s3 client crate, MIT). `pub fn
+// set_retries(retries: u8)` at upstream line 54 carries a `///` doc
+// block whose first line reads "Sets the number of retries for
+// operations that may fail and need to be retried." The substring
+// `may fail` is one of spec F3's six Pattern A trigger phrases
+// (`returns err`, `returns result`, `may fail`, `fallible`, `returns
+// option`, `may return none`), and the function signature `pub fn
+// set_retries(retries: u8)` has unit return so the return type
+// contains neither `Result` nor `Option` — spec F3's return-type
+// negation passes and Pattern A fires. The body is `RETRIES.store(
+// retries, std::sync::atomic::Ordering::SeqCst);`, an unconditionally
+// infallible atomic store, so spec F4 Pattern B does NOT fire (the
+// doc contains no `panic` substring) and spec F5 Pattern C does NOT
+// fire (the doc contains no `deprecated` substring) — only Pattern A.
+// Diversifies `comment-code`'s Pattern A evidence from two upstreams
+// (boundless 1 silent-absorb-and-log + wasmtime 1 documented-panic-
+// on-failure) to three upstreams by adding the configuration-doc-
+// references-external-fallibility sub-shape: the doc's `may fail`
+// substring describes downstream S3 request operations that the
+// configured retries protect against, not the function body itself,
+// while the function body is unconditionally infallible. All three
+// sub-shapes are syntactic Pattern A hits — the doc claim that
+// something "may fail" is not propagated to the caller through the
+// type system, regardless of whether the body absorbs the failure
+// silently (boundless), surfaces it via panic (wasmtime), or
+// describes a fallibility scope unrelated to the function body
+// (rust-s3) — exactly the textbook Tan SOSP 2007 §3.1 Pattern A bug
+// shape (a syntactic mismatch between the doc claim and the type
+// signature, regardless of the semantic intent). The audit-corpus
+// file preserves the upstream `use std::sync::atomic::AtomicU8;` and
+// `static RETRIES: AtomicU8 = AtomicU8::new(1);` declarations so the
+// extract parses cleanly under tree-sitter without dropping the
+// identifier resolution context the function depends on. SHA-256 is
+// of the audit-corpus file as committed (minimal extract, per
+// `benchmarks/audit-corpus/README.md` `Per-detector seed targets`
+// item 4).
+{"file":"files/rust_s3_set_retries.rs","expected":[{"detector_id":"comment-code","line":23,"external_source":{"kind":"github-commit","ref":"durch/rust-s3@771be165 s3/src/lib.rs:54 (set_retries: 'may fail' prose in `///` doc block, signature `pub fn set_retries(retries: u8)` has unit return so lacks Result/Option — spec F3 Pattern A fires; body is unconditionally infallible (`AtomicU8::store` cannot fail) so neither spec F4 Pattern B nor any panic suppression applies — configuration-doc-references-external-fallibility sub-shape of Tan SOSP 2007 §3.1 Pattern A, contrasting batch-15 boundless silent-absorb-and-log sub-shape and batch-17 wasmtime documented-panic-on-failure sub-shape)","url":"https://github.com/durch/rust-s3/blob/771be1650c23bf9aa482907c2d88dcf55d2e3ebc/s3/src/lib.rs#L54"}}],"source":"https://github.com/durch/rust-s3/blob/771be1650c23bf9aa482907c2d88dcf55d2e3ebc/s3/src/lib.rs","license":"MIT","sha256":"46c82d8196557d59a63c7711c36b1150497f034e04e13a1df45c395b27fa0edb"}
