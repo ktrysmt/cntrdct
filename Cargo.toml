@@ -1,6 +1,6 @@
 [package]
 name = "cntrdct"
-version = "0.2.0-rc.20"
+version = "0.2.0-rc.21"
 edition = "2021"
 license = "MIT"
 authors = ["cntrdct contributors"]
