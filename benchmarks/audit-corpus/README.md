@@ -5,71 +5,84 @@ Q-14 deliverable from `ROADMAP.md`. Houses the corpus
 per-detector recall upper bounds. Spec:
 [`docs/spec/recall-audit-v0.md`](../../docs/spec/recall-audit-v0.md).
 
-Status: Phase B batch 19 (2026-05-15). Forty-seven expected
+Status: Phase B batch 20 (2026-05-15). Forty-nine expected
 entries across six detectors and six external source kinds
 (`rustc-lint-testset`, `github-commit`, `paper-appendix`,
-`clippy`, `codeql`, `semgrep`). Batch 19 diversifies
-`comment-code` Pattern B audit coverage from two upstreams
-(zarrs 6 silent-drop-on-mismatch + parking_lot_core 2
-callback-contract, batches 14 and 16) to three upstreams by
-adding one TP from a tenth permissive-licensed Rust upstream
-(vortex-data/vortex `vortex-buffer/src/bit/mod.rs`, Apache-2.0,
-v0.70.0 release tag). `pub fn get_bit(buf: &[u8], index: usize)
--> bool` at upstream line 33 (corpus line 11) carries a `///`
-doc block whose `# Panics` section reads `Panics if `index` is
-not between 0 and length of `buf * 8`.` After spec F2 rendering
-the case-folded doc text contains the substring `panic` (within
-both `# panics` and `panics if`), which is spec F4's Pattern B
-trigger. The body `buf[index / 8] & (1 << (index % 8)) != 0`
-contains NONE of cntrdct's Pattern B body markers (`panic!`,
-`unwrap`, `expect(`, `unreachable!`, `assert!`, `assert_eq!`,
-`assert_ne!`, `todo!`, `unimplemented!`, `debug_assert`), so
-spec F4's body-marker negation passes and Pattern B fires. The
-body DOES panic on the documented out-of-bounds condition
-(slice bracket indexing on `&[u8]` panics through the
-`core::ops::Index` impl for `[T]` when `index / 8 >= buf.len()`,
-equivalent to `index >= buf.len() * 8` modulo the upstream
-`buf * 8` typo for `buf.len() * 8`), but the panic is implicit
-in the slice `Index` impl rather than expressed via any of
-cntrdct's syntactic body-marker substrings, so cntrdct's spec
-F4 fires on syntactic substring rule rather than semantic
-correctness. This is the third distinct Pattern B sub-shape in
-the audit corpus (implicit-indexing-panic): the body uses
-bracket indexing that panics on OOB through the slice `Index`
-impl without any of cntrdct's body-marker substrings, so spec
-F4 fires even though the implementation actually panics on the
-documented condition. The two prior sub-shapes are batch-14
-zarrs silent-drop-on-mismatch (doc says "Panics if not multiple
-of N", body uses `as_chunks_mut().0` which silently drops the
-trailing remainder rather than panicking — the documented panic
-never fires) and batch-16 parking_lot_core callback-contract
-(doc says "must not panic" as a contract on the supplied
-callback, the function body has no panic-producing constructs).
-All three sub-shapes are syntactic Pattern B hits — the body
-lacks the marker substrings — regardless of whether the
-implementation panics correctly on the documented condition
-(vortex), absorbs the documented condition without panicking
-(zarrs), or expresses a callback contract rather than an
-implementation claim (parking_lot_core) — exactly the textbook
-Tan SOSP 2007 §3.2 Pattern B bug shape (a syntactic mismatch
-between the doc's panic claim and the body's panic-marker
-substring set, regardless of the semantic intent). After batch
-19 the `comment-code` detector's audit evidence spans all three
-`docs/spec/comment-code-v0.md` patterns on ten upstreams across
-ten unrelated domains (whisky-archive Cardano Plutus-data
-helpers 4 Pattern C + tls-parser TLS NextProtocol parsers 2
-Pattern C + glium OpenGL draw-parameter check 1 Pattern C +
-pkg-config-rs build-tool / system-package bindings 1 Pattern C +
-zarrs Zarr-format data-type bindings 6 Pattern B + boundless
-zkVM executor registry 1 Pattern A + parking_lot_core
-synchronization primitives 2 Pattern B + wasmtime cranelift-
-assembler-x64 fuzzer infrastructure 1 Pattern A + rust-s3
-S3-client configuration setter 1 Pattern A + vortex-buffer
-bit-packed bitmap helpers 1 Pattern B), with both Pattern A
-and Pattern B now exercised across three sub-shapes on three
-upstreams each. The source-kind footprint stays at six
-(`github-commit` absorbs the new entry; batch 19 does not
-introduce a new kind).
+`clippy`, `codeql`, `semgrep`). Batch 20 diversifies
+`comment-code` Pattern C audit coverage from four upstreams
+(whisky-archive Cardano Plutus-data helpers 4 + tls-parser TLS
+NextProtocol parsers 2 + glium OpenGL draw-parameter check 1 +
+pkg-config-rs build-tool / system-package bindings 1, batches
+3 / 11 / 12 / 13) to five upstreams by adding two TPs from an
+eleventh permissive-licensed Rust upstream
+(MystenLabs/sui@add9d472
+`crates/mysten-metrics/src/metered_channel.rs`, Apache-2.0).
+`pub fn channel<T>(size: usize, gauge: &IntGauge) ->
+(Sender<T>, Receiver<T>)` at upstream line 321 (corpus line 8)
+carries a two-line `///` doc block whose second line reads
+`Deprecated: use `monitored_mpsc::channel` instead.`;
+`pub fn channel_with_total<T>` at upstream line 339 (corpus
+line 26) carries a single-line `///` doc block reading the
+same `Deprecated: use `monitored_mpsc::channel` instead.`
+Both functions carry the `#[track_caller]` attribute (which
+propagates the caller location for panic reporting but does
+NOT trigger the Rust deprecation lints) and neither carries
+the `#[deprecated]` runtime attribute the Rust deprecation
+lints honour, so downstream consumers receive no compiler
+warning — the textbook Tan SOSP 2007 §3.2 Pattern C ("bad
+comment": deprecation prose without `#[deprecated]` attribute)
+bug shape, the same one batches 3 / 11 / 12 / 13 flag on four
+prior unrelated domains. The `#[track_caller]` attribute on
+both functions is structurally analogous to the `#[doc(hidden)]`
+attribute on batch-13 pkg-config-rs `find_library` in that BOTH
+are non-suppressive attributes present alongside the
+deprecation prose without triggering the `#[deprecated]` lint
+— confirming again that cntrdct's Pattern C check walks the
+literal first identifier of the attribute path (`track_caller`
+/ `doc` vs. `deprecated`) and does not interpret the
+attribute's behavioural semantics. After batch 20 the
+`comment-code` detector's audit evidence spans all three
+`docs/spec/comment-code-v0.md` patterns on eleven upstreams
+across eleven unrelated domains (whisky-archive Cardano
+Plutus-data helpers 4 Pattern C + tls-parser TLS NextProtocol
+parsers 2 Pattern C + glium OpenGL draw-parameter check 1
+Pattern C + pkg-config-rs build-tool / system-package bindings
+1 Pattern C + zarrs Zarr-format data-type bindings 6 Pattern B
++ boundless zkVM executor registry 1 Pattern A +
+parking_lot_core synchronization primitives 2 Pattern B +
+wasmtime cranelift-assembler-x64 fuzzer infrastructure 1
+Pattern A + rust-s3 S3-client configuration setter 1 Pattern A
++ vortex-buffer bit-packed bitmap helpers 1 Pattern B + sui
+mysten-metrics async-channel metrics wrapper 2 Pattern C),
+with Pattern A and Pattern B exercised across three sub-shapes
+on three upstreams each (saturated at batches 18 and 19) and
+Pattern C now exercised on five unrelated upstreams (lifted
+from four at batch 13). The source-kind footprint stays at
+six (`github-commit` absorbs the two new entries; batch 20
+does not introduce a new kind).
+Earlier 2026-05-15: Q-14 Phase B batch 19 (`comment-code`
+Pattern B diversification via vortex-buffer tenth upstream)
+shifted Pattern B audit coverage from two upstreams (zarrs 6
+silent-drop-on-mismatch + parking_lot_core 2 callback-contract,
+batches 14 and 16) to three upstreams by adding one TP from
+vortex-data/vortex@4c1ae92d `vortex-buffer/src/bit/mod.rs`
+(v0.70.0 release tag, Apache-2.0). `pub fn get_bit(buf: &[u8],
+index: usize) -> bool` at upstream line 33 carries a `///` doc
+block whose `# Panics` section reads `Panics if `index` is not
+between 0 and length of `buf * 8`.`; the body `buf[index / 8]
+& (1 << (index % 8)) != 0` contains NONE of cntrdct's Pattern
+B body markers, so spec F4 fires — the implicit-indexing-panic
+sub-shape of Tan SOSP 2007 §3.2 Pattern B, contrasting batch-14
+zarrs silent-drop-on-mismatch sub-shape and batch-16
+parking_lot_core callback-contract sub-shape. The body DOES
+panic on the documented out-of-bounds condition (slice bracket
+indexing on `&[u8]` panics through the `core::ops::Index` impl
+for `[T]`), but the panic is implicit in the slice `Index` impl
+rather than expressed via any of cntrdct's syntactic
+body-marker substrings, so cntrdct's spec F4 fires on syntactic
+substring rule rather than semantic correctness. Pattern B is
+now exercised across all three syntactic-Pattern-B sub-shapes
+on three unrelated upstreams.
 Earlier 2026-05-15: Q-14 Phase B batch 18 (`comment-code`
 Pattern A diversification via rust-s3 ninth upstream) shifted
 Pattern A audit coverage from two upstreams (boundless 1
@@ -298,7 +311,7 @@ selection-bias issue this corpus is built to counter.
 ```
 audit-corpus/
 ├── README.md                       (this file)
-├── manifest.jsonl                  (Phase B batches 1-19)
+├── manifest.jsonl                  (Phase B batches 1-20)
 └── files/
     ├── rustc_ui_unreachable_code_ret.rs               (batch 1)
     ├── rustc_ui_expr_block.rs                         (batch 1)
@@ -335,7 +348,8 @@ audit-corpus/
     ├── parking_lot_core_unpark.rs                     (batch 16)
     ├── wasmtime_fuzz_roundtrip.rs                     (batch 17)
     ├── rust_s3_set_retries.rs                         (batch 18)
-    └── vortex_buffer_get_bit.rs                       (batch 19)
+    ├── vortex_buffer_get_bit.rs                       (batch 19)
+    └── sui_mysten_metrics_channel.rs                  (batch 20)
 ```
 
 `manifest.jsonl` follows the schema in
@@ -440,30 +454,78 @@ JSON shape (selected fields):
 {
   "per_detector": {
     "comment-code": {
-      "tp": 20,
+      "tp": 22,
       "fn": 0,
       "recall_upper_bound": 1.0,
-      "source_breakdown": { "github-commit": { "tp": 20, "fn": 0 } }
+      "source_breakdown": { "github-commit": { "tp": 22, "fn": 0 } }
     }
   },
-  "overall": { "tp": 26, "fn": 21, "recall_upper_bound": 0.55, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 36,
-  "expected_total": 47,
-  "sources": { "clippy": 2, "codeql": 6, "github-commit": 21, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
+  "overall": { "tp": 28, "fn": 21, "recall_upper_bound": 0.57, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 37,
+  "expected_total": 49,
+  "sources": { "clippy": 2, "codeql": 6, "github-commit": 23, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-15 against `v0.2.0-rc.22` per the Q-14 Phase C
-discipline. Batch 19 lifts `comment-code` from 19/0/1.00 to
-20/0/1.00 by adding one Pattern B TP on a tenth permissive-
-licensed Rust upstream (vortex-data/vortex, Apache-2.0). Overall
-`recall_upper_bound` rises from 0.54 (25 TP / 21 FN / 46
-expected at batch 18) to 0.55 (26 TP / 21 FN / 47 expected at
-batch 19). The other five detectors are unchanged.
+Refreshed 2026-05-15 against `v0.2.0-rc.23` per the Q-14 Phase C
+discipline. Batch 20 lifts `comment-code` from 20/0/1.00 to
+22/0/1.00 by adding two Pattern C TPs on an eleventh
+permissive-licensed Rust upstream (MystenLabs/sui, Apache-2.0).
+Overall `recall_upper_bound` rises from 0.55 (26 TP / 21 FN /
+47 expected at batch 19) to 0.57 (28 TP / 21 FN / 49 expected
+at batch 20). The other five detectors are unchanged.
 
-Batch 19 diversifies `comment-code` Pattern B audit coverage
+Batch 20 diversifies `comment-code` Pattern C audit coverage
+from four upstreams (whisky-archive Cardano Plutus-data
+helpers 4 + tls-parser TLS NextProtocol parsers 2 + glium
+OpenGL draw-parameter check 1 + pkg-config-rs build-tool /
+system-package bindings 1, batches 3 / 11 / 12 / 13) to five
+upstreams by adding two TPs from a permissive-licensed Rust
+upstream — MystenLabs/sui@add9d472
+`crates/mysten-metrics/src/metered_channel.rs` (Apache-2.0).
+`pub fn channel<T>(size: usize, gauge: &IntGauge) ->
+(Sender<T>, Receiver<T>)` at upstream line 321 (corpus line 8)
+carries a two-line `///` doc block whose second line reads
+`Deprecated: use `monitored_mpsc::channel` instead.`;
+`pub fn channel_with_total<T>` at upstream line 339 (corpus
+line 26) carries a single-line `///` doc block reading the
+same `Deprecated: use `monitored_mpsc::channel` instead.`
+Both functions carry the `#[track_caller]` attribute and
+neither carries the `#[deprecated]` runtime attribute the
+Rust deprecation lints honour, so downstream consumers
+receive no compiler warning — the textbook Tan SOSP 2007
+§3.2 Pattern C ("bad comment": deprecation prose without
+`#[deprecated]` attribute) bug shape, the same one batches 3
+/ 11 / 12 / 13 flag on four prior unrelated domains. The
+`#[track_caller]` attribute on both functions is structurally
+analogous to the `#[doc(hidden)]` attribute on batch-13
+pkg-config-rs `find_library` in that BOTH are non-suppressive
+attributes present alongside the deprecation prose without
+triggering the `#[deprecated]` lint — confirming again that
+cntrdct's Pattern C check walks the literal first identifier
+of the attribute path (`track_caller` / `doc` vs.
+`deprecated`) and does not interpret the attribute's
+behavioural semantics. The async-channel metrics wrapper
+domain (Sui's blockchain runtime observability layer) is
+unrelated to the prior Pattern C domains (Cardano Plutus-data
+helpers, TLS NextProtocol parsers, OpenGL draw-parameter
+check, build-tool / system-package bindings), so the
+diversification reduces single-source dominance risk in
+Pattern C the way batches 16 and 19 progressively did for
+Pattern B and batches 17 and 18 progressively did for
+Pattern A. The source-kind footprint stays at six
+(`github-commit` absorbs the two new entries; batch 20 does
+not introduce a new kind). `comment-code` moves to 22/0/1.00
+and overall recall_upper_bound to 0.57 (28 TP / 21 FN / 49
+expected). pr-miner mining margin preserved because the new
+file is Rust — the Python `{open} → {close}` mining-DB
+confidence stays at batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both
+pr-miner TPs (`get_ver`, `readfile`) remain TPs.
+
+Batch 19 (earlier 2026-05-15) diversified `comment-code`
+Pattern B audit coverage
 from two upstreams (zarrs Zarr-format data-type bindings 6
 entries silent-drop-on-mismatch sub-shape + parking_lot_core
 synchronization primitives 2 entries callback-contract
@@ -474,50 +536,22 @@ vortex-data/vortex@4c1ae92d `vortex-buffer/src/bit/mod.rs`
 index: usize) -> bool` at upstream line 33 (corpus line 11)
 carries a `///` doc block whose `# Panics` section reads
 `Panics if `index` is not between 0 and length of `buf * 8`.`
-After spec F2 rendering the case-folded doc text contains the
-substring `panic` (within both `# panics` and `panics if`),
-which is spec F4's Pattern B trigger. The body
-`buf[index / 8] & (1 << (index % 8)) != 0` contains NONE of
-cntrdct's Pattern B body markers (`panic!`, `unwrap`,
+The body `buf[index / 8] & (1 << (index % 8)) != 0` contains
+NONE of cntrdct's Pattern B body markers (`panic!`, `unwrap`,
 `expect(`, `unreachable!`, `assert!`, `assert_eq!`,
 `assert_ne!`, `todo!`, `unimplemented!`, `debug_assert`), so
-spec F4's body-marker negation passes and Pattern B fires. The
-body DOES panic on the documented out-of-bounds condition
-(slice bracket indexing on `&[u8]` panics through the
-`core::ops::Index` impl for `[T]` when `index / 8 >= buf.len()`,
-equivalent to `index >= buf.len() * 8` modulo the upstream
-`buf * 8` typo for `buf.len() * 8`), but the panic is implicit
-in the slice `Index` impl rather than expressed via any of
-cntrdct's syntactic body-marker substrings, so cntrdct's spec
-F4 fires on syntactic substring rule rather than semantic
-correctness. This is the third distinct Pattern B sub-shape in
-the audit corpus (implicit-indexing-panic): the body uses
-bracket indexing that panics on OOB through the slice `Index`
-impl without any of cntrdct's body-marker substrings, so spec
-F4 fires even though the implementation actually panics on the
-documented condition. The two prior sub-shapes are batch-14
-zarrs silent-drop-on-mismatch (doc says "Panics if not multiple
-of N", body uses `as_chunks_mut().0` which silently drops the
-trailing remainder rather than panicking) and batch-16
-parking_lot_core callback-contract (doc says "must not panic"
-as a contract on the supplied callback, the function body has
-no panic-producing constructs). All three sub-shapes are
-syntactic Pattern B hits — the body lacks the marker substrings
-— regardless of whether the implementation panics correctly on
-the documented condition (vortex), absorbs the documented
-condition without panicking (zarrs), or expresses a callback
-contract rather than an implementation claim (parking_lot_core)
-— exactly the textbook Tan SOSP 2007 §3.2 Pattern B bug shape
-(a syntactic mismatch between the doc's panic claim and the
-body's panic-marker substring set, regardless of the semantic
-intent). The source-kind footprint stays at six (`github-commit`
-absorbs the new entry; batch 19 does not introduce a new kind).
-`comment-code` moves to 20/0/1.00 and overall recall_upper_bound
-to 0.55 (26 TP / 21 FN / 47 expected). pr-miner mining margin
-preserved because the new file is Rust — the Python `{open} →
-{close}` mining-DB confidence stays at batch-10's 19/22 ≈ 0.864
-≥ 0.85, and both pr-miner TPs (`get_ver`, `readfile`) remain
-TPs.
+spec F4's body-marker negation passes and Pattern B fires —
+the implicit-indexing-panic sub-shape of Tan SOSP 2007 §3.2
+Pattern B, contrasting batch-14 zarrs silent-drop-on-mismatch
+sub-shape and batch-16 parking_lot_core callback-contract
+sub-shape. The body DOES panic on the documented OOB
+condition (slice bracket indexing on `&[u8]` panics through
+the `core::ops::Index` impl for `[T]`), but the panic is
+implicit in the slice `Index` impl rather than expressed via
+any of cntrdct's syntactic body-marker substrings, so spec F4
+fires on syntactic substring rule rather than semantic
+correctness. Pattern B is now exercised across all three
+syntactic-Pattern-B sub-shapes on three unrelated upstreams.
 
 Batch 18 (earlier 2026-05-15) diversified `comment-code`
 Pattern A audit coverage
