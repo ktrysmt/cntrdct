@@ -564,3 +564,35 @@
 // as committed (minimal extract, per `benchmarks/audit-corpus/README.md`
 // `Per-detector seed targets` item 4).
 {"file":"files/parking_lot_core_unpark.rs","expected":[{"detector_id":"comment-code","line":29,"external_source":{"kind":"github-commit","ref":"Amanieu/parking_lot@d7828fff core/src/parking_lot.rs:732 (unpark_one: 'must not panic' doc claim, body has no Pattern B markers — spec F4 Pattern B fires; parking_lot_core-v0.9.12 release tag)","url":"https://github.com/Amanieu/parking_lot/blob/d7828fff7b5d6327ae608e82db45f888b344449a/core/src/parking_lot.rs#L732"}},{"detector_id":"comment-code","line":122,"external_source":{"kind":"github-commit","ref":"Amanieu/parking_lot@d7828fff core/src/parking_lot.rs:888 (unpark_requeue: 'must not panic' doc claim, body has no Pattern B markers — spec F4 Pattern B fires)","url":"https://github.com/Amanieu/parking_lot/blob/d7828fff7b5d6327ae608e82db45f888b344449a/core/src/parking_lot.rs#L888"}}],"source":"https://github.com/Amanieu/parking_lot/blob/d7828fff7b5d6327ae608e82db45f888b344449a/core/src/parking_lot.rs","license":"MIT OR Apache-2.0","sha256":"3527a7e4a22f993fa6eb64b71977709a08f991a8ca5c35328af0d1d36d3aea40"}
+//
+// Phase B batch 17 (2026-05-15): one `comment-code` Pattern A TP from
+// bytecodealliance/wasmtime@63330f11 (cranelift-assembler-x64 fuzzer
+// infrastructure, Apache-2.0 WITH LLVM-exception). `pub fn roundtrip`
+// at upstream line 26 carries a `///` doc block whose `# Panics`
+// section reads "This function panics to express failure as expected
+// by the `arbitrary` fuzzer infrastructure. It may fail during
+// assembly, disassembly, or when comparing the disassembled strings."
+// The substring `may fail` is one of spec F3's six Pattern A trigger
+// phrases (`returns err`, `returns result`, `may fail`, `fallible`,
+// `returns option`, `may return none`), and the function signature
+// `pub fn roundtrip(inst: &Inst<FuzzRegs>)` has unit return so the
+// return type contains neither `Result` nor `Option` — spec F3's
+// return-type negation passes and Pattern A fires. The body uses
+// `expected.split_once(' ').unwrap()` and `assert_eq!(expected,
+// &actual)` (the fuzzer intentionally panics to express failure to
+// the `arbitrary` harness), so spec F4 Pattern B's body-marker
+// negation suppresses Pattern B even though the doc contains the
+// substring `panic` — only Pattern A fires on this function.
+// Diversifies `comment-code`'s Pattern A evidence from a single
+// upstream (boundless-xyz/boundless zkVM executor registry, 1
+// entry, silent-absorb-and-log sub-shape: body uses
+// `tracing::warn!` and returns a partial `Registry`) to two
+// upstreams (boundless 1 + wasmtime cranelift-assembler-x64 fuzzer
+// infrastructure 1, documented-panic-on-failure sub-shape: body
+// uses `unwrap` / `assert_eq!`), breaking Pattern A's
+// single-upstream dominance the same way batch 16's
+// parking_lot_core entries broke Pattern B's. SHA-256 is of the
+// audit-corpus file as committed (minimal extract, per
+// `benchmarks/audit-corpus/README.md` `Per-detector seed targets`
+// item 4).
+{"file":"files/wasmtime_fuzz_roundtrip.rs","expected":[{"detector_id":"comment-code","line":13,"external_source":{"kind":"github-commit","ref":"bytecodealliance/wasmtime@63330f11 cranelift/assembler-x64/src/fuzz.rs:26 (roundtrip: 'may fail' prose in `///` doc block, signature `pub fn roundtrip(inst: &Inst<FuzzRegs>)` has unit return so lacks Result/Option — spec F3 Pattern A fires; body uses `unwrap` / `assert_eq!` so spec F4 Pattern B is suppressed even though doc contains `panic` substring — documented-panic-on-failure sub-shape of Tan SOSP 2007 §3.1 Pattern A, contrasting batch-15 boundless silent-absorb-and-log sub-shape)","url":"https://github.com/bytecodealliance/wasmtime/blob/63330f11f50f6721a0f4b41ae366bba00a58536d/cranelift/assembler-x64/src/fuzz.rs#L26"}}],"source":"https://github.com/bytecodealliance/wasmtime/blob/63330f11f50f6721a0f4b41ae366bba00a58536d/cranelift/assembler-x64/src/fuzz.rs","license":"Apache-2.0 WITH LLVM-exception","sha256":"715e5970d500c546394505517b24df93b6d75265bf69c462d56b82e2936cb665"}

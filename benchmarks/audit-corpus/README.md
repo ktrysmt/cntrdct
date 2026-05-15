@@ -5,47 +5,64 @@ Q-14 deliverable from `ROADMAP.md`. Houses the corpus
 per-detector recall upper bounds. Spec:
 [`docs/spec/recall-audit-v0.md`](../../docs/spec/recall-audit-v0.md).
 
-Status: Phase B batch 16 (2026-05-15). Forty-four expected
+Status: Phase B batch 17 (2026-05-15). Forty-five expected
 entries across six detectors and six external source kinds
 (`rustc-lint-testset`, `github-commit`, `paper-appendix`,
-`clippy`, `codeql`, `semgrep`). Batch 16 diversifies
-`comment-code` Pattern B audit coverage from a single upstream
-(zarrs only, batch 14) to two upstreams by adding two TPs from
-a seventh permissive-licensed Rust upstream
-(Amanieu/parking_lot `core/src/parking_lot.rs`,
-parking_lot_core-v0.9.12 release tag, MIT OR Apache-2.0).
-`pub unsafe fn unpark_one` at upstream line 732 (corpus line
-29) and `pub unsafe fn unpark_requeue` at upstream line 888
-(corpus line 122) each carry a `///` doc block ending in
-`must not panic or call into any function in parking_lot.`
-cntrdct's spec F4 trigger (rendered doc string contains
-`panic` substring after `to_lowercase`) fires on both
-functions; the body substring check finds none of `panic!`,
-`unwrap`, `expect(`, `unreachable!`, `assert!`, `assert_eq!`,
-`assert_ne!`, `todo!`, `unimplemented!`, `debug_assert` in
-either body, so Pattern B fires — the same Tan SOSP 2007 §3.2
-"bad comment" bug shape the batch-14 zarrs `round_bytes_*`
-family flags on the panic-mismatch direction. The doc here is
-a contract on callbacks (the callee must not panic) rather
-than a panic-prone implementation claim, but cntrdct's
-syntactic substring rule does not distinguish 'must not
-panic' (callback contract) from 'panics if' (implementation
-claim) — both are spec F4 hits on the same trigger, and the
-labelled Pattern B denominator in the audit corpus now
-exercises both phrasings on two unrelated upstreams. After
-batch 16 the `comment-code` detector's audit evidence spans
-all three `docs/spec/comment-code-v0.md` patterns on seven
-upstreams across seven unrelated domains (whisky-archive
-Cardano Plutus-data helpers 4 Pattern C + tls-parser TLS
-NextProtocol parsers 2 Pattern C + glium OpenGL
-draw-parameter check 1 Pattern C + pkg-config-rs build-tool /
-system-package bindings 1 Pattern C + zarrs Zarr-format
-data-type bindings 6 Pattern B + boundless zkVM executor
-registry 1 Pattern A + parking_lot_core synchronization
-primitives 2 Pattern B), Pattern B's single-upstream
-dominance (zarrs only at batch 14) is now broken. The
-source-kind footprint stays at six (`github-commit` absorbs
-the two new entries; batch 16 does not introduce a new kind).
+`clippy`, `codeql`, `semgrep`). Batch 17 diversifies
+`comment-code` Pattern A audit coverage from a single upstream
+(boundless only, batch 15) to two upstreams by adding one TP
+from an eighth permissive-licensed Rust upstream
+(bytecodealliance/wasmtime `cranelift/assembler-x64/src/fuzz.rs`,
+Apache-2.0 WITH LLVM-exception). `pub fn roundtrip` at upstream
+line 26 (corpus line 13) carries a `///` doc block whose
+`# Panics` section reads `This function panics to express
+failure as expected by the \`arbitrary\` fuzzer infrastructure.
+It may fail during assembly, disassembly, or when comparing the
+disassembled strings.` The substring `may fail` is one of spec
+F3's six Pattern A trigger phrases, and the function signature
+`pub fn roundtrip(inst: &Inst<FuzzRegs>)` has unit return so the
+return type contains neither `Result` nor `Option` — spec F3's
+return-type negation passes and Pattern A fires. The body uses
+`expected.split_once(' ').unwrap()` and `assert_eq!(expected,
+&actual)` (the fuzzer infrastructure intentionally panics to
+express failure to the `arbitrary` harness), so spec F4 Pattern
+B's body-marker negation suppresses Pattern B even though the
+doc contains the substring `panic` — only Pattern A fires.
+Diversifies `comment-code`'s Pattern A evidence from a single
+upstream (boundless zkVM executor registry, 1 entry,
+silent-absorb-and-log sub-shape) to two upstreams (boundless 1
++ wasmtime cranelift-assembler-x64 fuzzer infrastructure 1,
+documented-panic-on-failure sub-shape), breaking Pattern A's
+single-upstream dominance the same way batch 16's
+parking_lot_core entries broke Pattern B's. After batch 17 the
+`comment-code` detector's audit evidence spans all three
+`docs/spec/comment-code-v0.md` patterns on eight upstreams
+across eight unrelated domains (whisky-archive Cardano
+Plutus-data helpers 4 Pattern C + tls-parser TLS NextProtocol
+parsers 2 Pattern C + glium OpenGL draw-parameter check 1
+Pattern C + pkg-config-rs build-tool / system-package bindings
+1 Pattern C + zarrs Zarr-format data-type bindings 6 Pattern B
++ boundless zkVM executor registry 1 Pattern A +
+parking_lot_core synchronization primitives 2 Pattern B +
+wasmtime cranelift-assembler-x64 fuzzer infrastructure 1
+Pattern A), and Pattern A's single-upstream dominance is
+broken. The source-kind footprint stays at six
+(`github-commit` absorbs the new entry; batch 17 does not
+introduce a new kind).
+Earlier 2026-05-15: Q-14 Phase B batch 16 (`comment-code`
+Pattern B diversification via parking_lot_core seventh upstream)
+shifted Pattern B audit coverage from a single upstream (zarrs
+only, batch 14) to two upstreams by adding two TPs from
+Amanieu/parking_lot@d7828fff `core/src/parking_lot.rs`
+(parking_lot_core-v0.9.12 release tag, MIT OR Apache-2.0).
+`pub unsafe fn unpark_one` at upstream line 732 (corpus line 29)
+and `pub unsafe fn unpark_requeue` at upstream line 888 (corpus
+line 122) each carry a `///` doc block ending in `must not
+panic or call into any function in parking_lot.`; the body
+substring check finds none of the Pattern B markers in either
+body, so Pattern B fires — the same Tan SOSP 2007 §3.2 "bad
+comment" bug shape the batch-14 zarrs `round_bytes_*` family
+flags on the panic-mismatch direction.
 Earlier 2026-05-15: Q-14 Phase B batch 15 (`comment-code`
 Pattern A coverage via boundless sixth upstream) shifted
 `comment-code` audit coverage from two-pattern (Pattern B +
@@ -234,7 +251,7 @@ selection-bias issue this corpus is built to counter.
 ```
 audit-corpus/
 ├── README.md                       (this file)
-├── manifest.jsonl                  (Phase B batches 1-15)
+├── manifest.jsonl                  (Phase B batches 1-17)
 └── files/
     ├── rustc_ui_unreachable_code_ret.rs               (batch 1)
     ├── rustc_ui_expr_block.rs                         (batch 1)
@@ -267,7 +284,9 @@ audit-corpus/
     ├── glium_draw_parameters_validate.rs              (batch 12)
     ├── pkg_config_rs_find_library.rs                  (batch 13)
     ├── zarrs_bitround_round_bytes.rs                  (batch 14)
-    └── boundless_default_registry.rs                  (batch 15)
+    ├── boundless_default_registry.rs                  (batch 15)
+    ├── parking_lot_core_unpark.rs                     (batch 16)
+    └── wasmtime_fuzz_roundtrip.rs                     (batch 17)
 ```
 
 `manifest.jsonl` follows the schema in
@@ -372,33 +391,71 @@ JSON shape (selected fields):
 {
   "per_detector": {
     "comment-code": {
-      "tp": 17,
+      "tp": 18,
       "fn": 0,
       "recall_upper_bound": 1.0,
-      "source_breakdown": { "github-commit": { "tp": 17, "fn": 0 } }
+      "source_breakdown": { "github-commit": { "tp": 18, "fn": 0 } }
     }
   },
-  "overall": { "tp": 23, "fn": 21, "recall_upper_bound": 0.52, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 33,
-  "expected_total": 44,
-  "sources": { "clippy": 2, "codeql": 6, "github-commit": 18, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
+  "overall": { "tp": 24, "fn": 21, "recall_upper_bound": 0.53, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 34,
+  "expected_total": 45,
+  "sources": { "clippy": 2, "codeql": 6, "github-commit": 19, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-15 against `v0.2.0-rc.19` per the Q-14 Phase C
-discipline. The figures match the batch-16 same-day snapshot
-bit-for-bit (no detector or audit-corpus change since the same
-day), so this refresh is a no-op for the figures but keeps the
-assertion live, the same way CI runs the rest of the suite on
-every push.
+Refreshed 2026-05-15 mid-cycle against the to-be-tagged
+`v0.2.0-rc.20` build after Q-14 Phase B batch 17 landed. Final
+release-tag refresh will reconfirm under the Phase C discipline.
 
-Batch 16 diversifies `comment-code` Pattern B audit coverage from
-a single upstream (zarrs Zarr-format data-type bindings, 6
-entries, batch 14) to two upstreams (zarrs 6 + parking_lot_core
-synchronization primitives 2) by adding two TPs from a
-permissive-licensed Rust upstream — Amanieu/parking_lot@d7828fff
+Batch 17 diversifies `comment-code` Pattern A audit coverage
+from a single upstream (boundless zkVM executor registry, 1
+entry, batch 15) to two upstreams (boundless 1 + wasmtime
+cranelift-assembler-x64 fuzzer infrastructure 1) by adding one
+TP from a permissive-licensed Rust upstream —
+bytecodealliance/wasmtime@63330f11
+`cranelift/assembler-x64/src/fuzz.rs` (Apache-2.0 WITH
+LLVM-exception). `pub fn roundtrip` at upstream line 26 (corpus
+line 13) carries a `///` doc block whose `# Panics` section
+reads `This function panics to express failure as expected by
+the \`arbitrary\` fuzzer infrastructure. It may fail during
+assembly, disassembly, or when comparing the disassembled
+strings.` The substring `may fail` is one of spec F3's six
+Pattern A trigger phrases, and the function signature
+`pub fn roundtrip(inst: &Inst<FuzzRegs>)` has unit return so
+the return type contains neither `Result` nor `Option` — spec
+F3's return-type negation passes and Pattern A fires. The body
+uses `expected.split_once(' ').unwrap()` and
+`assert_eq!(expected, &actual)` (the fuzzer infrastructure
+intentionally panics to express failure to the `arbitrary`
+harness), so spec F4 Pattern B's body-marker negation
+suppresses Pattern B even though the doc contains the substring
+`panic` — only Pattern A fires. Diversifies `comment-code`'s
+Pattern A evidence from a single upstream (boundless, 1 entry,
+silent-absorb-and-log sub-shape: body uses `tracing::warn!` and
+returns a partial `Registry`) to two upstreams (boundless 1 +
+wasmtime 1, documented-panic-on-failure sub-shape: body uses
+`unwrap` / `assert_eq!`), breaking Pattern A's single-upstream
+dominance the same way batch 16's parking_lot_core entries
+broke Pattern B's. Both sub-shapes are syntactic Pattern A
+hits — the doc claim of fallibility is not propagated to the
+caller through the type system, regardless of whether the body
+absorbs the failure silently (boundless) or surfaces it via
+panic (wasmtime). The source-kind footprint stays at six
+(`github-commit` absorbs the new entry; batch 17 does not
+introduce a new kind). `comment-code` moves to 18/0/1.00 and
+overall recall_upper_bound to 0.53 (24 TP / 21 FN / 45
+expected). pr-miner mining margin preserved because the new
+file is Rust.
+
+Batch 16 (earlier 2026-05-15) diversified `comment-code`
+Pattern B audit coverage from a single upstream (zarrs
+Zarr-format data-type bindings, 6 entries, batch 14) to two
+upstreams (zarrs 6 + parking_lot_core synchronization
+primitives 2) by adding two TPs from a permissive-licensed
+Rust upstream — Amanieu/parking_lot@d7828fff
 `core/src/parking_lot.rs` (parking_lot_core-v0.9.12 release tag,
 MIT OR Apache-2.0). `pub unsafe fn unpark_one` at upstream line
 732 (corpus line 29) and `pub unsafe fn unpark_requeue` at
@@ -566,22 +623,22 @@ is Rust — Python `{open} → {close}` confidence stays at
 | ------------------------------ | --:| --:| ------------------:| ---------------------------------------- |
 | `arg-swap`                     |  0 |  4 |               0.00 | `paper-appendix` (3/4 entries)           |
 | `clone-drift`                  |  0 |  2 |               0.00 | `clippy` (2/2 entries)                   |
-| `comment-code`                 | 17 |  0 |               1.00 | `github-commit` (17/17 entries)          |
+| `comment-code`                 | 18 |  0 |               1.00 | `github-commit` (18/18 entries)          |
 | `config-interaction`           |  0 |  2 |               0.00 | `rustc-lint-testset` (2/2)               |
 | `pr-miner`                     |  2 |  0 |               1.00 | `semgrep` (2/2 entries)                  |
 | `unreachable-after-terminator` |  4 | 13 |               0.24 | `rustc-lint-testset` (11/17 entries)     |
-| **overall**                    | 23 | 21 |               0.52 |                                          |
+| **overall**                    | 24 | 21 |               0.53 |                                          |
 
-Corpus size: 33 files (10 of which are batch-10 density-support
+Corpus size: 34 files (10 of which are batch-10 density-support
 files with `expected: []` — they do not enter the recall
-denominator). Expected entries: 44. Source mix:
-`github-commit` (18 entries), `rustc-lint-testset` (13),
+denominator). Expected entries: 45. Source mix:
+`github-commit` (19 entries), `rustc-lint-testset` (13),
 `codeql` (6), `paper-appendix` (3), `clippy` (2), `semgrep`
 (2).
 
 Reading the figures:
 
-- The seventeen `comment-code` true positives split across seven
+- The eighteen `comment-code` true positives split across eight
   permissive-licensed upstreams and all three of the
   `docs/spec/comment-code-v0.md` patterns: eight Pattern C
   entries — four from `sidan-lab/whisky-archive@99243766`
@@ -593,8 +650,11 @@ Reading the figures:
   — six from `zarrs/zarrs@3b944c57` (Zarr-format data-type
   bindings, batch 14) and two from `Amanieu/parking_lot@d7828fff`
   (parking_lot_core synchronization primitives, batch 16); and
-  one Pattern A entry from `boundless-xyz/boundless@1a2770b2`
-  (zkVM executor registry, batch 15). The eight Pattern C entries share the textbook
+  two Pattern A entries — one from `boundless-xyz/boundless@1a2770b2`
+  (zkVM executor registry, batch 15) and one from
+  `bytecodealliance/wasmtime@63330f11`
+  (cranelift-assembler-x64 fuzzer infrastructure, batch 17).
+  The eight Pattern C entries share the textbook
   Tan SOSP 2007 §3.2 Pattern C ("bad comment") shape: a `///`
   doc block whose rendered prose contains `deprecated`
   (case-folded) without a matching `#[deprecated]` runtime
@@ -627,49 +687,74 @@ Reading the figures:
   panicking constructs (no `panic!` / `unwrap` / `expect(` /
   `unreachable!` / `assert!` / `assert_eq!` / `assert_ne!` /
   `todo!` / `unimplemented!` / `debug_assert` in the body
-  source text). The one Pattern A entry from boundless is
-  `default_registry`: its `///` doc block contains the trigger
+  source text). The two Pattern A entries split by sub-shape:
+  boundless `default_registry` (batch 15) is the silent-absorb-
+  and-log sub-shape — its `///` doc block contains the trigger
   phrase `may fail` (case-folded substring match against the
-  rendered doc), but the function signature `() -> Registry`
-  lacks the `Result` / `Option` substring required by spec
-  F3's return-type negation, and the body absorbs constructor
-  failures via `tracing::warn!` rather than propagating an
-  error type — the textbook Tan SOSP 2007 §3.1 Pattern A bug
-  shape (doc claim of fallibility without an error-type return).
-  The three-pattern split surfaces the first audit signal that
-  breaking any one pattern would not be masked by the other two
-  — a regression that loosens any of Pattern A / Pattern B /
-  Pattern C while the other two still fire would now reduce
-  the corresponding TP count rather than going undetected.
-  cntrdct's Pattern A (`docs/spec/comment-code-v0.md` F3),
-  Pattern B (F4), and Pattern C (F5) all fire on the syntactic
-  surface, and the recall_upper_bound of 1.00 reflects that
-  all three bug-classes within cntrdct's detection scope
-  (top-level `fn` items) are captured cleanly. The
-  seven-upstream / three-pattern coverage on seven unrelated
-  domains (Cardano Plutus-data helpers, TLS parser, OpenGL
-  bindings, build-tool / system-package bindings, Zarr-format
-  data-type bindings, zkVM executor registry, parking_lot_core
-  synchronization primitives) reduces the single-upstream and
-  single-pattern regression-detection risk that batches 11 /
-  12 / 13 / 14 / 15 / 16 progressively broke. The two Pattern B
-  entries from parking_lot_core (batch 16) are `unpark_one`
-  and `unpark_requeue`, each carrying a `///` doc block ending
-  in `must not panic or call into any function in
-  parking_lot.` cntrdct's syntactic substring rule does not
-  distinguish 'must not panic' (callback contract) from
-  'panics if' (implementation claim) — both phrasings trip
-  spec F4's `doc_lc.contains("panic")` check, and the audit
-  corpus's Pattern B denominator now exercises both phrasings
-  on two unrelated upstreams (Zarr-format codec helpers +
-  parking_lot queue primitives). After batch 16,
+  rendered doc), the function signature `() -> Registry` lacks
+  the `Result` / `Option` substring required by spec F3's
+  return-type negation, and the body absorbs constructor
+  failures via `tracing::warn!` and returns a partially-
+  populated `Registry` rather than propagating an error type.
+  The wasmtime `roundtrip` (batch 17) is the documented-panic-
+  on-failure sub-shape — its `///` doc block's `# Panics`
+  section reads `This function panics to express failure as
+  expected by the \`arbitrary\` fuzzer infrastructure. It may
+  fail during assembly, disassembly, or when comparing the
+  disassembled strings.`; the trigger phrase `may fail` fires
+  the same Pattern A check, the function signature
+  `pub fn roundtrip(inst: &Inst<FuzzRegs>)` has unit return so
+  spec F3's return-type negation passes, but the body uses
+  `expected.split_once(' ').unwrap()` and
+  `assert_eq!(expected, &actual)` (the fuzzer intentionally
+  panics to express failure to the `arbitrary` harness) so
+  spec F4 Pattern B's body-marker negation suppresses Pattern
+  B even though the doc contains the substring `panic` — only
+  Pattern A fires on this function. Both sub-shapes are the
+  textbook Tan SOSP 2007 §3.1 Pattern A bug shape (doc claim
+  of fallibility without an error-type return), and the audit
+  corpus's Pattern A denominator now exercises both sub-shapes
+  on two unrelated upstreams (zkVM executor registry +
+  assembler-fuzzer infrastructure). The three-pattern split
+  surfaces the first audit signal that breaking any one
+  pattern would not be masked by the other two — a regression
+  that loosens any of Pattern A / Pattern B / Pattern C while
+  the other two still fire would now reduce the corresponding
+  TP count rather than going undetected. cntrdct's Pattern A
+  (`docs/spec/comment-code-v0.md` F3), Pattern B (F4), and
+  Pattern C (F5) all fire on the syntactic surface, and the
+  recall_upper_bound of 1.00 reflects that all three
+  bug-classes within cntrdct's detection scope (top-level
+  `fn` items) are captured cleanly. The eight-upstream /
+  three-pattern coverage on eight unrelated domains (Cardano
+  Plutus-data helpers, TLS parser, OpenGL bindings, build-tool
+  / system-package bindings, Zarr-format data-type bindings,
+  zkVM executor registry, parking_lot_core synchronization
+  primitives, cranelift-assembler-x64 fuzzer infrastructure)
+  reduces the single-upstream and single-pattern
+  regression-detection risk that batches 11 / 12 / 13 / 14 /
+  15 / 16 / 17 progressively broke. The two Pattern B entries
+  from parking_lot_core (batch 16) are `unpark_one` and
+  `unpark_requeue`, each carrying a `///` doc block ending in
+  `must not panic or call into any function in parking_lot.`
+  cntrdct's syntactic substring rule does not distinguish
+  'must not panic' (callback contract) from 'panics if'
+  (implementation claim) — both phrasings trip spec F4's
+  `doc_lc.contains("panic")` check, and the audit corpus's
+  Pattern B denominator now exercises both phrasings on two
+  unrelated upstreams (Zarr-format codec helpers +
+  parking_lot queue primitives). After batch 17,
   `comment-code`'s audit coverage of all three
-  `docs/spec/comment-code-v0.md` patterns is complete and
-  Pattern B's single-upstream dominance (zarrs only at batch
-  14) is broken; further batches on this detector deepen
-  existing patterns on additional upstreams (regression-
-  detection insurance for the existing three patterns) rather
-  than introduce a fourth pattern.
+  `docs/spec/comment-code-v0.md` patterns is complete, Pattern
+  A's single-upstream dominance (boundless only at batch 15)
+  is now broken, and Pattern B's single-upstream dominance
+  (zarrs only at batch 14, broken at batch 16) remains broken
+  — every pattern now has at least two upstreams of
+  regression-detection insurance. Pattern C still enjoys
+  four-upstream coverage by historical accident (batches 3 /
+  11 / 12 / 13). Further batches on this detector deepen
+  existing patterns on additional upstreams (diminishing-
+  returns insurance) rather than introduce a fourth pattern.
 - The four `unreachable-after-terminator` true positives split
   by source: three come from rust-lang/rust ui-tests where the
   rustc lint and cntrdct's tree-sitter scan converge on the same
@@ -813,8 +898,8 @@ Reading the figures:
 
 The overall recall_upper_bound moved from 0.26 (batch 9) to
 0.32 (batch 10), then to 0.36 (batch 11), 0.38 (batch 12),
-0.40 (batch 13), 0.49 (batch 14), 0.50 (batch 15), and now
-0.52 (batch 16).
+0.40 (batch 13), 0.49 (batch 14), 0.50 (batch 15), 0.52 (batch
+16), and now 0.53 (batch 17).
 The batch-10 move was upward because `pr-miner` flipped from
 `0/2/0.00` to `2/0/1.00` once batch 10's eighteen paired
 open+close transactions lifted the mined-rule confidence over
@@ -863,11 +948,25 @@ is upward for one reason on a seventh independent upstream —
 synchronization primitives unrelated to any of the prior six
 domains, deepening Pattern B's audit evidence from a single
 upstream (zarrs only at batch 14) to two upstreams without
-introducing a new pattern. Batches 13 / 14 / 15 / 16 each
-preserve the pr-miner mining margin because every new file in
-those batches is Rust (Python `{open} → {close}` confidence
-stays at batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both pr-miner
-TPs remain TPs). Closing the 1.00 gap on pr-miner
+introducing a new pattern. The batch-17 move is upward for one
+reason on an eighth independent upstream — `comment-code`
+adds one TP from bytecodealliance/wasmtime@63330f11 (Apache-2.0
+WITH LLVM-exception, cranelift-assembler-x64 fuzzer
+infrastructure unrelated to any of the prior seven domains),
+deepening Pattern A's audit evidence from a single upstream
+(boundless only at batch 15) to two upstreams without
+introducing a new pattern. Batch 17's wasmtime entry also
+introduces a new Pattern A sub-shape (documented-panic-on-
+failure: doc says "may fail", body uses `unwrap` / `assert_eq!`
+intentionally to surface failure via panic) contrasting batch
+15's boundless silent-absorb-and-log sub-shape (doc says "may
+fail", body uses `tracing::warn!` and returns a partial
+`Registry`), so the Pattern A denominator now exercises both
+sub-shapes on two unrelated upstreams. Batches 13 / 14 / 15 /
+16 / 17 each preserve the pr-miner mining margin because every
+new file in those batches is Rust (Python `{open} → {close}`
+confidence stays at batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both
+pr-miner TPs remain TPs). Closing the 1.00 gap on pr-miner
 was a corpus-density problem (more paired open/close
 transactions) rather than an extractor-widening problem;
 documenting that the gap is density-bound and not scope-bound
@@ -905,12 +1004,12 @@ maintain the margin). The remaining 0.00 detectors (`arg-swap`,
 scope lifts under separate preregistrations, and
 `unreachable-after-terminator` needs F3 widening to constant-
 condition / exception-typed reasoning to close its 0.76 gap.
-`comment-code` is now at 1.00 on seven upstreams across all
+`comment-code` is now at 1.00 on eight upstreams across all
 three `docs/spec/comment-code-v0.md` patterns (Pattern A from
-boundless batch 15, Pattern B from zarrs batch 14 and
-parking_lot_core batch 16, Pattern C from batches 3 / 11 / 12
-/ 13), so further batches on this detector deepen existing
-patterns on additional upstreams (diminishing-returns
+boundless batch 15 and wasmtime batch 17, Pattern B from zarrs
+batch 14 and parking_lot_core batch 16, Pattern C from batches
+3 / 11 / 12 / 13), so further batches on this detector deepen
+existing patterns on additional upstreams (diminishing-returns
 regression-detection insurance for the existing three
 patterns) rather than introduce a fourth pattern.
 
