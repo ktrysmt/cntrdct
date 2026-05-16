@@ -356,7 +356,7 @@ selection-bias issue this corpus is built to counter.
 ```
 audit-corpus/
 ├── README.md                       (this file)
-├── manifest.jsonl                  (Phase B batches 1-21)
+├── manifest.jsonl                  (Phase B batches 1-23)
 └── files/
     ├── rustc_ui_unreachable_code_ret.rs               (batch 1)
     ├── rustc_ui_expr_block.rs                         (batch 1)
@@ -395,7 +395,9 @@ audit-corpus/
     ├── rust_s3_set_retries.rs                         (batch 18)
     ├── vortex_buffer_get_bit.rs                       (batch 19)
     ├── sui_mysten_metrics_channel.rs                  (batch 20)
-    └── vcpkg_rs_probe_package.rs                      (batch 21)
+    ├── vcpkg_rs_probe_package.rs                      (batch 21)
+    ├── vst2_process_deprecated.rs                     (batch 22)
+    └── nono_warn_for_deprecated_flags.rs              (batch 23)
 ```
 
 `manifest.jsonl` follows the schema in
@@ -500,30 +502,87 @@ JSON shape (selected fields):
 {
   "per_detector": {
     "comment-code": {
-      "tp": 24,
+      "tp": 25,
       "fn": 0,
       "recall_upper_bound": 1.0,
-      "source_breakdown": { "github-commit": { "tp": 24, "fn": 0 } }
+      "source_breakdown": { "github-commit": { "tp": 25, "fn": 0 } }
     }
   },
-  "overall": { "tp": 30, "fn": 21, "recall_upper_bound": 0.59, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 39,
-  "expected_total": 51,
-  "sources": { "clippy": 2, "codeql": 6, "github-commit": 25, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
+  "overall": { "tp": 31, "fn": 21, "recall_upper_bound": 0.60, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 40,
+  "expected_total": 52,
+  "sources": { "clippy": 2, "codeql": 6, "github-commit": 26, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-16 against `v0.2.0-rc.25` per the Q-14 Phase C
-discipline. Batch 22 lifts `comment-code` from 23/0/1.00 to
-24/0/1.00 by adding one Pattern C TP on a thirteenth
-permissive-licensed Rust upstream (overdrivenpotato/rust-vst2,
-MIT). Overall `recall_upper_bound` rises from 0.58 (29 TP / 21
-FN / 50 expected at batch 21) to 0.59 (30 TP / 21 FN / 51
-expected at batch 22). The other five detectors are unchanged.
+Refreshed 2026-05-16 against `v0.2.0-rc.26` per the Q-14 Phase C
+discipline. Batch 23 lifts `comment-code` from 24/0/1.00 to
+25/0/1.00 by adding one Pattern C TP on a fourteenth
+permissive-licensed Rust upstream (always-further/nono,
+Apache-2.0). Overall `recall_upper_bound` rises from 0.59 (30
+TP / 21 FN / 51 expected at batch 22) to 0.60 (31 TP / 21 FN /
+52 expected at batch 23). The other five detectors are
+unchanged.
 
-Batch 22 diversifies `comment-code` Pattern C audit coverage
+Batch 23 diversifies `comment-code` Pattern C audit coverage
+from seven upstreams (whisky-archive Cardano Plutus-data
+helpers 4 + tls-parser TLS NextProtocol parsers 2 + glium
+OpenGL draw-parameter check 1 + pkg-config-rs Unix pkg-config
+bindings 1 + sui mysten-metrics async-channel metrics wrapper
+2 + vcpkg-rs Windows vcpkg bindings 1 + rust-vst2 VST 2.4
+audio plugin host 1, batches 3 / 11 / 12 / 13 / 20 / 21 / 22)
+to eight upstreams by adding one TP from a permissive-licensed
+Rust upstream — always-further/nono@2e5504f2
+`crates/nono-cli/src/deprecated_schema.rs` (Apache-2.0).
+`pub fn warn_for_deprecated_flags(args: &[std::ffi::OsString])`
+at upstream line 196 (corpus line 10) carries a four-line `///`
+doc block whose later half (after a blank `///` separator)
+reads `DEPRECATED: delete when all long-flag aliases in this
+module are removed / in v1.0.0. See module-level removal
+steps.` but does not carry the `#[deprecated]` runtime
+attribute the Rust deprecation lints honour — the textbook Tan
+SOSP 2007 §3.2 Pattern C bug shape. Introduces the meta-
+deprecation-warning-emitter sub-shape within Pattern C: the
+function body iterates `detect_deprecated_flags(args)`, matches
+each canonical legacy spelling against its replacement
+(`--override-deny` → `--bypass-protection`), and calls
+`emit_deprecation_warning(...)` — its purpose is to emit per-
+call-site diagnostics for OTHER deprecated long-flag aliases
+routed through clap, while itself being marked deprecated in
+the module-level removal checklist; the function and the flags
+it warns about are co-scheduled for removal in v1.0.0, so the
+doc claim is forward-looking rather than legacy. This contrasts
+prior body shapes that delegate to the replacement (batch-3
+whisky-archive con_str → constr, batch-13 pkg-config-rs
+find_library → probe_library, batch-21 vcpkg-rs probe_package
+→ find_package), prior body shapes that retain the original
+implementation in-tree (batch-11 tls-parser
+parse_tls_handshake_*next_protocol family, batch-12 glium
+validate, batch-20 sui mysten-metrics channel /
+channel_with_total), and the batch-22 rust-vst2 stub-body shape
+(empty `{ }` ABI placeholder). cntrdct's spec F5 Pattern C
+check ignores the body — only the doc and adjacent attributes
+are inspected — so the meta-warning-emitter case fires
+identically to delegate-body, in-tree-body, and stub-body
+cases, confirming the syntactic-only design. nono is the
+capability-based sandbox CLI domain (fine-grained policy
+brokering for agent operating contexts, zero setup and zero
+latency), unrelated to the prior seven Pattern C domains
+(Cardano Plutus-data, TLS NextProtocol, OpenGL draw-parameters,
+Unix pkg-config, async-channel metrics, Windows vcpkg, VST 2.4
+audio plugin host). The source-kind footprint stays at six
+(`github-commit` absorbs the new entry; batch 23 does not
+introduce a new kind). `comment-code` moves to 25/0/1.00 and
+overall recall_upper_bound to 0.60 (31 TP / 21 FN / 52
+expected). pr-miner mining margin preserved because the new
+file is Rust — the Python `{open} → {close}` mining-DB
+confidence stays at batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both
+pr-miner TPs (`get_ver`, `readfile`) remain TPs.
+
+Batch 22 (earlier 2026-05-16) diversified `comment-code`
+Pattern C audit coverage
 from six upstreams (whisky-archive Cardano Plutus-data
 helpers 4 + tls-parser TLS NextProtocol parsers 2 + glium
 OpenGL draw-parameter check 1 + pkg-config-rs Unix pkg-config
@@ -558,15 +617,7 @@ rust-vst2 is the audio / DSP plugin host domain (VST 2.4 API
 implementation in Rust for creating audio plugins and hosts),
 unrelated to the prior six Pattern C domains (Cardano
 Plutus-data, TLS NextProtocol, OpenGL draw-parameters,
-Unix pkg-config, async-channel metrics, Windows vcpkg). The
-source-kind footprint stays at six (`github-commit` absorbs
-the new entry; batch 22 does not introduce a new kind).
-`comment-code` moves to 24/0/1.00 and overall
-recall_upper_bound to 0.59 (30 TP / 21 FN / 51 expected).
-pr-miner mining margin preserved because the new file is Rust
-— the Python `{open} → {close}` mining-DB confidence stays at
-batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs
-(`get_ver`, `readfile`) remain TPs.
+Unix pkg-config, async-channel metrics, Windows vcpkg).
 
 Batch 21 (earlier 2026-05-16) diversified `comment-code`
 Pattern C audit coverage
