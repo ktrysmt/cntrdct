@@ -500,31 +500,76 @@ JSON shape (selected fields):
 {
   "per_detector": {
     "comment-code": {
-      "tp": 23,
+      "tp": 24,
       "fn": 0,
       "recall_upper_bound": 1.0,
-      "source_breakdown": { "github-commit": { "tp": 23, "fn": 0 } }
+      "source_breakdown": { "github-commit": { "tp": 24, "fn": 0 } }
     }
   },
-  "overall": { "tp": 29, "fn": 21, "recall_upper_bound": 0.58, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 38,
-  "expected_total": 50,
-  "sources": { "clippy": 2, "codeql": 6, "github-commit": 24, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
+  "overall": { "tp": 30, "fn": 21, "recall_upper_bound": 0.59, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 39,
+  "expected_total": 51,
+  "sources": { "clippy": 2, "codeql": 6, "github-commit": 25, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-16 against `v0.2.0-rc.24` per the Q-14 Phase C
-discipline. Batch 21 lifts `comment-code` from 22/0/1.00 to
-23/0/1.00 by adding one Pattern C TP on a twelfth
-permissive-licensed Rust upstream (mcgoo/vcpkg-rs, MIT OR
-Apache-2.0). Overall `recall_upper_bound` rises from 0.57 (28
-TP / 21 FN / 49 expected at batch 20) to 0.58 (29 TP / 21 FN /
-50 expected at batch 21). The other five detectors are
-unchanged.
+Refreshed 2026-05-16 against `v0.2.0-rc.25` per the Q-14 Phase C
+discipline. Batch 22 lifts `comment-code` from 23/0/1.00 to
+24/0/1.00 by adding one Pattern C TP on a thirteenth
+permissive-licensed Rust upstream (overdrivenpotato/rust-vst2,
+MIT). Overall `recall_upper_bound` rises from 0.58 (29 TP / 21
+FN / 50 expected at batch 21) to 0.59 (30 TP / 21 FN / 51
+expected at batch 22). The other five detectors are unchanged.
 
-Batch 21 diversifies `comment-code` Pattern C audit coverage
+Batch 22 diversifies `comment-code` Pattern C audit coverage
+from six upstreams (whisky-archive Cardano Plutus-data
+helpers 4 + tls-parser TLS NextProtocol parsers 2 + glium
+OpenGL draw-parameter check 1 + pkg-config-rs Unix pkg-config
+bindings 1 + sui mysten-metrics async-channel metrics wrapper
+2 + vcpkg-rs Windows vcpkg bindings 1, batches 3 / 11 / 12 /
+13 / 20 / 21) to seven upstreams by adding one TP from a
+permissive-licensed Rust upstream —
+overdrivenpotato/rust-vst2@244e14bd `src/interfaces.rs` (MIT).
+`pub fn process_deprecated(_effect: *mut AEffect, _inputs_raw:
+*mut *mut f32, _outputs_raw: *mut *mut f32, _samples: i32) {
+}` at upstream line 17 (corpus line 6) carries a single-line
+`///` doc block reading `Deprecated process function.` but
+does not carry the `#[deprecated]` runtime attribute the Rust
+deprecation lints honour — the textbook Tan SOSP 2007 §3.2
+Pattern C bug shape. Introduces a new body-shape variant
+within Pattern C: the function body is the empty block `{ }`
+retained as an ABI / API placeholder for callers that link
+against the old symbol while migrating to the replacement
+`process_replacing` / `process_replacing_f64` family,
+contrasting prior body shapes that delegate to the replacement
+(batch-3 whisky-archive con_str → constr, batch-13
+pkg-config-rs find_library → probe_library, batch-21 vcpkg-rs
+probe_package → find_package) and prior body shapes that
+retain the original implementation in-tree (batch-11
+tls-parser parse_tls_handshake_*next_protocol family, batch-12
+glium validate, batch-20 sui mysten-metrics channel /
+channel_with_total). cntrdct's spec F5 Pattern C check ignores
+the body — only the doc and adjacent attributes are inspected
+— so the stub-body case fires identically to delegate-body and
+in-tree-body cases, confirming the syntactic-only design.
+rust-vst2 is the audio / DSP plugin host domain (VST 2.4 API
+implementation in Rust for creating audio plugins and hosts),
+unrelated to the prior six Pattern C domains (Cardano
+Plutus-data, TLS NextProtocol, OpenGL draw-parameters,
+Unix pkg-config, async-channel metrics, Windows vcpkg). The
+source-kind footprint stays at six (`github-commit` absorbs
+the new entry; batch 22 does not introduce a new kind).
+`comment-code` moves to 24/0/1.00 and overall
+recall_upper_bound to 0.59 (30 TP / 21 FN / 51 expected).
+pr-miner mining margin preserved because the new file is Rust
+— the Python `{open} → {close}` mining-DB confidence stays at
+batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs
+(`get_ver`, `readfile`) remain TPs.
+
+Batch 21 (earlier 2026-05-16) diversified `comment-code`
+Pattern C audit coverage
 from five upstreams (whisky-archive Cardano Plutus-data
 helpers 4 + tls-parser TLS NextProtocol parsers 2 + glium
 OpenGL draw-parameter check 1 + pkg-config-rs build-tool /
@@ -554,15 +599,7 @@ rediscovered the same `Deprecated`-prose-without-
 attribute does NOT suppress Pattern C because the walker
 checks the literal first identifier (`doc` vs. `deprecated`),
 confirming again that Pattern C distinguishes
-visibility-hiding from runtime-lint enforcement. The
-source-kind footprint stays at six (`github-commit` absorbs
-the new entry; batch 21 does not introduce a new kind).
-`comment-code` moves to 23/0/1.00 and overall
-recall_upper_bound to 0.58 (29 TP / 21 FN / 50 expected).
-pr-miner mining margin preserved because the new file is Rust
-— the Python `{open} → {close}` mining-DB confidence stays at
-batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs
-(`get_ver`, `readfile`) remain TPs.
+visibility-hiding from runtime-lint enforcement.
 
 Batch 20 (2026-05-15) diversified `comment-code` Pattern C
 audit coverage

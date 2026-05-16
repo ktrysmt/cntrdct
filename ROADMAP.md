@@ -1,12 +1,79 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-16 (Q-14 recall-audit Phase B batch 21
-landed on top of batch 20, diversifying `comment-code` Pattern
-C audit coverage from five upstreams (whisky-archive +
-tls-parser + glium + pkg-config-rs + sui mysten-metrics,
-batches 3 / 11 / 12 / 13 / 20) to six upstreams by adding one
-`comment-code` Pattern C TP from a twelfth permissive-licensed
-Rust upstream mcgoo/vcpkg-rs@fa42994af157924e44223f2559a95c906e00c1fa
+Last updated: 2026-05-16 (Q-14 recall-audit Phase B batch 22
+landed on top of batch 21, diversifying `comment-code` Pattern
+C audit coverage from six upstreams (whisky-archive +
+tls-parser + glium + pkg-config-rs + sui mysten-metrics +
+vcpkg-rs, batches 3 / 11 / 12 / 13 / 20 / 21) to seven
+upstreams by adding one `comment-code` Pattern C TP from a
+thirteenth permissive-licensed Rust upstream
+overdrivenpotato/rust-vst2@244e14bd28caff3b21aa27f26a57bf01f01b7780
+`src/interfaces.rs` (MIT). One top-level `pub fn` item —
+`process_deprecated` (upstream line 17 / corpus line 6) —
+carries a single-line `///` doc block reading `Deprecated
+process function.` but does not carry the `#[deprecated]`
+runtime attribute the Rust deprecation lints honour, so
+downstream consumers receive no compiler warning — the
+textbook Tan SOSP 2007 §3.2 Pattern C bug shape. cntrdct's
+spec F5 Pattern C trigger fires on the `deprecated` substring;
+the preceding-siblings walker finds zero attributes adjacent
+to the function so the `#[deprecated]` lint is not honoured.
+The function body is the empty block `{ }` retained as an ABI
+/ API placeholder for callers that link against the old symbol
+while migrating to the replacement `process_replacing` /
+`process_replacing_f64` family — a new body-shape variant
+within Pattern C, contrasting prior body shapes that delegate
+to the replacement (batch-3 whisky-archive con_str → constr,
+batch-13 pkg-config-rs find_library → probe_library, batch-21
+vcpkg-rs probe_package → find_package) and prior body shapes
+that retain the original implementation in-tree (batch-11
+tls-parser parse_tls_handshake_*next_protocol family, batch-12
+glium validate, batch-20 sui mysten-metrics channel /
+channel_with_total). cntrdct's spec F5 Pattern C check ignores
+the body — only the doc and adjacent attributes are inspected
+— so the stub-body case fires identically to delegate-body and
+in-tree-body cases, confirming the syntactic-only design.
+rust-vst2 is the audio / DSP plugin host domain (VST 2.4 API
+implementation in Rust for creating audio plugins and hosts),
+unrelated to the prior six Pattern C domains. The function
+signature `pub fn process_deprecated(_effect: *mut AEffect,
+_inputs_raw: *mut *mut f32, _outputs_raw: *mut *mut f32,
+_samples: i32)` has unit return so spec F3 Pattern A's
+return-type negation passes, but the doc contains no Pattern A
+trigger phrase so Pattern A does not fire; the doc contains no
+`panic` substring so spec F4 Pattern B does not fire — only
+Pattern C fires. The entry is TP. After batch 22 the
+detector's audit evidence spans thirteen upstreams across
+thirteen unrelated domains (Cardano Plutus-data helpers 4
+Pattern C + TLS parser 2 Pattern C + OpenGL bindings 1 Pattern
+C + Unix pkg-config bindings 1 Pattern C + Zarr-format
+data-type bindings 6 Pattern B + zkVM executor registry 1
+Pattern A + parking_lot_core synchronization primitives 2
+Pattern B + cranelift-assembler-x64 fuzzer infrastructure 1
+Pattern A + S3-client configuration setter 1 Pattern A +
+vortex-buffer bit-packed bitmap helpers 1 Pattern B + sui
+mysten-metrics async-channel metrics wrapper 2 Pattern C +
+Windows vcpkg bindings 1 Pattern C + VST 2.4 audio plugin host
+1 Pattern C), with Pattern A and Pattern B saturated at three
+sub-shapes on three upstreams each (batches 18 and 19) and
+Pattern C now exercised on seven unrelated upstreams (lifted
+from six at batch 21). The source-kind footprint stays at six
+(`github-commit` absorbs the new entry). Updated corpus 39
+files / 51 expected entries / overall recall_upper_bound 0.59
+(30 TP / 21 FN, up from 0.58 at batch 21); `comment-code`
+moves to tp=24 / fn=0 / 1.00 (was 23/0/1.00, source_breakdown
+github-commit 24/24); the other five detectors are unchanged.
+Batch 22 preserves the pr-miner mining margin because the new
+file is Rust — Python `{open} → {close}` mining-DB confidence
+stays at batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both pr-miner
+TPs (`get_ver`, `readfile`) remain TPs. Earlier 2026-05-16:
+Q-14 recall-audit Phase B batch 21 landed on top of batch 20,
+diversifying `comment-code` Pattern C audit coverage from five
+upstreams (whisky-archive + tls-parser + glium + pkg-config-rs
++ sui mysten-metrics, batches 3 / 11 / 12 / 13 / 20) to six
+upstreams by adding one `comment-code` Pattern C TP from a
+twelfth permissive-licensed Rust upstream
+mcgoo/vcpkg-rs@fa42994af157924e44223f2559a95c906e00c1fa
 `src/lib.rs` (MIT OR Apache-2.0). One top-level `pub fn` item —
 `probe_package` (upstream line 293 / corpus line 7) — carries
 a single-line `///` doc block reading `Deprecated in favor of
@@ -1478,6 +1545,52 @@ Q-14. Recall-audit harness
   visibility-hiding from runtime-lint enforcement;
   `comment-code` moves to 8/0/1.00 and overall
   recall_upper_bound to 0.40 (14 TP / 21 FN / 35 expected).
+  Phase B batch 22 landed 2026-05-16 on top of batch 21,
+  diversifying `comment-code` Pattern C audit coverage from
+  six upstreams (whisky-archive Cardano Plutus-data helpers 4
+  + tls-parser TLS NextProtocol parsers 2 + glium OpenGL
+  draw-parameter check 1 + pkg-config-rs Unix pkg-config
+  bindings 1 + sui mysten-metrics async-channel metrics
+  wrapper 2 + vcpkg-rs Windows vcpkg bindings 1, batches 3 /
+  11 / 12 / 13 / 20 / 21) to seven upstreams by adding one TP
+  from a thirteenth permissive-licensed Rust upstream
+  (overdrivenpotato/rust-vst2@244e14bd `src/interfaces.rs`,
+  MIT). `pub fn process_deprecated(_effect: *mut AEffect,
+  _inputs_raw: *mut *mut f32, _outputs_raw: *mut *mut f32,
+  _samples: i32) { }` at upstream line 17 (corpus line 6)
+  carries a single-line `///` doc block reading `Deprecated
+  process function.` but does not carry the `#[deprecated]`
+  runtime attribute the Rust deprecation lints honour, so
+  downstream consumers receive no compiler warning — the
+  textbook Tan SOSP 2007 §3.2 Pattern C bug shape. Introduces
+  a new body-shape variant within Pattern C: the function
+  body is the empty block `{ }` retained as an ABI / API
+  placeholder for callers that link against the old symbol
+  while migrating to the replacement `process_replacing` /
+  `process_replacing_f64` family, contrasting prior body
+  shapes that delegate to the replacement (batch-3
+  whisky-archive con_str → constr, batch-13 pkg-config-rs
+  find_library → probe_library, batch-21 vcpkg-rs
+  probe_package → find_package) and prior body shapes that
+  retain the original implementation in-tree (batch-11
+  tls-parser parse_tls_handshake_*next_protocol family,
+  batch-12 glium validate, batch-20 sui mysten-metrics
+  channel / channel_with_total). cntrdct's spec F5 Pattern C
+  check ignores the body — only the doc and adjacent
+  attributes are inspected — so the stub-body case fires
+  identically to delegate-body and in-tree-body cases,
+  confirming the syntactic-only design. rust-vst2 is the
+  audio / DSP plugin host domain (VST 2.4 API implementation
+  in Rust for creating audio plugins and hosts), unrelated to
+  the prior six Pattern C domains. `comment-code` moves to
+  24/0/1.00 and overall recall_upper_bound to 0.59 (30 TP /
+  21 FN / 51 expected, up from 0.58 at batch 21); Pattern C
+  is now exercised on seven unrelated upstreams (Cardano
+  Plutus-data + TLS NextProtocol + OpenGL draw-parameters +
+  Unix pkg-config + async-channel metrics + Windows vcpkg +
+  VST 2.4 audio plugin host), lifted from six at batch 21.
+  Pattern A and Pattern B remain saturated at three
+  sub-shapes across three upstreams each (batches 18 and 19).
   Phase B batch 21 landed 2026-05-16 on top of batch 20,
   diversifying `comment-code` Pattern C audit coverage from
   five upstreams (whisky-archive Cardano Plutus-data helpers 4
@@ -3274,6 +3387,51 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     new pattern; `comment-code` moves to 23/0/1.00 and overall
     recall_upper_bound to 0.58 (29 TP / 21 FN / 50 expected).
     pr-miner mining margin preserved because the new file is
+    Rust) landed 2026-05-16; Phase B batch 22 (one
+    `comment-code` Pattern C TP diversifying Pattern C audit
+    coverage from six upstreams (whisky-archive 4 + tls-parser
+    2 + glium 1 + pkg-config-rs 1 + sui mysten-metrics 2 +
+    vcpkg-rs 1, batches 3 / 11 / 12 / 13 / 20 / 21) to seven
+    upstreams, via a thirteenth permissive-licensed Rust
+    upstream overdrivenpotato/rust-vst2@244e14bd
+    `src/interfaces.rs`, MIT. `pub fn process_deprecated(
+    _effect: *mut AEffect, _inputs_raw: *mut *mut f32,
+    _outputs_raw: *mut *mut f32, _samples: i32) { }` at
+    upstream line 17 (corpus line 6) carries a single-line
+    `///` doc block reading `Deprecated process function.`
+    but does not carry the `#[deprecated]` runtime attribute,
+    so spec F5 Pattern C fires. The function body is the empty
+    block `{ }` retained as an ABI / API placeholder for
+    callers that link against the old symbol while migrating to
+    the replacement `process_replacing` /
+    `process_replacing_f64` family — a new body-shape variant
+    within Pattern C, contrasting prior body shapes that
+    delegate to the replacement (batch-3 whisky-archive con_str
+    → constr, batch-13 pkg-config-rs find_library →
+    probe_library, batch-21 vcpkg-rs probe_package →
+    find_package) and prior body shapes that retain the
+    original implementation in-tree (batch-11 tls-parser
+    parse_tls_handshake_*next_protocol family, batch-12 glium
+    validate, batch-20 sui mysten-metrics channel /
+    channel_with_total). cntrdct's spec F5 Pattern C check
+    ignores the body — only the doc and adjacent attributes
+    are inspected — so the stub-body case fires identically to
+    delegate-body and in-tree-body cases, confirming the
+    syntactic-only design. rust-vst2 is the audio / DSP plugin
+    host domain (VST 2.4 API implementation in Rust for
+    creating audio plugins and hosts), unrelated to the prior
+    six Pattern C domains. Diversifies `comment-code`'s audit
+    evidence to thirteen upstreams (whisky-archive 4 Pattern C
+    + tls-parser 2 Pattern C + glium 1 Pattern C + pkg-config-
+    rs 1 Pattern C + zarrs 6 Pattern B + boundless 1 Pattern A
+    + parking_lot_core 2 Pattern B + wasmtime 1 Pattern A +
+    rust-s3 1 Pattern A + vortex-buffer 1 Pattern B + sui
+    mysten-metrics 2 Pattern C + vcpkg-rs 1 Pattern C +
+    rust-vst2 1 Pattern C), lifting Pattern C from six
+    upstreams to seven without introducing a new pattern;
+    `comment-code` moves to 24/0/1.00 and overall
+    recall_upper_bound to 0.59 (30 TP / 21 FN / 51 expected).
+    pr-miner mining margin preserved because the new file is
     Rust) landed 2026-05-16. With all
     six detectors and six external source kinds now live in
     the corpus, pr-miner's numerator-construction phase
@@ -3283,10 +3441,10 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     batches 17 and 16 respectively AND Pattern A's and Pattern
     B's sub-shape coverage completed at batches 18 and 19
     respectively (all three syntactic sub-shapes exercised on
-    each pattern) AND Pattern C lifted from four to six
-    upstreams at batches 20 and 21, further Phase B batches
-    deepen existing pattern coverage on additional upstreams
-    rather than introduce a new detector or pattern
+    each pattern) AND Pattern C lifted from four to seven
+    upstreams at batches 20, 21, and 22, further Phase B
+    batches deepen existing pattern coverage on additional
+    upstreams rather than introduce a new detector or pattern
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 
