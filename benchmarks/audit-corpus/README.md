@@ -356,7 +356,7 @@ selection-bias issue this corpus is built to counter.
 ```
 audit-corpus/
 ├── README.md                       (this file)
-├── manifest.jsonl                  (Phase B batches 1-26)
+├── manifest.jsonl                  (Phase B batches 1-27)
 └── files/
     ├── rustc_ui_unreachable_code_ret.rs               (batch 1)
     ├── rustc_ui_expr_block.rs                         (batch 1)
@@ -400,7 +400,8 @@ audit-corpus/
     ├── nono_warn_for_deprecated_flags.rs              (batch 23)
     ├── smolvm_export_layer.rs                         (batch 24)
     ├── anycode_decode_project_path.rs                 (batch 25)
-    └── lsvine_transform_readdir.rs                    (batch 26)
+    ├── lsvine_transform_readdir.rs                    (batch 26)
+    └── reflex_find_ruby_gem_names.rs                  (batch 27)
 ```
 
 `manifest.jsonl` follows the schema in
@@ -505,34 +506,147 @@ JSON shape (selected fields):
 {
   "per_detector": {
     "comment-code": {
-      "tp": 28,
+      "tp": 29,
       "fn": 0,
       "recall_upper_bound": 1.0,
-      "source_breakdown": { "github-commit": { "tp": 28, "fn": 0 } }
+      "source_breakdown": { "github-commit": { "tp": 29, "fn": 0 } }
     }
   },
-  "overall": { "tp": 34, "fn": 21, "recall_upper_bound": 0.62, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 43,
-  "expected_total": 55,
-  "sources": { "clippy": 2, "codeql": 6, "github-commit": 29, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
+  "overall": { "tp": 35, "fn": 21, "recall_upper_bound": 0.625, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 44,
+  "expected_total": 56,
+  "sources": { "clippy": 2, "codeql": 6, "github-commit": 30, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-17 against `v0.2.0-rc.29` per the Q-14 Phase C
-discipline. Batch 26 lifts `comment-code` from 27/0/1.00 to
-28/0/1.00 by adding one Pattern C TP on a seventeenth
-permissive-licensed Rust upstream (autofitcloud/lsvine,
-Apache-2.0). Overall `recall_upper_bound` lifts from 0.61 to
-0.62 to two decimal places (raw float lifts from 0.6111 at
-batch 25 to 0.6182 at batch 26; 34 TP / 21 FN / 55 expected at
-batch 26, up from 33 TP / 21 FN / 54 expected at batch 25 —
-within the 0.05 movement threshold so no separate "Reading the
-figures" note is required per the refresh discipline). The
-other five detectors are unchanged.
+Refreshed 2026-05-17 against `v0.2.0-rc.30` per the Q-14 Phase C
+discipline. Batch 27 lifts `comment-code` from 28/0/1.00 to
+29/0/1.00 by adding one Pattern C TP on an eighteenth
+permissive-licensed Rust upstream (reflex-search/reflex, MIT).
+Overall `recall_upper_bound` lifts from 0.62 to 0.63 to two
+decimal places (raw float lifts from 0.6182 at batch 26 to
+0.625 at batch 27; 35 TP / 21 FN / 56 expected at batch 27,
+up from 34 TP / 21 FN / 55 expected at batch 26 — within the
+0.05 movement threshold so no separate "Reading the figures"
+note is required per the refresh discipline). The other five
+detectors are unchanged.
 
-Batch 26 diversifies `comment-code` Pattern C audit coverage
+Batch 27 diversifies `comment-code` Pattern C audit coverage
+from eleven upstreams (whisky-archive Cardano Plutus-data
+helpers 4 + tls-parser TLS NextProtocol parsers 2 + glium
+OpenGL draw-parameter check 1 + pkg-config-rs Unix pkg-config
+bindings 1 + sui mysten-metrics async-channel metrics wrapper
+2 + vcpkg-rs Windows vcpkg bindings 1 + rust-vst2 VST 2.4
+audio plugin host 1 + nono capability-based sandbox CLI 1 +
+smolvm portable lightweight VM image layer storage 1 +
+Any-code Tauri-based AI-coding-tool viewer 1 + lsvine
+`tree -L 2`-style directory tree CLI iterator adapter 1,
+batches 3 / 11 / 12 / 13 / 20 / 21 / 22 / 23 / 24 / 25 / 26)
+to twelve upstreams by adding one TP from a permissive-licensed
+Rust upstream — reflex-search/reflex@2b312b36
+`src/parsers/ruby.rs` (MIT).
+`pub fn find_ruby_gem_names(root: &std::path::Path) ->
+Vec<String>` at upstream line 850 (corpus line 7) carries a
+two-line `///` doc block whose second line reads
+`DEPRECATED: Use parse_all_ruby_projects() instead for
+monorepo support` but does not carry the `#[deprecated]`
+runtime attribute the Rust deprecation lints honour — the
+textbook Tan SOSP 2007 §3.2 Pattern C bug shape. The function
+body falls into the existing delegate-body sub-shape within
+Pattern C: it literally calls the replacement
+`parse_all_ruby_projects(root)` and threads the result through
+a four-step iterator adapter chain — `.unwrap_or_default()` to
+flatten the replacement's `Result<Vec<RubyProject>, _>` into
+`Vec<RubyProject>` by silently dropping any `Err`,
+`.into_iter()` to consume the vector, `.map(|p| p.gem_name)`
+to extract each project's gem-name field, and `.collect()` to
+materialise the resulting `Vec<String>` — so the legacy entry
+point still works for callers that only need the gem name list
+while the replacement returns the full `RubyProject` records
+with their gemspec paths intact, suitable for the multi-package
+monorepo support the doc steers callers toward. This is the
+same body-shape category as batch-3 whisky-archive
+(`con_str` → `constr`), batch-13 pkg-config-rs
+(`find_library` → `probe_library`), and batch-21 vcpkg-rs
+(`probe_package` → `find_package`) — body delegates to (or is
+intended to be replaced by) the named replacement function —
+broadening delegate-body audit coverage from three upstreams to
+four while keeping Pattern C's body-shape footprint at the four
+shapes saturated by batches 22 and 23 (delegate-body,
+in-tree-body, stub-body, meta-deprecation-warning-emitter).
+Within the delegate-body sub-shape itself, reflex introduces a
+new structural variant —
+delegate-with-result-flatten-and-field-extract: prior
+delegate-body upstreams adapt the replacement's return shape
+minimally (batch-3 whisky-archive `con_str` inlines an
+equivalent `json!({...})` literal without re-calling the
+replacement; batch-13 pkg-config-rs `find_library` adds
+`.map_err(|e| e.to_string())` to flatten the typed error into
+a string; batch-21 vcpkg-rs `probe_package` instantiates a
+fresh `Config::new().probe(name)` helper), whereas reflex
+chains four adapter steps (`.unwrap_or_default()` +
+`.into_iter()` + `.map(|p| p.gem_name)` + `.collect()`) on top
+of the literal replacement call to project the structured
+`Vec<RubyProject>` return down to the legacy `Vec<String>`
+shape while swallowing any `Err` outcome from the replacement.
+cntrdct's spec F5 Pattern C check does not interpret the
+body's adapter chain — it only inspects the doc and adjacent
+attributes — so the delegate-with-adapter-chain case fires
+identically to prior delegate-body cases with simpler adapters,
+confirming again the syntactic-only design. The function
+carries no top-level attribute at all (no `#[deprecated]`, no
+`#[doc(hidden)]`, no `#[track_caller]`, no `#[inline]`), so
+`preceding_siblings_have_deprecated` in
+`src/detectors/comment_code.rs` finds zero attribute items
+adjacent to the function and the `#[deprecated]` lint is not
+honoured. The function signature
+`pub fn find_ruby_gem_names(root: &std::path::Path) ->
+Vec<String>` returns `Vec<String>` (a non-`Result`/`Option`
+type, the literal substrings `Result`/`Option` do not appear
+in the return-type text) so spec F3 Pattern A's return-type
+negation passes; the doc contains no Pattern A trigger phrase
+(none of `returns err` / `returns result` / `may fail` /
+`fallible` / `returns option` / `may return none`) so Pattern A
+does not fire either way; the doc contains no `panic`
+substring so spec F4 Pattern B does not fire — only Pattern C
+fires. Note that the function body contains the substring
+`unwrap` (in `.unwrap_or_default()` on the upstream-line-852
+chained adapter) which would qualify as a Pattern B body
+marker if Pattern B's doc-trigger fired — but it does not,
+because the doc has no `panic` substring, so the body-marker
+negation is moot here; this is the same dual situation as
+batch-26 lsvine `transform_readdir` and the inverse of
+batch-17 wasmtime `roundtrip` where the doc does have `panic`
+and the body's `unwrap`/`assert_eq!` markers suppress Pattern
+B; reflex `find_ruby_gem_names` is the inverse — body has
+`unwrap` (via `unwrap_or_default`) but doc has no `panic`
+trigger, so the body marker is inert from cntrdct's
+perspective. reflex-search/reflex is the code-aware local
+code-search engine domain (a Rust-built local-first
+code-search engine in the ripgrep / silver-searcher / ack
+lineage with project-structure awareness; the specific file is
+the Ruby project parser feeding the import-resolution pass),
+unrelated to the prior eleven Pattern C domains (Cardano
+Plutus-data, TLS NextProtocol, OpenGL draw-parameters, Unix
+pkg-config, async-channel metrics, Windows vcpkg, VST 2.4
+audio plugin host, capability-based sandbox CLI, portable
+lightweight VM image layer storage, Tauri-based AI-coding-tool
+viewer, `tree -L 2`-style directory tree CLI). The source-kind
+footprint stays at six (`github-commit` absorbs the new entry;
+batch 27 does not introduce a new kind). `comment-code` moves
+to 29/0/1.00 and overall recall_upper_bound to 0.63 (35 TP /
+21 FN / 56 expected, raw 0.625 vs. 0.6182 at batch 26 — below
+the 0.05 movement threshold so no separate "Reading the
+figures" note is required per the refresh discipline).
+pr-miner mining margin preserved because the new file is Rust
+— the Python `{open} → {close}` mining-DB confidence stays at
+batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs
+(`get_ver`, `readfile`) remain TPs.
+
+Batch 26 (earlier 2026-05-17) diversified `comment-code`
+Pattern C audit coverage
 from ten upstreams (whisky-archive Cardano Plutus-data
 helpers 4 + tls-parser TLS NextProtocol parsers 2 + glium
 OpenGL draw-parameter check 1 + pkg-config-rs Unix pkg-config
