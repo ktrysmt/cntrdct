@@ -1,63 +1,67 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-16 (Q-14 recall-audit Phase B batch 23
-landed on top of batch 22, diversifying `comment-code` Pattern
-C audit coverage from seven upstreams (whisky-archive +
+Last updated: 2026-05-17 (Q-14 recall-audit Phase B batch 24
+landed on top of batch 23, diversifying `comment-code` Pattern
+C audit coverage from eight upstreams (whisky-archive +
 tls-parser + glium + pkg-config-rs + sui mysten-metrics +
-vcpkg-rs + rust-vst2, batches 3 / 11 / 12 / 13 / 20 / 21 / 22)
-to eight upstreams by adding one `comment-code` Pattern C TP
-from a fourteenth permissive-licensed Rust upstream
-always-further/nono@2e5504f2b0c3e7803e7e3e3971154dc370a69be2
-`crates/nono-cli/src/deprecated_schema.rs` (Apache-2.0). One
-top-level `pub fn` item — `warn_for_deprecated_flags` (upstream
-line 196 / corpus line 10) — carries a four-line `///` doc
-block whose later half (after a blank `///` separator) reads
-`DEPRECATED: delete when all long-flag aliases in this module
-are removed / in v1.0.0. See module-level removal steps.` but
-does not carry the `#[deprecated]` runtime attribute the Rust
-deprecation lints honour, so downstream consumers receive no
-compiler warning — the textbook Tan SOSP 2007 §3.2 Pattern C
-bug shape. cntrdct's spec F5 Pattern C trigger fires on the
+vcpkg-rs + rust-vst2 + nono, batches 3 / 11 / 12 / 13 / 20 /
+21 / 22 / 23) to nine upstreams by adding one `comment-code`
+Pattern C TP from a fifteenth permissive-licensed Rust
+upstream smol-machines/smolvm@019654bd61d9051fc42df7bbcdee446cc3e31ae1
+`crates/smolvm-agent/src/storage.rs` (Apache-2.0). One
+top-level `pub fn` item — `export_layer` (upstream line 1418 /
+corpus line 10) — carries a four-line `///` doc block whose
+later half (after a blank `///` separator) reads `DEPRECATED:
+Prefer streaming export via `find_layer_path()` + piped tar.
+This function creates a temp tar file that can fill the
+storage disk for large layers. Kept for backward compatibility.`
+but does not carry the `#[deprecated]` runtime attribute the
+Rust deprecation lints honour, so downstream consumers receive
+no compiler warning — the textbook Tan SOSP 2007 §3.2 Pattern
+C bug shape. cntrdct's spec F5 Pattern C trigger fires on the
 case-folded `deprecated` substring; the preceding-siblings
 walker finds zero attribute items adjacent to the function so
 the `#[deprecated]` lint is not honoured. The function body
-iterates `detect_deprecated_flags(args)`, matches each
-canonical legacy spelling against its replacement
-(`--override-deny` → `--bypass-protection`), and calls
-`emit_deprecation_warning(...)` — a new body-shape variant
-within Pattern C, the meta-deprecation-warning-emitter sub-
-shape: the function's purpose is to emit per-call-site
-diagnostics for OTHER deprecated long-flag aliases routed
-through clap, while itself being marked deprecated in the
-module-level removal checklist; the function and the flags it
-warns about are co-scheduled for removal in v1.0.0, so the doc
-claim is forward-looking rather than legacy. This contrasts
-prior body shapes that delegate to the replacement (batch-3
-whisky-archive con_str → constr, batch-13 pkg-config-rs
-find_library → probe_library, batch-21 vcpkg-rs probe_package
-→ find_package), prior body shapes that retain the original
-implementation in-tree (batch-11 tls-parser
-parse_tls_handshake_*next_protocol family, batch-12 glium
-validate, batch-20 sui mysten-metrics channel /
-channel_with_total), and the batch-22 rust-vst2 stub-body shape
-(empty `{ }` ABI placeholder). cntrdct's spec F5 Pattern C
-check ignores the body — only the doc and adjacent attributes
-are inspected — so the meta-warning-emitter case fires
-identically to delegate-body, in-tree-body, and stub-body
-cases, confirming the syntactic-only design. nono is the
-capability-based sandbox CLI domain (fine-grained policy
-brokering for agent operating contexts, zero setup and zero
-latency), unrelated to the prior seven Pattern C domains. The
-function signature `pub fn warn_for_deprecated_flags(args:
-&[std::ffi::OsString])` has unit return so spec F3 Pattern A's
-return-type negation passes, but the doc contains no Pattern A
-trigger phrase so Pattern A does not fire; the doc contains no
+calls `find_layer_path(image_digest, layer_index)?` to locate
+the layer source directory, builds a temporary tar path under
+`STORAGE_ROOT/tmp/`, spawns `tar -cf <tar_path> -C <layer_dir>
+.` via `Command::new("tar")`, and returns the resulting tar
+`PathBuf` — the in-tree-body sub-shape, the same body-shape
+category as batch-11 tls-parser, batch-12 glium, and batch-20
+sui mysten-metrics (in-tree implementation rather than
+delegation to the replacement) on a fourth unrelated upstream.
+This contrasts prior body shapes that delegate to the
+replacement (batch-3 whisky-archive con_str → constr, batch-13
+pkg-config-rs find_library → probe_library, batch-21 vcpkg-rs
+probe_package → find_package), the batch-22 rust-vst2 stub-body
+shape (empty `{ }` ABI placeholder), and the batch-23 nono
+meta-deprecation-warning-emitter sub-shape. cntrdct's spec F5
+Pattern C check ignores the body — only the doc and adjacent
+attributes are inspected — so the new in-tree case fires
+identically to the prior in-tree, delegate-body, stub-body,
+and meta-warning-emitter cases, confirming the syntactic-only
+design. The body-shape footprint within Pattern C therefore
+stays at the four shapes saturated by batches 22 and 23
+(delegate-body, in-tree-body, stub-body,
+meta-deprecation-warning-emitter); batch 24 broadens
+in-tree-body audit coverage rather than introducing a new
+sub-shape. smolvm is the portable, lightweight,
+self-contained VM image storage domain (the agent crate's
+storage module manages OCI-style image layers on disk for the
+VM runtime), unrelated to the prior eight Pattern C domains.
+The function signature `pub fn export_layer(image_digest:
+&str, layer_index: usize) -> Result<PathBuf>` returns
+`Result<PathBuf>` so spec F3 Pattern A's return-type negation
+does not pass, but the doc contains no Pattern A trigger
+phrase (none of `returns err` / `returns result` / `may fail`
+/ `fallible` / `returns option` / `may return none`) so
+Pattern A does not fire either way; the doc contains no
 `panic` substring so spec F4 Pattern B does not fire — only
-Pattern C fires. The entry is TP. After batch 23 the
-detector's audit evidence spans fourteen upstreams across
-fourteen unrelated domains (Cardano Plutus-data helpers 4
-Pattern C + TLS parser 2 Pattern C + OpenGL bindings 1 Pattern
-C + Unix pkg-config bindings 1 Pattern C + Zarr-format
+Pattern C fires. The entry is TP. After batch 24 the
+detector's audit evidence spans fifteen upstreams across
+fifteen unrelated domains (Cardano Plutus-data helpers 4
+Pattern C + TLS parser 2 Pattern C + OpenGL bindings 1
+Pattern C + Unix pkg-config bindings 1 Pattern C + Zarr-format
 data-type bindings 6 Pattern B + zkVM executor registry 1
 Pattern A + parking_lot_core synchronization primitives 2
 Pattern B + cranelift-assembler-x64 fuzzer infrastructure 1
@@ -65,20 +69,45 @@ Pattern A + S3-client configuration setter 1 Pattern A +
 vortex-buffer bit-packed bitmap helpers 1 Pattern B + sui
 mysten-metrics async-channel metrics wrapper 2 Pattern C +
 Windows vcpkg bindings 1 Pattern C + VST 2.4 audio plugin host
-1 Pattern C + capability-based sandbox CLI 1 Pattern C), with
+1 Pattern C + capability-based sandbox CLI 1 Pattern C +
+portable lightweight VM image layer storage 1 Pattern C), with
 Pattern A and Pattern B saturated at three sub-shapes on three
 upstreams each (batches 18 and 19) and Pattern C now exercised
-on eight unrelated upstreams (lifted from seven at batch 22).
+on nine unrelated upstreams (lifted from eight at batch 23).
 The source-kind footprint stays at six (`github-commit`
-absorbs the new entry). Updated corpus 40 files / 52 expected
-entries / overall recall_upper_bound 0.60 (31 TP / 21 FN, up
-from 0.59 at batch 22); `comment-code` moves to tp=25 / fn=0 /
-1.00 (was 24/0/1.00, source_breakdown github-commit 25/25);
-the other five detectors are unchanged. Batch 23 preserves the
+absorbs the new entry). Updated corpus 41 files / 53 expected
+entries / overall recall_upper_bound 0.60 (32 TP / 21 FN, raw
+0.6038 vs. 0.5962 at batch 23 — both round to 0.60 to two
+decimal places); `comment-code` moves to tp=26 / fn=0 / 1.00
+(was 25/0/1.00, source_breakdown github-commit 26/26); the
+other five detectors are unchanged. Batch 24 preserves the
 pr-miner mining margin because the new file is Rust — Python
 `{open} → {close}` mining-DB confidence stays at batch-10's
 19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs (`get_ver`,
 `readfile`) remain TPs. Earlier 2026-05-16: Q-14 recall-audit
+Phase B batch 23 landed on top of batch 22, diversifying
+`comment-code` Pattern C audit coverage from seven upstreams
+(whisky-archive + tls-parser + glium + pkg-config-rs + sui
+mysten-metrics + vcpkg-rs + rust-vst2, batches 3 / 11 / 12 /
+13 / 20 / 21 / 22) to eight upstreams by adding one
+`comment-code` Pattern C TP from a fourteenth
+permissive-licensed Rust upstream
+always-further/nono@2e5504f2b0c3e7803e7e3e3971154dc370a69be2
+`crates/nono-cli/src/deprecated_schema.rs` (Apache-2.0); one
+top-level `pub fn` item — `warn_for_deprecated_flags` (upstream
+line 196 / corpus line 10) — carries a four-line `///` doc
+block whose later half (after a blank `///` separator) reads
+`DEPRECATED: delete when all long-flag aliases in this module
+are removed / in v1.0.0. See module-level removal steps.` but
+does not carry the `#[deprecated]` runtime attribute the Rust
+deprecation lints honour, so spec F5 Pattern C fires; the
+function body iterates `detect_deprecated_flags(args)`,
+matches each canonical legacy spelling against its replacement
+(`--override-deny` → `--bypass-protection`), and calls
+`emit_deprecation_warning(...)` — the meta-deprecation-warning-
+emitter sub-shape within Pattern C; nono is the
+capability-based sandbox CLI domain, unrelated to the prior
+seven Pattern C domains. Earlier 2026-05-16: Q-14 recall-audit
 Phase B batch 22 landed on top of batch 21, diversifying
 `comment-code` Pattern C audit coverage from six upstreams
 (whisky-archive + tls-parser + glium + pkg-config-rs + sui
@@ -3589,7 +3618,67 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     pattern; `comment-code` moves to 25/0/1.00 and overall
     recall_upper_bound to 0.60 (31 TP / 21 FN / 52 expected).
     pr-miner mining margin preserved because the new file is
-    Rust) landed 2026-05-16. With all
+    Rust) landed 2026-05-16; Phase B batch 24 (one
+    `comment-code` Pattern C TP diversifying Pattern C audit
+    coverage from eight upstreams (whisky-archive 4 +
+    tls-parser 2 + glium 1 + pkg-config-rs 1 + sui
+    mysten-metrics 2 + vcpkg-rs 1 + rust-vst2 1 + nono 1,
+    batches 3 / 11 / 12 / 13 / 20 / 21 / 22 / 23) to nine
+    upstreams, via a fifteenth permissive-licensed Rust
+    upstream smol-machines/smolvm@019654bd
+    `crates/smolvm-agent/src/storage.rs`, Apache-2.0.
+    `pub fn export_layer(image_digest: &str, layer_index:
+    usize) -> Result<PathBuf>` at upstream line 1418 (corpus
+    line 10) carries a four-line `///` doc block whose later
+    half (after a blank `///` separator) reads
+    `DEPRECATED: Prefer streaming export via
+    `find_layer_path()` + piped tar. This function creates a
+    temp tar file that can fill the storage disk for large
+    layers. Kept for backward compatibility.` but does not
+    carry the `#[deprecated]` runtime attribute, so spec F5
+    Pattern C fires. The function body falls into the existing
+    in-tree-body sub-shape (calls
+    `find_layer_path(image_digest, layer_index)?` to locate
+    the layer source directory, builds a temporary tar path
+    under `STORAGE_ROOT/tmp/`, spawns `tar -cf <tar_path> -C
+    <layer_dir> .` via `Command::new("tar")`, and returns the
+    resulting tar `PathBuf`) on a fourth unrelated upstream —
+    broadening in-tree-body audit coverage beyond batch-11
+    tls-parser, batch-12 glium, and batch-20 sui
+    mysten-metrics while keeping Pattern C's body-shape
+    footprint at the four shapes saturated by batches 22 and
+    23 (delegate-body, in-tree-body, stub-body,
+    meta-deprecation-warning-emitter). cntrdct's spec F5
+    Pattern C check ignores the body — only the doc and
+    adjacent attributes are inspected — so the new in-tree
+    case fires identically to the prior in-tree,
+    delegate-body, stub-body, and meta-warning-emitter cases,
+    confirming the syntactic-only design. The function
+    signature returns `Result<PathBuf>` so spec F3 Pattern A's
+    return-type negation does not pass, but the doc contains
+    no Pattern A trigger phrase either way so Pattern A does
+    not fire; the doc contains no `panic` substring so spec
+    F4 Pattern B does not fire — only Pattern C fires. smolvm
+    is the portable, lightweight, self-contained VM image
+    storage domain (the agent crate's storage module manages
+    OCI-style image layers on disk for the VM runtime),
+    unrelated to the prior eight Pattern C domains.
+    Diversifies `comment-code`'s audit evidence to fifteen
+    upstreams (whisky-archive 4 Pattern C + tls-parser 2
+    Pattern C + glium 1 Pattern C + pkg-config-rs 1 Pattern C
+    + zarrs 6 Pattern B + boundless 1 Pattern A +
+    parking_lot_core 2 Pattern B + wasmtime 1 Pattern A +
+    rust-s3 1 Pattern A + vortex-buffer 1 Pattern B + sui
+    mysten-metrics 2 Pattern C + vcpkg-rs 1 Pattern C +
+    rust-vst2 1 Pattern C + nono 1 Pattern C + smolvm 1
+    Pattern C), lifting Pattern C from eight upstreams to
+    nine without introducing a new pattern; `comment-code`
+    moves to 26/0/1.00 and overall recall_upper_bound to
+    0.60 (32 TP / 21 FN / 53 expected, raw 0.6038 vs. 0.5962
+    at batch 23 — below the 0.05 movement threshold so no
+    separate "Reading the figures" note is required per the
+    refresh discipline). pr-miner mining margin preserved
+    because the new file is Rust) landed 2026-05-17. With all
     six detectors and six external source kinds now live in
     the corpus, pr-miner's numerator-construction phase
     closed, comment-code exercised on all three
@@ -3598,10 +3687,11 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     batches 17 and 16 respectively AND Pattern A's and Pattern
     B's sub-shape coverage completed at batches 18 and 19
     respectively (all three syntactic sub-shapes exercised on
-    each pattern) AND Pattern C lifted from four to eight
-    upstreams at batches 20, 21, 22, and 23, further Phase B
-    batches deepen existing pattern coverage on additional
-    upstreams rather than introduce a new detector or pattern
+    each pattern) AND Pattern C lifted from four to nine
+    upstreams at batches 20, 21, 22, 23, and 24, further
+    Phase B batches deepen existing pattern coverage on
+    additional upstreams rather than introduce a new detector
+    or pattern
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 

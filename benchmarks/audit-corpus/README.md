@@ -356,7 +356,7 @@ selection-bias issue this corpus is built to counter.
 ```
 audit-corpus/
 ├── README.md                       (this file)
-├── manifest.jsonl                  (Phase B batches 1-23)
+├── manifest.jsonl                  (Phase B batches 1-24)
 └── files/
     ├── rustc_ui_unreachable_code_ret.rs               (batch 1)
     ├── rustc_ui_expr_block.rs                         (batch 1)
@@ -397,7 +397,8 @@ audit-corpus/
     ├── sui_mysten_metrics_channel.rs                  (batch 20)
     ├── vcpkg_rs_probe_package.rs                      (batch 21)
     ├── vst2_process_deprecated.rs                     (batch 22)
-    └── nono_warn_for_deprecated_flags.rs              (batch 23)
+    ├── nono_warn_for_deprecated_flags.rs              (batch 23)
+    └── smolvm_export_layer.rs                         (batch 24)
 ```
 
 `manifest.jsonl` follows the schema in
@@ -502,31 +503,94 @@ JSON shape (selected fields):
 {
   "per_detector": {
     "comment-code": {
-      "tp": 25,
+      "tp": 26,
       "fn": 0,
       "recall_upper_bound": 1.0,
-      "source_breakdown": { "github-commit": { "tp": 25, "fn": 0 } }
+      "source_breakdown": { "github-commit": { "tp": 26, "fn": 0 } }
     }
   },
-  "overall": { "tp": 31, "fn": 21, "recall_upper_bound": 0.60, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 40,
-  "expected_total": 52,
-  "sources": { "clippy": 2, "codeql": 6, "github-commit": 26, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
+  "overall": { "tp": 32, "fn": 21, "recall_upper_bound": 0.60, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 41,
+  "expected_total": 53,
+  "sources": { "clippy": 2, "codeql": 6, "github-commit": 27, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-16 against `v0.2.0-rc.26` per the Q-14 Phase C
-discipline. Batch 23 lifts `comment-code` from 24/0/1.00 to
-25/0/1.00 by adding one Pattern C TP on a fourteenth
-permissive-licensed Rust upstream (always-further/nono,
-Apache-2.0). Overall `recall_upper_bound` rises from 0.59 (30
-TP / 21 FN / 51 expected at batch 22) to 0.60 (31 TP / 21 FN /
-52 expected at batch 23). The other five detectors are
-unchanged.
+Refreshed 2026-05-17 against `v0.2.0-rc.27` per the Q-14 Phase C
+discipline. Batch 24 lifts `comment-code` from 25/0/1.00 to
+26/0/1.00 by adding one Pattern C TP on a fifteenth
+permissive-licensed Rust upstream (smol-machines/smolvm,
+Apache-2.0). Overall `recall_upper_bound` stays at 0.60 to two
+decimal places (raw float lifts from 0.5962 at batch 23 to
+0.6038 at batch 24; 32 TP / 21 FN / 53 expected at batch 24, up
+from 31 TP / 21 FN / 52 expected at batch 23). The other five
+detectors are unchanged.
 
-Batch 23 diversifies `comment-code` Pattern C audit coverage
+Batch 24 diversifies `comment-code` Pattern C audit coverage
+from eight upstreams (whisky-archive Cardano Plutus-data
+helpers 4 + tls-parser TLS NextProtocol parsers 2 + glium
+OpenGL draw-parameter check 1 + pkg-config-rs Unix pkg-config
+bindings 1 + sui mysten-metrics async-channel metrics wrapper
+2 + vcpkg-rs Windows vcpkg bindings 1 + rust-vst2 VST 2.4
+audio plugin host 1 + nono capability-based sandbox CLI 1,
+batches 3 / 11 / 12 / 13 / 20 / 21 / 22 / 23) to nine upstreams
+by adding one TP from a permissive-licensed Rust upstream —
+smol-machines/smolvm@019654bd
+`crates/smolvm-agent/src/storage.rs` (Apache-2.0).
+`pub fn export_layer(image_digest: &str, layer_index: usize)
+-> Result<PathBuf>` at upstream line 1418 (corpus line 10)
+carries a four-line `///` doc block whose later half (after a
+blank `///` separator at upstream line 1414 / corpus line 6)
+reads `DEPRECATED: Prefer streaming export via
+`find_layer_path()` + piped tar. This function creates a temp
+tar file that can fill the storage disk for large layers. Kept
+for backward compatibility.` but does not carry the
+`#[deprecated]` runtime attribute the Rust deprecation lints
+honour — the textbook Tan SOSP 2007 §3.2 Pattern C bug shape.
+The function body is the in-tree-body category: it calls
+`find_layer_path(image_digest, layer_index)?` to locate the
+layer source directory, builds a temporary tar path under
+`STORAGE_ROOT/tmp/`, spawns `tar -cf <tar_path> -C <layer_dir>
+.` via `Command::new("tar")`, and returns the resulting tar
+`PathBuf`. This is the same body-shape category as batch-11
+tls-parser, batch-12 glium, and batch-20 sui mysten-metrics
+(in-tree implementation rather than delegation to the
+replacement), on a domain unrelated to those three — broadening
+in-tree-body audit coverage to a fourth unrelated upstream
+while keeping Pattern C's body-shape footprint at the four
+shapes saturated by batches 22 and 23 (delegate-body,
+in-tree-body, stub-body, meta-deprecation-warning-emitter).
+cntrdct's spec F5 Pattern C check ignores the body — only the
+doc and adjacent attributes are inspected — so the new in-tree
+case fires identically to the prior in-tree, delegate-body,
+stub-body, and meta-warning-emitter cases, confirming the
+syntactic-only design. The function signature returns
+`Result<PathBuf>` so spec F3 Pattern A's return-type negation
+does not pass (the doc contains no Pattern A trigger phrase
+either way), and the doc contains no `panic` substring so spec
+F4 Pattern B does not fire — only Pattern C fires. smolvm is
+the portable, lightweight, self-contained VM image storage
+domain (the agent crate's storage module manages OCI-style
+image layers on disk for the VM runtime), unrelated to the
+prior eight Pattern C domains (Cardano Plutus-data, TLS
+NextProtocol, OpenGL draw-parameters, Unix pkg-config,
+async-channel metrics, Windows vcpkg, VST 2.4 audio plugin
+host, capability-based sandbox CLI). The source-kind footprint
+stays at six (`github-commit` absorbs the new entry; batch 24
+does not introduce a new kind). `comment-code` moves to
+26/0/1.00 and overall recall_upper_bound to 0.60 (32 TP / 21
+FN / 53 expected, raw 0.6038 vs. 0.5962 at batch 23 — below
+the 0.05 movement threshold so no separate "Reading the
+figures" note is required per the refresh discipline).
+pr-miner mining margin preserved because the new file is Rust
+— the Python `{open} → {close}` mining-DB confidence stays at
+batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs
+(`get_ver`, `readfile`) remain TPs.
+
+Batch 23 (earlier 2026-05-16) diversified `comment-code`
+Pattern C audit coverage
 from seven upstreams (whisky-archive Cardano Plutus-data
 helpers 4 + tls-parser TLS NextProtocol parsers 2 + glium
 OpenGL draw-parameter check 1 + pkg-config-rs Unix pkg-config
@@ -572,14 +636,7 @@ brokering for agent operating contexts, zero setup and zero
 latency), unrelated to the prior seven Pattern C domains
 (Cardano Plutus-data, TLS NextProtocol, OpenGL draw-parameters,
 Unix pkg-config, async-channel metrics, Windows vcpkg, VST 2.4
-audio plugin host). The source-kind footprint stays at six
-(`github-commit` absorbs the new entry; batch 23 does not
-introduce a new kind). `comment-code` moves to 25/0/1.00 and
-overall recall_upper_bound to 0.60 (31 TP / 21 FN / 52
-expected). pr-miner mining margin preserved because the new
-file is Rust — the Python `{open} → {close}` mining-DB
-confidence stays at batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both
-pr-miner TPs (`get_ver`, `readfile`) remain TPs.
+audio plugin host).
 
 Batch 22 (earlier 2026-05-16) diversified `comment-code`
 Pattern C audit coverage
