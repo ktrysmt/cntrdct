@@ -506,34 +506,171 @@ JSON shape (selected fields):
 {
   "per_detector": {
     "comment-code": {
-      "tp": 30,
+      "tp": 31,
       "fn": 0,
       "recall_upper_bound": 1.0,
-      "source_breakdown": { "github-commit": { "tp": 30, "fn": 0 } }
+      "source_breakdown": { "github-commit": { "tp": 31, "fn": 0 } }
     }
   },
-  "overall": { "tp": 36, "fn": 21, "recall_upper_bound": 0.6316, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 45,
-  "expected_total": 57,
-  "sources": { "clippy": 2, "codeql": 6, "github-commit": 31, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
+  "overall": { "tp": 37, "fn": 21, "recall_upper_bound": 0.6379, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 46,
+  "expected_total": 58,
+  "sources": { "clippy": 2, "codeql": 6, "github-commit": 32, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-17 against `v0.2.0-rc.31` per the Q-14 Phase C
-discipline. Batch 28 lifts `comment-code` from 29/0/1.00 to
-30/0/1.00 by adding one Pattern C TP on a nineteenth
-permissive-licensed Rust upstream (azalea-rs/azalea, MIT).
-Overall `recall_upper_bound` stays at 0.63 to two decimal places
-(raw float lifts from 0.625 at batch 27 to 0.6316 at batch 28;
-36 TP / 21 FN / 57 expected at batch 28, up from 35 TP / 21 FN /
-56 expected at batch 27 — well within the 0.05 movement
-threshold so no separate "Reading the figures" note is required
-per the refresh discipline). The other five detectors are
-unchanged.
+Refreshed 2026-05-17 against `v0.2.0-rc.32` per the Q-14 Phase C
+discipline. Batch 29 lifts `comment-code` from 30/0/1.00 to
+31/0/1.00 by adding one Pattern C TP on a twentieth
+permissive-licensed Rust upstream (SharpCoder/teensycore, MIT).
+Overall `recall_upper_bound` lifts from 0.63 to 0.64 to two
+decimal places (raw float lifts from 0.6316 at batch 28 to
+0.6379 at batch 29; 37 TP / 21 FN / 58 expected at batch 29,
+up from 36 TP / 21 FN / 57 expected at batch 28 — within the
+0.05 movement threshold so no separate "Reading the figures"
+note is required per the refresh discipline). The other five
+detectors are unchanged.
 
-Batch 28 diversifies `comment-code` Pattern C audit coverage
+Batch 29 diversifies `comment-code` Pattern C audit coverage
+from thirteen upstreams (whisky-archive Cardano Plutus-data
+helpers 4 + tls-parser TLS NextProtocol parsers 2 + glium
+OpenGL draw-parameter check 1 + pkg-config-rs Unix pkg-config
+bindings 1 + sui mysten-metrics async-channel metrics wrapper
+2 + vcpkg-rs Windows vcpkg bindings 1 + rust-vst2 VST 2.4
+audio plugin host 1 + nono capability-based sandbox CLI 1 +
+smolvm portable lightweight VM image layer storage 1 +
+Any-code Tauri-based AI-coding-tool viewer 1 + lsvine
+`tree -L 2`-style directory tree CLI iterator adapter 1 +
+reflex code-aware local code-search engine Ruby gemspec name
+extractor 1 + azalea Minecraft block-state physics motion-
+blocking predicate 1, batches 3 / 11 / 12 / 13 / 20 / 21 / 22 /
+23 / 24 / 25 / 26 / 27 / 28) to fourteen upstreams by adding
+one TP from a permissive-licensed Rust upstream —
+SharpCoder/teensycore@8bd5535a `src/phys.rs` (MIT).
+`pub fn write_byte(address: u32, value: u8)` at upstream line
+43 (corpus line 10) carries a five-line `///` doc block whose
+last two lines read `This method will be deprecated in the
+future, / in preference of `assign_8`` but does not carry the
+`#[deprecated]` runtime attribute the Rust deprecation lints
+honour — the textbook Tan SOSP 2007 §3.2 Pattern C bug shape.
+The function body falls into the existing in-tree-body
+sub-shape within Pattern C: a single `unsafe { *(address as
+*mut u8) = value; }` raw-pointer write to a memory-mapped
+peripheral register, with the replacement `assign_8` named
+directly in the doc but NOT called from the body — `assign_8`
+lives in the same `src/phys.rs` module immediately below
+`write_byte` (upstream line 51) and carries an identical body
+`unsafe { *(address as *mut u8) = value; }` (a pure rename
+rather than a behavioural successor). This is the same
+body-shape category as batch-11 tls-parser
+(`parse_tls_handshake_*next_protocol`), batch-12 glium
+(`validate`), batch-20 sui mysten-metrics (`channel` /
+`channel_with_total`), batch-24 smolvm (`export_layer`),
+batch-25 Any-code (`decode_project_path`), batch-26 lsvine
+(`transform_readdir`), and batch-28 azalea
+(`legacy_blocks_motion`) — body retains the original
+implementation in-tree rather than delegating to a replacement
+— broadening in-tree-body audit coverage from seven upstreams
+to eight while keeping Pattern C's body-shape footprint at the
+four shapes saturated by batches 22 and 23 (delegate-body,
+in-tree-body, stub-body, meta-deprecation-warning-emitter).
+Within the in-tree-body sub-shape itself, teensycore
+introduces a new structural variant — forward-looking-
+deprecation-with-self-equivalent-rename-replacement: prior
+in-tree-body upstreams document the function as ALREADY
+deprecated in present tense (batch-11 tls-parser `Deprecated
+in favour of ALPN.`, batch-12 glium `DEPRECATED. Checks
+parameters...`, batch-20 sui `Deprecated: use
+monitored_mpsc::channel instead.`, batch-24 smolvm
+`DEPRECATED: Prefer streaming export via find_layer_path() +
+piped tar.`, batch-25 Any-code `DEPRECATED: Use
+get_project_path_from_sessions instead when possible`,
+batch-26 lsvine `DEPRECATED in favor of RDAdapter1`, batch-28
+azalea `This is marked as deprecated in Minecraft.`), whereas
+teensycore's doc reads `This method will be deprecated in the
+future, in preference of `assign_8`` — FUTURE-TENSE
+deprecation, signalling that the deprecation is planned rather
+than already in effect, AND the replacement `assign_8` is a
+pure rename whose body is byte-identical to `write_byte`'s
+(both perform the same `unsafe { *(address as *mut u8) =
+value; }` 8-bit raw write), contrasting prior in-tree-body
+cases where the replacement has materially different semantics
+(smolvm streaming vs batched tar, glium parameter-checking
+`Result` invariant vs free-form pre-flight check, lsvine
+`RDAdapter1` iterator-adapter struct vs filter+map closure
+chain). cntrdct's spec F5 Pattern C check does not interpret
+tense or replacement-semantics — only the case-folded
+`deprecated` substring matters — so the forward-looking case
+fires identically to past-tense in-tree-body cases, confirming
+again the syntactic-only design (the same way batch-23 nono's
+meta-deprecation-warning-emitter, batch-26 lsvine's
+replacement-targets-a-struct, batch-27 reflex's delegate-with-
+adapter-chain, and batch-28 azalea's upstream-protocol-
+deprecation-reference variants fire identically to their
+structural cousins). The function carries no top-level
+attribute at all (no `#[deprecated]`, no `#[doc(hidden)]`, no
+`#[track_caller]`, no `#[inline]`), so
+`preceding_siblings_have_deprecated` in
+`src/detectors/comment_code.rs` finds zero attribute items
+adjacent to the function and the `#[deprecated]` lint is not
+honoured. The function signature `pub fn write_byte(address:
+u32, value: u8)` returns `()` (the literal substrings
+`Result`/`Option` do not appear in the signature, the unit
+return is implicit) so spec F3 Pattern A's return-type
+negation passes; the doc contains no Pattern A trigger phrase
+(none of `returns err` / `returns result` / `may fail` /
+`fallible` / `returns option` / `may return none`) so Pattern
+A does not fire either way; the doc contains no `panic`
+substring so spec F4 Pattern B does not fire — only Pattern C
+fires. The function body contains no `unwrap` / `panic!` /
+`expect(` / `unreachable!` / `assert!` / `todo!` /
+`unimplemented!` / `debug_assert` body markers at all (only an
+`unsafe` block holding a single raw-pointer write expression
+`*(address as *mut u8) = value`, with the `unsafe` keyword and
+`as *mut u8` raw-pointer cast NOT being members of cntrdct's
+PATTERN_B_BODY_MARKERS substring set), so even if the doc had
+a `panic` trigger Pattern B's body-marker negation would
+suppress it — but the doc has no `panic` substring, so the
+body-marker absence is moot here (same dual situation as
+batch-28 azalea where the body lacks both `unwrap` AND the doc
+lacks `panic`; different from batch-26 lsvine and batch-27
+reflex where the body has `unwrap` but the doc lacks `panic`,
+and the inverse of batch-17 wasmtime where the doc has `panic`
+and the body's `unwrap`/`assert_eq!` suppress Pattern B).
+SharpCoder/teensycore is the bare-metal Teensy 4.x ARM
+Cortex-M7 microcontroller kernel-level peripheral I/O domain
+(a no-std Rust kernel and runtime that targets the Teensy
+4.0/4.1 development boards built around NXP's IMXRT1062
+Cortex-M7 microcontroller, with the `phys` module providing
+direct memory-mapped register-access helpers used by the
+GPIO / UART / DMA / USB / xbar peripheral drivers to interface
+with the chip's hardware blocks — the specific function is the
+legacy 8-bit memory write helper retained alongside the newer
+`assign_8` rename as a backwards-compatible alias for kernel-
+side drivers compiled against earlier teensycore releases),
+unrelated to the prior thirteen Pattern C domains (Cardano
+Plutus-data, TLS NextProtocol, OpenGL draw-parameters, Unix
+pkg-config, async-channel metrics, Windows vcpkg, VST 2.4
+audio plugin host, capability-based sandbox CLI, portable
+lightweight VM image layer storage, Tauri-based AI-coding-tool
+viewer, `tree -L 2`-style directory tree CLI, code-aware local
+code-search engine, Minecraft block-state physics). The
+source-kind footprint stays at six (`github-commit` absorbs
+the new entry; batch 29 does not introduce a new kind).
+`comment-code` moves to 31/0/1.00 and overall
+recall_upper_bound to 0.64 (37 TP / 21 FN / 58 expected, raw
+0.6379 vs. 0.6316 at batch 28 — below the 0.05 movement
+threshold so no separate "Reading the figures" note is
+required per the refresh discipline). pr-miner mining margin
+preserved because the new file is Rust — the Python
+`{open} → {close}` mining-DB confidence stays at batch-10's
+19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs (`get_ver`,
+`readfile`) remain TPs.
+
+Batch 28 (earlier 2026-05-17) diversified `comment-code`
+Pattern C audit coverage
 from twelve upstreams (whisky-archive Cardano Plutus-data
 helpers 4 + tls-parser TLS NextProtocol parsers 2 + glium
 OpenGL draw-parameter check 1 + pkg-config-rs Unix pkg-config
