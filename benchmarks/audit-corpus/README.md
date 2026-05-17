@@ -356,7 +356,7 @@ selection-bias issue this corpus is built to counter.
 ```
 audit-corpus/
 ├── README.md                       (this file)
-├── manifest.jsonl                  (Phase B batches 1-24)
+├── manifest.jsonl                  (Phase B batches 1-25)
 └── files/
     ├── rustc_ui_unreachable_code_ret.rs               (batch 1)
     ├── rustc_ui_expr_block.rs                         (batch 1)
@@ -398,7 +398,8 @@ audit-corpus/
     ├── vcpkg_rs_probe_package.rs                      (batch 21)
     ├── vst2_process_deprecated.rs                     (batch 22)
     ├── nono_warn_for_deprecated_flags.rs              (batch 23)
-    └── smolvm_export_layer.rs                         (batch 24)
+    ├── smolvm_export_layer.rs                         (batch 24)
+    └── anycode_decode_project_path.rs                 (batch 25)
 ```
 
 `manifest.jsonl` follows the schema in
@@ -503,32 +504,111 @@ JSON shape (selected fields):
 {
   "per_detector": {
     "comment-code": {
-      "tp": 26,
+      "tp": 27,
       "fn": 0,
       "recall_upper_bound": 1.0,
-      "source_breakdown": { "github-commit": { "tp": 26, "fn": 0 } }
+      "source_breakdown": { "github-commit": { "tp": 27, "fn": 0 } }
     }
   },
-  "overall": { "tp": 32, "fn": 21, "recall_upper_bound": 0.60, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 41,
-  "expected_total": 53,
-  "sources": { "clippy": 2, "codeql": 6, "github-commit": 27, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
+  "overall": { "tp": 33, "fn": 21, "recall_upper_bound": 0.61, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 42,
+  "expected_total": 54,
+  "sources": { "clippy": 2, "codeql": 6, "github-commit": 28, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-17 against `v0.2.0-rc.27` per the Q-14 Phase C
-discipline. Batch 24 lifts `comment-code` from 25/0/1.00 to
-26/0/1.00 by adding one Pattern C TP on a fifteenth
-permissive-licensed Rust upstream (smol-machines/smolvm,
-Apache-2.0). Overall `recall_upper_bound` stays at 0.60 to two
-decimal places (raw float lifts from 0.5962 at batch 23 to
-0.6038 at batch 24; 32 TP / 21 FN / 53 expected at batch 24, up
-from 31 TP / 21 FN / 52 expected at batch 23). The other five
-detectors are unchanged.
+Refreshed 2026-05-17 against `v0.2.0-rc.28` per the Q-14 Phase C
+discipline. Batch 25 lifts `comment-code` from 26/0/1.00 to
+27/0/1.00 by adding one Pattern C TP on a sixteenth
+permissive-licensed Rust upstream (anyme123/Any-code, MIT).
+Overall `recall_upper_bound` lifts from 0.60 to 0.61 to two
+decimal places (raw float lifts from 0.6038 at batch 24 to
+0.6111 at batch 25; 33 TP / 21 FN / 54 expected at batch 25, up
+from 32 TP / 21 FN / 53 expected at batch 24 — within the 0.05
+movement threshold so no separate "Reading the figures" note is
+required per the refresh discipline). The other five detectors
+are unchanged.
 
-Batch 24 diversifies `comment-code` Pattern C audit coverage
+Batch 25 diversifies `comment-code` Pattern C audit coverage
+from nine upstreams (whisky-archive Cardano Plutus-data
+helpers 4 + tls-parser TLS NextProtocol parsers 2 + glium
+OpenGL draw-parameter check 1 + pkg-config-rs Unix pkg-config
+bindings 1 + sui mysten-metrics async-channel metrics wrapper
+2 + vcpkg-rs Windows vcpkg bindings 1 + rust-vst2 VST 2.4
+audio plugin host 1 + nono capability-based sandbox CLI 1 +
+smolvm portable lightweight VM image layer storage 1,
+batches 3 / 11 / 12 / 13 / 20 / 21 / 22 / 23 / 24) to ten
+upstreams by adding one TP from a permissive-licensed Rust
+upstream — anyme123/Any-code@a8f361b4
+`src-tauri/src/commands/claude/paths.rs` (MIT).
+`pub fn decode_project_path(encoded: &str) -> String` at
+upstream line 47 (corpus line 8) carries a three-line `///`
+doc block whose third line reads
+`DEPRECATED: Use get_project_path_from_sessions instead when
+possible` but does not carry the `#[deprecated]` runtime
+attribute the Rust deprecation lints honour — the textbook Tan
+SOSP 2007 §3.2 Pattern C bug shape. The function body is the
+in-tree-body category: it computes
+`encoded.replace('-', "/")` and branches on
+`#[cfg(target_os = "windows")]` /
+`#[cfg(not(target_os = "windows"))]` block-level cfg attribute
+items to produce either a back-slash-normalised Windows path
+(stripping the `\\?\` long-path prefix when present) or the
+slash-normalised non-Windows path, returning a `String`. This
+is the same body-shape category as batch-11 tls-parser,
+batch-12 glium, batch-20 sui mysten-metrics, and batch-24
+smolvm (in-tree implementation rather than delegation to the
+replacement), on a fifth unrelated upstream — broadening
+in-tree-body audit coverage from four upstreams to five while
+keeping Pattern C's body-shape footprint at the four shapes
+saturated by batches 22 and 23 (delegate-body, in-tree-body,
+stub-body, meta-deprecation-warning-emitter). The two in-body
+`#[cfg(target_os = "...")]` attribute items live INSIDE the
+function body on block expressions (children of the body's
+block node), not as preceding siblings of the `function_item`,
+so `preceding_siblings_have_deprecated` in
+`src/detectors/comment_code.rs` does NOT see them when walking
+the file-scope siblings of the function — the walker stops at
+the first non-comment, non-attribute sibling and only inspects
+preceding `attribute_item` nodes at the top-level scope;
+in-body cfg attributes are inert from Pattern C's perspective,
+confirming again that Pattern C distinguishes attribute scope
+(function-level vs. block-level) at the syntactic walker
+boundary. cntrdct's spec F5 Pattern C check ignores the body —
+only the doc and adjacent attributes are inspected — so the
+new in-tree case fires identically to the prior in-tree,
+delegate-body, stub-body, and meta-warning-emitter cases,
+confirming the syntactic-only design. The function signature
+returns `String` (a non-`Result`/`Option` type) so spec F3
+Pattern A's return-type negation passes; the doc contains no
+Pattern A trigger phrase (none of `returns err` /
+`returns result` / `may fail` / `fallible` /
+`returns option` / `may return none`) so Pattern A does not
+fire either way; the doc contains no `panic` substring so spec
+F4 Pattern B does not fire — only Pattern C fires.
+anyme123/Any-code is the Tauri-based AI-coding-tool viewer
+domain (a desktop GUI bundling Claude CLI + Codex CLI session
+browsing over `~/.claude/projects/`-style encoded project
+directories), unrelated to the prior nine Pattern C domains
+(Cardano Plutus-data, TLS NextProtocol, OpenGL draw-parameters,
+Unix pkg-config, async-channel metrics, Windows vcpkg, VST 2.4
+audio plugin host, capability-based sandbox CLI, portable
+lightweight VM image layer storage). The source-kind footprint
+stays at six (`github-commit` absorbs the new entry; batch 25
+does not introduce a new kind). `comment-code` moves to
+27/0/1.00 and overall recall_upper_bound to 0.61 (33 TP / 21
+FN / 54 expected, raw 0.6111 vs. 0.6038 at batch 24 — below
+the 0.05 movement threshold so no separate "Reading the
+figures" note is required per the refresh discipline).
+pr-miner mining margin preserved because the new file is Rust
+— the Python `{open} → {close}` mining-DB confidence stays at
+batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs
+(`get_ver`, `readfile`) remain TPs.
+
+Batch 24 (earlier 2026-05-17) diversified `comment-code`
+Pattern C audit coverage
 from eight upstreams (whisky-archive Cardano Plutus-data
 helpers 4 + tls-parser TLS NextProtocol parsers 2 + glium
 OpenGL draw-parameter check 1 + pkg-config-rs Unix pkg-config
