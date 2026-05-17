@@ -3788,7 +3788,91 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     movement threshold so no separate "Reading the figures"
     note is required per the refresh discipline). pr-miner
     mining margin preserved because the new file is Rust)
-    landed 2026-05-17. With all
+    landed 2026-05-17; Phase B batch 26 (one
+    `comment-code` Pattern C TP diversifying Pattern C audit
+    coverage from ten upstreams (whisky-archive 4 +
+    tls-parser 2 + glium 1 + pkg-config-rs 1 + sui
+    mysten-metrics 2 + vcpkg-rs 1 + rust-vst2 1 + nono 1 +
+    smolvm 1 + Any-code 1, batches 3 / 11 / 12 / 13 / 20 /
+    21 / 22 / 23 / 24 / 25) to eleven upstreams, via a
+    seventeenth permissive-licensed Rust upstream
+    autofitcloud/lsvine@2b524aa4
+    `src/vecpath2vecl1dir_iterators.rs`, Apache-2.0.
+    `pub fn transform_readdir(fs_readdir: std::fs::ReadDir)
+    -> impl Iterator<Item = PathBufWrap>` at upstream line
+    69 (corpus line 18) carries a thirteen-line `///` doc
+    block whose first line reads `DEPRECATED in favor of
+    RDAdapter1` but does not carry the `#[deprecated]`
+    runtime attribute, so spec F5 Pattern C fires. The
+    function body falls into the existing in-tree-body
+    sub-shape (builds an iterator chain via
+    `.filter`/`.map` closures over `std::fs::ReadDir`,
+    quietly skipping `Err` entries, mapping each `DirEntry`
+    to its `PathBuf`, wrapping into `PathBufWrap` via
+    `PathBufWrap::new`, filtering out filenames starting
+    with `.`, and dropping entries that neither `is_file()`
+    nor `is_dir()` with a `println!` warning) on a sixth
+    unrelated upstream — broadening in-tree-body audit
+    coverage beyond batch-11 tls-parser, batch-12 glium,
+    batch-20 sui mysten-metrics, batch-24 smolvm, and
+    batch-25 Any-code while keeping Pattern C's body-shape
+    footprint at the four shapes saturated by batches 22
+    and 23 (delegate-body, in-tree-body, stub-body,
+    meta-deprecation-warning-emitter). Within the
+    in-tree-body sub-shape itself, lsvine introduces a new
+    structural variant — replacement-targets-a-struct: the
+    replacement `RDAdapter1` is an iterator-adapter struct
+    (instantiated via `RDAdapter1::new(...)` and consumed
+    through its `Iterator` impl) rather than a free
+    function, contrasting prior in-tree-body upstreams
+    whose replacements are free functions (tls-parser
+    `parse_*`, glium `find_*`-style, sui mysten-metrics
+    `monitored_mpsc::channel`, smolvm `find_layer_path` +
+    piped tar, Any-code `get_project_path_from_sessions`).
+    cntrdct's spec F5 Pattern C check does not interpret
+    what the replacement is — it only inspects the doc and
+    adjacent attributes — so the
+    function-replaced-by-struct case fires identically to
+    the function-replaced-by-function cases, confirming
+    again the syntactic-only design. The function signature
+    returns `impl Iterator<Item = PathBufWrap>` (a
+    non-`Result`/`Option` `impl Trait` return) so spec F3
+    Pattern A's return-type negation passes, but the doc
+    contains no Pattern A trigger phrase either way so
+    Pattern A does not fire; the doc contains no `panic`
+    substring so spec F4 Pattern B does not fire — only
+    Pattern C fires. The function body contains the
+    substring `unwrap` (`.map(|e| e.unwrap().path())`)
+    which would qualify as a Pattern B body marker if
+    Pattern B's doc-trigger fired — but it does not,
+    because the doc has no `panic` substring, so the
+    body-marker negation is moot here; this is the inverse
+    of batch-17 wasmtime `roundtrip` where the doc does
+    have `panic` and the body's `unwrap`/`assert_eq!`
+    markers suppress Pattern B. autofitcloud/lsvine is the
+    `tree -L 2`-style directory tree CLI domain (a Rust
+    rewrite of the directory-listing utility that contracts
+    long common filename prefixes to keep the output
+    narrow), unrelated to the prior ten Pattern C domains.
+    Diversifies `comment-code`'s audit evidence to
+    seventeen upstreams (whisky-archive 4 Pattern C +
+    tls-parser 2 Pattern C + glium 1 Pattern C +
+    pkg-config-rs 1 Pattern C + zarrs 6 Pattern B +
+    boundless 1 Pattern A + parking_lot_core 2 Pattern B +
+    wasmtime 1 Pattern A + rust-s3 1 Pattern A +
+    vortex-buffer 1 Pattern B + sui mysten-metrics 2
+    Pattern C + vcpkg-rs 1 Pattern C + rust-vst2 1
+    Pattern C + nono 1 Pattern C + smolvm 1 Pattern C +
+    Any-code 1 Pattern C + lsvine 1 Pattern C), lifting
+    Pattern C from ten upstreams to eleven without
+    introducing a new pattern; `comment-code` moves to
+    28/0/1.00 and overall recall_upper_bound to 0.62
+    (34 TP / 21 FN / 55 expected, raw 0.6182 vs. 0.6111 at
+    batch 25 — below the 0.05 movement threshold so no
+    separate "Reading the figures" note is required per
+    the refresh discipline). pr-miner mining margin
+    preserved because the new file is Rust) landed
+    2026-05-17. With all
     six detectors and six external source kinds now live in
     the corpus, pr-miner's numerator-construction phase
     closed, comment-code exercised on all three
@@ -3797,11 +3881,11 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     batches 17 and 16 respectively AND Pattern A's and Pattern
     B's sub-shape coverage completed at batches 18 and 19
     respectively (all three syntactic sub-shapes exercised on
-    each pattern) AND Pattern C lifted from four to ten
-    upstreams at batches 20, 21, 22, 23, 24, and 25, further
-    Phase B batches deepen existing pattern coverage on
-    additional upstreams rather than introduce a new detector
-    or pattern
+    each pattern) AND Pattern C lifted from four to eleven
+    upstreams at batches 20, 21, 22, 23, 24, 25, and 26,
+    further Phase B batches deepen existing pattern coverage
+    on additional upstreams rather than introduce a new
+    detector or pattern
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 

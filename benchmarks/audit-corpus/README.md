@@ -356,7 +356,7 @@ selection-bias issue this corpus is built to counter.
 ```
 audit-corpus/
 ├── README.md                       (this file)
-├── manifest.jsonl                  (Phase B batches 1-25)
+├── manifest.jsonl                  (Phase B batches 1-26)
 └── files/
     ├── rustc_ui_unreachable_code_ret.rs               (batch 1)
     ├── rustc_ui_expr_block.rs                         (batch 1)
@@ -399,7 +399,8 @@ audit-corpus/
     ├── vst2_process_deprecated.rs                     (batch 22)
     ├── nono_warn_for_deprecated_flags.rs              (batch 23)
     ├── smolvm_export_layer.rs                         (batch 24)
-    └── anycode_decode_project_path.rs                 (batch 25)
+    ├── anycode_decode_project_path.rs                 (batch 25)
+    └── lsvine_transform_readdir.rs                    (batch 26)
 ```
 
 `manifest.jsonl` follows the schema in
@@ -504,34 +505,132 @@ JSON shape (selected fields):
 {
   "per_detector": {
     "comment-code": {
-      "tp": 27,
+      "tp": 28,
       "fn": 0,
       "recall_upper_bound": 1.0,
-      "source_breakdown": { "github-commit": { "tp": 27, "fn": 0 } }
+      "source_breakdown": { "github-commit": { "tp": 28, "fn": 0 } }
     }
   },
-  "overall": { "tp": 33, "fn": 21, "recall_upper_bound": 0.61, "source_breakdown": { /* aggregated */ } },
-  "corpus_size": 42,
-  "expected_total": 54,
-  "sources": { "clippy": 2, "codeql": 6, "github-commit": 28, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
+  "overall": { "tp": 34, "fn": 21, "recall_upper_bound": 0.62, "source_breakdown": { /* aggregated */ } },
+  "corpus_size": 43,
+  "expected_total": 55,
+  "sources": { "clippy": 2, "codeql": 6, "github-commit": 29, "paper-appendix": 3, "rustc-lint-testset": 13, "semgrep": 2 }
 }
 ```
 
 ## Latest audit run
 
-Refreshed 2026-05-17 against `v0.2.0-rc.28` per the Q-14 Phase C
-discipline. Batch 25 lifts `comment-code` from 26/0/1.00 to
-27/0/1.00 by adding one Pattern C TP on a sixteenth
-permissive-licensed Rust upstream (anyme123/Any-code, MIT).
-Overall `recall_upper_bound` lifts from 0.60 to 0.61 to two
-decimal places (raw float lifts from 0.6038 at batch 24 to
-0.6111 at batch 25; 33 TP / 21 FN / 54 expected at batch 25, up
-from 32 TP / 21 FN / 53 expected at batch 24 — within the 0.05
-movement threshold so no separate "Reading the figures" note is
-required per the refresh discipline). The other five detectors
-are unchanged.
+Refreshed 2026-05-17 against `v0.2.0-rc.29` per the Q-14 Phase C
+discipline. Batch 26 lifts `comment-code` from 27/0/1.00 to
+28/0/1.00 by adding one Pattern C TP on a seventeenth
+permissive-licensed Rust upstream (autofitcloud/lsvine,
+Apache-2.0). Overall `recall_upper_bound` lifts from 0.61 to
+0.62 to two decimal places (raw float lifts from 0.6111 at
+batch 25 to 0.6182 at batch 26; 34 TP / 21 FN / 55 expected at
+batch 26, up from 33 TP / 21 FN / 54 expected at batch 25 —
+within the 0.05 movement threshold so no separate "Reading the
+figures" note is required per the refresh discipline). The
+other five detectors are unchanged.
 
-Batch 25 diversifies `comment-code` Pattern C audit coverage
+Batch 26 diversifies `comment-code` Pattern C audit coverage
+from ten upstreams (whisky-archive Cardano Plutus-data
+helpers 4 + tls-parser TLS NextProtocol parsers 2 + glium
+OpenGL draw-parameter check 1 + pkg-config-rs Unix pkg-config
+bindings 1 + sui mysten-metrics async-channel metrics wrapper
+2 + vcpkg-rs Windows vcpkg bindings 1 + rust-vst2 VST 2.4
+audio plugin host 1 + nono capability-based sandbox CLI 1 +
+smolvm portable lightweight VM image layer storage 1 +
+Any-code Tauri-based AI-coding-tool viewer 1,
+batches 3 / 11 / 12 / 13 / 20 / 21 / 22 / 23 / 24 / 25) to
+eleven upstreams by adding one TP from a permissive-licensed
+Rust upstream — autofitcloud/lsvine@2b524aa4
+`src/vecpath2vecl1dir_iterators.rs` (Apache-2.0).
+`pub fn transform_readdir(fs_readdir: std::fs::ReadDir) ->
+impl Iterator<Item = PathBufWrap>` at upstream line 69 (corpus
+line 18) carries a thirteen-line `///` doc block whose first
+line reads `DEPRECATED in favor of RDAdapter1` but does not
+carry the `#[deprecated]` runtime attribute the Rust
+deprecation lints honour — the textbook Tan SOSP 2007 §3.2
+Pattern C bug shape. The function body falls into the existing
+in-tree-body sub-shape within Pattern C: it builds an iterator
+chain via `.filter`/`.map` closures over `std::fs::ReadDir`
+(quietly skipping `Result::Err` entries, mapping each
+successful `DirEntry` to its `PathBuf`, wrapping into a
+`PathBufWrap` struct via `PathBufWrap::new`, filtering out
+filenames starting with `.`, and dropping entries that neither
+`is_file()` nor `is_dir()` with a `println!` warning) — the
+replacement struct `RDAdapter1` (also defined in the same
+file, immediately following `transform_readdir`) provides the
+same per-entry filtering via an `impl Iterator for RDAdapter1`
+`fn next()` state-machine. Within the in-tree-body sub-shape
+this introduces a new structural variant —
+replacement-targets-a-struct-not-a-function: prior in-tree-body
+upstreams (batch-11 tls-parser, batch-12 glium, batch-20 sui
+mysten-metrics, batch-24 smolvm, batch-25 Any-code) all name a
+replacement free function (`parse_*`, `find_*`,
+`monitored_mpsc::channel`, `find_layer_path` + piped tar,
+`get_project_path_from_sessions`), whereas lsvine names a
+replacement iterator-adapter struct (`RDAdapter1`) intended to
+be instantiated via `RDAdapter1::new(...)` and consumed through
+its `Iterator` impl. This is the same body-shape category as
+batches 11 / 12 / 20 / 24 / 25 (in-tree implementation rather
+than delegation to the replacement), on a sixth unrelated
+upstream — broadening in-tree-body audit coverage from five
+upstreams to six while keeping Pattern C's body-shape footprint
+at the four shapes saturated by batches 22 and 23
+(delegate-body, in-tree-body, stub-body,
+meta-deprecation-warning-emitter). cntrdct's spec F5 Pattern C
+check does not interpret what the replacement is — it only
+inspects the doc and adjacent attributes — so the
+function-replaced-by-struct case fires identically to the
+function-replaced-by-function cases, confirming again the
+syntactic-only design. The function carries no top-level
+attribute at all (no `#[deprecated]`, no `#[doc(hidden)]`, no
+`#[track_caller]`), so `preceding_siblings_have_deprecated` in
+`src/detectors/comment_code.rs` finds zero attribute items
+adjacent to the function and the `#[deprecated]` lint is not
+honoured. The function signature returns
+`impl Iterator<Item = PathBufWrap>` (a non-`Result`/`Option`
+`impl Trait` return, the literal substrings `Result`/`Option`
+do not appear in the return-type text) so spec F3 Pattern A's
+return-type negation passes; the doc contains no Pattern A
+trigger phrase (none of `returns err` / `returns result` /
+`may fail` / `fallible` / `returns option` / `may return none`)
+so Pattern A does not fire either way; the doc contains no
+`panic` substring so spec F4 Pattern B does not fire — only
+Pattern C fires. Note that the function body contains the
+substring `unwrap` (in `.map(|e| e.unwrap().path())` on the
+upstream-line-80 closure) which would qualify as a Pattern B
+body marker if Pattern B's doc-trigger fired — but it does not,
+because the doc has no `panic` substring, so the body-marker
+negation is moot here; this is the dual of batch-17 wasmtime
+`roundtrip` where the doc does have `panic` but the body's
+`unwrap`/`assert_eq!` markers suppress Pattern B; lsvine
+`transform_readdir` is the inverse — body has `unwrap` but doc
+has no `panic` trigger, so the body marker is inert from
+cntrdct's perspective. autofitcloud/lsvine is the
+`tree -L 2`-style directory tree CLI domain (a Rust rewrite of
+the directory-listing utility that contracts long common
+filename prefixes to keep the output narrow), unrelated to the
+prior ten Pattern C domains (Cardano Plutus-data, TLS
+NextProtocol, OpenGL draw-parameters, Unix pkg-config,
+async-channel metrics, Windows vcpkg, VST 2.4 audio plugin
+host, capability-based sandbox CLI, portable lightweight VM
+image layer storage, Tauri-based AI-coding-tool viewer). The
+source-kind footprint stays at six (`github-commit` absorbs
+the new entry; batch 26 does not introduce a new kind).
+`comment-code` moves to 28/0/1.00 and overall
+recall_upper_bound to 0.62 (34 TP / 21 FN / 55 expected, raw
+0.6182 vs. 0.6111 at batch 25 — below the 0.05 movement
+threshold so no separate "Reading the figures" note is
+required per the refresh discipline). pr-miner mining margin
+preserved because the new file is Rust — the Python
+`{open} → {close}` mining-DB confidence stays at batch-10's
+19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs (`get_ver`,
+`readfile`) remain TPs.
+
+Batch 25 (earlier 2026-05-17) diversified `comment-code`
+Pattern C audit coverage
 from nine upstreams (whisky-archive Cardano Plutus-data
 helpers 4 + tls-parser TLS NextProtocol parsers 2 + glium
 OpenGL draw-parameter check 1 + pkg-config-rs Unix pkg-config
