@@ -1,154 +1,183 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-17 (Q-14 recall-audit Phase B batch 29
-landed on top of batch 28, diversifying `comment-code` Pattern
-C audit coverage from thirteen upstreams (whisky-archive +
+Last updated: 2026-05-17 (Q-14 recall-audit Phase B batch 30
+landed on top of batch 29, diversifying `comment-code` Pattern
+C audit coverage from fourteen upstreams (whisky-archive +
 tls-parser + glium + pkg-config-rs + sui mysten-metrics +
 vcpkg-rs + rust-vst2 + nono + smolvm + Any-code + lsvine +
-reflex + azalea, batches 3 / 11 / 12 / 13 / 20 / 21 / 22 / 23 /
-24 / 25 / 26 / 27 / 28) to fourteen upstreams by adding one
-`comment-code` Pattern C TP from a twentieth permissive-
-licensed Rust upstream
-SharpCoder/teensycore@8bd5535aacf34af972a07a849f02c8160741a96f
-`src/phys.rs` (MIT). One top-level `pub fn` item — `write_byte`
-(upstream line 43 / corpus line 10) — carries a five-line `///`
-doc block whose last two lines read `This method will be
-deprecated in the future, / in preference of `assign_8`` but
-does not carry the `#[deprecated]` runtime attribute the Rust
-deprecation lints honour, so downstream consumers receive no
-compiler warning — the textbook Tan SOSP 2007 §3.2 Pattern C
-bug shape. cntrdct's spec F5 Pattern C trigger fires on the
-case-folded `deprecated` substring; the preceding-siblings
-walker finds zero attribute items adjacent to the function (no
-`#[deprecated]`, no `#[doc(hidden)]`, no `#[track_caller]`, no
-`#[inline]` — the function carries no top-level attribute at
-all) so the `#[deprecated]` lint is not honoured. The function
-body is a single `unsafe { *(address as *mut u8) = value; }`
-raw-pointer write to a memory-mapped peripheral register, with
-the replacement `assign_8` named directly in the doc but NOT
-called from the body — `assign_8` lives in the same `src/phys.rs`
-module immediately below `write_byte` (upstream line 51) and
-carries an identical body `unsafe { *(address as *mut u8) =
-value; }` (a pure rename rather than a behavioural successor) —
-the in-tree-body sub-shape, the same body-shape category as
+reflex + azalea + teensycore, batches 3 / 11 / 12 / 13 / 20 /
+21 / 22 / 23 / 24 / 25 / 26 / 27 / 28 / 29) to fifteen
+upstreams by adding one `comment-code` Pattern C TP from a
+twenty-first permissive-licensed Rust upstream
+move-language/move@c453c90994cba0af30314fe4134acee57fb20d0c
+`language/documentation/examples/diem-framework/crates/natives/src/account.rs`
+(Apache-2.0). One top-level `pub fn` item —
+`native_destroy_signer` (upstream line 31 / corpus line 7) —
+carries a two-line `///` doc block reading `NOTE: this function
+will be deprecated after the Diem v3 release, but must / remain
+for replaying old transactions` but does not carry the
+`#[deprecated]` runtime attribute the Rust deprecation lints
+honour, so downstream consumers receive no compiler warning —
+the textbook Tan SOSP 2007 §3.2 Pattern C bug shape. cntrdct's
+spec F5 Pattern C trigger fires on the case-folded `deprecated`
+substring; the preceding-siblings walker finds zero attribute
+items adjacent to the function (no `#[deprecated]`, no
+`#[doc(hidden)]`, no `#[track_caller]`, no `#[inline]` — the
+function carries no top-level attribute at all) so the
+`#[deprecated]` lint is not honoured. The function body is two
+`debug_assert!(...)` invariants gating native-function-call-
+protocol arity (`ty_args.is_empty()` and
+`arguments.len() == 1`) followed by
+`Ok(NativeResult::ok(213.into(), smallvec![]))` constructing
+the Move VM's no-op signer-destruction native return value
+(gas cost `213` matches `native_create_signer`'s `25`
+counterpart on the same gas-cost cohort; the empty
+`smallvec![]` return-values vector reflects the no-op nature
+of a signer destructor in the Move type system), with no
+Rust-side delegation to any replacement function — the
+in-tree-body sub-shape, the same body-shape category as
 batch-11 tls-parser (`parse_tls_handshake_*next_protocol`),
 batch-12 glium (`validate`), batch-20 sui mysten-metrics
 (`channel` / `channel_with_total`), batch-24 smolvm
 (`export_layer`), batch-25 Any-code (`decode_project_path`),
-batch-26 lsvine (`transform_readdir`), and batch-28 azalea
-(`legacy_blocks_motion`) on an eighth unrelated upstream —
-broadening in-tree-body audit coverage from seven upstreams to
-eight. This contrasts prior body shapes that delegate to the
-replacement (batch-3 whisky-archive con_str → constr, batch-13
-pkg-config-rs find_library → probe_library, batch-21 vcpkg-rs
-probe_package → find_package, batch-27 reflex find_ruby_gem_names
-→ parse_all_ruby_projects with adapter chain), the batch-22
-rust-vst2 stub-body shape (empty `{ }` ABI placeholder), and the
-batch-23 nono meta-deprecation-warning-emitter sub-shape. Within
-the in-tree-body sub-shape itself, teensycore introduces a new
-structural variant — forward-looking-deprecation-with-self-
-equivalent-rename-replacement: prior in-tree-body upstreams
-document the function as ALREADY deprecated in present tense
-(batch-11 tls-parser `Deprecated in favour of ALPN.`, batch-12
-glium `DEPRECATED. Checks parameters...`, batch-20 sui
-`Deprecated: use monitored_mpsc::channel instead.`, batch-24
-smolvm `DEPRECATED: Prefer streaming export via
-find_layer_path() + piped tar.`, batch-25 Any-code `DEPRECATED:
-Use get_project_path_from_sessions instead when possible`,
-batch-26 lsvine `DEPRECATED in favor of RDAdapter1`, batch-28
-azalea `This is marked as deprecated in Minecraft.`), whereas
-teensycore's doc reads `This method will be deprecated in the
-future, in preference of `assign_8`` — FUTURE-TENSE deprecation,
-signalling that the deprecation is planned rather than already
-in effect, AND the replacement `assign_8` is a pure rename whose
-body is byte-identical to `write_byte`'s (both perform the same
-`unsafe { *(address as *mut u8) = value; }` 8-bit raw write),
-contrasting prior in-tree-body cases where the replacement has
-materially different semantics (smolvm streaming vs batched tar,
-glium parameter-checking `Result` invariant vs free-form pre-
-flight check, lsvine `RDAdapter1` iterator-adapter struct vs
-filter+map closure chain, azalea upstream-protocol-deprecation-
-reference). cntrdct's spec F5 Pattern C check does not interpret
-tense or replacement-semantics — only the case-folded
-`deprecated` substring matters — so the forward-looking case
-fires identically to past-tense in-tree-body cases, confirming
-again the syntactic-only design. The body-shape footprint within
-Pattern C therefore stays at the four shapes saturated by
-batches 22 and 23 (delegate-body, in-tree-body, stub-body,
-meta-deprecation-warning-emitter); batch 29 broadens in-tree-
-body audit coverage rather than introducing a new sub-shape.
-SharpCoder/teensycore is the bare-metal Teensy 4.x ARM Cortex-M7
-microcontroller kernel-level peripheral I/O domain (a no-std
-Rust kernel and runtime that targets the Teensy 4.0/4.1
-development boards built around NXP's IMXRT1062 Cortex-M7
-microcontroller, with the `phys` module providing direct
-memory-mapped register-access helpers used by the GPIO / UART /
-DMA / USB / xbar peripheral drivers to interface with the
-chip's hardware blocks — the specific function is the legacy
-8-bit memory write helper retained alongside the newer
-`assign_8` rename as a backwards-compatible alias for kernel-
-side drivers compiled against earlier teensycore releases),
-unrelated to the prior thirteen Pattern C domains. The function
-signature `pub fn write_byte(address: u32, value: u8)` returns
-`()` (a non-`Result`/`Option` type, the literal substrings
-`Result`/`Option` do not appear in the signature, the unit
-return is implicit) so spec F3 Pattern A's return-type negation
-passes, but the doc contains no Pattern A trigger phrase (none
-of `returns err` / `returns result` / `may fail` / `fallible` /
-`returns option` / `may return none`) so Pattern A does not
-fire either way; the doc contains no `panic` substring so spec
-F4 Pattern B does not fire — only Pattern C fires. The function
-body contains no `unwrap` / `panic!` / `expect(` /
-`unreachable!` / `assert!` / `todo!` / `unimplemented!` /
-`debug_assert` body markers at all (only an `unsafe` block
-holding a single raw-pointer write expression `*(address as
-*mut u8) = value`, with the `unsafe` keyword and `as *mut u8`
-raw-pointer cast NOT being members of cntrdct's
-PATTERN_B_BODY_MARKERS substring set), so even if the doc had a
-`panic` trigger Pattern B's body-marker negation would suppress
-it — but the doc has no `panic` substring, so the body-marker
-absence is moot here (same dual situation as batch-28 azalea
-where the body lacks both `unwrap` AND the doc lacks `panic`;
-different from batch-26 lsvine and batch-27 reflex where the
-body has `unwrap` but the doc lacks `panic`, and the inverse of
-batch-17 wasmtime where the doc has `panic` and the body's
-`unwrap`/`assert_eq!` suppress Pattern B). The entry is TP.
-After batch 29 the detector's audit evidence spans twenty
-upstreams across twenty unrelated domains (Cardano Plutus-data
-helpers 4 Pattern C + TLS parser 2 Pattern C + OpenGL bindings 1
-Pattern C + Unix pkg-config bindings 1 Pattern C + Zarr-format
-data-type bindings 6 Pattern B + zkVM executor registry 1
-Pattern A + parking_lot_core synchronization primitives 2
-Pattern B + cranelift-assembler-x64 fuzzer infrastructure 1
-Pattern A + S3-client configuration setter 1 Pattern A +
-vortex-buffer bit-packed bitmap helpers 1 Pattern B + sui
-mysten-metrics async-channel metrics wrapper 2 Pattern C +
-Windows vcpkg bindings 1 Pattern C + VST 2.4 audio plugin host 1
-Pattern C + capability-based sandbox CLI 1 Pattern C + portable
-lightweight VM image layer storage 1 Pattern C + Tauri-based
-AI-coding-tool viewer 1 Pattern C + `tree -L 2`-style directory
-tree CLI iterator adapter 1 Pattern C + code-aware local code-
-search engine Ruby gemspec name extractor 1 Pattern C +
-Minecraft bot framework block-state physics motion-blocking
-predicate 1 Pattern C + bare-metal Teensy 4.x ARM Cortex-M7
-microcontroller kernel-level memory-mapped peripheral I/O helper
-1 Pattern C), with Pattern A and Pattern B saturated at three
-sub-shapes on three upstreams each (batches 18 and 19) and
-Pattern C now exercised on fourteen unrelated upstreams (lifted
-from thirteen at batch 28). The source-kind footprint stays at
-six (`github-commit` absorbs the new entry). Updated corpus 46
-files / 58 expected entries / overall recall_upper_bound 0.64
-(37 TP / 21 FN, raw 0.6379 vs. 0.6316 at batch 28 — rounds to
-0.64 vs. 0.63 to two decimal places, a 0.0063 raw lift below the
-0.05 movement threshold so no separate "Reading the figures"
-note is required per the refresh discipline); `comment-code`
-moves to tp=31 / fn=0 / 1.00 (was 30/0/1.00, source_breakdown
-github-commit 31/31); the other five detectors are unchanged.
-Batch 29 preserves the pr-miner mining margin because the new
-file is Rust — Python `{open} → {close}` mining-DB confidence
-stays at batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs
-(`get_ver`, `readfile`) remain TPs. Earlier 2026-05-17: Q-14
-recall-audit Phase B batch 28 landed on top of batch 27,
+batch-26 lsvine (`transform_readdir`), batch-28 azalea
+(`legacy_blocks_motion`), and batch-29 teensycore
+(`write_byte`) on a ninth unrelated upstream — broadening
+in-tree-body audit coverage from eight upstreams to nine. This
+contrasts prior body shapes that delegate to the replacement
+(batch-3 whisky-archive con_str → constr, batch-13 pkg-config-rs
+find_library → probe_library, batch-21 vcpkg-rs probe_package →
+find_package, batch-27 reflex find_ruby_gem_names →
+parse_all_ruby_projects with adapter chain), the batch-22
+rust-vst2 stub-body shape (empty `{ }` ABI placeholder), and
+the batch-23 nono meta-deprecation-warning-emitter sub-shape.
+Within the in-tree-body sub-shape itself, move-language
+introduces a new structural variant — future-tense-conditional-
+deprecation-with-replay-retention-rationale: prior in-tree-body
+upstreams either document the function as ALREADY deprecated in
+present tense and name an in-Rust replacement (batch-11
+tls-parser ALPN, batch-12 glium parameter-checking, batch-20
+sui monitored_mpsc, batch-24 smolvm streaming, batch-25
+Any-code session-derived, batch-26 lsvine RDAdapter1),
+reference an upstream-protocol-level deprecation source
+(batch-28 azalea Minecraft), or use future tense with a
+self-equivalent rename replacement (batch-29 teensycore
+`assign_8`), whereas move-language's doc reads `NOTE: this
+function will be deprecated after the Diem v3 release, but must
+remain for replaying old transactions` — FUTURE-TENSE
+deprecation CONDITIONALLY tied to a SPECIFIC release version
+(`after the Diem v3 release`) AND coupled with an EXPLICIT
+retention rationale (`but must remain for replaying old
+transactions`) AND naming NO replacement function (the doc does
+not point callers anywhere; the function is permanently
+preserved as part of the historical transaction-replay protocol
+surface). This contrasts every prior in-tree-body case:
+present-tense unconditional deprecations either name a
+replacement or reference an upstream-protocol-level source, and
+the only prior future-tense case (teensycore) named a pure
+rename replacement without conditional language or retention
+rationale. cntrdct's spec F5 Pattern C check does not interpret
+tense, conditional release-version anchoring, retention
+rationale, or replacement-name presence — only the case-folded
+`deprecated` substring matters — so the future-tense-
+conditional case fires identically to past-tense in-tree-body
+cases, confirming again the syntactic-only design. The
+body-shape footprint within Pattern C therefore stays at the
+four shapes saturated by batches 22 and 23 (delegate-body,
+in-tree-body, stub-body, meta-deprecation-warning-emitter);
+batch 30 broadens in-tree-body audit coverage rather than
+introducing a new sub-shape. move-language/move is the Move
+language reference compiler / VM domain (a Rust implementation
+of the Move smart-contract language originally developed by
+Diem / Libra, providing the bytecode format, type checker,
+native-function dispatch, and VM runtime for Move
+smart-contracts running on Diem-derivative blockchains — the
+specific function is the legacy signer-destructor native
+exposed through the Diem-framework native-functions crate,
+preserved as part of the historical transaction-replay protocol
+surface for nodes replaying pre-v3 Diem transactions during
+chain synchronisation), unrelated to the prior fourteen Pattern
+C domains. The function signature `pub fn
+native_destroy_signer(_context: &mut NativeContext, ty_args:
+Vec<Type>, arguments: VecDeque<Value>) -> PartialVMResult<
+NativeResult>` returns `PartialVMResult<NativeResult>` (the
+literal substring `Result` appears in `PartialVMResult` so spec
+F3 Pattern A's return-type negation suppresses Pattern A
+regardless of trigger phrase) and the doc contains no Pattern A
+trigger phrase (none of `returns err` / `returns result` /
+`may fail` / `fallible` / `returns option` / `may return
+none`) so Pattern A does not fire either way; the doc contains
+no `panic` substring so spec F4 Pattern B does not fire — only
+Pattern C fires. The function body contains `debug_assert!`
+body markers (two of them, gating ty_args and arguments arity)
+which ARE members of cntrdct's PATTERN_B_BODY_MARKERS substring
+set, so even if the doc had a `panic` trigger Pattern B's
+body-marker negation would suppress Pattern B — but the doc
+has no `panic` substring, so the body-marker presence is moot
+here (different from batch-28 azalea and batch-29 teensycore
+where the body lacks both `unwrap`/`debug_assert` AND the doc
+lacks `panic`). The entry is TP. After batch 30 the detector's
+audit evidence spans twenty-one upstreams across twenty-one
+unrelated domains (Cardano Plutus-data helpers 4 Pattern C +
+TLS parser 2 Pattern C + OpenGL bindings 1 Pattern C + Unix
+pkg-config bindings 1 Pattern C + Zarr-format data-type
+bindings 6 Pattern B + zkVM executor registry 1 Pattern A +
+parking_lot_core synchronization primitives 2 Pattern B +
+cranelift-assembler-x64 fuzzer infrastructure 1 Pattern A +
+S3-client configuration setter 1 Pattern A + vortex-buffer
+bit-packed bitmap helpers 1 Pattern B + sui mysten-metrics
+async-channel metrics wrapper 2 Pattern C + Windows vcpkg
+bindings 1 Pattern C + VST 2.4 audio plugin host 1 Pattern C +
+capability-based sandbox CLI 1 Pattern C + portable lightweight
+VM image layer storage 1 Pattern C + Tauri-based AI-coding-tool
+viewer 1 Pattern C + `tree -L 2`-style directory tree CLI
+iterator adapter 1 Pattern C + code-aware local code-search
+engine Ruby gemspec name extractor 1 Pattern C + Minecraft bot
+framework block-state physics motion-blocking predicate 1
+Pattern C + bare-metal Teensy 4.x ARM Cortex-M7 microcontroller
+kernel-level memory-mapped peripheral I/O helper 1 Pattern C +
+Move language Diem-framework blockchain native-function
+signer-destructor 1 Pattern C), with Pattern A and Pattern B
+saturated at three sub-shapes on three upstreams each (batches
+18 and 19) and Pattern C now exercised on fifteen unrelated
+upstreams (lifted from fourteen at batch 29). The source-kind
+footprint stays at six (`github-commit` absorbs the new entry).
+Updated corpus 47 files / 59 expected entries / overall
+recall_upper_bound 0.64 (38 TP / 21 FN, raw 0.6441 vs. 0.6379
+at batch 29 — rounds to 0.64 to two decimal places, a 0.0062
+raw lift below the 0.05 movement threshold so no separate
+"Reading the figures" note is required per the refresh
+discipline); `comment-code` moves to tp=32 / fn=0 / 1.00 (was
+31/0/1.00, source_breakdown github-commit 32/32); the other
+five detectors are unchanged. Batch 30 preserves the pr-miner
+mining margin because the new file is Rust — Python
+`{open} → {close}` mining-DB confidence stays at batch-10's
+19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs (`get_ver`,
+`readfile`) remain TPs. Earlier 2026-05-17: Q-14 recall-audit
+Phase B batch 29 landed on top of batch 28, diversifying
+`comment-code` Pattern C audit coverage from thirteen upstreams
+(whisky-archive + tls-parser + glium + pkg-config-rs + sui
+mysten-metrics + vcpkg-rs + rust-vst2 + nono + smolvm +
+Any-code + lsvine + reflex + azalea, batches 3 / 11 / 12 / 13 /
+20 / 21 / 22 / 23 / 24 / 25 / 26 / 27 / 28) to fourteen
+upstreams by adding one `comment-code` Pattern C TP from a
+twentieth permissive-licensed Rust upstream
+SharpCoder/teensycore@8bd5535aacf34af972a07a849f02c8160741a96f
+`src/phys.rs` (MIT). The teensycore `write_byte` function
+(upstream line 43 / corpus line 10) carries a five-line `///`
+doc block whose last two lines read `This method will be
+deprecated in the future, / in preference of `assign_8`` but
+no `#[deprecated]` runtime attribute, so spec F5 Pattern C
+fires; the body is a single
+`unsafe { *(address as *mut u8) = value; }` raw-pointer write
+to a memory-mapped peripheral register, the in-tree-body
+sub-shape on an eighth unrelated upstream within Pattern C
+with a new forward-looking-deprecation-with-self-equivalent-
+rename-replacement structural variant (future tense + the
+replacement `assign_8` is byte-identical to `write_byte` —
+pure rename rather than behavioural successor). Even earlier
+2026-05-17: Q-14 recall-audit Phase B batch 28 landed on top
+of batch 27,
 diversifying `comment-code` Pattern C audit coverage from twelve
 upstreams (whisky-archive + tls-parser + glium + pkg-config-rs +
 sui mysten-metrics + vcpkg-rs + rust-vst2 + nono + smolvm +
@@ -4273,7 +4302,107 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     at batch 28 — below the 0.05 movement threshold so no
     separate "Reading the figures" note is required per the
     refresh discipline). pr-miner mining margin preserved
-    because the new file is Rust) landed 2026-05-17. With all
+    because the new file is Rust) landed 2026-05-17; Phase B
+    batch 30 (one `comment-code` Pattern C TP diversifying
+    Pattern C audit coverage from fourteen upstreams
+    (whisky-archive 4 + tls-parser 2 + glium 1 + pkg-config-rs
+    1 + sui mysten-metrics 2 + vcpkg-rs 1 + rust-vst2 1 + nono
+    1 + smolvm 1 + Any-code 1 + lsvine 1 + reflex 1 + azalea 1
+    + teensycore 1, batches 3 / 11 / 12 / 13 / 20 / 21 / 22 /
+    23 / 24 / 25 / 26 / 27 / 28 / 29) to fifteen upstreams, via
+    a twenty-first permissive-licensed Rust upstream
+    move-language/move@c453c909
+    `language/documentation/examples/diem-framework/crates/natives/src/account.rs`,
+    Apache-2.0. `pub fn native_destroy_signer(_context: &mut
+    NativeContext, ty_args: Vec<Type>, arguments:
+    VecDeque<Value>) -> PartialVMResult<NativeResult>` at
+    upstream line 31 (corpus line 7) carries a two-line `///`
+    doc block reading `NOTE: this function will be deprecated
+    after the Diem v3 release, but must / remain for replaying
+    old transactions` but does not carry the `#[deprecated]`
+    runtime attribute, so spec F5 Pattern C fires. The function
+    body is two `debug_assert!(...)` invariants gating
+    native-function-call-protocol arity followed by
+    `Ok(NativeResult::ok(213.into(), smallvec![]))` constructing
+    the Move VM's no-op signer-destruction native return value —
+    the in-tree-body sub-shape on a ninth unrelated upstream,
+    broadening in-tree-body audit coverage from eight upstreams
+    (tls-parser, glium, sui mysten-metrics, smolvm, Any-code,
+    lsvine, azalea, teensycore) to nine while keeping Pattern
+    C's body-shape footprint at the four shapes saturated by
+    batches 22 and 23 (delegate-body, in-tree-body, stub-body,
+    meta-deprecation-warning-emitter). Within the in-tree-body
+    sub-shape itself, move-language introduces a new future-
+    tense-conditional-deprecation-with-replay-retention-
+    rationale structural variant: prior in-tree-body upstreams
+    either document the function as ALREADY deprecated in
+    present tense and name an in-Rust replacement (batch-11
+    tls-parser ALPN, batch-12 glium parameter-checking, batch-20
+    sui monitored_mpsc, batch-24 smolvm streaming, batch-25
+    Any-code session-derived, batch-26 lsvine RDAdapter1),
+    reference an upstream-protocol-level deprecation source
+    (batch-28 azalea Minecraft), or use future tense with a
+    self-equivalent rename replacement (batch-29 teensycore
+    `assign_8`), whereas move-language's doc uses FUTURE tense
+    CONDITIONALLY tied to a SPECIFIC release version (`after
+    the Diem v3 release`) AND coupled with an EXPLICIT
+    retention rationale (`but must remain for replaying old
+    transactions`) AND names NO replacement function — the
+    function is permanently preserved as part of the historical
+    transaction-replay protocol surface rather than steering
+    callers anywhere. cntrdct's spec F5 Pattern C check does
+    not interpret tense, conditional release-version anchoring,
+    retention rationale, or replacement-name presence — only
+    the case-folded `deprecated` substring matters — so the
+    future-tense-conditional case fires identically to past-
+    tense in-tree-body cases, confirming again the syntactic-
+    only design. The function signature returns
+    `PartialVMResult<NativeResult>` (the literal substring
+    `Result` appears in `PartialVMResult` so spec F3 Pattern
+    A's return-type negation suppresses Pattern A regardless of
+    trigger phrase) and the doc contains no Pattern A trigger
+    phrase either way so Pattern A does not fire; the doc
+    contains no `panic` substring so spec F4 Pattern B does not
+    fire — only Pattern C fires. The function body contains
+    `debug_assert!` body markers (two of them, gating ty_args
+    and arguments arity) which ARE members of cntrdct's
+    PATTERN_B_BODY_MARKERS substring set, so even if the doc
+    had a `panic` trigger Pattern B's body-marker negation
+    would suppress Pattern B — but the doc has no `panic`
+    substring, so the body-marker presence is moot here
+    (different from batch-28 azalea and batch-29 teensycore
+    where the body lacks both `unwrap`/`debug_assert` AND the
+    doc lacks `panic`). move-language/move is the Move
+    language reference compiler / VM domain (a Rust
+    implementation of the Move smart-contract language
+    originally developed by Diem / Libra, providing the
+    bytecode format, type checker, native-function dispatch,
+    and VM runtime for Move smart-contracts running on
+    Diem-derivative blockchains; the specific function is the
+    legacy signer-destructor native exposed through the
+    Diem-framework native-functions crate, preserved as part of
+    the historical transaction-replay protocol surface for
+    nodes replaying pre-v3 Diem transactions during chain
+    synchronisation), unrelated to the prior fourteen Pattern C
+    domains. Diversifies `comment-code`'s audit evidence to
+    twenty-one upstreams (whisky-archive 4 Pattern C +
+    tls-parser 2 Pattern C + glium 1 Pattern C + pkg-config-rs
+    1 Pattern C + zarrs 6 Pattern B + boundless 1 Pattern A +
+    parking_lot_core 2 Pattern B + wasmtime 1 Pattern A +
+    rust-s3 1 Pattern A + vortex-buffer 1 Pattern B + sui
+    mysten-metrics 2 Pattern C + vcpkg-rs 1 Pattern C +
+    rust-vst2 1 Pattern C + nono 1 Pattern C + smolvm 1
+    Pattern C + Any-code 1 Pattern C + lsvine 1 Pattern C +
+    reflex 1 Pattern C + azalea 1 Pattern C + teensycore 1
+    Pattern C + move-language 1 Pattern C), lifting Pattern C
+    from fourteen upstreams to fifteen without introducing a
+    new pattern; `comment-code` moves to 32/0/1.00 and overall
+    recall_upper_bound stays at 0.64 (38 TP / 21 FN / 59
+    expected, raw 0.6441 vs. 0.6379 at batch 29 — below the
+    0.05 movement threshold so no separate "Reading the
+    figures" note is required per the refresh discipline).
+    pr-miner mining margin preserved because the new file is
+    Rust) landed 2026-05-17. With all
     six detectors and six external source kinds now live in
     the corpus, pr-miner's numerator-construction phase
     closed, comment-code exercised on all three
