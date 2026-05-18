@@ -1,6 +1,8 @@
 # cntrdct strategic plan
 
-Last updated: 2026-05-06 (β paper structure and USR-1..3 user-gates added)
+Last updated: 2026-05-18 (v0.3.0 stable shipped, closing the v0.2.0-beta/rc
+release cycle on the technical side; research-side USR-1..3 gates remain
+open. β paper structure and the strategic framing below stay current.)
 
 This document is the north-star for cntrdct's post-β direction. It records
 decisions made during the β-completion session and the three independent
@@ -103,11 +105,11 @@ The shape, in summary:
 - Tier 4 — community, opens contribution funnel.
 
 ROADMAP.md also contains the "Practical track" items (β corpus,
-pr-miner-rust, SARIF validator, ranker recalibration, v0.2.0-beta
-release) that originally lived under D2 of this plan. They sit in
-ROADMAP.md because they are engineering deliverables; D2 here records
-the strategic decision to pursue them, not their implementation
-details.
+pr-miner-rust, SARIF validator, ranker recalibration, the v0.2.0-beta /
+v0.2.0-rc / v0.3.0 release sequence — all closed on the technical side)
+that originally lived under D2 of this plan. They sit in ROADMAP.md
+because they are engineering deliverables; D2 here records the
+strategic decision to pursue them, not their implementation details.
 
 ## β paper structure (2026-05-06 update)
 

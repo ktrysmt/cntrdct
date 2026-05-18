@@ -254,14 +254,16 @@ Non-negotiable details:
   silently skips lightweight tags, so a plain `git tag vX.Y.Z` will not
   trigger CI.
 - Tag name MUST be `v` + the exact `Cargo.toml` version, including any
-  pre-release suffix (e.g. `v0.2.0-beta.2`, `v0.2.0-rc.1`, `v0.2.0`).
-  The CI verify step strips the leading `v` and demands an exact match.
+  pre-release suffix (e.g. `v0.3.0`, or `v0.4.0-rc.1` if a future cycle
+  re-introduces pre-releases). The CI verify step strips the leading
+  `v` and demands an exact match.
 - crates.io publishes are irreversible. A given version can be published
   exactly once; subsequent attempts get `409 already exists`. To recover
   from a bad release, bump the version again and tag anew.
-- `cargo install cntrdct` ignores pre-release versions by default. While
-  the published version carries a `-beta.N` / `-rc.N` suffix, document
-  the explicit `--version X.Y.Z-suffix` invocation for users.
+- `cargo install cntrdct` ignores pre-release versions by default. If a
+  future release cuts a pre-release suffix (`-alpha.N` / `-beta.N` /
+  `-rc.N`), document the explicit `--version X.Y.Z-suffix` invocation
+  for users.
 - The CI gate is build-only across four targets; it does not re-run
   `cargo test` / `clippy` / `fmt`. Run the standard root-package gates
   (see "Working in the right context") before tagging.

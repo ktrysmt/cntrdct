@@ -26,9 +26,6 @@ cargo binstall cntrdct
 curl -fsSL https://raw.githubusercontent.com/ktrysmt/cntrdct/main/scripts/install.sh | bash
 ```
 
-Cargo skips pre-releases by default; pass
-`--version X.Y.Z-suffix` to install an `-rc.N` / `-beta.N`.
-
 ## Usage
 
 ```sh
