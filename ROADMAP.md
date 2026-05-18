@@ -1,155 +1,196 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-18 (Q-14 recall-audit Phase B batch 31
-landed on top of batch 30, diversifying `comment-code` Pattern
-C audit coverage from fifteen upstreams (whisky-archive +
+Last updated: 2026-05-18 (Q-14 recall-audit Phase B batch 32
+landed on top of batch 31, diversifying `comment-code` Pattern
+C audit coverage from sixteen upstreams (whisky-archive +
 tls-parser + glium + pkg-config-rs + sui mysten-metrics +
 vcpkg-rs + rust-vst2 + nono + smolvm + Any-code + lsvine +
-reflex + azalea + teensycore + move-language, batches 3 / 11 /
-12 / 13 / 20 / 21 / 22 / 23 / 24 / 25 / 26 / 27 / 28 / 29 / 30)
-to sixteen upstreams by adding one `comment-code` Pattern C TP
-from a twenty-second permissive-licensed Rust upstream
+reflex + azalea + teensycore + move-language + lakeFS, batches
+3 / 11 / 12 / 13 / 20 / 21 / 22 / 23 / 24 / 25 / 26 / 27 / 28 /
+29 / 30 / 31) to seventeen upstreams by adding one
+`comment-code` Pattern C TP from a twenty-third permissive-
+licensed Rust upstream
+readur/readur@9966a79c28d7eddf619b04858638ca18f8fd129c
+`src/test_helpers.rs` (MIT). One top-level `pub async fn` item
+— `create_test_app_state_legacy` (upstream line 443 / corpus
+line 7) — carries a two-line `///` doc block reading `Backward
+compatibility wrapper that panics on error (to maintain
+existing test compatibility) / DEPRECATED: Tests should migrate
+to use the Result-returning versions` but does not carry the
+`#[deprecated]` runtime attribute the Rust deprecation lints
+honour, so downstream consumers receive no compiler warning —
+the textbook Tan SOSP 2007 §3.2 Pattern C bug shape. This is
+the SECOND async-fn entry in cntrdct's Pattern C audit
+evidence: batch-31 lakeFS
+`internal_delete_garbage_collection_rules` was the FIRST
+async-fn entry, and readur lifts async-fn upstream coverage
+from one upstream (lakeFS only) to two upstreams (lakeFS +
+readur). tree-sitter-rust parses both `pub fn` and
+`pub async fn` as `function_item` nodes (the `async` keyword
+surfaces as a separate child node inside the
+`function_modifiers` field rather than altering the node
+kind), so cntrdct's spec F5 walker fires identically on both —
+broadening the lexical async-fn footprint from a single
+upstream-domain anchor to a two-upstream-domain anchor. The
+function body is
+`create_test_app_state().await.expect("Failed to create test
+app state - check database connection")` — a single-step
+delegation to the named replacement `create_test_app_state`
+followed by `.expect(...)` to convert the replacement's
+`Result<Arc<AppState>, TestHelperError>` return into the
+deprecated function's `Arc<AppState>` return by panicking on
+the `Err` arm — the delegate-body sub-shape within Pattern C
+(batches 3 / 13 / 21 / 27 plus 32), broadening delegate-body
+audit coverage from four upstreams to five while keeping
+Pattern C's body-shape footprint at the four shapes saturated
+by batches 22 and 23 (delegate-body, in-tree-body, stub-body,
+meta-deprecation-warning-emitter). Within delegate-body,
+readur introduces a new panic-on-error-wrapper-for-backwards-
+compat-via-`.expect()` structural variant: the deprecated
+function exists specifically to maintain a legacy non-Result-
+returning interface that pre-dates the migration to fallible
+Result-returning replacements, and the body uses `.expect(...)`
+to discard the replacement's `Result<T, E>` return and
+re-expose a `T` return that panics on `Err`. This contrasts
+every prior delegate-body case: whisky-archive con_str→constr
+preserves the return type (both return `Value`), pkg-config-rs
+find_library→probe_library adapts the error type via
+`.map_err(|e| e.to_string())` (both return `Result`, only the
+error type changes from a struct to a `String`), vcpkg-rs
+probe_package→find_package instantiates a fresh builder helper
+via `Config::new().probe(name)` (both return `Result`, the
+deprecated form pre-dates the builder pattern), and reflex
+find_ruby_gem_names→parse_all_ruby_projects projects the shape
+via `.unwrap_or_default().into_iter().map(|p| p.gem_name).
+collect()` (replacement returns `Result<Vec<RubyProject>>`,
+deprecated returns `Vec<String>` by silently discarding the
+`Err` arm AND projecting each `RubyProject` to its `.gem_name`
+String field) — readur's panic-wrapper is the FIRST sub-shape
+where the deprecated function explicitly preserves a
+panic-on-error semantic the replacement migrated away from
+(the test-helper legacy interface choice is intentional, not
+accidental — the doc explicitly says "to maintain existing
+test compatibility"). cntrdct's spec F5 Pattern C check does
+not interpret body semantics, replacement-side return-type
+evolution, or the deliberate-vs-accidental nature of the
+deprecated function's continued existence — only the case-
+folded `deprecated` substring matters — so the panic-wrapper
+case fires identically to prior delegate-body cases. The
+function carries no top-level attribute at all (no
+`#[deprecated]`, no `#[doc(hidden)]`, no `#[track_caller]`,
+no `#[inline]` — the readur test-helper module is hand-
+authored test infrastructure rather than generator-emitted
+code like lakeFS, but follows the same attribute-less
+convention), so `preceding_siblings_have_deprecated` in
+`src/detectors/comment_code.rs` finds zero attribute items
+adjacent to the function and the `#[deprecated]` lint is not
+honoured. The function signature returns `Arc<AppState>` (the
+literal substrings `Result` and `Option` are both ABSENT from
+the return type so spec F3 Pattern A's return-type negation
+does NOT fire) and the doc contains no Pattern A trigger
+phrase (none of `returns err` / `returns result` / `may fail`
+/ `fallible` / `returns option` / `may return none`) so
+Pattern A does not fire either way; the doc DOES contain the
+substring `panic` (in `panics on error`) so spec F4 Pattern
+B's doc trigger fires, but the body contains `.expect(` which
+IS a member of cntrdct's PATTERN_B_BODY_MARKERS substring set
+(the set is `unwrap` / `panic!` / `expect(` / `unreachable!`
+/ `assert!` / `todo!` / `unimplemented!` / `debug_assert`),
+so spec F4 Pattern B's body-marker negation suppresses
+Pattern B — only spec F5 Pattern C fires. This is the FIRST
+audit entry where the doc has BOTH `panic` AND `deprecated`
+triggers AND the body contains a PATTERN_B_BODY_MARKER
+substring — demonstrating that cntrdct's Pattern B and
+Pattern C checks operate independently of each other
+(Pattern B's doc-trigger fires AND body-marker negation
+suppresses, while Pattern C's doc-trigger fires AND
+attribute-negation does not suppress), completing the
+doc-trigger × body-marker × attribute-negation interaction
+matrix for Pattern B/C cross-effects. The replacement name
+`create_test_app_state` is a strict PREFIX of the deprecated
+`create_test_app_state_legacy` — readur is the FIRST case
+where the deprecated form is the LONGER name (`_legacy`
+suffix appended) because the migration claimed the canonical
+name for the new fallible-Result-returning version; prior
+named-replacement Pattern C cases all had the deprecated
+form as the shorter name. The entry is TP. After batch 32
+the detector's audit evidence spans twenty-three upstreams
+across twenty-three unrelated domains (Cardano Plutus-data
+helpers 4 Pattern C + TLS parser 2 Pattern C + OpenGL
+bindings 1 Pattern C + Unix pkg-config bindings 1 Pattern C +
+Zarr-format data-type bindings 6 Pattern B + zkVM executor
+registry 1 Pattern A + parking_lot_core synchronization
+primitives 2 Pattern B + cranelift-assembler-x64 fuzzer
+infrastructure 1 Pattern A + S3-client configuration setter 1
+Pattern A + vortex-buffer bit-packed bitmap helpers 1 Pattern
+B + sui mysten-metrics async-channel metrics wrapper 2
+Pattern C + Windows vcpkg bindings 1 Pattern C + VST 2.4
+audio plugin host 1 Pattern C + capability-based sandbox CLI
+1 Pattern C + portable lightweight VM image layer storage 1
+Pattern C + Tauri-based AI-coding-tool viewer 1 Pattern C +
+`tree -L 2`-style directory tree CLI iterator adapter 1
+Pattern C + code-aware local code-search engine Ruby gemspec
+name extractor 1 Pattern C + Minecraft bot framework
+block-state physics motion-blocking predicate 1 Pattern C +
+bare-metal Teensy 4.x ARM Cortex-M7 microcontroller
+kernel-level memory-mapped peripheral I/O helper 1 Pattern C
++ Move language Diem-framework blockchain native-function
+signer-destructor 1 Pattern C + data-lake object-store
+Git-like-version-control OpenAPI-generated Rust client
+garbage-collection-rules deletion 1 Pattern C + self-hosted
+Rust/Axum document-management-with-OCR web app test-helper
+backwards-compatibility wrapper 1 Pattern C), with Pattern A
+and Pattern B saturated at three sub-shapes on three
+upstreams each (batches 18 and 19) and Pattern C now
+exercised on seventeen unrelated upstreams (lifted from
+sixteen at batch 31). The source-kind footprint stays at six
+(`github-commit` absorbs the new entry). Updated corpus 49
+files / 61 expected entries / overall recall_upper_bound 0.66
+(40 TP / 21 FN, raw 0.6557 vs. 0.65 at batch 31 — a 0.0057
+raw lift below the 0.05 movement threshold so no separate
+"Reading the figures" note is required per the refresh
+discipline); `comment-code` moves to tp=34 / fn=0 / 1.00
+(was 33/0/1.00, source_breakdown github-commit 34/34); the
+other five detectors are unchanged. Batch 32 preserves the
+pr-miner mining margin because the new file is Rust — Python
+`{open} → {close}` mining-DB confidence stays at batch-10's
+19/22 ≈ 0.864 ≥ 0.85, and both pr-miner TPs (`get_ver`,
+`readfile`) remain TPs. Earlier 2026-05-18: Q-14 recall-audit
+Phase B batch 31 landed on top of batch 30, diversifying
+`comment-code` Pattern C audit coverage from fifteen upstreams
+(batches 3 / 11 / 12 / 13 / 20 / 21 / 22 / 23 / 24 / 25 / 26
+/ 27 / 28 / 29 / 30) to sixteen upstreams by adding one
+`comment-code` Pattern C TP from a twenty-second permissive-
+licensed Rust upstream
 treeverse/lakeFS@4b8c1667b240b747cbbd151fb695df64927c37c9
 `clients/rust/src/apis/internal_api.rs` (Apache-2.0). One
 top-level `pub async fn` item —
 `internal_delete_garbage_collection_rules` (upstream line 830
-/ corpus line 6) — carries a single-line `///` doc block
-reading `Deprecated; use deleteGCRules.` but does not carry the
-`#[deprecated]` runtime attribute the Rust deprecation lints
-honour, so downstream consumers receive no compiler warning —
-the textbook Tan SOSP 2007 §3.2 Pattern C bug shape. This is
-the FIRST async-fn entry in cntrdct's Pattern C audit evidence:
-the prior fifteen Pattern C upstreams (batches 3 / 11 / 12 / 13
-/ 20 / 21 / 22 / 23 / 24 / 25 / 26 / 27 / 28 / 29 / 30) all
-targeted synchronous `pub fn` items, whereas lakeFS introduces
-the `pub async fn` lexical variant. tree-sitter-rust parses
-both `pub fn` and `pub async fn` as `function_item` nodes (the
-`async` keyword surfaces as a separate child node inside the
-`function_modifiers` field rather than altering the node kind),
-so cntrdct's spec F5 walker fires identically on both —
-confirming the syntactic-only design extends across the
-sync/async axis. The function body is a reqwest-based HTTP
-`DELETE` request to `/repositories/{repository}/gc/rules` with
-conditional user-agent / basic-auth / bearer-token header
-attachment driven by the `Configuration` struct, plus the
-standard OpenAPI-generated error-path decoding a
-`ResponseContent` into `Error::ResponseError` when the HTTP
-status falls in the 4xx/5xx range. The body retains the
-original implementation in-tree rather than delegating to a
-`delete_gc_rules` replacement function — the OpenAPI-generated
-client has separate operationId stubs for the deprecated and
-replacement endpoints, both directly issuing HTTP requests
-against the lakeFS server — the in-tree-body sub-shape on a
-tenth unrelated upstream within Pattern C (batches 11 / 12 /
-20 / 24 / 25 / 26 / 28 / 29 / 30 plus 31), broadening
-in-tree-body audit coverage from nine upstreams to ten while
-keeping Pattern C's body-shape footprint at the four shapes
-saturated by batches 22 and 23 (delegate-body, in-tree-body,
-stub-body, meta-deprecation-warning-emitter). Within in-tree-
-body, lakeFS introduces a new openapi-generator-emitted-
-deprecation-from-spec-annotation structural variant: prior
-in-tree-body upstreams are all HAND-WRITTEN code where a
-maintainer typed the `///` doc and the function signature
-into the source file directly. lakeFS
-`internal_delete_garbage_collection_rules` is EMITTED by
-OpenAPI Generator from the lakeFS OpenAPI spec — the
-deprecation prose `Deprecated; use deleteGCRules.` originates
-as a `description` field on the spec's DELETE operation, which
-the Rust client template renders into a `///` doc line but
-DOES NOT lift into the `#[deprecated]` attribute the spec's
-separate `deprecated: true` flag would naturally map to. The
-pattern is shared across all three deprecated GC-rules
-endpoints in the same file
-(`internal_delete_garbage_collection_rules` at upstream line
-830, `internal_get_garbage_collection_rules` at line 897,
-`internal_set_garbage_collection_rules` at line 931) and
-across every other OpenAPI-generated Rust client consuming a
-spec with description-field deprecation prose without paired
-`deprecated: true` spec-level flag — a generator-template /
-spec-author concern rather than per-author oversight,
-structurally distinct from hand-authored Pattern C in batches
-3 / 11 / 12 / 13 / 20 / 21 / 22 / 23 / 24 / 25 / 26 / 27 /
-28 / 29 / 30. The replacement name `deleteGCRules` uses
-camelCase (OpenAPI operationId convention preserved verbatim
-through the spec annotation) rather than snake_case Rust
-convention, contrasting prior named-replacement Pattern C
-cases (whisky-archive `constr`, pkg-config-rs `probe_library`,
-sui `monitored_mpsc::channel`, vcpkg-rs `find_package`,
-Any-code `get_project_path_from_sessions`, lsvine
-`RDAdapter1`, reflex `parse_all_ruby_projects`, teensycore
-`assign_8`). cntrdct's spec F5 Pattern C check does not
-interpret naming conventions, generator provenance, or
-replacement-name presence — only the case-folded `deprecated`
-substring matters — so the openapi-generator-emitted-
-deprecation-from-spec-annotation case fires identically to
-hand-authored cases, confirming again the syntactic-only
-design. The function carries no top-level attribute at all
-(no `#[deprecated]`, no `#[doc(hidden)]`, no
-`#[track_caller]`, no `#[inline]` — the OpenAPI Rust generator
-emits zero attributes adjacent to every endpoint function
-regardless of spec-level annotations), so
-`preceding_siblings_have_deprecated` in
-`src/detectors/comment_code.rs` finds zero attribute items
-adjacent to the function and the `#[deprecated]` lint is not
-honoured. The function signature returns `Result<(),
-Error<InternalDeleteGarbageCollectionRulesError>>` (the
-literal substring `Result` in the return type suppresses
-Pattern A regardless of trigger phrase) and the doc contains
-no Pattern A trigger phrase (none of `returns err` / `returns
-result` / `may fail` / `fallible` / `returns option` / `may
-return none`) so Pattern A does not fire either way; the doc
-contains no `panic` substring so spec F4 Pattern B does not
-fire — only Pattern C fires. The function body contains the
-`?` error-propagation operator (twice: on
-`local_var_req_builder.build()?` and on
-`local_var_client.execute(local_var_req).await?`) which is
-NOT a member of cntrdct's PATTERN_B_BODY_MARKERS substring set
-(the set is `unwrap` / `panic!` / `expect(` / `unreachable!`
-/ `assert!` / `todo!` / `unimplemented!` / `debug_assert`),
-so Pattern B's body-marker negation would not fire even if
-the doc had a `panic` trigger — but the doc has no `panic`
-substring, so the body-marker absence is moot here (same
-dual situation as batch-28 azalea / batch-29 teensycore where
-the body lacks both `unwrap`/`debug_assert` AND the doc lacks
-`panic`). The entry is TP. After batch 31 the detector's
-audit evidence spans twenty-two upstreams across twenty-two
-unrelated domains (Cardano Plutus-data helpers 4 Pattern C +
-TLS parser 2 Pattern C + OpenGL bindings 1 Pattern C + Unix
-pkg-config bindings 1 Pattern C + Zarr-format data-type
-bindings 6 Pattern B + zkVM executor registry 1 Pattern A +
-parking_lot_core synchronization primitives 2 Pattern B +
-cranelift-assembler-x64 fuzzer infrastructure 1 Pattern A +
-S3-client configuration setter 1 Pattern A + vortex-buffer
-bit-packed bitmap helpers 1 Pattern B + sui mysten-metrics
-async-channel metrics wrapper 2 Pattern C + Windows vcpkg
-bindings 1 Pattern C + VST 2.4 audio plugin host 1 Pattern C +
-capability-based sandbox CLI 1 Pattern C + portable lightweight
-VM image layer storage 1 Pattern C + Tauri-based AI-coding-
-tool viewer 1 Pattern C + `tree -L 2`-style directory tree
-CLI iterator adapter 1 Pattern C + code-aware local code-
-search engine Ruby gemspec name extractor 1 Pattern C +
-Minecraft bot framework block-state physics motion-blocking
-predicate 1 Pattern C + bare-metal Teensy 4.x ARM Cortex-M7
-microcontroller kernel-level memory-mapped peripheral I/O
-helper 1 Pattern C + Move language Diem-framework blockchain
-native-function signer-destructor 1 Pattern C + data-lake
-object-store Git-like-version-control OpenAPI-generated Rust
-client garbage-collection-rules deletion 1 Pattern C), with
-Pattern A and Pattern B saturated at three sub-shapes on three
-upstreams each (batches 18 and 19) and Pattern C now exercised
-on sixteen unrelated upstreams (lifted from fifteen at batch
-30). The source-kind footprint stays at six (`github-commit`
-absorbs the new entry). Updated corpus 48 files / 60 expected
-entries / overall recall_upper_bound 0.65 (39 TP / 21 FN, raw
-0.65 vs. 0.6441 at batch 30 — a 0.0059 raw lift below the 0.05
-movement threshold so no separate "Reading the figures" note
-is required per the refresh discipline); `comment-code` moves
-to tp=33 / fn=0 / 1.00 (was 32/0/1.00, source_breakdown
-github-commit 33/33); the other five detectors are unchanged.
-Batch 31 preserves the pr-miner mining margin because the new
-file is Rust — Python `{open} → {close}` mining-DB confidence
-stays at batch-10's 19/22 ≈ 0.864 ≥ 0.85, and both pr-miner
-TPs (`get_ver`, `readfile`) remain TPs. Earlier 2026-05-17:
+/ corpus line 6) — carried a single-line `///` doc block
+reading `Deprecated; use deleteGCRules.` without the
+`#[deprecated]` runtime attribute — the textbook Tan SOSP 2007
+§3.2 Pattern C bug shape. This was the FIRST async-fn entry
+in cntrdct's Pattern C audit evidence (the prior fifteen
+Pattern C upstreams all targeted synchronous `pub fn` items),
+broadening the lexical footprint from sync `pub fn` only to
+sync + async — tree-sitter-rust parses both as `function_item`
+nodes so spec F5 fired identically. The body was the OpenAPI-
+generated reqwest HTTP DELETE against
+`/repositories/{repository}/gc/rules` — the in-tree-body
+sub-shape on a tenth unrelated upstream within Pattern C.
+Within in-tree-body, batch 31 introduced a new openapi-
+generator-emitted-deprecation-from-spec-annotation structural
+variant: the deprecation prose originated as a `description`
+field on the lakeFS OpenAPI spec's DELETE operation, which the
+Rust client template renders as a `///` doc line but does NOT
+lift into the `#[deprecated]` attribute the spec's separate
+`deprecated: true` flag would naturally map to — a generator-
+template / spec-author concern rather than per-author
+oversight, structurally distinct from hand-authored Pattern C.
+After batch 31 `comment-code` was at 33/0/1.00 and overall
+`recall_upper_bound` was at 0.65 (39 TP / 21 FN / 60
+expected). The source-kind footprint stayed at six (`github-
+commit` absorbed the new entry). Earlier 2026-05-17:
 Q-14 recall-audit Phase B batch 30 landed on top of batch 29,
 diversifying `comment-code` Pattern C audit coverage from
 fourteen upstreams (whisky-archive + tls-parser + glium +
@@ -4669,7 +4710,138 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     lift below the 0.05 movement threshold so no separate
     "Reading the figures" note is required per the refresh
     discipline). pr-miner mining margin preserved because the
-    new file is Rust) landed 2026-05-18. With all
+    new file is Rust) landed 2026-05-18; Phase B batch 32 (one
+    `comment-code` Pattern C TP diversifying Pattern C audit
+    coverage from sixteen upstreams (whisky-archive 4 +
+    tls-parser 2 + glium 1 + pkg-config-rs 1 + sui
+    mysten-metrics 2 + vcpkg-rs 1 + rust-vst2 1 + nono 1 +
+    smolvm 1 + Any-code 1 + lsvine 1 + reflex 1 + azalea 1 +
+    teensycore 1 + move-language 1 + lakeFS 1, batches 3 / 11
+    / 12 / 13 / 20 / 21 / 22 / 23 / 24 / 25 / 26 / 27 / 28 /
+    29 / 30 / 31) to seventeen upstreams, via a twenty-third
+    permissive-licensed Rust upstream
+    readur/readur@9966a79c28d7eddf619b04858638ca18f8fd129c
+    `src/test_helpers.rs`, MIT. `pub async fn
+    create_test_app_state_legacy() -> Arc<AppState>` at
+    upstream line 443 (corpus line 7) carries a two-line `///`
+    doc block reading `Backward compatibility wrapper that
+    panics on error (to maintain existing test compatibility) /
+    DEPRECATED: Tests should migrate to use the Result-
+    returning versions` but does not carry the `#[deprecated]`
+    runtime attribute, so spec F5 Pattern C fires. This is the
+    SECOND async-fn entry in cntrdct's Pattern C audit
+    evidence: batch-31 lakeFS
+    `internal_delete_garbage_collection_rules` was the FIRST
+    async-fn entry, and readur lifts async-fn upstream coverage
+    from one upstream (lakeFS only) to two upstreams (lakeFS +
+    readur) — broadening the lexical async-fn footprint from a
+    single upstream-domain anchor to a two-upstream-domain
+    anchor. The function body is
+    `create_test_app_state().await.expect("Failed to create
+    test app state - check database connection")` — a single-
+    step delegation to the named replacement
+    `create_test_app_state` followed by `.expect(...)` to
+    convert the replacement's `Result<Arc<AppState>,
+    TestHelperError>` return into the deprecated function's
+    `Arc<AppState>` return by panicking on the `Err` arm — the
+    delegate-body sub-shape contrasting batch-22 rust-vst2
+    stub-body, batch-23 nono meta-deprecation-warning-emitter,
+    and the in-tree-body cases (batches 11 / 12 / 20 / 24 / 25
+    / 26 / 28 / 29 / 30 / 31); broadens delegate-body coverage
+    from four upstreams (whisky-archive con_str→constr no-op
+    rename, pkg-config-rs find_library→probe_library
+    error-type-adapter via `.map_err`, vcpkg-rs probe_package→
+    find_package fresh-helper via `Config::new().probe()`,
+    reflex find_ruby_gem_names→parse_all_ruby_projects shape-
+    projection via `.unwrap_or_default().into_iter().map().
+    collect()`) to five upstreams without introducing a new
+    Pattern C body-shape sub-shape (the four shapes saturated
+    by batches 22 and 23 — delegate-body, in-tree-body,
+    stub-body, meta-deprecation-warning-emitter — stay at
+    four). Within the delegate-body sub-shape itself, readur
+    introduces a new panic-on-error-wrapper-for-backwards-
+    compat-via-`.expect()` structural variant — the deprecated
+    function exists specifically to maintain a legacy non-
+    Result-returning interface that pre-dates the migration to
+    fallible Result-returning replacements, and the body uses
+    `.expect(...)` to discard the replacement's `Result<T, E>`
+    return and re-expose a `T` return that panics on `Err`,
+    contrasting every prior delegate-body case where the
+    replacement's return type is preserved (whisky-archive),
+    error-type-adapted (pkg-config-rs), fresh-helper-
+    instantiated (vcpkg-rs), or shape-projected (reflex) —
+    readur is the FIRST sub-shape where the deprecated
+    function explicitly preserves a panic-on-error semantic
+    the replacement migrated away from (the test-helper
+    legacy interface choice is intentional, not accidental —
+    the doc explicitly says "to maintain existing test
+    compatibility"). cntrdct's spec F5 Pattern C check does
+    not interpret body semantics, replacement-side return-
+    type evolution, or the deliberate-vs-accidental nature of
+    the deprecated function's continued existence — only the
+    case-folded `deprecated` substring matters — so the panic-
+    wrapper case fires identically to prior delegate-body
+    cases, confirming again the syntactic-only design. The
+    function signature returns `Arc<AppState>` (the literal
+    substrings `Result` and `Option` are both ABSENT from the
+    return type so spec F3 Pattern A's return-type negation
+    does NOT fire) and the doc contains no Pattern A trigger
+    phrase, so Pattern A does not fire either way; the doc
+    DOES contain the substring `panic` (in `panics on error`)
+    so spec F4 Pattern B's doc trigger fires, but the body
+    contains `.expect(` which IS a member of cntrdct's
+    PATTERN_B_BODY_MARKERS substring set, so spec F4 Pattern
+    B's body-marker negation suppresses Pattern B — only
+    spec F5 Pattern C fires. This is the FIRST audit entry
+    where the doc has BOTH `panic` AND `deprecated` triggers
+    AND the body contains a PATTERN_B_BODY_MARKER substring,
+    demonstrating that cntrdct's Pattern B and Pattern C
+    checks operate independently of each other (Pattern B's
+    doc-trigger fires AND body-marker negation suppresses,
+    while Pattern C's doc-trigger fires AND attribute-
+    negation does not suppress), completing the doc-trigger
+    × body-marker × attribute-negation interaction matrix
+    for Pattern B/C cross-effects. The replacement name
+    `create_test_app_state` is a strict PREFIX of the
+    deprecated `create_test_app_state_legacy` — readur is the
+    FIRST case where the deprecated form is the LONGER name
+    (`_legacy` suffix appended) because the migration claimed
+    the canonical name for the new fallible-Result-returning
+    version; prior named-replacement Pattern C cases all had
+    the deprecated form as the shorter name. readur/readur is
+    the self-hosted Rust/Axum document-management-with-OCR
+    web app domain (an open-source self-hosted Paperless-ngx-
+    alternative that stores documents on local disk / S3 /
+    WebDAV, runs OCR via Tesseract / OCRmyPDF, indexes the
+    extracted text in PostgreSQL with full-text search, and
+    exposes a web UI for browsing / tagging / searching
+    documents with OIDC authentication and per-user
+    filesystem watch directories; the specific function is
+    the legacy test-helper wrapper that constructs a fully-
+    initialized `AppState` for integration tests by panicking
+    on database-connection failure to preserve the pre-
+    Result-migration test API), unrelated to the prior
+    sixteen Pattern C domains. Diversifies `comment-code`'s
+    audit evidence to twenty-three upstreams (whisky-archive
+    4 Pattern C + tls-parser 2 Pattern C + glium 1 Pattern C
+    + pkg-config-rs 1 Pattern C + zarrs 6 Pattern B +
+    boundless 1 Pattern A + parking_lot_core 2 Pattern B +
+    wasmtime 1 Pattern A + rust-s3 1 Pattern A + vortex-
+    buffer 1 Pattern B + sui mysten-metrics 2 Pattern C +
+    vcpkg-rs 1 Pattern C + rust-vst2 1 Pattern C + nono 1
+    Pattern C + smolvm 1 Pattern C + Any-code 1 Pattern C +
+    lsvine 1 Pattern C + reflex 1 Pattern C + azalea 1
+    Pattern C + teensycore 1 Pattern C + move-language 1
+    Pattern C + lakeFS 1 Pattern C + readur 1 Pattern C),
+    lifting Pattern C from sixteen upstreams to seventeen
+    without introducing a new pattern; `comment-code` moves
+    to 34/0/1.00 and overall recall_upper_bound lifts to
+    0.66 (40 TP / 21 FN / 61 expected, raw 0.6557 vs. 0.65
+    at batch 31 — a 0.0057 raw lift below the 0.05 movement
+    threshold so no separate "Reading the figures" note is
+    required per the refresh discipline). pr-miner mining
+    margin preserved because the new file is Rust) landed
+    2026-05-18. With all
     six detectors and six external source kinds now live in
     the corpus, pr-miner's numerator-construction phase
     closed, comment-code exercised on all three
@@ -4678,11 +4850,11 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     batches 17 and 16 respectively AND Pattern A's and Pattern
     B's sub-shape coverage completed at batches 18 and 19
     respectively (all three syntactic sub-shapes exercised on
-    each pattern) AND Pattern C lifted from four to sixteen
+    each pattern) AND Pattern C lifted from four to seventeen
     upstreams at batches 20, 21, 22, 23, 24, 25, 26, 27, 28,
-    29, 30, and 31, further Phase B batches deepen existing
-    pattern coverage on additional upstreams rather than
-    introduce a new detector or pattern
+    29, 30, 31, and 32, further Phase B batches deepen
+    existing pattern coverage on additional upstreams rather
+    than introduce a new detector or pattern
 42. Q-15 SOTA baseline comparators
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 
