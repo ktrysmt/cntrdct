@@ -521,7 +521,7 @@ JSON shape (selected fields):
 
 ## Latest audit run
 
-Refreshed 2026-05-18 against `v0.2.0-rc.35` per the Q-14 Phase C
+Refreshed 2026-05-18 against `v0.3.0` per the Q-14 Phase C
 discipline. Batch 32 lifts `comment-code` from 33/0/1.00 to
 34/0/1.00 by adding one Pattern C TP on a twenty-third
 permissive-licensed Rust upstream (readur/readur, MIT).
