@@ -236,11 +236,20 @@ Steps (run from repo root):
 ```sh
 $EDITOR Cargo.toml                                 # bump version to X.Y.Z
 cargo update -p cntrdct                            # sync Cargo.lock
+git mv tests/fixtures/baselines/baselines/v<old>/ \
+       tests/fixtures/baselines/baselines/vX.Y.Z/  # Q-15 fixture pin
 git add Cargo.toml Cargo.lock
 git commit -m "chore(release): bump version to X.Y.Z"
 git tag -a vX.Y.Z -m "release vX.Y.Z"              # MUST be annotated
 git push --follow-tags
 ```
+
+The fixture rename is required because `tests/baselines.rs` derives
+the cached-JSONL release tag from `CARGO_PKG_VERSION` (Q-15 spec),
+and the CI gate at tag time is build-only — a missed rename does not
+fail the tagged release but does break `cargo test` on master until
+the next person rebumps. Run `cargo test --all-targets` before tagging
+to catch this and any other pre-existing breakage.
 
 Non-negotiable details:
 
