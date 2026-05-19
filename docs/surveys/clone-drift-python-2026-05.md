@@ -214,8 +214,6 @@ precision/recall on a Python corpus") realised concretely.
   and carry `LanguageCitationStatus::Confirmed`.
 - `CITATIONS.md` adds a bibliography entry under the clone-drift
   subsection with `Languages: Python`.
-- A fresh dated formal preregistration revision is published per
-  the convention established by the arg-swap PR.
 
 ## Revisit triggers
 

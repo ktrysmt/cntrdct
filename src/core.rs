@@ -1,9 +1,8 @@
 //! cntrdct-core: shared types and traits for evidence-based contradiction detection.
 //!
-//! Design constraints (P1-P5):
+//! Design constraints (P1, P3-P5):
 //! - P1: every Detector must reference prior art. `register_detector` rejects
 //!   detectors with empty `citations()`.
-//! - P2: preregistration metadata is carried via `DetectorConfig::preregistration_id`.
 //! - P3: only `Adjudicator` may invoke an LLM. `Detector` implementations must be
 //!   deterministic; randomness or LLM calls inside `detect` violate this contract.
 //! - P4: empirical priors do not belong in adjudicator prompts. Statistical priors
@@ -277,9 +276,6 @@ pub struct CorpusStats {
 /// Detector configuration provided per-run.
 #[derive(Debug, Clone, Default)]
 pub struct DetectorConfig {
-    /// Preregistration identifier (P2). `Some` when the run is part of a
-    /// declared empirical study.
-    pub preregistration_id: Option<String>,
     /// Detector-defined options (kept opaque to the core).
     pub options: serde_json::Value,
 }

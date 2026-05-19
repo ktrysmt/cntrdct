@@ -28,9 +28,9 @@ contract drift. Read this file before editing or running gates.
   detector priors), `eval`, `cross-model-kappa` (Q-13: shells out to
   `claude --print` and `gemini -p`, reports pairwise Cohen's κ; auth
   via each CLI's own login, no API keys read by cntrdct).
-- Scope: shippable detector / linter product, preregistered evaluation,
-  citation policy, multi-language detector ports.
-- Owns at repo root: `prereg/`, `docs/surveys/`, `CITATIONS.md`,
+- Scope: shippable detector / linter product, citation policy,
+  multi-language detector ports.
+- Owns at repo root: `docs/surveys/`, `CITATIONS.md`,
   `ROADMAP.md`, `benchmarks/`, `examples/`, `scripts/`.
 - History: collapsed from a 15-crate workspace
   (`crates/{core,parsers,config,sarif,calibration,ranker,eval,
@@ -48,13 +48,13 @@ contract drift. Read this file before editing or running gates.
 - Subcommands: `fetch`, `aggregate`, `overlap`, `clippy`, `sample`, `rank`
 - Scope: corpus mining, replication / position projects, exploratory
   tooling that has not been promoted into the product.
-- May stand up its own preregistration discipline under
-  `research/prereg/`, `research/surveys/`, `research/CITATIONS.md`.
-  Do not share these with the root-level technical files.
+- May stand up its own surveys / citations under
+  `research/surveys/`, `research/CITATIONS.md`. Do not share these
+  with the root-level technical files.
 
-## Design constraints (P1 - P5)
+## Design constraints (P1, P3 - P5)
 
-The technical package ships under five hard constraints. They are
+The technical package ships under four hard constraints. They are
 enforced at startup, in tests, or in code review; violating one is
 treated as a regression, not a stylistic choice. The README is
 end-user-only and does NOT document them, so reproduce here:
@@ -63,9 +63,6 @@ end-user-only and does NOT document them, so reproduce here:
   `core::register_detector` rejects any `Detector` whose
   `citations()` returns empty; `tests/citations_consistency.rs`
   asserts that every key resolves to an entry in `CITATIONS.md`.
-- P2 — empirical results carry a preregistration id
-  (`DetectorConfig::preregistration_id`); see also
-  `## Preregistration discipline` below.
 - P3 — only the Layer 3 adjudicator may invoke an LLM. Layers 1, 2,
   and 4 are deterministic, including the Q-12 post-processing helper
   `apply_llm_calibration`. `reqwest` is reachable only from
@@ -239,10 +236,7 @@ Steps (run from repo root):
 ```sh
 $EDITOR Cargo.toml                                 # bump version to X.Y.Z
 cargo update -p cntrdct                            # sync Cargo.lock
-cargo run --release --bin cntrdct -- \
-  calibrate --audit-recall benchmarks/audit-corpus  # Q-14 Phase C
-$EDITOR benchmarks/audit-corpus/README.md          # refresh "Latest audit run"
-git add Cargo.toml Cargo.lock benchmarks/audit-corpus/README.md
+git add Cargo.toml Cargo.lock
 git commit -m "chore(release): bump version to X.Y.Z"
 git tag -a vX.Y.Z -m "release vX.Y.Z"              # MUST be annotated
 git push --follow-tags
@@ -275,29 +269,9 @@ Non-negotiable details:
   parse as Conventional Commits (or that match `chore(release)` /
   `chore(changelog)` / `Merge`) are dropped from the notes by design;
   do not bypass the parser by adding ad-hoc release-only commits.
-- The Q-14 recall-audit refresh lands in the SAME
-  `chore(release): bump version to X.Y.Z` commit, not a follow-up.
-  Re-run `cargo run --release --bin cntrdct -- calibrate
-  --audit-recall benchmarks/audit-corpus` and update the README's
-  "Latest audit run" table per `benchmarks/audit-corpus/README.md`
-  "Refresh discipline (Phase C)". A no-op refresh (figures
-  unchanged) is fine — the discipline is the re-run, not the
-  delta. CI does not enforce this; it is part of the
-  release-procedure non-negotiables for the same reason the tag
-  itself is.
+Optional but recommended:
 
-## Preregistration discipline (technical workspace)
-
-- `prereg/` files at repo root are FROZEN once their associated phase
-  begins (per the parent OSF preregistration). Subsequent rule changes
-  go to a new dated file (`YYYY-MM-DD-osf-prereg.md`) that names the
-  file it supersedes via a `Supersedes:` line in its front matter;
-  never edit a frozen file in place. The consistency test picks the
-  alphabetically last `*.md` in `prereg/`, so ISO date prefixes sort
-  to the latest revision automatically.
-- The consistency test at `tests/prereg_consistency.rs`
-  picks the alphabetically last `*.md` in `prereg/` as the canonical
-  preregistration. Sibling artefacts (rubrics, addenda) must be
-  filtered there if they do not follow the OSF schema.
-- If the research track wants its own preregistration cadence, host it
-  under `research/prereg/` rather than mixing into the root-level set.
+- Re-running `cargo run --release --bin cntrdct -- calibrate
+  --audit-recall benchmarks/audit-corpus` at release time and
+  refreshing the README's "Latest audit run" table is good hygiene
+  when detector logic has changed, but is no longer required.

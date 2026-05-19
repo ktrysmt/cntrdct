@@ -18,8 +18,7 @@ Apriori threshold. Overall `recall_upper_bound` = 0.66 raw 0.6557.
 The four detectors still at 0.00 (`arg-swap`, `clone-drift`,
 `config-interaction`, `unreachable-after-terminator`) surface v0
 scope choices rather than detector regressions; closing those gaps
-is detector-side engineering under separate preregistrations,
-outside Phase B. The `nvd` and `osv` slots documented under "Source
+is detector-side engineering, outside Phase B. The `nvd` and `osv` slots documented under "Source
 list" remain unused — CVE-shaped bugs that map to a cntrdct
 detector are rare in practice. "Latest audit run" below refreshes
 on each release tag per the Refresh discipline section.
@@ -246,7 +245,7 @@ top-level `fn` granularity; `config-interaction` by spec F5
 requiring an explicit `not(...)` wrapper; `unreachable-after-
 terminator` by spec F3 not lifting constant-condition / typed-
 exception reasoning. Lifting any of these is detector-side
-engineering under a separate preregistration, not a Phase B item.
+engineering, not a Phase B item.
 `comment-code` reports `34/0/1.00` across all three Tan SOSP 2007
 patterns (Pattern A on three upstreams, Pattern B on three
 upstreams, Pattern C on seventeen upstreams). `pr-miner` reports

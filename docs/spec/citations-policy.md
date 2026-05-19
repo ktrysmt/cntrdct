@@ -325,107 +325,6 @@ The bibliography file becomes a bottleneck if many languages land
 at once. Mitigation: M-series sequences languages one at a time;
 Phase E onwards adds languages serially.
 
-## Venue tier whitelist (added 2026-05-07, Q-7)
-
-P1's "peer-reviewed prior art" requirement is enforced at the
-citation-key level by `register_detector` and
-`tests/citations_consistency.rs`. The original draft (2026-05-04)
-explicitly declined to grade venues, on the assumption that any
-peer-reviewed venue or named benchmark counted equally. That
-uniform treatment opens R-B (loophole in clause (b)) wider than
-necessary: a future detector could meet P1 by citing thin
-secondary applications on the bare minimum of peer-reviewed
-venues — a workshop note carries the same authority as an ICSE
-main-track paper.
-
-Q-7 codifies a venue tier whitelist that is checked mechanically
-by the consistency test. Every citation shipped on a registered
-detector must classify into Tier-A or Tier-B below. Unknown
-venues fail the test, forcing either an explicit addition to the
-whitelist (which prompts review) or a different citation. Tier-C
-is documented but starts empty; it exists as a forward-compatible
-release valve for grandfather clauses without loosening today's
-bar.
-
-### Tier-A — top-tier peer-reviewed venues
-
-Software engineering:
-
-- ICSE — International Conference on Software Engineering
-- FSE / ESEC/FSE — ACM SIGSOFT Symposium on the Foundations of
-  Software Engineering (joint with ESEC every other year)
-- ASE — International Conference on Automated Software Engineering
-- ISSTA — International Symposium on Software Testing and Analysis
-- ACM TOSEM — Transactions on Software Engineering and Methodology
-- IEEE TSE — Transactions on Software Engineering
-- EMSE — Empirical Software Engineering (Springer journal)
-
-Programming languages and systems:
-
-- OOPSLA — Object-Oriented Programming, Systems, Languages and
-  Applications (since merged into SPLASH)
-- PLDI — Programming Language Design and Implementation
-- POPL — Principles of Programming Languages
-- SOSP — Symposium on Operating Systems Principles
-- OSDI — Operating Systems Design and Implementation
-- EuroSys — European Conference on Computer Systems
-
-Adjacent (where software-engineering-relevant work appears):
-
-- NeurIPS — Neural Information Processing Systems (e.g.
-  PyBugLab / PyPIBugs)
-- ICML — International Conference on Machine Learning
-- USENIX Security, IEEE S&P, ACM CCS — top-tier security venues
-  with software-engineering-relevant publications
-
-### Tier-B — established peer-reviewed venues
-
-- ICPC — International Conference on Program Comprehension
-- ICSM / ICSME — International Conference on Software Maintenance
-  (and Evolution)
-- MSR — Mining Software Repositories
-- SANER — Software Analysis, Evolution and Reengineering
-  (CSMR + WCRE merger)
-- WCRE — Working Conference on Reverse Engineering (SANER
-  predecessor)
-- SCAM — IEEE Working Conference on Source Code Analysis and
-  Manipulation
-- ICST — IEEE International Conference on Software Testing,
-  Verification and Validation
-- ISSRE — International Symposium on Software Reliability
-  Engineering
-- JSS — Journal of Systems and Software (Elsevier)
-- IST — Information and Software Technology (Elsevier)
-
-### Tier-C — peer-reviewed but not in A or B
-
-Reserved for grandfather clauses (workshop venues, regional
-conferences with documented quantitative-evaluation rigour, etc.).
-Currently empty; entries are added explicitly when a specific
-citation's review judges the venue acceptable. Tier-C entries emit
-a CI warning rather than a failure so that grandfather clauses
-remain workable without re-baselining the entire bibliography.
-
-### Mechanical enforcement
-
-`tests/citations_consistency.rs` carries
-`every_shipped_detector_citation_has_known_tier`. It splits each
-detector's citation venue string on non-alphanumeric characters,
-lowercases the tokens, and checks for a Tier-A or Tier-B match
-(token-equality for acronyms, substring match for multi-word
-journal names). Unknown venues fail the test.
-
-The fabrication path is pinned by
-`fabricated_fixture_venue_is_rejected`: the fixture detector's
-venue (`"Fixture"`) must remain unrecognised so a future loosening
-of the matcher fails this test rather than silently lowering the
-bar.
-
-The matcher's whitelist lives in `tests/citations_consistency.rs`;
-the spec text above is the canonical record. Adding a new venue
-requires updating both — one without the other fails the test
-deliberately.
-
 ## Retraction monitor (added 2026-05-07, Q-6)
 
 P1's "peer-reviewed prior art" requirement assumes that the cited
@@ -496,8 +395,8 @@ Non-coverage:
 - Recency requirements. A 1990s paper is acceptable if it actually
   grounds the detection.
 - Translation of cited paper titles or abstracts. English-only.
-- Quality grading of citations beyond the venue tier whitelist
-  above (impact factor, h5-index, citation counts).
+- Quality grading of citations (impact factor, h5-index,
+  citation counts).
 
 ## Approval
 

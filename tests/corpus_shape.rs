@@ -1,11 +1,10 @@
 //! Corpus-shape contract for `benchmarks/corpus/`.
 //!
-//! The OSF preregistration (prereg/2026-05-03-osf-prereg.md) commits to a β
-//! corpus of at least 50 labelled source files with at least 8 positive cases
-//! per registered detector, and with negative-only files (entries whose
-//! `expected` array is empty) capped at 30 percent of the total. This test
-//! enforces those numeric commitments and so doubles as a stop-gap against
-//! corpus shopping during β data collection.
+//! The β corpus contract is: at least 50 labelled source files with at
+//! least 8 positive cases per registered detector, and with
+//! negative-only files (entries whose `expected` array is empty)
+//! capped at 30 percent of the total. This test enforces those
+//! numeric commitments.
 //!
 //! The test parses the manifest directly (no JSON dependency on
 //! `cntrdct-eval`) so it remains independent of the eval harness's
@@ -122,7 +121,7 @@ fn corpus_meets_minimum_size() {
     let stats = load_manifest_stats();
     assert!(
         stats.entries >= MIN_CORPUS_SIZE,
-        "corpus has {} entries, prereg requires at least {}",
+        "corpus has {} entries, contract requires at least {}",
         stats.entries,
         MIN_CORPUS_SIZE
     );
@@ -200,7 +199,7 @@ fn corpus_negative_fraction_is_within_cap() {
     let frac = stats.negatives as f64 / stats.entries as f64;
     assert!(
         frac <= MAX_NEGATIVE_FRACTION,
-        "negative-only entries account for {:.2} of corpus, prereg cap is {:.2}",
+        "negative-only entries account for {:.2} of corpus, cap is {:.2}",
         frac,
         MAX_NEGATIVE_FRACTION
     );

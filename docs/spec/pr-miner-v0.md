@@ -286,10 +286,7 @@ language` to honour the M-6 / citations-policy.md framing:
   rules and DO satisfy them.
 
 `tests/corpus_shape.rs` is extended to count the new
-detector and require ≥ 8 positives. The OSF prereg's "≥ 8 positives
-per detector" commitment continues to hold; we add a new dated
-`prereg/YYYY-MM-DD-osf-prereg.md` if extending the per-detector
-schema requires re-anchoring the prereg.
+detector and require ≥ 8 positives.
 
 ## Migration sequence
 

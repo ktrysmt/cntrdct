@@ -87,7 +87,7 @@ Out of scope (v0):
   territory.
 - A "missed-finding" remediation pipeline. Audit-recall reports the
   gap; closing it (detector improvement / new detector) is a
-  separate engineering effort with its own preregistration.
+  separate engineering effort.
 - `cntrdct.toml` per-language enable/disable interaction with the
   audit. v0 expects the corpus and the running scan to share the
   same `cntrdct.toml`; cross-config audits are out of scope.

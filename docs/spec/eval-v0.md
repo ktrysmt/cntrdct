@@ -8,8 +8,7 @@ The α phase shipped four detectors (clone-drift, arg-swap, comment-code,
 unreachable-after-terminator) with no precision / recall measurement.
 P1 ("evidence-based") is partially honoured by per-detector citations; the
 β phase tightens it by adding empirical precision/recall numbers from a
-labelled corpus, addressable by reviewers and (later) by an OSF
-preregistration document.
+labelled corpus that reviewers can replicate from the repo.
 
 The original design log named Defects4J and BigCloneBench as the
 benchmark targets. Both are Java-centric and out of scope for a Rust-only

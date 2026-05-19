@@ -1,14 +1,12 @@
-//! Q-4: assert that the three sites wiring detectors into cntrdct's
+//! Q-4: assert that the sites wiring detectors into cntrdct's
 //! pipelines stay in sync.
 //!
 //! Drift between
-//! - `src/lib.rs::scan_full_with_config` (scanner registration),
-//! - `src/main.rs` (SARIF emitter `tool.driver.rules`), and
-//! - `tests/prereg_consistency.rs::registered_detectors` (preregistration
-//!   citation cross-check)
+//! - `src/lib.rs::scan_full_with_config` (scanner registration) and
+//! - `src/main.rs` (SARIF emitter `tool.driver.rules`)
 //!
 //! is exactly the failure mode that landed `pr-miner` findings without a
-//! matching SARIF rule in `v0.2.0-beta.1` (audit finding Q-1). All three
+//! matching SARIF rule in `v0.2.0-beta.1` (audit finding Q-1). Both
 //! sites now read from `cntrdct::ALL_DETECTOR_IDS`; this test enforces
 //! that contract end-to-end so a future site-by-site addition cannot
 //! regress.

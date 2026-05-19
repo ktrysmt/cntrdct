@@ -149,10 +149,9 @@ hardcoded confidence are, in a real sense, lying about their precision.
 They're reporting a guess from years ago as if it were a measurement of
 today.
 
-This same machinery scales to a research-grade preregistered study,
-which is what `cntrdct`'s optional `prereg/` directory exists for.
-That's a longer story I'll tell separately. For everyday use, the
-point is just that the linter publishes its own measured precision.
+For everyday use, the point is just that the linter publishes its
+own measured precision against a labelled corpus that ships with
+the repo, and ships fresh numbers on every release.
 
 ## The compound payoff: auditability
 

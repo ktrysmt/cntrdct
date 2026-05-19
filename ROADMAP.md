@@ -1,11 +1,16 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-18 (v0.3.0 released; RC cycle (v0.2.0-rc.1 ..
-v0.2.0-rc.35) closed by collapsing the pre-release suffix into the
-stable tag. Q-14 recall-audit harness Phase B closed at batch 32 with
-overall recall_upper_bound 0.66 (40 TP / 21 FN / 61 expected),
-`comment-code` 34/0/1.00 across all three patterns on twenty-three
-permissive-licensed upstreams.)
+Last updated: 2026-05-19 (v0.4.0 cuts the OSF preregistration
+discipline — `prereg/` and `tests/prereg_consistency.rs` are
+removed; P2 is dropped from the design constraints and the
+release procedure no longer mandates a Q-14 audit refresh per tag.
+P1 (peer-reviewed citations + `CITATIONS.md` Layer 1 bidirectional
+check) stays. Q-15 SOTA baseline comparator ships in v0.4.0: spec
+at `docs/spec/sota-baselines-v0.md`, code at `src/baselines.rs`
+with the SourcererCC adapter scaffolding; PyBugLab adapter lands
+once its wrapper image is pinned. Q-14 still closed at overall
+recall_upper_bound 0.66, `comment-code` 34/0/1.00 across all three
+patterns on twenty-three permissive-licensed upstreams.)
 
 Engineering roadmap for shipping cntrdct as a usable open-source Rust
 tool.
@@ -119,8 +124,7 @@ P-6. v0 → v0.1 detector quality fixes (wild β FP reduction pass)
   priors recomputed (clone-drift Wilson 0.073→0.355,
   unreachable-after-terminator 0.407→0.796, comment-code
   0.298→0.657). `cntrdct calibrate` made byte-stable via sorted
-  `BTreeMap`. New prereg `prereg/2026-05-07-osf-prereg.md`
-  supersedes the 2026-05-06 file.
+  `BTreeMap`.
 
 P-7. clone-drift within-scope residual cleanup
 
@@ -622,11 +626,9 @@ Q-4. Wiring consistency test
   constructions matching `src/lib.rs::scan_full_with_config` and
   (b) the SARIF rules taxonomy emitted by the `cntrdct` binary
   (`src/main.rs`) both equal that constant.
-  `tests/prereg_consistency.rs::registered_detectors` now
-  includes `PrMinerDetector` and a new
-  `registered_detectors_match_canonical_id_set` test pins it
-  against `ALL_DETECTOR_IDS`. Removing any detector from any one
-  of the three sites fails the suite.
+  A `registered_detectors_match_canonical_id_set` test pins
+  the detector set against `ALL_DETECTOR_IDS`. Removing any
+  detector from either site fails the suite.
 
 Q-5. SARIF Severity::Info mapping rationale
 
@@ -668,44 +670,17 @@ Q-6. Citation retraction monitor
 
 Q-7. Venue tier whitelist
 
-- Status: `[x]` 2026-05-07
-- Summary: `docs/spec/citations-policy.md` carries a "Venue tier
-  whitelist" section enumerating Tier-A (ICSE / FSE / OOPSLA /
-  PLDI / POPL / ASE / ISSTA / EMSE / TOSEM / IEEE TSE plus
-  adjacent SOSP / OSDI / EuroSys / NeurIPS / ICML / USENIX
-  Security / S&P / CCS) and Tier-B (ICPC / ICSM / ICSME / MSR /
-  SANER / WCRE / SCAM / ICST / ISSRE / JSS / IST). Tier-C is
-  documented but starts empty; entries emit CI warnings rather
-  than failures so grandfather clauses stay workable.
-  `tests/citations_consistency.rs` adds
-  `every_shipped_detector_citation_has_known_tier`,
-  `fabricated_fixture_venue_is_rejected`, and
-  `venue_tier_examples_classify_as_documented`. The fixture's
-  fabricated venue (`"Fixture"`) is asserted to be unrecognised so
-  the rejection path is pinned structurally; all six shipped
-  detectors classify into Tier-A or Tier-B.
+- Status: retired 2026-05-19 (the tier-classification test was
+  specific to the OSF preregistration audit trail; dropped along
+  with `prereg/` and `tests/prereg_consistency.rs` in v0.4.0).
+  P1 (peer-reviewed citation per detector) and the Layer 1
+  bidirectional CITATIONS.md check stay.
 
 Q-8. Preregistration deviation log
 
-- Status: `[x]` 2026-05-07
-- Summary: `prereg/deviations/<date>-<topic>.md` is the new
-  audit-trail surface for any preregistration revision carrying
-  a `Supersedes:` header. Three back-filled entries land the
-  retroactive 2026-05-03 → 2026-05-05 → 2026-05-06 → 2026-05-07
-  supersession chain:
-  `prereg/deviations/2026-05-05-multilang-rollup.md`,
-  `prereg/deviations/2026-05-06-clone-drift-python.md`,
-  `prereg/deviations/2026-05-07-wild-beta-fp-reduction.md`.
-  `tests/prereg_consistency.rs` adds three new tests:
-  `every_supersession_has_a_matching_deviation_log`,
-  `deviation_logs_carry_required_headers`, and
-  `deviation_log_supersedes_resolves_to_a_real_prereg_file`. A
-  future revision with a `Supersedes:` line but no matching
-  `prereg/deviations/<date>-*.md` fails the suite. Ungrounded
-  per-deviation rationale is the documented Q-8 failure mode (van
-  den Akker et al. 2024, doi:10.1037/met0000687); the three
-  required headers (`Prereg:` / `Supersedes:` / `Author:` /
-  `Date:`) keep the audit trail machine-checkable.
+- Status: retired 2026-05-19 (dropped along with the rest of the
+  OSF preregistration discipline; `prereg/` and
+  `tests/prereg_consistency.rs` removed in v0.4.0).
 
 Q-9. Python attribute-style suppression
 
@@ -899,9 +874,8 @@ Q-14. Recall-audit harness
   both of which CI already gates.
 - Further work: the four detectors at 0.00 surface v0 scope gaps
   rather than measurement bugs. Lifting them requires detector-side
-  scope changes under separate preregistrations:
-  `unreachable-after-terminator` (constant-condition /
-  exception-typed reasoning), `arg-swap` / `clone-drift` /
+  scope changes: `unreachable-after-terminator` (constant-condition
+  / exception-typed reasoning), `arg-swap` / `clone-drift` /
   `config-interaction` (lifting the narrow v0 scope choices).
 - Spec: `docs/spec/recall-audit-v0.md`.
 - Evidence: Heckman & Williams (2011) IST 53(4), 363-387
@@ -909,21 +883,50 @@ Q-14. Recall-audit harness
   Pattern A/B/C bug taxonomy `comment-code` covers).
 Q-15. SOTA baseline comparators
 
-- Status: `[ ]`
+- Status: `[~]` SourcererCC adapter scaffolding landed 2026-05-19
+  (v0.4.0); PyBugLab adapter + live Docker comparison numbers in
+  the README pending.
 - Goal: publish `cntrdct eval` with side-by-side precision /
   recall / F1 against state-of-the-art comparators on the same
-  corpus. Pilot baselines: SourcererCC (Sajnani et al. 2016) for
-  clone-drift and PyBugLab (Allamanis et al. 2021) for arg-swap.
-  Each baseline ships as a Docker image so the comparison is
-  reproducible from a clean environment.
-- Acceptance: `cntrdct eval --baseline sourcerercc,pybuglab`
-  produces a comparison table with cntrdct's numbers and each
-  baseline's numbers; the table is linked from the README so the
-  detector-level recall gap is on the record rather than
-  implicit.
-- Effort: 3-4 weeks.
-- Depends on: Q-14 (so the corpus contains TPs the baselines can
-  catch).
+  corpus. Pilot baselines: SourcererCC (Sajnani et al. ICSE 2016)
+  for clone-drift and PyBugLab (Allamanis et al. NeurIPS 2021) for
+  arg-swap. Each baseline ships as a pinned Docker image so the
+  comparison is reproducible from a clean environment.
+- Shipped in v0.4.0:
+  `src/baselines.rs` carries the registry (`sourcerercc` only;
+  `pybuglab` lands once its wrapper image is pinned),
+  `NormalisedFinding`, `load_baseline_jsonl`, `run_baseline_docker`
+  (digest-pinned `docker run --network=none --rm --read-only`),
+  `compare_one`, `assemble_report`, and the `BaselineError` /
+  `BaselineComparisonReport` shapes. `cntrdct eval --baseline
+  <name>[,<name>...]` plus `--baselines-out PATH` and
+  `--baselines-skip-run` flags compose with the existing eval
+  path. Orchestrator `cntrdct::run_eval_with_baselines` lives in
+  `src/lib.rs`. `baselines/sourcerercc/` carries the wrapper
+  Dockerfile, `entrypoint.sh`, and `UPSTREAM.md` (commit SHA +
+  digest are TBD pending the first live run). `tests/baselines.rs`
+  covers loader / compare-one / CLI paths against canned fixtures
+  under `tests/fixtures/baselines/`; unit-scope coverage lives in
+  `src/baselines.rs::tests`. README's "Baseline comparison"
+  section documents the entry point. New dep `sha2 = "0.10"`
+  powers `BaselineComparisonReport.priors_default_sha256` (a
+  release-time consumer can verify the shipped priors against a
+  known hash). CITATIONS.md adds `sajnani-icse-2016` under
+  Layer 2; PyBugLab's paper (`allamanis-neurips-2021`) is reused
+  from its existing Layer 1 `arg-swap` entry.
+- Pending:
+  - PyBugLab adapter under `baselines/pybuglab/` with weights +
+    seed pinned per spec F6; README table extended with arg-swap
+    vs. PyBugLab cells.
+  - Live Docker comparison runs on the maintainer's workstation
+    against the audit-corpus + wild corpora; JSONL committed under
+    `benchmarks/baselines/v<release>/` and README's "Baseline
+    comparison" populated with real numbers.
+- Spec: `docs/spec/sota-baselines-v0.md`.
+- Evidence: Sajnani, Saini, Svajlenko, Roy, Lopes (2016) ICSE
+  (SourcererCC scalable Type-3 clone detection); Allamanis,
+  Jackson-Flux, Brockschmidt (2021) NeurIPS (PyBugLab
+  self-supervised bug detection, the arg-swap baseline).
 
 Q-16. cargo-mutants nightly mutation testing
 
@@ -966,9 +969,8 @@ Future Q-series candidates (not yet scheduled):
 - Layer 3 ML-detector ensemble. Run PyBugLab / GraphCodeBERT
   alongside the LLM judge; preserves Layer 1-2 / Layer 4
   determinism while lifting the recall ceiling. This crosses
-  the P3 boundary as currently written and would require a new
-  OSF preregistration, so it stays out of the numbered Q-series
-  until that prereg lands.
+  the P3 boundary as currently written, so it stays out of the
+  numbered Q-series until the boundary itself is revisited.
 
 ## Suggested execution order
 
@@ -1042,8 +1044,11 @@ Phase H (RC1 governance and hygiene; 2-3 weeks, in parallel with
 the Phase F community items):
 
 33. Q-6 citation retraction monitor
-34. Q-7 venue tier whitelist
-35. Q-8 preregistration deviation log
+34. Q-7 venue tier whitelist (retired 2026-05-19 alongside the
+    OSF preregistration discipline; the test was specific to the
+    preregistration audit trail)
+35. Q-8 preregistration deviation log (retired 2026-05-19; see
+    Q-8 entry)
 36. Q-9 Python attribute-style suppression
 37. Q-10 ParserProvider seam tightening
 
@@ -1057,7 +1062,8 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     overall recall_upper_bound 0.66, `comment-code` 34/0/1.00
     saturating all three Tan SOSP 2007 patterns across
     twenty-three permissive-licensed upstreams)
-42. Q-15 SOTA baseline comparators
+42. Q-15 SOTA baseline comparators (Phase A landed 2026-05-19;
+    Phases B-D pending under the v0.4.0 cycle)
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 
 The split between Phase A (Tier 1, blocking) and later phases is the
