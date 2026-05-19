@@ -1,0 +1,3 @@
+// Synthetic Q-15 corpus manifest. One file with no expected findings;
+// the comparison harness runs end-to-end with all-zero cells.
+{"file":"files/quiet_a.rs","expected":[]}

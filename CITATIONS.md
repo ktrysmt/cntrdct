@@ -130,6 +130,17 @@ pointing at the relevant `docs/surveys/` file.
   own filtered output; methodological grounding for Q-14's
   external-denominator audit harness (`docs/spec/recall-audit-v0.md`).
   Languages: (general; methodological).
+- `sajnani-icse-2016` — H. Sajnani, V. Saini, J. Svajlenko, C.K. Roy,
+  C.V. Lopes, "SourcererCC: Scaling Code Clone Detection to Big-Code",
+  ICSE 2016. Independently engineered, scalable Type-3 clone detector;
+  used by Q-15 as the external comparator for cntrdct's `clone-drift`
+  detector against `benchmarks/audit-corpus/` (Q-14 ground truth) and
+  the wild corpora. Methodology source for the H6.1 baseline-
+  comparator cells preregistered in
+  `prereg/2026-05-19-osf-prereg.md`. Spec:
+  `docs/spec/sota-baselines-v0.md`.
+  Languages: (general; methodological — applies symmetrically to
+  Rust and Python under the cntrdct adapter contract).
 
 ## Layer 3 (LLM adjudicator)
 

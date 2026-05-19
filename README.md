@@ -96,6 +96,30 @@ as a `skipped` provider in the audit JSON. Output goes to stdout by
 default, or to `--output PATH` when set. Spec:
 [`docs/spec/cross-model-kappa-v0.md`](docs/spec/cross-model-kappa-v0.md).
 
+## Baseline comparison
+
+`cntrdct eval --baseline <name>` publishes cntrdct's precision /
+recall / F1 side by side with external state-of-the-art comparators
+on the same corpora. v0 ships the SourcererCC adapter
+([Sajnani et al. ICSE 2016](https://dl.acm.org/doi/10.1145/2884781.2884877))
+for `clone-drift`; the PyBugLab adapter
+([Allamanis et al. NeurIPS 2021](https://proceedings.neurips.cc/paper/2021/hash/ea96efc03b9a050d895110db8c4af057-Abstract.html))
+for `arg-swap` lands once its wrapper image is pinned.
+
+Run locally:
+
+```sh
+cntrdct eval benchmarks/audit-corpus \
+    --baseline sourcerercc \
+    --baselines-out baseline-comparison.json
+```
+
+Each baseline ships as a pinned Docker image so the comparison is
+reproducible from a clean environment. The wrapper Dockerfile,
+upstream-commit pin, and image-digest pin live under
+`baselines/<name>/`. Spec:
+[`docs/spec/sota-baselines-v0.md`](docs/spec/sota-baselines-v0.md).
+
 ## Claude Code skill
 
 With the binary on `PATH`, Claude Code users can invoke `/cntrdct` to
