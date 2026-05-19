@@ -1,0 +1,17 @@
+[book]
+authors = ["cntrdct contributors"]
+language = "en"
+src = "src"
+title = "cntrdct user guide"
+description = "Evidence-based contradiction linter for Rust and Python — concepts, detectors, configuration, workflows, and integrations."
+
+[output.html]
+default-theme = "ayu"
+preferred-dark-theme = "ayu"
+git-repository-url = "https://github.com/ktrysmt/cntrdct"
+edit-url-template = "https://github.com/ktrysmt/cntrdct/edit/master/book/{path}"
+no-section-label = true
+
+[output.html.fold]
+enable = true
+level = 1

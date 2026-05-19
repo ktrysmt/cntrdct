@@ -1,10 +1,16 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-20 (Q-15 PyBugLab adapter scaffolding landed
-post-v0.4.0 — `baselines/pybuglab/{Dockerfile,entrypoint.sh,UPSTREAM.md}`
-plus the `pybuglab` registry entry in `src/baselines.rs`. Both
-adapters now ship with placeholder image digests pending live pinning;
-the `DigestMismatch` guard makes the placeholder safe. v0.4.0 cut the
+Last updated: 2026-05-20 (T3-13 Phase 1 scaffolding landed — `book/`
+gains `book.toml` and a `src/` tree covering Introduction, Getting
+started, Concepts, Detectors, Configuration, Workflows, Integrations,
+and FAQ with substantive placeholder content per chapter; GitHub
+Pages re-enable and README link stay deferred until the
+`docs/site/essays/` external-blog migration finishes per T1-7. Q-15
+PyBugLab adapter scaffolding landed post-v0.4.0 —
+`baselines/pybuglab/{Dockerfile,entrypoint.sh,UPSTREAM.md}` plus the
+`pybuglab` registry entry in `src/baselines.rs`. Both adapters now
+ship with placeholder image digests pending live pinning; the
+`DigestMismatch` guard makes the placeholder safe. v0.4.0 cut the
 OSF preregistration discipline — `prereg/` and
 `tests/prereg_consistency.rs` are removed; P2 is dropped from the
 design constraints and the release procedure no longer mandates a
@@ -334,7 +340,9 @@ T3-12. LSP server
 
 T3-13. mdBook user guide
 
-- Status: `[ ]`
+- Status: `[~]` (Phase 1 scaffolding landed 2026-05-20; Pages
+  deployment and README link deferred to a later phase per the
+  T1-7 / external-blog migration sequencing below)
 - Goal: a `book/` directory hosting user-facing documentation
   (concepts, detector reference, configuration, FAQ) built with
   mdBook and published to GitHub Pages.
@@ -342,6 +350,23 @@ T3-13. mdBook user guide
   pages have at least placeholder content, and the published
   URL is linked from the README.
 - Effort: 2-3 weeks.
+- Phase 1 — scaffolding (done 2026-05-20): `book/book.toml`
+  configures the build with `git-repository-url` and
+  `edit-url-template` pointing at the GitHub repo and the master
+  branch's `book/` subdirectory. `book/src/SUMMARY.md` enumerates
+  five sections (Concepts / Detectors / Configuration / Workflows /
+  Integrations) plus Introduction, Getting started, and FAQ; every
+  referenced chapter ships with at least one substantive
+  placeholder paragraph and a "see also" pointer at the relevant
+  `docs/spec/` file. `.gitignore` adds `/book/book/` so accidental
+  local builds do not leak the mdBook output dir into commits. The
+  README link and the GitHub Pages deploy step are deferred to a
+  later phase: per T1-7, GitHub Pages is currently disabled on the
+  repository, and the T3-13 sequencing below pins the Pages
+  re-enable behind the `docs/site/essays/` external-blog migration
+  finishing first.
+- Phase 2 — content fill-in, Pages re-enable, and README link.
+  Pending.
 - Note: the existing Jekyll essays under `docs/site/essays/` are
   scheduled to migrate to a separate external blog rather than be
   absorbed into mdBook. `pages.yml` was retired on 2026-05-12 (see
@@ -1054,8 +1079,9 @@ Phase F (Tier 3 / 4 organically after launch):
     Phase 1.c per-URI didChange debouncing landed 2026-05-09;
     Phase 1.c+ per-URI generation counter landed 2026-05-09; Phase
     2 (vscode-cntrdct extension) next
-29. T3-13 mdBook user guide (essay migration to external blog
-    precedes Jekyll retirement, see T3-13 note)
+29. T3-13 mdBook user guide — Phase 1 scaffolding landed 2026-05-20;
+    Phase 2 (content fill-in, Pages re-enable, README link) gated on
+    `docs/site/essays/` external-blog migration per T1-7
 
 Phase G (post-beta.1 quality-audit RC1 blockers; 1-2 days total,
 required before the next release tag):
