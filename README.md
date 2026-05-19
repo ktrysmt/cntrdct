@@ -100,11 +100,15 @@ default, or to `--output PATH` when set. Spec:
 
 `cntrdct eval --baseline <name>` publishes cntrdct's precision /
 recall / F1 side by side with external state-of-the-art comparators
-on the same corpora. v0 ships the SourcererCC adapter
+on the same corpora. v0 ships two adapter scaffolds: the SourcererCC
+adapter
 ([Sajnani et al. ICSE 2016](https://dl.acm.org/doi/10.1145/2884781.2884877))
-for `clone-drift`; the PyBugLab adapter
+for `clone-drift`, and the PyBugLab adapter
 ([Allamanis et al. NeurIPS 2021](https://proceedings.neurips.cc/paper/2021/hash/ea96efc03b9a050d895110db8c4af057-Abstract.html))
-for `arg-swap` lands once its wrapper image is pinned.
+for `arg-swap`. Both ship as wrapper Dockerfiles with placeholder
+image digests; live image digests are pinned in
+`baselines/<name>/UPSTREAM.md` at the time the live comparison
+numbers are run.
 
 Run locally:
 

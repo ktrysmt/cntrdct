@@ -14,11 +14,13 @@
 //! `--baselines-skip-run` so CI can run on every push without
 //! depending on the registry image.
 //!
-//! Note: Phase B's REGISTRY ships only the `sourcerercc` entry.
-//! `pybuglab` lands under Phase C; the L2 row from the spec test
-//! plan ("parses valid pybuglab JSONL") is exercised at unit-test
-//! level via `load_baseline_jsonl` taking the expected tool name as
-//! a parameter (see `src/baselines.rs::tests`).
+//! The REGISTRY ships two adapter entries: `sourcerercc` for
+//! `clone-drift` and `pybuglab` for `arg-swap`. Both adapters
+//! exercise the same end-to-end harness path via cached JSONL
+//! fixtures committed under
+//! `tests/fixtures/baselines/baselines/<release_tag>/<name>.jsonl`;
+//! live Docker invocation is out of scope for CI per spec
+//! "Out of scope (v0)".
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -69,9 +71,25 @@ fn l4_load_baseline_jsonl_rejects_unknown_baseline_via_registry() {
     // `load_baseline_jsonl`. An unknown name produces None here and
     // a BaselineError::UnknownBaseline at the orchestrator level
     // (covered by R2 below).
-    assert!(find_baseline("pybuglab").is_none(), "Phase C only");
     assert!(find_baseline("unknown").is_none());
     assert!(find_baseline("sourcerercc").is_some());
+    assert!(find_baseline("pybuglab").is_some());
+}
+
+#[test]
+fn l2_load_baseline_jsonl_parses_cached_pybuglab() {
+    // L2 spec test plan row — symmetric with L1 for the
+    // `pybuglab` -> `arg-swap` adapter. The shipped fixture is empty
+    // by design; the loader still has to return Ok([]).
+    let path = corpus_dir()
+        .parent()
+        .unwrap()
+        .join("baselines")
+        .join(release_tag())
+        .join("pybuglab.jsonl");
+    let rows =
+        load_baseline_jsonl(&path, "pybuglab", "arg-swap").expect("load cached pybuglab JSONL");
+    assert!(rows.is_empty());
 }
 
 // ---------- Compare-one + report assembly (spec C1 / C3) ----------
@@ -91,6 +109,27 @@ fn c1_orchestrator_produces_one_comparison_per_baseline() {
     assert_eq!(report.comparisons[0].cntrdct.tool, "cntrdct");
     assert_eq!(report.comparisons[0].baseline.tool, "sourcerercc");
     assert_eq!(report.comparisons[0].detector_id, "clone-drift");
+}
+
+#[test]
+fn c1_orchestrator_multiplexes_sourcerercc_and_pybuglab() {
+    // Two baselines map to two distinct detector cells in the report,
+    // sorted by (detector_id, corpus_name). With `arg-swap` < `clone-drift`
+    // lexicographically, the pybuglab cell appears first.
+    let manifest = corpus_dir().join("manifest.jsonl");
+    let (_eval, report) = run_eval_with_baselines(
+        &corpus_dir(),
+        &manifest,
+        &["sourcerercc".to_string(), "pybuglab".to_string()],
+        true,
+        &release_tag(),
+    )
+    .expect("orchestrator runs against fixture with two baselines");
+    assert_eq!(report.comparisons.len(), 2);
+    assert_eq!(report.comparisons[0].detector_id, "arg-swap");
+    assert_eq!(report.comparisons[0].baseline.tool, "pybuglab");
+    assert_eq!(report.comparisons[1].detector_id, "clone-drift");
+    assert_eq!(report.comparisons[1].baseline.tool, "sourcerercc");
 }
 
 #[test]
@@ -276,6 +315,11 @@ fn cached_jsonl_missing_returns_a_baseline_error() {
     std::fs::copy(
         corpus_dir().join("files/quiet_a.rs"),
         tmp.path().join("corpus/files/quiet_a.rs"),
+    )
+    .unwrap();
+    std::fs::copy(
+        corpus_dir().join("files/quiet_b.py"),
+        tmp.path().join("corpus/files/quiet_b.py"),
     )
     .unwrap();
     let err = run_eval_with_baselines(

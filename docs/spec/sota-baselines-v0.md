@@ -55,7 +55,9 @@ In scope (v0):
     pinned in the same directory's `UPSTREAM.md`.
   - `pybuglab` — PyBugLab self-supervised bug detector
     (Allamanis et al. NeurIPS 2021), comparator for `arg-swap`.
-    Lands once the wrapper image is pinned.
+    Wrapper Dockerfile under `baselines/pybuglab/Dockerfile`;
+    upstream commit, weights URL + SHA-256, and inference seed
+    pinned in the same directory's `UPSTREAM.md`.
 - A `baselines/` top-level directory carrying the wrapper
   Dockerfiles, their pinned upstream metadata, and the normalising
   shell entrypoint each image emits.
@@ -128,13 +130,17 @@ v0 registry:
 | name | detector_id | languages | image_ref (placeholder) |
 |---|---|---|---|
 | `sourcerercc` | `clone-drift` | `Rust`, `Python` | `ghcr.io/ktrysmt/cntrdct-baselines/sourcerercc:v1.0` |
+| `pybuglab` | `arg-swap` | `Python` | `ghcr.io/ktrysmt/cntrdct-baselines/pybuglab:v1.0` |
 
-The PyBugLab registry entry (`pybuglab` → `arg-swap`, Python only)
-lands once its wrapper image is built and pinned. The concrete
-image tags and digests for any baseline are committed to
-`baselines/<name>/UPSTREAM.md` at the time the wrapper image is
-built. The spec does not freeze the digest itself — that lives in
-the release artefact — but it freezes the format: tag plus
+Both registry entries ship with placeholder image digests
+(`sha256:0000…0000`) until the wrapper images are built and pinned.
+The `DigestMismatch` guard in `run_baseline_docker` makes the
+placeholder safe: any attempt to run an unmatched image fails loudly
+rather than silently producing a comparison against the wrong
+artefact. The concrete image tags and digests for any baseline are
+committed to `baselines/<name>/UPSTREAM.md` at the time the wrapper
+image is built. The spec does not freeze the digest itself — that
+lives in the release artefact — but it freezes the format: tag plus
 sha256 digest, both required, both verified before the comparison
 run starts.
 

@@ -1,16 +1,17 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-19 (v0.4.0 cuts the OSF preregistration
-discipline — `prereg/` and `tests/prereg_consistency.rs` are
-removed; P2 is dropped from the design constraints and the
-release procedure no longer mandates a Q-14 audit refresh per tag.
-P1 (peer-reviewed citations + `CITATIONS.md` Layer 1 bidirectional
-check) stays. Q-15 SOTA baseline comparator ships in v0.4.0: spec
-at `docs/spec/sota-baselines-v0.md`, code at `src/baselines.rs`
-with the SourcererCC adapter scaffolding; PyBugLab adapter lands
-once its wrapper image is pinned. Q-14 still closed at overall
-recall_upper_bound 0.66, `comment-code` 34/0/1.00 across all three
-patterns on twenty-three permissive-licensed upstreams.)
+Last updated: 2026-05-20 (Q-15 PyBugLab adapter scaffolding landed
+post-v0.4.0 — `baselines/pybuglab/{Dockerfile,entrypoint.sh,UPSTREAM.md}`
+plus the `pybuglab` registry entry in `src/baselines.rs`. Both
+adapters now ship with placeholder image digests pending live pinning;
+the `DigestMismatch` guard makes the placeholder safe. v0.4.0 cut the
+OSF preregistration discipline — `prereg/` and
+`tests/prereg_consistency.rs` are removed; P2 is dropped from the
+design constraints and the release procedure no longer mandates a
+Q-14 audit refresh per tag. P1 (peer-reviewed citations +
+`CITATIONS.md` Layer 1 bidirectional check) stays. Q-14 still closed
+at overall recall_upper_bound 0.66, `comment-code` 34/0/1.00 across
+all three patterns on twenty-three permissive-licensed upstreams.)
 
 Engineering roadmap for shipping cntrdct as a usable open-source Rust
 tool.
@@ -884,23 +885,22 @@ Q-14. Recall-audit harness
 Q-15. SOTA baseline comparators
 
 - Status: `[~]` SourcererCC adapter scaffolding landed 2026-05-19
-  (v0.4.0); PyBugLab adapter + live Docker comparison numbers in
-  the README pending.
+  (v0.4.0); PyBugLab adapter scaffolding landed 2026-05-20; live
+  Docker comparison numbers in the README pending.
 - Goal: publish `cntrdct eval` with side-by-side precision /
   recall / F1 against state-of-the-art comparators on the same
   corpus. Pilot baselines: SourcererCC (Sajnani et al. ICSE 2016)
   for clone-drift and PyBugLab (Allamanis et al. NeurIPS 2021) for
   arg-swap. Each baseline ships as a pinned Docker image so the
   comparison is reproducible from a clean environment.
-- Shipped in v0.4.0:
-  `src/baselines.rs` carries the registry (`sourcerercc` only;
-  `pybuglab` lands once its wrapper image is pinned),
-  `NormalisedFinding`, `load_baseline_jsonl`, `run_baseline_docker`
-  (digest-pinned `docker run --network=none --rm --read-only`),
-  `compare_one`, `assemble_report`, and the `BaselineError` /
-  `BaselineComparisonReport` shapes. `cntrdct eval --baseline
-  <name>[,<name>...]` plus `--baselines-out PATH` and
-  `--baselines-skip-run` flags compose with the existing eval
+- Shipped in v0.4.0 (Phase A):
+  `src/baselines.rs` carries the registry (`sourcerercc` only at
+  the v0.4.0 cut), `NormalisedFinding`, `load_baseline_jsonl`,
+  `run_baseline_docker` (digest-pinned `docker run --network=none
+  --rm --read-only`), `compare_one`, `assemble_report`, and the
+  `BaselineError` / `BaselineComparisonReport` shapes. `cntrdct
+  eval --baseline <name>[,<name>...]` plus `--baselines-out PATH`
+  and `--baselines-skip-run` flags compose with the existing eval
   path. Orchestrator `cntrdct::run_eval_with_baselines` lives in
   `src/lib.rs`. `baselines/sourcerercc/` carries the wrapper
   Dockerfile, `entrypoint.sh`, and `UPSTREAM.md` (commit SHA +
@@ -914,14 +914,40 @@ Q-15. SOTA baseline comparators
   known hash). CITATIONS.md adds `sajnani-icse-2016` under
   Layer 2; PyBugLab's paper (`allamanis-neurips-2021`) is reused
   from its existing Layer 1 `arg-swap` entry.
-- Pending:
-  - PyBugLab adapter under `baselines/pybuglab/` with weights +
-    seed pinned per spec F6; README table extended with arg-swap
-    vs. PyBugLab cells.
-  - Live Docker comparison runs on the maintainer's workstation
-    against the audit-corpus + wild corpora; JSONL committed under
-    `benchmarks/baselines/v<release>/` and README's "Baseline
-    comparison" populated with real numbers.
+- Shipped 2026-05-20 (Phase B — PyBugLab adapter):
+  `baselines/pybuglab/{Dockerfile,entrypoint.sh,UPSTREAM.md}`
+  scaffolds the second adapter on the SourcererCC template:
+  inference-time CPU image off `python:3.11-slim-bookworm` with
+  `PYBUGLAB_COMMIT` and `PYBUGLAB_SEED` build-args (the seed is
+  burned into the image per spec F6 so a given image digest
+  implies a single seed). `src/baselines.rs::REGISTRY` gains the
+  `pybuglab` -> `arg-swap` entry, Python-only, citing
+  `allamanis-neurips-2021`. Two new unit tests
+  (`pybuglab_registry_entry_matches_spec`,
+  `load_baseline_jsonl_parses_valid_pybuglab_rows`) plus the
+  integration tests `l2_load_baseline_jsonl_parses_cached_pybuglab`
+  and `c1_orchestrator_multiplexes_sourcerercc_and_pybuglab` pin
+  the registry shape and the two-baseline multiplex path. The
+  fixture corpus gains `files/quiet_b.py` and the manifest now
+  pairs the existing Rust quiet file with a Python one so PyBugLab
+  is exercised through the same end-to-end harness. Out of scope
+  for this Phase: live Docker invocation against real corpora
+  (Phase D).
+- Pending (Phase D — live Docker runs on maintainer's workstation):
+  - Pin the PyBugLab upstream commit SHA, pre-trained weights URL +
+    SHA-256, inference seed, and resulting image digest in
+    `baselines/pybuglab/UPSTREAM.md` and `src/baselines.rs::REGISTRY`.
+  - Pin the SourcererCC upstream commit SHA and image digest in
+    the equivalent SourcererCC files.
+  - Run both images against the audit-corpus + wild corpora; JSONL
+    committed under `benchmarks/baselines/v<release>/` and README's
+    "Baseline comparison" populated with real numbers.
+- Followup hygiene fix 2026-05-20: rename
+  `tests/fixtures/baselines/baselines/v0.3.0/` to `v0.4.0/` (the
+  fixture's release-tag directory was not bumped when v0.4.0 was
+  cut, so the existing baseline integration tests had been failing
+  on master since the v0.4.0 tag). Same path is re-bumped at every
+  release.
 - Spec: `docs/spec/sota-baselines-v0.md`.
 - Evidence: Sajnani, Saini, Svajlenko, Roy, Lopes (2016) ICSE
   (SourcererCC scalable Type-3 clone detection); Allamanis,
@@ -1063,7 +1089,8 @@ Phase I (RC2 / v0.2.0 methodology lift; 2-3 months):
     saturating all three Tan SOSP 2007 patterns across
     twenty-three permissive-licensed upstreams)
 42. Q-15 SOTA baseline comparators (Phase A landed 2026-05-19;
-    Phases B-D pending under the v0.4.0 cycle)
+    Phase B PyBugLab adapter scaffolding landed 2026-05-20;
+    Phase D live Docker runs pending on maintainer workstation)
 43. Q-16 cargo-mutants nightly mutation testing (landed 2026-05-11)
 
 The split between Phase A (Tier 1, blocking) and later phases is the

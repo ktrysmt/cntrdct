@@ -1,0 +1,4 @@
+// Cached PyBugLab output for the Q-15 synthetic corpus.
+// Empty by construction so the comparison cell has tp=fp=fn=0 and the
+// test's job is to verify the harness wiring, not the comparator's
+// arithmetic (which is covered by src/baselines.rs unit tests).

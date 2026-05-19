@@ -3,10 +3,9 @@
 //! Spec: `docs/spec/sota-baselines-v0.md`.
 //!
 //! Loads normalised JSONL output from an external baseline tool
-//! (SourcererCC for `clone-drift`, PyBugLab for `arg-swap` — v0
-//! ships only the `sourcerercc` registry entry, with `pybuglab`
-//! landing once its wrapper image is pinned), runs the same
-//! eval-v0 §F3 matching rule cntrdct's own `cntrdct::eval` applies,
+//! (SourcererCC for `clone-drift`, PyBugLab for `arg-swap`), runs
+//! the same eval-v0 §F3 matching rule cntrdct's own `cntrdct::eval`
+//! applies,
 //! and assembles a [`BaselineComparisonReport`] suitable for
 //! hand-transcription into the README's "Latest baseline comparison"
 //! section.
@@ -50,28 +49,42 @@ pub struct BaselineSpec {
     pub citation_key: &'static str,
 }
 
-/// v0 registry. `sourcerercc` lands in Phase B; `pybuglab` is added
-/// under Phase C. The image digests are placeholders pending Phase D
-/// — when the live Docker images are built and pushed, the actual
-/// `sha256:...` strings are committed under
+/// v0 registry. Both adapters ship as scaffolding pending live
+/// Docker pinning — when the live Docker images are built and
+/// pushed, the actual `sha256:...` strings are committed under
 /// `baselines/<name>/UPSTREAM.md` and copied here. The
 /// `DigestMismatch` guard in [`run_baseline_docker`] is what makes
 /// the placeholder safe to ship: any attempt to run an unmatched
 /// image fails loudly rather than silently producing a comparison
 /// against the wrong artefact.
-pub const REGISTRY: &[BaselineSpec] = &[BaselineSpec {
-    name: "sourcerercc",
-    description: "SourcererCC scalable Type-3 clone detector (Sajnani et al. ICSE 2016)",
-    detector_id: "clone-drift",
-    supported_languages: &[Language::Rust, Language::Python],
-    image_ref: "ghcr.io/ktrysmt/cntrdct-baselines/sourcerercc:v1.0",
-    // Placeholder. Replaced with the real digest at v0.4.0 release time per
-    // baselines/sourcerercc/UPSTREAM.md. The DigestMismatch error variant
-    // is what makes shipping a placeholder safe: a real run that does not
-    // match this string aborts before producing comparison numbers.
-    image_digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-    citation_key: "sajnani-icse-2016",
-}];
+pub const REGISTRY: &[BaselineSpec] = &[
+    BaselineSpec {
+        name: "sourcerercc",
+        description: "SourcererCC scalable Type-3 clone detector (Sajnani et al. ICSE 2016)",
+        detector_id: "clone-drift",
+        supported_languages: &[Language::Rust, Language::Python],
+        image_ref: "ghcr.io/ktrysmt/cntrdct-baselines/sourcerercc:v1.0",
+        // Placeholder. Replaced with the real digest at release time per
+        // baselines/sourcerercc/UPSTREAM.md. The DigestMismatch error variant
+        // is what makes shipping a placeholder safe: a real run that does not
+        // match this string aborts before producing comparison numbers.
+        image_digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        citation_key: "sajnani-icse-2016",
+    },
+    BaselineSpec {
+        name: "pybuglab",
+        description: "PyBugLab self-supervised Python bug detector (Allamanis et al. NeurIPS 2021)",
+        detector_id: "arg-swap",
+        supported_languages: &[Language::Python],
+        image_ref: "ghcr.io/ktrysmt/cntrdct-baselines/pybuglab:v1.0",
+        // Placeholder. Replaced with the real digest at release time per
+        // baselines/pybuglab/UPSTREAM.md. Same DigestMismatch contract as
+        // the SourcererCC entry: a real run that does not match aborts
+        // before producing comparison numbers.
+        image_digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        citation_key: "allamanis-neurips-2021",
+    },
+];
 
 /// Look up a baseline by `--baseline <name>`. Returns `None` for an
 /// unknown name.
@@ -852,8 +865,44 @@ mod tests {
             find_baseline("sourcerercc").map(|b| b.name),
             Some("sourcerercc")
         );
-        assert!(find_baseline("pybuglab").is_none()); // Phase C
+        assert_eq!(
+            find_baseline("pybuglab").map(|b| (b.name, b.detector_id)),
+            Some(("pybuglab", "arg-swap"))
+        );
         assert!(find_baseline("unknown").is_none());
+    }
+
+    #[test]
+    fn pybuglab_registry_entry_matches_spec() {
+        // Spec: docs/spec/sota-baselines-v0.md §"Baseline registry" plus F6.
+        // PyBugLab is Python-only and maps to the `arg-swap` detector;
+        // its citation key reuses the existing Layer 1 entry.
+        let spec = find_baseline("pybuglab").expect("pybuglab in registry");
+        assert_eq!(spec.detector_id, "arg-swap");
+        assert_eq!(spec.supported_languages, &[Language::Python]);
+        assert_eq!(spec.citation_key, "allamanis-neurips-2021");
+        assert!(spec.image_ref.contains("pybuglab"));
+        // Placeholder digest until live image is pinned per UPSTREAM.md.
+        assert!(spec.image_digest.starts_with("sha256:"));
+    }
+
+    #[test]
+    fn load_baseline_jsonl_parses_valid_pybuglab_rows() {
+        // Test plan ID L2. Mirrors `load_baseline_jsonl_parses_valid_rows`
+        // (L1) for the `pybuglab` -> `arg-swap` adapter.
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("f.jsonl");
+        write_jsonl(
+            &p,
+            &[
+                &synth_row("pybuglab", "arg-swap", "files/a.py", 7),
+                &synth_row("pybuglab", "arg-swap", "files/b.py", 42),
+            ],
+        );
+        let rows = load_baseline_jsonl(&p, "pybuglab", "arg-swap").unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].file, PathBuf::from("files/a.py"));
+        assert_eq!(rows[1].line, 42);
     }
 
     #[test]
