@@ -7,10 +7,10 @@
     "prior_method": "jeffreys"
   },
   "clone-drift": {
-    "tp": 8,
+    "tp": 14,
     "fp": 0,
-    "posterior_tp": 0.9,
-    "wilson_lower_95": 0.6637328831200571,
+    "posterior_tp": 0.9375,
+    "wilson_lower_95": 0.7819806390894659,
     "prior_method": "jeffreys"
   },
   "comment-code": {

@@ -1,5 +1,5 @@
 """Synthetic fixture: file-fetch family using context manager, with one drifted variant."""
-
+# Source: https://github.com/ktrysmt/cntrdct/blob/master/benchmarks/corpus/files/clone_drift_python_005.py
 
 def fetch_a(path):
     with open(path) as f:

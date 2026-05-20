@@ -1,5 +1,5 @@
-// Source: shape adapted from
-// https://github.com/tokio-rs/tokio/blob/master/tokio/src/task/local.rs (poll wrappers)
+// Source: https://github.com/tokio-rs/tokio/blob/master/tokio/src/task/local.rs
+// Note: shape adapted from upstream poll-wrapper family.
 // License: MIT
 // Note: four near-identical poll wrappers plus one drifted member exhibit the
 // Type-3 with Type-2 partition drift documented in Bettenburg et al. (MSR 2009).

@@ -481,6 +481,31 @@ fn t20_cargo_src_layout_separates_crates() {
 }
 
 #[test]
+fn t20b_non_url_source_line_falls_through_to_next_rule() {
+    // F5b: a `// Source: <free-text>` line that does NOT carry a URL
+    // (scheme://value) must NOT establish a provenance scope —
+    // accepting it would collapse every fixture sharing the same
+    // descriptive note into one super-scope and silently suppress
+    // real drift findings under F5c-i / F5d-i. The line falls
+    // through to the next scope rule (here, Cargo `/src/` layout),
+    // so the drift in crateB stays isolated and yields zero findings.
+    let header = "// Source: shape adapted from upstream foo family\n";
+    let files = vec![
+        pf_with_source("crateA/src/a.rs", header, FN_BASE),
+        pf_with_source("crateA/src/b.rs", header, FN_BASE),
+        pf_with_source("crateA/src/c.rs", header, FN_BASE),
+        pf_with_source("crateA/src/d.rs", header, FN_BASE),
+        pf_with_source("crateB/src/e.rs", header, FN_DRIFTED),
+    ];
+    let findings = run(files);
+    assert!(
+        findings.is_empty(),
+        "F5b: non-URL Source line must not cross-cluster crates, got {:#?}",
+        findings
+    );
+}
+
+#[test]
 fn t21_same_provenance_clusters_within_scope() {
     // All five files share `// Source: .../crates/foo/...` provenance
     // -> same scope. The drift surfaces normally.

@@ -1,5 +1,5 @@
 """Synthetic fixture: while-loop reduction family with one drifted variant."""
-
+# Source: https://github.com/ktrysmt/cntrdct/blob/master/benchmarks/corpus/files/clone_drift_python_003.py
 
 def reduce_a(xs):
     total = 0

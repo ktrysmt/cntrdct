@@ -15,9 +15,15 @@
 {"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_python_007.py", "line": 53, "repo": "corpus", "verdict": "TruePositive"}
 {"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_python_008.py", "line": 51, "repo": "corpus", "verdict": "TruePositive"}
 {"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/clone_drift_001.rs", "line": 41, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/clone_drift_002.rs", "line": 47, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/clone_drift_003.rs", "line": 39, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/clone_drift_004.rs", "line": 48, "repo": "corpus", "verdict": "TruePositive"}
 {"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/clone_drift_005.rs", "line": 39, "repo": "corpus", "verdict": "TruePositive"}
 {"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/clone_drift_006.rs", "line": 35, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/clone_drift_008.rs", "line": 39, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/clone_drift_009.rs", "line": 39, "repo": "corpus", "verdict": "TruePositive"}
 {"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/clone_drift_010.rs", "line": 43, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/clone_drift_python_001.py", "line": 36, "repo": "corpus", "verdict": "TruePositive"}
 {"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/clone_drift_python_002.py", "line": 36, "repo": "corpus", "verdict": "TruePositive"}
 {"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/clone_drift_python_003.py", "line": 40, "repo": "corpus", "verdict": "TruePositive"}
 {"anomaly_class": "Logic", "detector_id": "clone-drift", "file": "files/clone_drift_python_004.py", "line": 40, "repo": "corpus", "verdict": "TruePositive"}
