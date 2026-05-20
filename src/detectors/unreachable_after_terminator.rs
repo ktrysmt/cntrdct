@@ -127,6 +127,28 @@ fn walk_rust(node: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Find
     if node.kind() == "block" {
         analyze_rust_block(node, file, findings);
     }
+    // F4d-ii: call_expression whose argument list contains a divergent
+    // expression. The arguments are evaluated left-to-right, so any
+    // following argument (or the call itself, when the divergent
+    // expression is the last argument) is unreachable. macro_invocation
+    // is excluded — tree-sitter-rust does not re-parse macro token
+    // trees as Rust expressions, so `panic!(return)`-style cases are
+    // not visible.
+    if node.kind() == "call_expression" {
+        analyze_rust_call_args(node, file, findings);
+    }
+    // F4d-iii: return / break with a divergent return value. The
+    // value is evaluated before the surrounding control transfer
+    // takes effect, so the outer return / break is itself unreachable.
+    if matches!(node.kind(), "return_expression" | "break_expression") {
+        analyze_rust_divergent_carrier(node, file, findings);
+    }
+    // F4d-iv: if-expression whose condition is a divergent
+    // expression. The consequence block is unreachable from the
+    // outside since the condition never produces a value.
+    if node.kind() == "if_expression" {
+        analyze_rust_if_condition(node, file, findings);
+    }
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         walk_rust(child, file, findings);
@@ -250,18 +272,211 @@ fn is_rust_block_statement(node: tree_sitter::Node) -> bool {
 }
 
 fn rust_terminator_kind(stmt: tree_sitter::Node, source: &str) -> Option<&'static str> {
-    if stmt.kind() != "expression_statement" {
-        return None;
-    }
-    let mut cursor = stmt.walk();
-    let inner = stmt.children(&mut cursor).find(|c| c.is_named())?;
+    // F4d-i: a bare if_expression / match_expression that sits as a
+    // block statement is itself the candidate (no expression_statement
+    // wrapper because no trailing `;` is required for brace-bound
+    // expressions). Treat both forms uniformly.
+    let inner = match stmt.kind() {
+        "expression_statement" => {
+            let mut cursor = stmt.walk();
+            let child = stmt.children(&mut cursor).find(|c| c.is_named());
+            child?
+        }
+        "if_expression" | "match_expression" => stmt,
+        _ => return None,
+    };
     match inner.kind() {
         "return_expression" => Some("return"),
         "break_expression" => Some("break"),
         "continue_expression" => Some("continue"),
         "macro_invocation" => rust_macro_terminator_name(inner, source),
+        // F4d-i: branch-merge. An if / match whose every branch ends
+        // in a divergent expression is itself divergent — any
+        // statement that follows in the enclosing block is
+        // unreachable.
+        "if_expression" => rust_if_all_branches_diverge(inner, source),
+        "match_expression" => rust_match_all_arms_diverge(inner, source),
         _ => None,
     }
+}
+
+// ---------- F4d divergent expression classifier ----------
+
+/// True iff evaluating `expr` always diverges (never produces a value).
+/// Returns the canonical terminator-kind string for the divergence so
+/// the surrounding emission carries a useful `terminator_kind`.
+///
+/// Recursion follows the AST hierarchy; tree-sitter trees are finite
+/// so termination is guaranteed.
+fn rust_expression_diverges(expr: tree_sitter::Node, source: &str) -> Option<&'static str> {
+    match expr.kind() {
+        "return_expression" => Some("return"),
+        "break_expression" => Some("break"),
+        "continue_expression" => Some("continue"),
+        "macro_invocation" => rust_macro_terminator_name(expr, source),
+        "block" => rust_block_diverges(expr, source),
+        "if_expression" => rust_if_all_branches_diverge(expr, source),
+        "match_expression" => rust_match_all_arms_diverge(expr, source),
+        _ => None,
+    }
+}
+
+fn rust_block_diverges(block: tree_sitter::Node, source: &str) -> Option<&'static str> {
+    let stmts: Vec<tree_sitter::Node> = {
+        let mut cursor = block.walk();
+        block
+            .children(&mut cursor)
+            .filter(|c| is_rust_block_statement(*c))
+            .collect()
+    };
+    if stmts.is_empty() {
+        return None;
+    }
+    for stmt in &stmts {
+        if let Some(k) = rust_terminator_kind(*stmt, source) {
+            return Some(k);
+        }
+    }
+    // Tail position: the last named child may be an expression rather
+    // than a statement. Its divergence determines the block's.
+    let last = *stmts.last().expect("checked non-empty above");
+    rust_expression_diverges(last, source)
+}
+
+fn rust_if_all_branches_diverge(if_expr: tree_sitter::Node, source: &str) -> Option<&'static str> {
+    let consequence = if_expr.child_by_field_name("consequence")?;
+    let alternative = if_expr.child_by_field_name("alternative")?;
+    rust_expression_diverges(consequence, source)?;
+    rust_alternative_diverges(alternative, source)?;
+    Some("if-branches-diverge")
+}
+
+fn rust_alternative_diverges(alt: tree_sitter::Node, source: &str) -> Option<&'static str> {
+    // else_clause wraps either a `block` (else { ... }) or another
+    // `if_expression` (else if ...). Find the first named child that
+    // is one of these and delegate.
+    let mut cursor = alt.walk();
+    for child in alt.children(&mut cursor) {
+        if !child.is_named() {
+            continue;
+        }
+        if matches!(child.kind(), "block" | "if_expression") {
+            return rust_expression_diverges(child, source);
+        }
+    }
+    None
+}
+
+fn rust_match_all_arms_diverge(
+    match_expr: tree_sitter::Node,
+    source: &str,
+) -> Option<&'static str> {
+    let body = match_expr.child_by_field_name("body")?;
+    let mut cursor = body.walk();
+    let arms: Vec<tree_sitter::Node> = body
+        .children(&mut cursor)
+        .filter(|c| c.kind() == "match_arm")
+        .collect();
+    if arms.is_empty() {
+        return None;
+    }
+    for arm in &arms {
+        let value = arm.child_by_field_name("value")?;
+        rust_expression_diverges(value, source)?;
+    }
+    Some("match-arms-diverge")
+}
+
+// ---------- F4d-ii / F4d-iii / F4d-iv emission helpers ----------
+
+fn analyze_rust_call_args(call: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Finding>) {
+    let Some(args_node) = call.child_by_field_name("arguments") else {
+        return;
+    };
+    let mut cursor = args_node.walk();
+    let args: Vec<tree_sitter::Node> = args_node
+        .children(&mut cursor)
+        .filter(|c| {
+            c.is_named()
+                && !matches!(
+                    c.kind(),
+                    "attribute_item" | "line_comment" | "block_comment"
+                )
+        })
+        .collect();
+    for (i, arg) in args.iter().enumerate() {
+        if let Some(kind) = rust_expression_diverges(*arg, &file.source) {
+            // Subsequent argument is unreachable iff one exists;
+            // otherwise the call as a whole is unreachable (the
+            // function is never invoked because the argument
+            // evaluation diverges first).
+            let follower = if i + 1 < args.len() {
+                args[i + 1]
+            } else {
+                call
+            };
+            let following_count = args.len().saturating_sub(i + 1).max(1) as u32;
+            findings.push(build_finding(
+                file,
+                follower,
+                *arg,
+                kind,
+                following_count as usize,
+                LanguageCitationStatus::Confirmed,
+            ));
+            return;
+        }
+    }
+}
+
+fn analyze_rust_divergent_carrier(
+    expr: tree_sitter::Node,
+    file: &ParsedFile,
+    findings: &mut Vec<Finding>,
+) {
+    // For `return EXPR` or `break EXPR`, the inner value is evaluated
+    // before the surrounding control transfer takes effect. If the
+    // value itself diverges, the outer return / break never runs.
+    let mut cursor = expr.walk();
+    let value = expr
+        .children(&mut cursor)
+        .find(|c| c.is_named() && c.kind() != "loop_label");
+    let Some(value) = value else { return };
+    let Some(kind) = rust_expression_diverges(value, &file.source) else {
+        return;
+    };
+    findings.push(build_finding(
+        file,
+        expr,
+        value,
+        kind,
+        1,
+        LanguageCitationStatus::Confirmed,
+    ));
+}
+
+fn analyze_rust_if_condition(
+    if_expr: tree_sitter::Node,
+    file: &ParsedFile,
+    findings: &mut Vec<Finding>,
+) {
+    let Some(condition) = if_expr.child_by_field_name("condition") else {
+        return;
+    };
+    let Some(kind) = rust_expression_diverges(condition, &file.source) else {
+        return;
+    };
+    let Some(consequence) = if_expr.child_by_field_name("consequence") else {
+        return;
+    };
+    findings.push(build_finding(
+        file,
+        consequence,
+        condition,
+        kind,
+        1,
+        LanguageCitationStatus::Confirmed,
+    ));
 }
 
 fn rust_macro_terminator_name(call: tree_sitter::Node, source: &str) -> Option<&'static str> {

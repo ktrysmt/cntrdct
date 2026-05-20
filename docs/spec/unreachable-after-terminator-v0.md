@@ -136,6 +136,92 @@ After F4c there are 0 findings of this shape on the corpus. F4c does NOT
 mask genuine unreachable-after-terminator: an executable statement
 appearing after the items still fires (T37).
 
+### F4d — Compound divergence (added 2026-05-21)
+
+The v0 detector recognised only `expression_statement` whose first
+child is a terminator (return / break / continue / panic-macro).
+Audit corpus inspection against rustc's `tests/ui/reachable/` suite
+showed five expected findings that the AST-local F3 / F4 walker
+cannot reach — they require classifying compound expressions as
+divergent. F4d adds four sub-rules. Each is conservative: a compound
+expression diverges only when every sub-expression that contributes
+to its value already diverges.
+
+(F4d-i) Branch-merge if / match. A bare `if_expression` (or
+`match_expression`) that appears as a block statement is itself a
+terminator iff every branch's body diverges:
+
+```rust
+if cond { return; } else { return; }
+bar();   // F4d-i: unreachable after if-branches-diverge
+```
+
+`if cond { return }` WITHOUT an else clause is conditional and does
+NOT diverge (pinned by t41). A `match` whose arms include at least
+one non-divergent arm (`_ => fallback()`) likewise does NOT diverge
+(t43). Else-if chains recurse through the `alternative` field.
+
+(F4d-ii) Call-argument divergence. `call_expression` arguments
+evaluate left-to-right. A `return_expression` (or other divergent
+expression) at argument position `i`:
+
+- Flags `arguments[i+1]` as unreachable when an `i+1` argument
+  exists (mirrors rustc's `expr_call.rs#L13` shape).
+- Flags the entire `call_expression` when the divergent argument is
+  the only / last one (rustc `expr_call.rs#L18`); the function body
+  is never invoked because argument evaluation diverges first.
+
+`macro_invocation` is deliberately excluded: tree-sitter-rust does
+NOT re-parse macro token trees as Rust expressions, so
+`panic!(return)`-style cases are not visible at the AST level.
+Re-parsing macro inputs is preregistered for a separate scope lift.
+
+(F4d-iii) Divergent return / break carrier.
+`return EXPR` (or `break EXPR`) where `EXPR` evaluation diverges
+flags the outer `return` / `break` as unreachable — control never
+reaches the surrounding transfer because `EXPR` already diverged.
+The canonical shape is the nested-return idiom rustc reports as the
+"2nd-innermost return is unreachable" (`expr_return.rs#L10`).
+
+(F4d-iv) Divergent if-condition. `if COND { ... }` where `COND` is
+a `block` (or other expression) that diverges flags the consequence
+block as unreachable — the condition never produces a value, so the
+body is never selected. Pinned by t47 against rustc's
+`expr_if.rs#L7` shape.
+
+### Divergent-expression classifier
+
+F4d-i / F4d-ii / F4d-iii / F4d-iv share a single recursive
+classifier `rust_expression_diverges(expr) -> Option<terminator_kind>`:
+
+- `return_expression` / `break_expression` / `continue_expression`
+  diverge directly.
+- `macro_invocation` diverges iff its macro name is in
+  `TERMINATOR_MACROS`.
+- `block` diverges iff one of its statements is a terminator under
+  F3 / F4d-i, OR its tail expression diverges (recursive).
+- `if_expression` diverges iff F4d-i fires (consequence and every
+  alternative diverge).
+- `match_expression` diverges iff every arm's value expression
+  diverges.
+
+Recursion follows the finite AST hierarchy and always terminates.
+
+### F4d non-goals (preregistered)
+
+The following remain explicit non-goals; lifting them requires a
+separate spec extension with its own corpus pre-registration:
+
+- `loop { ... }` whose body never executes `break` (control-flow
+  analysis required; pinned by t48).
+- `while cond { ... }` where `cond` is a constant true (constant
+  folding required).
+- Python `while False:` / `if False:` / `if True:` constant-condition
+  branches (CodeQL Python test cases — see
+  `benchmarks/audit-corpus/manifest.jsonl` note).
+- Python `except` handler reachability based on the exception type.
+- Macro argument re-parsing (`panic!(return, x)` etc.).
+
 ### F5 — Finding shape
 
 For each block where F4 fires, emit one Finding:
@@ -222,6 +308,15 @@ Functions / blocks consisting solely of attributes are skipped.
 | T35 | `fn outer() { return helper(); #[cold] fn helper() {} }` | 0 Findings (F4c: hoisted fn item) |
 | T36 | hoisted items only after `return`: `const`, `static`, `use`, `struct`, `enum`, `type`, `mod`, `impl`, `trait` | 0 Findings (F4c) |
 | T37 | `fn outer() { return; fn helper() {} bar(); }` | 1 Finding on `bar()` (items skipped, executable stmt still flags) |
+| T40 | `fn f() { if true { return; } else { return; } bar(); }` | 1 Finding on `bar()`, terminator_kind = `if-branches-diverge` (F4d-i) |
+| T41 | `fn f() { if true { return; } bar(); }` (no else) | 0 Findings (F4d-i requires every branch divergent) |
+| T42 | `match x { 0 => return, 1 => return, _ => return } bar();` | 1 Finding on `bar()`, terminator_kind = `match-arms-diverge` (F4d-i) |
+| T43 | `match x { 0 => return, _ => 1 }; bar();` (one fallthrough arm) | 0 Findings (F4d-i requires every arm divergent) |
+| T44 | `foo(return, 22)` | 1 Finding on `22` (F4d-ii: subsequent arg unreachable) |
+| T45 | `bar(return)` | 1 Finding on the call (F4d-ii: only-arg divergent, call never invokes) |
+| T46 | `let _x: () = { return { return; } };` | ≥ 1 Finding on the outer return (F4d-iii: nested return) |
+| T47 | `if { return } { bar(); }` | ≥ 1 Finding on the consequence block (F4d-iv: divergent condition) |
+| T48 | `loop { return; } bar();` | 0 Findings (non-goal: loop without break stays unhandled) |
 
 ## Tunable constants (v0 defaults)
 
@@ -233,12 +328,9 @@ Exposed as `pub const` for visibility; not user-tunable from CLI in v0.
 ## Non-goals (v0)
 
 - Inter-procedural reachability (e.g. helper functions that always panic)
-- Branch-merging analysis (`if cond { return 1 } else { return 2 } bar();`
-  — v0 only sees the outer block as not having a terminator since the
-  inner blocks each have their own; the FindBugs UR pattern handles this
-  via dataflow, which is out of scope for the AST-only v0)
 - `loop { ... }` without `break` (control-flow analysis required)
-- `match` arms whose every branch diverges (ditto)
+- Constant-condition branches (`while 0:`, `if False:`, `if True:` in
+  Python; same shape in Rust). Constant folding is out of scope.
 - Cross-language: only Rust in v0 (mirrors clone-drift / arg-swap /
   comment-code)
 - Attribute parsing beyond substring match
