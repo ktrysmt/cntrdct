@@ -1,5 +1,5 @@
-// Source: shape adapted from
-// https://github.com/rust-lang/cargo/blob/master/src/cargo/core/registry.rs (lookup family)
+// Source: https://github.com/rust-lang/cargo/blob/master/src/cargo/core/registry.rs
+// Note: shape adapted from upstream lookup family.
 // License: MIT OR Apache-2.0
 // Note: four near-identical lookups plus one drifted member exhibit the
 // Type-3 with Type-2 partition drift documented in Bettenburg et al. (MSR 2009).

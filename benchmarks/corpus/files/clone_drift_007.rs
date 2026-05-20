@@ -1,5 +1,5 @@
-// Source: shape adapted from
-// https://github.com/hyperium/hyper/blob/master/src/proto/h1/parse.rs (header walkers)
+// Source: https://github.com/hyperium/hyper/blob/master/src/proto/h1/parse.rs
+// Note: shape adapted from upstream header-walker family.
 // License: MIT
 // Note: four near-identical walkers plus one drifted member exhibit the
 // Type-3 with Type-2 partition drift documented in Bettenburg et al. (MSR 2009).

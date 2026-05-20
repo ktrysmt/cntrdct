@@ -441,17 +441,48 @@ fn scope_from_provenance(source: &str) -> Option<String> {
     let head: String = source.chars().take(512).collect();
     for line in head.lines() {
         let t = line.trim_start();
-        if let Some(url) = t
+        if let Some(rest) = t
             .strip_prefix("// Source: ")
             .or_else(|| t.strip_prefix("# Source: "))
         {
-            let url = url.trim();
-            if !url.is_empty() {
-                return Some(format!("provenance::{url}"));
+            let rest = rest.trim();
+            // F5b convention: the provenance value carries a URL
+            // (`https://static.crates.io/...`, `https://files.pythonhosted.org/...`,
+            // or a project-specific URL for synthetic fixtures). A
+            // descriptive line like `// Source: shape adapted from` is
+            // NOT a scope key — accepting it would collapse every
+            // fixture sharing that note into one super-scope, which
+            // empirically suppresses real drift findings under F5c-i /
+            // F5d-i. Require a scheme-shaped prefix
+            // (`<letters>://<value>`); any non-URL value falls through
+            // to the next scope rule.
+            if is_url_shaped(rest) {
+                return Some(format!("provenance::{rest}"));
             }
         }
     }
     None
+}
+
+/// True iff `s` looks like `<scheme>://<value>` with a non-empty,
+/// alphanumeric scheme prefix and a non-empty value. Cheap structural
+/// check — no full URL parser, no allocation.
+fn is_url_shaped(s: &str) -> bool {
+    let Some(scheme_end) = s.find("://") else {
+        return false;
+    };
+    if scheme_end == 0 {
+        return false;
+    }
+    let scheme = &s[..scheme_end];
+    if !scheme
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '-' || c == '.')
+    {
+        return false;
+    }
+    let rest = &s[scheme_end + 3..];
+    !rest.is_empty()
 }
 
 fn scope_from_cargo_layout(path: &std::path::Path) -> Option<String> {

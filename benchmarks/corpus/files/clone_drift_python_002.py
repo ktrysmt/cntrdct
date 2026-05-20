@@ -1,5 +1,5 @@
 """Synthetic fixture: HTTP-handler family with one drifted variant."""
-
+# Source: https://github.com/ktrysmt/cntrdct/blob/master/benchmarks/corpus/files/clone_drift_python_002.py
 
 def handle_a(req):
     try:

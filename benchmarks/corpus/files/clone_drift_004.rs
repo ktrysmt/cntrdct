@@ -1,5 +1,5 @@
-// Source: shape adapted from
-// https://github.com/BurntSushi/regex/blob/master/regex-syntax/src/ast/parse.rs (token loop family)
+// Source: https://github.com/BurntSushi/regex/blob/master/regex-syntax/src/ast/parse.rs
+// Note: shape adapted from upstream token-loop family.
 // License: MIT OR Apache-2.0
 // Note: four near-identical token consumers plus one drifted member exhibit
 // the Type-3 with Type-2 partition drift documented in Bettenburg et al.

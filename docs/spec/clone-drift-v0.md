@@ -84,11 +84,18 @@ per file with a path-only inference (no filesystem I/O, preserving N3).
 Scope key, first match wins:
 
 1. Provenance header. If the file's first ~512 bytes contain a `// Source:`
-   line referencing `https://static.crates.io/crates/<name>/...` (the
-   wild β corpus convention; see `benchmarks/wild-corpus/README.md`), the
-   scope key is `cratesio::<name>`. Equivalent forms for the Python wild
-   corpus (`# Source: https://files.pythonhosted.org/.../packages/.../`)
-   yield `pypi::<package>` keys.
+   (or `# Source:` for Python) line whose value is URL-shaped
+   (`<scheme>://<value>`, ASCII-alphanumeric scheme), the URL itself is
+   the scope key. The wild β corpus convention is
+   `https://static.crates.io/crates/<name>/...` and the Python wild
+   corpus's `https://files.pythonhosted.org/.../packages/.../`; both
+   slot in here, as do project-specific URLs used by synthetic
+   fixtures. A free-text Source line — `// Source: shape adapted from
+   upstream foo family` — is NOT a scope key; accepting it would
+   collapse every fixture sharing that descriptive note into a single
+   super-scope, which empirically suppresses real drift findings under
+   F5c-i / F5d-i (see t20b). Non-URL Source values fall through to
+   the next rule.
 2. Cargo project layout. If the path contains a `/src/` segment, the
    scope key is the substring up to and including the directory
    immediately before `/src/`. The same rule applies to `/tests/` and
@@ -275,6 +282,7 @@ in β.
 | T8 | T1 input run twice | identical `Vec<Finding>` |
 | T9 | empty input | 0 Findings, no error |
 | T20 | 4 identical fns under `crateA/src/*.rs` + 1 drifted under `crateB/src/*.rs` | 0 Findings (different scopes, F5b) |
+| T20b | T20 with a free-text `// Source: shape adapted from ...` header on every file | 0 Findings (non-URL Source falls through to Cargo layout, F5b) |
 | T21 | 4 identical fns + 1 drifted, all with `// Source: https://static.crates.io/crates/foo/...` provenance | 1 Finding (same scope) |
 | T22 | 4 identical fns provenance-tagged `foo`, 1 provenance-tagged `bar` | 0 Findings (different cratesio scopes) |
 | T23 | 4 identical `foo__a.rs`/`foo__b.rs`/... + 1 drifted `bar__e.rs` (no provenance) | 0 Findings (different `__`-prefix scopes) |

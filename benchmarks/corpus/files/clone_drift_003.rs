@@ -1,5 +1,5 @@
-// Source: shape adapted from
-// https://github.com/dtolnay/anyhow/blob/master/src/fmt.rs (formatter family)
+// Source: https://github.com/dtolnay/anyhow/blob/master/src/fmt.rs
+// Note: shape adapted from upstream formatter family.
 // License: MIT OR Apache-2.0
 // Note: four near-identical formatters plus one drifted member exhibit the
 // Type-3 with Type-2 partition drift documented in Bettenburg et al. (MSR 2009).
