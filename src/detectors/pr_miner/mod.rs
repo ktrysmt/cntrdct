@@ -76,6 +76,16 @@ pub const MIN_DATABASE_SIZE: usize = 20;
 /// corpora where a rule is satisfied by hundreds of functions.
 pub const MAX_RELATED: usize = 32;
 
+/// Maximum item cardinality (as a fraction of mining-database size) for a
+/// rule to survive post-filtering. A rule `{lhs} -> {rhs}` is dropped when
+/// `lhs` OR `rhs` appears in *more than* `MAX_ITEM_CARDINALITY * |T|`
+/// transactions. Spec F4b (R7 — item-cardinality post-filter): items that
+/// "everyone" calls are by definition not paired-API candidates, so a rule
+/// involving them is statistical co-occurrence rather than a contract.
+/// Eliminates the v0.1 FM-A failure mode (Rust `Err -> Ok`, Python
+/// `TypeError -> isinstance`) without a hand-curated stop-list.
+pub const MAX_ITEM_CARDINALITY: f64 = 0.5;
+
 static CITATIONS: &[Citation] = &[Citation {
     key: "li-zhou-fse-2005",
     authors: "Z. Li, Y. Zhou",
@@ -142,7 +152,12 @@ impl Detector for PrMinerDetector {
         }
 
         // Step 3: mine pair rules.
-        let rules: Vec<Rule> = mine_pairs(&mining_items, MIN_SUPPORT, MIN_CONFIDENCE);
+        let rules: Vec<Rule> = mine_pairs(
+            &mining_items,
+            MIN_SUPPORT,
+            MIN_CONFIDENCE,
+            MAX_ITEM_CARDINALITY,
+        );
 
         // Step 4: for each rule, scan the FULL transaction set for
         // violations and collect satisfying functions for `related`.

@@ -36,11 +36,15 @@ pub struct Rule {
 }
 
 /// Mine pair-rules from `transactions`, each represented as a sorted set of
-/// item names. Returns rules satisfying the spec F3 constraints:
+/// item names. Returns rules satisfying the spec F3 + F4b constraints:
 ///
 /// - `support(lhs U rhs) / |T| >= min_support`
 /// - `confidence(lhs -> rhs) >= min_confidence`
 /// - `lhs != rhs` (disjoint, trivially true for size-2 itemsets)
+/// - `count(lhs) / |T| <= max_item_cardinality` AND
+///   `count(rhs) / |T| <= max_item_cardinality` (F4b R7 item-cardinality
+///   post-filter — items that "everyone" calls are statistical co-occurrence,
+///   not paired-API rules).
 ///
 /// Determinism: items inside each transaction must already be sorted by
 /// the caller (extractor returns `BTreeSet`); we additionally iterate over
@@ -49,6 +53,7 @@ pub fn mine_pairs(
     transactions: &[Vec<String>],
     min_support: f64,
     min_confidence: f64,
+    max_item_cardinality: f64,
 ) -> Vec<Rule> {
     let n = transactions.len();
     if n == 0 {
@@ -105,6 +110,11 @@ pub fn mine_pairs(
     // Step 4: from each frequent pair, emit both directions if confidence
     // qualifies. Spec F3 treats `{a} -> {b}` and `{b} -> {a}` as separate
     // rules (T11); we do not merge.
+    //
+    // F4b R7: drop pairs where EITHER side's item cardinality exceeds
+    // `max_item_cardinality * |T|`. Such items are statistically
+    // ubiquitous, so any rule involving them describes co-occurrence
+    // rather than a paired-API contract.
     let mut rules: Vec<Rule> = Vec::new();
     for ((a, b), &count) in &pair_counts {
         if (count as f64) / (n as f64) < min_support {
@@ -112,6 +122,11 @@ pub fn mine_pairs(
         }
         let count_a = item_counts[a.as_str()];
         let count_b = item_counts[b.as_str()];
+        let card_a = count_a as f64 / n as f64;
+        let card_b = count_b as f64 / n as f64;
+        if card_a > max_item_cardinality || card_b > max_item_cardinality {
+            continue;
+        }
         let conf_ab = count as f64 / count_a as f64;
         let conf_ba = count as f64 / count_b as f64;
         if conf_ab >= min_confidence {
@@ -161,7 +176,7 @@ mod tests {
         for i in 0..10 {
             txns.push(t(&[&format!("filler_a_{}", i), &format!("filler_b_{}", i)]));
         }
-        let rules = mine_pairs(&txns, 0.05, 0.85);
+        let rules = mine_pairs(&txns, 0.05, 0.85, 0.5);
         let acquire_release = rules
             .iter()
             .find(|r| r.lhs == "acquire" && r.rhs == "release")
@@ -181,7 +196,7 @@ mod tests {
         for i in 0..10 {
             txns.push(t(&[&format!("p_a_{}", i), &format!("p_b_{}", i)]));
         }
-        let rules = mine_pairs(&txns, 0.05, 0.85);
+        let rules = mine_pairs(&txns, 0.05, 0.85, 0.5);
         assert!(rules
             .iter()
             .all(|r| !(r.lhs == "acquire" && r.rhs == "release")));
@@ -199,7 +214,7 @@ mod tests {
         }
         // Support 4/20 = 0.20 — actually frequent. To exercise the support
         // floor we tighten min_support to 0.25.
-        let rules = mine_pairs(&txns, 0.25, 0.85);
+        let rules = mine_pairs(&txns, 0.25, 0.85, 0.5);
         assert!(rules
             .iter()
             .all(|r| !(r.lhs == "acquire" && r.rhs == "release")));
@@ -207,8 +222,99 @@ mod tests {
 
     #[test]
     fn empty_input_yields_no_rules() {
-        let rules = mine_pairs(&[], 0.05, 0.85);
+        let rules = mine_pairs(&[], 0.05, 0.85, 0.5);
         assert!(rules.is_empty());
+    }
+
+    // F4b R7: stdlib-constructor pathology — `ubiquitous` is in every
+    // transaction, `partner` co-occurs strongly enough to mine a rule
+    // under the support / confidence floors. The cardinality post-filter
+    // must drop the rule.
+    #[test]
+    fn drops_rule_when_lhs_cardinality_exceeds_threshold() {
+        let mut txns = Vec::new();
+        for _ in 0..26 {
+            txns.push(t(&["ubiquitous", "partner"]));
+        }
+        for _ in 0..4 {
+            txns.push(t(&["ubiquitous", "unrelated"]));
+        }
+        // |T| = 30; ubiquitous: 30/30 = 1.0, partner: 26/30 = 0.866.
+        // Threshold 0.5 drops the rule (both sides exceed).
+        let rules = mine_pairs(&txns, 0.05, 0.85, 0.5);
+        assert!(
+            !rules
+                .iter()
+                .any(|r| r.lhs == "ubiquitous" && r.rhs == "partner"),
+            "ubiquitous -> partner must be dropped at cardinality 1.0 > 0.5: rules {:?}",
+            rules
+        );
+    }
+
+    // Symmetric to above: when only `rhs` is ubiquitous, the rule still
+    // drops. The lhs stays well below the threshold so the failure mode
+    // lives purely on the rhs side.
+    #[test]
+    fn drops_rule_when_rhs_cardinality_exceeds_threshold() {
+        let mut txns = Vec::new();
+        for _ in 0..10 {
+            txns.push(t(&["acquire", "ubiquitous"]));
+        }
+        for _ in 0..20 {
+            txns.push(t(&["filler", "ubiquitous"]));
+        }
+        // |T| = 30; acquire: 10/30 = 0.33; ubiquitous: 30/30 = 1.0.
+        // The pair (acquire, ubiquitous) qualifies under support+confidence
+        // but is dropped because ubiquitous's cardinality exceeds 0.5.
+        let rules = mine_pairs(&txns, 0.05, 0.85, 0.5);
+        assert!(
+            !rules
+                .iter()
+                .any(|r| r.lhs == "acquire" && r.rhs == "ubiquitous"),
+            "acquire -> ubiquitous must be dropped at rhs cardinality 1.0 > 0.5: rules {:?}",
+            rules
+        );
+    }
+
+    // Real paired-API shape: both sides comfortably below the threshold.
+    // The rule must survive.
+    #[test]
+    fn keeps_rule_when_both_cardinalities_below_threshold() {
+        let mut txns = Vec::new();
+        for _ in 0..9 {
+            txns.push(t(&["lock", "unlock"]));
+        }
+        txns.push(t(&["lock", "helper"]));
+        for i in 0..20 {
+            txns.push(t(&[&format!("p_a_{}", i), &format!("p_b_{}", i)]));
+        }
+        // |T| = 30; lock: 10/30 = 0.33; unlock: 9/30 = 0.30. Both < 0.5.
+        let rules = mine_pairs(&txns, 0.05, 0.85, 0.5);
+        assert!(
+            rules.iter().any(|r| r.lhs == "lock" && r.rhs == "unlock"),
+            "lock -> unlock must survive when both cardinalities are below threshold: rules {:?}",
+            rules
+        );
+    }
+
+    // Strict `>` boundary: an item at exactly the threshold survives.
+    // Distinguishes "exceeds N%" from "matches or exceeds N%".
+    #[test]
+    fn keeps_rule_when_cardinality_equals_threshold_exactly() {
+        let mut txns = Vec::new();
+        for _ in 0..10 {
+            txns.push(t(&["a", "b"]));
+        }
+        for i in 0..10 {
+            txns.push(t(&[&format!("c_{}", i), &format!("d_{}", i)]));
+        }
+        // |T| = 20; a: 10/20 = 0.5 exactly, b: 10/20 = 0.5 exactly. Survives.
+        let rules = mine_pairs(&txns, 0.05, 0.85, 0.5);
+        assert!(
+            rules.iter().any(|r| r.lhs == "a" && r.rhs == "b"),
+            "a -> b at exact-threshold cardinality must survive: rules {:?}",
+            rules
+        );
     }
 
     #[test]
@@ -221,8 +327,8 @@ mod tests {
         for i in 0..10 {
             txns.push(t(&[&format!("x_{}", i), &format!("y_{}", i)]));
         }
-        let rules1 = mine_pairs(&txns, 0.05, 0.85);
-        let rules2 = mine_pairs(&txns, 0.05, 0.85);
+        let rules1 = mine_pairs(&txns, 0.05, 0.85, 0.5);
+        let rules2 = mine_pairs(&txns, 0.05, 0.85, 0.5);
         let names1: Vec<(String, String)> = rules1
             .iter()
             .map(|r| (r.lhs.clone(), r.rhs.clone()))

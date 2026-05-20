@@ -125,6 +125,56 @@ Per F3's `MAX_ITEMSET_SIZE = 2`, the violation predicate stays
 Boolean per function. When `MAX_ITEMSET_SIZE` is raised post-v0,
 the predicate generalises to `LHS ⊆ items(T) ∧ ¬(RHS ⊆ items(T))`.
 
+### F4b — Item-cardinality post-filter (added 2026-05-21)
+
+R7 (item-cardinality post-filter) ships as a fourth gate inside
+`mine_pairs` (`src/detectors/pr_miner/apriori.rs`). For each candidate
+pair `{a, b}` that has cleared F3's support and confidence floors,
+the rule is DROPPED iff either side's marginal cardinality strictly
+exceeds `MAX_ITEM_CARDINALITY * |T|`, where `|T|` is the mining-
+database size and `MAX_ITEM_CARDINALITY` defaults to `0.5`.
+
+The gate is grounded in Li-Zhou §3.2 ("we filter common library
+calls"): the algorithm's own discussion of stop-list-style filtering
+treats universal items as outside the paired-API operating envelope.
+Items that "everyone" calls describe co-occurrence in a shared
+context rather than a contract, so a rule involving them is
+statistical noise.
+
+Strict `>` boundary: an item at exactly the threshold survives.
+Distinguishes "exceeds N%" from "matches or exceeds N%".
+
+Empirical effect on shipped corpora (v0.4.3 → v0.4.4 reading):
+
+| Corpus | Rule | Cardinality | Caught by F4b at 0.5? |
+|---|---|---|---|
+| Synthetic stdlib-shape fixture | `Err -> Ok` (24 of 32 tx have `Err`) | 0.75 | yes |
+| `benchmarks/wild-corpus/` | `Err -> Ok` (132 of 650 tx have `Err`) | 0.20 | **no** |
+| `benchmarks/wild-corpus-python/` | `TypeError -> isinstance` (14 of 98 tx have `TypeError`) | 0.14 | **no** |
+
+The empirical FM-A pathology in the shipped wild corpora sits below
+the spec-aligned threshold. F4b at `MAX_ITEM_CARDINALITY = 0.5`
+catches only the upper-bound shape (items that are truly universal
+in the mining DB); it does not move the v0.1 calibration numbers
+(pr-miner 16 TP / 22 FP, posterior_tp 0.425). Two follow-up paths
+remain open:
+
+- F4b-bis — lower the threshold to ~0.20 with a corresponding
+  restructure of the synthetic test fixtures (current acquire /
+  lock / a-b pairings sit at 0.30 – 0.50 by construction and would
+  all drop). Trade-off: precision over the corpus at the cost of
+  test fixture rework.
+- R6 — per-language stop-list of constructors / builtins
+  (`Err`, `Ok`, `Some`, `None`, `Box::new`, `Vec::new`,
+  `isinstance`, `TypeError`, `ValueError`, ...). Empirically
+  eliminates FM-A by construction; spec-grounded via the same
+  Li-Zhou §3.2 phrasing.
+
+F4b lands as the algorithmic primitive (so the cardinality dial
+becomes a first-class knob the calibrator can move per release)
+without claiming to close FM-A in v0. The choice between F4b-bis
+and R6 is deferred to a future Q-series entry.
+
 ### F5 — Finding shape
 
 For each violating function:
@@ -251,6 +301,12 @@ listed in the table refer to the rule-relevant subset, not the total.
 - `MAX_RELATED = 32` — caps `Finding.related` so a corpus with 1000
   satisfying functions does not produce a 1000-element related
   array for every violation.
+- `MAX_ITEM_CARDINALITY = 0.5` — F4b R7 cardinality post-filter.
+  Drops rules whose `lhs` or `rhs` strictly exceeds this fraction of
+  the mining database. v0 default catches only the upper-bound
+  ("everyone calls it") shape; the empirical wild-corpus FM-A
+  pathology sits below this threshold and is left for follow-up
+  (F4b-bis lower threshold or R6 stop-list — see F4b discussion).
 
 Exposed as `pub const` in `cntrdct-detector-pr-miner` for tuning
 without API change. Real-world calibration belongs to Layer 2
@@ -426,6 +482,16 @@ last-segment as default but add an item-cardinality post-filter
 (drop rules whose `lhs` or `rhs` exceeds N% of all transactions —
 items that "everyone" calls are by definition not paired-API
 candidates). Eliminates most of FM-A without a manual list.
+
+Status (2026-05-21): the item-cardinality post-filter ships as F4b
+at `MAX_ITEM_CARDINALITY = 0.5`. The algorithmic primitive is in
+place and unit-tested; empirically the wild-corpus FM-A items sit
+below the spec-aligned threshold (Rust `Err` at 0.20, Python
+`TypeError` at 0.14), so F4b at 0.5 leaves the v0.1 calibration
+numbers unchanged. See F4b for the table and the two open follow-up
+paths (F4b-bis lower threshold + fixture rework, or R6 stop-list).
+The fully-qualified-path variant of R7 remains unimplemented at
+v0.4.4.
 
 R8. Cross-fixture isolation in mixed-fixture corpora. The seed
 corpus mixes positives from six detectors; pr-miner's mining DB

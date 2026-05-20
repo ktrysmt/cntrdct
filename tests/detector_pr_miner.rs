@@ -279,6 +279,13 @@ fn t12_related_is_capped_and_flag_is_set() {
         src.push_str(&format!("fn pair_both_{i}() {{\n    a();\n    b();\n}}\n"));
     }
     src.push_str("fn lone_violator() {\n    a();\n    other();\n}\n");
+    // F4b dilution: add enough fillers to keep `a`'s cardinality below
+    // MAX_ITEM_CARDINALITY = 0.5. With 33 pair_both + 1 violator + 35
+    // fillers (69 total), `a` sits at 34/69 = 0.493 < 0.5. The filler
+    // rule's cardinality (35/69 = 0.507) exceeds the threshold and the
+    // filler_a -> filler_b rule is dropped, but no filler is a violator
+    // of itself, so no spurious finding leaks into the assertion.
+    src.push_str(&fillers(35));
     let findings = run(vec![parsed_rust("t12.rs", &src)]);
     let a_to_b: &Finding = findings
         .iter()
@@ -368,7 +375,10 @@ fn t3_cross_language_rule_fires_across_corpus() {
         ));
     }
     rust_src.push_str("fn rust_violator() {\n    lock();\n    helper();\n}\n");
-    rust_src.push_str(&fillers(9));
+    // 12 rust fillers (not 9) so the `lock` cardinality stays below the
+    // F4b MAX_ITEM_CARDINALITY = 0.5 threshold. Total: 5+1+12+5 = 23
+    // transactions, lock in 11/23 = 0.478.
+    rust_src.push_str(&fillers(12));
 
     let mut py_src = String::new();
     for i in 0..5 {
@@ -481,4 +491,56 @@ fn t13_mixed_language_synonym_pair_yields_no_cross_rule() {
             );
         }
     }
+}
+
+// ---------- F4b R7: stdlib-constructor co-occurrence is filtered ----------
+//
+// Spec `docs/spec/pr-miner-v0.md` F4b (R7 — item-cardinality post-filter):
+// the v0.1 calibration corpus shipped 21/22 FPs from rules whose LHS or
+// RHS was a stdlib constructor / builtin appearing in the majority of
+// functions (Rust `Err -> Ok` in 19 cases, Python `TypeError -> isinstance`
+// in 2). This fixture exercises the failure mode: 20 functions calling
+// `Err(...)` paired with `Ok(...)` and 4 lone `Err`-callers. Without F4b
+// the miner emits a high-confidence `Err -> Ok` rule and flags the 4
+// lone callers; with F4b at MAX_ITEM_CARDINALITY = 0.5 the rule is
+// dropped because `Err`'s cardinality is 24/24 = 1.0.
+
+#[test]
+fn f4b_stdlib_constructor_cooccurrence_filtered_out() {
+    let mut src = String::new();
+    for i in 0..20 {
+        src.push_str(&format!(
+            "fn fallible_{i}() -> Result<i32, ()> {{\n    if {i} == 0 {{ return Err(()); }}\n    Ok({i})\n}}\n"
+        ));
+    }
+    for i in 0..4 {
+        src.push_str(&format!(
+            "fn lone_err_{i}() -> Result<i32, ()> {{\n    Err(())\n}}\n"
+        ));
+    }
+    // Plus enough fillers to keep the database well above
+    // MIN_DATABASE_SIZE; their items stay low-cardinality (each filler
+    // pair is unique).
+    for i in 0..8 {
+        src.push_str(&format!(
+            "fn ufiller_{i}() {{\n    ufiller_a_{i}();\n    ufiller_b_{i}();\n}}\n"
+        ));
+    }
+    let findings = run(vec![parsed_rust("err_ok.rs", &src)]);
+
+    // The Err -> Ok rule must NOT mine, so no lone_err_* function is a
+    // violator under it.
+    let err_ok_violations: Vec<&Finding> = findings
+        .iter()
+        .filter(|f| {
+            let lhs = f.evidence.raw.get("rule_lhs").and_then(|v| v.as_str());
+            let rhs = f.evidence.raw.get("rule_rhs").and_then(|v| v.as_str());
+            lhs == Some("Err") && rhs == Some("Ok")
+        })
+        .collect();
+    assert!(
+        err_ok_violations.is_empty(),
+        "F4b must drop the Err -> Ok rule (Err is universally present); got: {:#?}",
+        err_ok_violations
+    );
 }
