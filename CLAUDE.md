@@ -278,6 +278,13 @@ Non-negotiable details:
   parse as Conventional Commits (or that match `chore(release)` /
   `chore(changelog)` / `Merge`) are dropped from the notes by design;
   do not bypass the parser by adding ad-hoc release-only commits.
+- After the GitHub Release is published, the `update-changelog` job in
+  `release.yml` regenerates the full `CHANGELOG.md` (no `--latest`) and
+  pushes a `chore(changelog): update for vX.Y.Z` commit back to
+  `master` via `GITHUB_TOKEN`. The parser also skips `chore(changelog)`
+  so the bot commit is invisible to the next release's notes. Do not
+  hand-edit `CHANGELOG.md`; if it drifts, re-run `git cliff --output
+  CHANGELOG.md` locally and commit the result.
 Optional but recommended:
 
 - Re-running `cargo run --release --bin cntrdct -- calibrate

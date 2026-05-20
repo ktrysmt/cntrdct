@@ -1,23 +1,30 @@
 # cntrdct implementation roadmap
 
-Last updated: 2026-05-20 (T3-13 Phase 1 scaffolding landed — `book/`
-gains `book.toml` and a `src/` tree covering Introduction, Getting
-started, Concepts, Detectors, Configuration, Workflows, Integrations,
-and FAQ with substantive placeholder content per chapter; GitHub
-Pages re-enable and README link stay deferred until the
-`docs/site/essays/` external-blog migration finishes per T1-7. Q-15
-PyBugLab adapter scaffolding landed post-v0.4.0 —
-`baselines/pybuglab/{Dockerfile,entrypoint.sh,UPSTREAM.md}` plus the
-`pybuglab` registry entry in `src/baselines.rs`. Both adapters now
-ship with placeholder image digests pending live pinning; the
-`DigestMismatch` guard makes the placeholder safe. v0.4.0 cut the
-OSF preregistration discipline — `prereg/` and
-`tests/prereg_consistency.rs` are removed; P2 is dropped from the
-design constraints and the release procedure no longer mandates a
-Q-14 audit refresh per tag. P1 (peer-reviewed citations +
-`CITATIONS.md` Layer 1 bidirectional check) stays. Q-14 still closed
-at overall recall_upper_bound 0.66, `comment-code` 34/0/1.00 across
-all three patterns on twenty-three permissive-licensed upstreams.)
+Last updated: 2026-05-20 (T3-15 followup landed — `CHANGELOG.md` is
+now a checked-in artefact and `release.yml` gains an
+`update-changelog` job that regenerates the full changelog via
+`git-cliff` and commits it back to `master` as
+`chore(changelog): update for vX.Y.Z` after every tag push;
+`cliff.toml` already skips `chore(changelog)` so the bot commit
+stays out of future release notes. T3-13 Phase 1 scaffolding landed
+earlier the same day — `book/` gains `book.toml` and a `src/` tree
+covering Introduction, Getting started, Concepts, Detectors,
+Configuration, Workflows, Integrations, and FAQ with substantive
+placeholder content per chapter; GitHub Pages re-enable and README
+link stay deferred until the `docs/site/essays/` external-blog
+migration finishes per T1-7. Q-15 PyBugLab adapter scaffolding
+landed post-v0.4.0 — `baselines/pybuglab/{Dockerfile,entrypoint.sh,
+UPSTREAM.md}` plus the `pybuglab` registry entry in
+`src/baselines.rs`. Both adapters now ship with placeholder image
+digests pending live pinning; the `DigestMismatch` guard makes the
+placeholder safe. v0.4.0 cut the OSF preregistration discipline —
+`prereg/` and `tests/prereg_consistency.rs` are removed; P2 is
+dropped from the design constraints and the release procedure no
+longer mandates a Q-14 audit refresh per tag. P1 (peer-reviewed
+citations + `CITATIONS.md` Layer 1 bidirectional check) stays. Q-14
+still closed at overall recall_upper_bound 0.66, `comment-code`
+34/0/1.00 across all three patterns on twenty-three
+permissive-licensed upstreams.)
 
 Engineering roadmap for shipping cntrdct as a usable open-source Rust
 tool.
@@ -428,16 +435,26 @@ T3-15. Auto-generated changelog
   `CONTRIBUTING.md` "Pull request review" updated so the squash-on-
   merge guidance points at the new pipeline; CLAUDE.md "Release
   procedure" non-negotiables documents the parser's drop list.
-- Followup: a checked-in `CHANGELOG.md` and an auto-commit-back step
-  on tag push were deferred until a future tag confirmed the
-  release-body path is healthy in production. `v0.2.0-rc.1`
-  (2026-05-08) is that confirmation — git-cliff produced the
-  expected grouped output (Bug Fixes / CI / Chores / Documentation /
-  Features) on first run with commit-link backrefs and a
-  `compare/v0.2.0-beta.1..v0.2.0-rc.1` URL. The followup is now
-  unblocked for whoever picks it up next; it is no longer a
-  prerequisite for any other roadmap item, just an OSS-hygiene
-  improvement.
+- Followup landed 2026-05-20: `CHANGELOG.md` is now a checked-in
+  artefact at repo root, and `.github/workflows/release.yml` gains an
+  `update-changelog` job that runs after the `release` job on every
+  tag push. The job checks out `master` with `fetch-depth: 0` and
+  `persist-credentials: true`, regenerates the full changelog via
+  `orhun/git-cliff-action@v4` with no `--latest` (so the file
+  reflects the complete tag history each time), then commits and
+  pushes a `chore(changelog): update for vX.Y.Z` back to `master`
+  using `GITHUB_TOKEN`. The job no-ops when `git diff --quiet --
+  CHANGELOG.md` succeeds, and `git pull --rebase origin master`
+  guards against an intervening push landing between the tag and the
+  changelog commit. The `cliff.toml` parser already skips
+  `chore(changelog)`, so the bot commit is invisible to the next
+  release's notes — no infinite loop, no pollution. Branch-protection
+  context: `master` is unprotected on this repo (`gh api .../branches/
+  master/protection` returns 404), so the default `GITHUB_TOKEN`
+  push has no extra preconditions; if protection is added later, the
+  rule must allow GitHub Actions or the job needs a PAT. CONTRIBUTING
+  "Pull request review" and CLAUDE.md "Release procedure" both note
+  the new behaviour.
 
 T3-16. Telemetry-free assurance
 

@@ -179,8 +179,11 @@ We do not maintain a separate CLA. The DCO is sufficient.
 - Squash on merge is the default. Keep the squashed commit message in
   Conventional Commits form: the release workflow runs `git-cliff`
   (config at `cliff.toml`) on every tag push and uses the grouped
-  output as the GitHub Release body. Off-shape commits silently fall
-  out of the release notes.
+  output as the GitHub Release body. The same workflow also
+  regenerates the full `CHANGELOG.md` and commits it back to `master`
+  as `chore(changelog): update for vX.Y.Z` (the parser skips that
+  prefix so the bot commit does not pollute the next release notes).
+  Off-shape commits silently fall out of both surfaces.
 - Avoid force-pushes to a PR branch once review has started; prefer
   fixup commits so review threads stay anchored.
 
