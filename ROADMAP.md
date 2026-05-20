@@ -70,6 +70,18 @@ P-2. pr-miner detector (multi-language)
   enforces the per-language commitment.
 - Followup: Q-1 wires pr-miner into the SARIF detectors array;
   Future Q-series candidates note the Apriori → FP-growth lift.
+- Followup landed 2026-05-21: FM-A + FM-B closed. F4b (R7 item-
+  cardinality post-filter at `MAX_ITEM_CARDINALITY = 0.5`) ships
+  the algorithmic primitive; F4c (R6 stop-list — Rust:
+  `Err`/`Ok`/`Some`/`None`; Python: built-in exception classes +
+  introspection + iteration helpers + `super`/`print`) closes FM-A
+  (Rust `Err -> Ok` 19 FPs, Python `TypeError -> isinstance` 2 FPs);
+  F4d (R8 `pr_miner_eligible: Option<bool>` manifest field +
+  `scripts/build_priors_corpus.py` post-filter) closes the
+  remaining 2 cross-fixture FPs. Recalibration moves pr-miner from
+  16 TP / 22 FP / posterior_tp 0.425 (Wilson at n=38) to
+  16 TP / 0 FP / posterior_tp 0.944 (Jeffreys at n=16). Spec
+  `docs/spec/pr-miner-v0.md` F4b/F4c/F4d.
 
 P-3. SARIF output validation in CI
 

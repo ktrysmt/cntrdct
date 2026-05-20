@@ -55,6 +55,29 @@ def load_expected(manifest_path: Path) -> Dict[str, Set[Tuple[str, int]]]:
     return out
 
 
+def load_pr_miner_ineligible(manifest_path: Path) -> Set[str]:
+    """Return the set of file paths flagged `pr_miner_eligible: false`.
+
+    R8 — peer-detector fixtures whose identifiers contaminate pr-miner's
+    mining DB. Spec `docs/spec/pr-miner-v0.md` F4d. The detector itself
+    does not read the manifest, so this set is consumed by
+    `label_corpus` to drop pr-miner findings on ineligible files from
+    the labelled JSONL. Real-world `cntrdct scan` runs are unaffected.
+    """
+    out: Set[str] = set()
+    if not manifest_path.exists():
+        return out
+    with manifest_path.open() as f:
+        for raw in f:
+            line = raw.strip()
+            if not line or line.startswith("//"):
+                continue
+            entry = json.loads(line)
+            if entry.get("pr_miner_eligible") is False:
+                out.add(entry["file"])
+    return out
+
+
 def run_scan(corpus_dir: Path) -> List[dict]:
     """Run `cntrdct scan --no-calibration --format json` on the corpus and
     return the parsed JSON array of RankedFinding records.
@@ -104,9 +127,15 @@ def label_corpus(
     corpus_dir: Path, repo_name: str, anomaly_class_by_detector: Dict[str, str]
 ) -> Iterable[dict]:
     expected = load_expected(corpus_dir / "manifest.jsonl")
+    pr_miner_ineligible = load_pr_miner_ineligible(corpus_dir / "manifest.jsonl")
     for rf in run_scan(corpus_dir):
         f = rf["finding"]
         detector_id, file_rel, line, verdict = label_for(rf, expected, corpus_dir)
+        # R8: drop pr-miner findings on files explicitly marked
+        # `pr_miner_eligible: false` in the manifest. Spec
+        # `docs/spec/pr-miner-v0.md` F4d.
+        if detector_id == "pr-miner" and file_rel in pr_miner_ineligible:
+            continue
         anomaly_class = (
             f.get("anomaly_class") or anomaly_class_by_detector.get(detector_id)
         )

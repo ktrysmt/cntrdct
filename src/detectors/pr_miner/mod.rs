@@ -82,9 +82,70 @@ pub const MAX_RELATED: usize = 32;
 /// transactions. Spec F4b (R7 — item-cardinality post-filter): items that
 /// "everyone" calls are by definition not paired-API candidates, so a rule
 /// involving them is statistical co-occurrence rather than a contract.
-/// Eliminates the v0.1 FM-A failure mode (Rust `Err -> Ok`, Python
-/// `TypeError -> isinstance`) without a hand-curated stop-list.
+/// Pairs with F4c (R6 stop-list) for FM-A elimination.
 pub const MAX_ITEM_CARDINALITY: f64 = 0.5;
+
+/// R6 stop-list for Rust. Items in this list are dropped from each
+/// transaction before mining. Citation grounding: Li-Zhou ESEC/FSE 2005
+/// §3.2 ("we filter common library calls"). The empirical FM-A
+/// pathology in the wild Rust corpus is the `Err -> Ok` rule mined
+/// across eight permissively-licensed crates; both items are stdlib
+/// `Result`/`Option` constructors that co-occur in the majority of
+/// fallible functions without describing a paired-API contract. The
+/// list is intentionally narrow at v0 — adding `new` / `from` / `into`
+/// would risk dropping legitimate paired APIs whose last-segment name
+/// collides with stdlib constructors.
+pub const RUST_STOPLIST: &[&str] = &[
+    // Result / Option constructors — FM-A core.
+    "Err", "Ok", "Some", "None",
+];
+
+/// R6 stop-list for Python. Counterpart to `RUST_STOPLIST`. The
+/// empirical FM-A pathology on the Python wild corpus is the
+/// `TypeError -> isinstance` rule mined across click validators;
+/// `TypeError`, `isinstance`, and the other built-in exception classes
+/// are stop-listed for the same Li-Zhou §3.2 reason. Built-in
+/// introspection / iteration functions (`len`, `range`, `print`,
+/// `super`, `iter`, `next`, `getattr` / `setattr` / `hasattr`) are
+/// included because they appear in virtually every non-trivial Python
+/// function and would otherwise mine the same co-occurrence rules.
+pub const PYTHON_STOPLIST: &[&str] = &[
+    // Built-in exception classes — FM-A core.
+    "Exception",
+    "TypeError",
+    "ValueError",
+    "KeyError",
+    "IndexError",
+    "AttributeError",
+    "RuntimeError",
+    "OSError",
+    "StopIteration",
+    "NotImplementedError",
+    "FileNotFoundError",
+    "ImportError",
+    // Built-in introspection.
+    "isinstance",
+    "issubclass",
+    "getattr",
+    "setattr",
+    "hasattr",
+    "delattr",
+    "callable",
+    // Built-in iteration / sequence helpers.
+    "len",
+    "range",
+    "iter",
+    "next",
+    "enumerate",
+    "zip",
+    "map",
+    "filter",
+    // Built-in I/O / debug.
+    "print",
+    "repr",
+    // Inheritance / scoping.
+    "super",
+];
 
 static CITATIONS: &[Citation] = &[Citation {
     key: "li-zhou-fse-2005",
@@ -136,6 +197,18 @@ impl Detector for PrMinerDetector {
                 Language::Rust => all_txns.extend(extract_rust::extract(file)),
                 Language::Python => all_txns.extend(extract_python::extract(file)),
             }
+        }
+
+        // Step 1b: R6 stop-list filter. Drop stop-listed items from each
+        // transaction's item set so they never enter the mining database
+        // OR the violation scan. Spec F4c. The filter is applied to the
+        // canonical `Transaction::items` *in place* — both mining (Step 2)
+        // and violation detection (Step 4) read from the same filtered
+        // set, so a function whose only items were stop-listed cannot
+        // appear as a violator either.
+        for txn in &mut all_txns {
+            let stoplist: &[&str] = stoplist_for(txn.language);
+            txn.items.retain(|item| !stoplist.contains(&item.as_str()));
         }
 
         // Step 2: build the mining database (post MIN_TRANSACTION_ITEMS
@@ -270,5 +343,59 @@ fn make_finding(
             }),
             language_citation_status: status,
         },
+    }
+}
+
+/// Return the R6 stop-list for the given language. Languages without an
+/// explicit list return an empty slice — adding a new language to
+/// `supported_languages()` is one entry here away from being a no-op
+/// stop-list. Spec F4c.
+fn stoplist_for(language: Language) -> &'static [&'static str] {
+    match language {
+        Language::Rust => RUST_STOPLIST,
+        Language::Python => PYTHON_STOPLIST,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stoplist_for_rust_carries_result_constructors() {
+        let sl = stoplist_for(Language::Rust);
+        for item in &["Err", "Ok", "Some", "None"] {
+            assert!(
+                sl.contains(item),
+                "Rust stop-list missing {item}; expected for FM-A coverage"
+            );
+        }
+    }
+
+    #[test]
+    fn stoplist_for_python_carries_fma_pathology_items() {
+        let sl = stoplist_for(Language::Python);
+        for item in &["TypeError", "isinstance"] {
+            assert!(
+                sl.contains(item),
+                "Python stop-list missing {item}; expected for FM-A coverage"
+            );
+        }
+    }
+
+    #[test]
+    fn rust_stoplist_excludes_potentially_legitimate_paired_apis() {
+        // The narrow v0 list deliberately does NOT include `new` /
+        // `from` / `into` — those names collide with legitimate
+        // paired-API conventions (`Mutex::new`, `Type::from`). Adding
+        // them risks dropping real rules; the spec defers that
+        // decision to a future revision once we have larger corpora.
+        let sl = stoplist_for(Language::Rust);
+        for item in &["new", "from", "into", "to_string", "clone"] {
+            assert!(
+                !sl.contains(item),
+                "Rust stop-list must not include {item} at v0 (risks legitimate paired-API drop)"
+            );
+        }
     }
 }

@@ -34,6 +34,18 @@ pub struct ManifestEntry {
     /// tarball. Optional for synthetic fixtures.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sha256: Option<String>,
+    /// R8 — pr-miner mining-DB eligibility. When `Some(false)`, this
+    /// fixture is excluded from pr-miner's labelling pipeline so its
+    /// identifiers do not pollute the mined rule set and so any
+    /// pr-miner finding emitted on this file is dropped from the
+    /// labelled corpus. `None` (the default) and `Some(true)` are
+    /// equivalent — the fixture is treated as pr-miner-eligible. Spec:
+    /// `docs/spec/pr-miner-v0.md` F4d. Used by
+    /// `scripts/build_priors_corpus.py`; the detector itself does not
+    /// read the manifest, so real-world `cntrdct scan` runs are
+    /// unaffected.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pr_miner_eligible: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

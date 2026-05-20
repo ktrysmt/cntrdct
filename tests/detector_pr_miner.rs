@@ -493,6 +493,51 @@ fn t13_mixed_language_synonym_pair_yields_no_cross_rule() {
     }
 }
 
+// ---------- F4c R6: stop-listed items never reach the mining database ----------
+//
+// Spec `docs/spec/pr-miner-v0.md` F4c (R6 — per-language stop-list):
+// stop-listed items are dropped from each transaction before mining,
+// so the rules they would participate in are never even mined. This
+// fixture exercises the empirical Python FM-A pathology:
+// `TypeError -> isinstance` mined across click validators, which the
+// stop-list eliminates by removing both items from every transaction.
+
+#[test]
+fn f4c_stoplisted_items_do_not_appear_in_mined_rules() {
+    let mut src = String::new();
+    for i in 0..14 {
+        src.push_str(&format!(
+            "def validate_{i}(x):\n    if not isinstance(x, int): raise TypeError('bad')\n    return x + {i}\n"
+        ));
+    }
+    for i in 0..6 {
+        src.push_str(&format!(
+            "def unguarded_{i}(x):\n    if x is None: raise TypeError('none')\n    return x\n"
+        ));
+    }
+    // Plus enough fillers to keep the database above MIN_DATABASE_SIZE,
+    // with low-cardinality unique items.
+    for i in 0..12 {
+        src.push_str(&format!(
+            "def py_filler_{i}():\n    py_filler_a_{i}()\n    py_filler_b_{i}()\n"
+        ));
+    }
+    let findings = run(vec![parsed_python("type_error.py", &src)]);
+
+    // No finding may carry TypeError or isinstance on either side.
+    for f in &findings {
+        let lhs = f.evidence.raw.get("rule_lhs").and_then(|v| v.as_str());
+        let rhs = f.evidence.raw.get("rule_rhs").and_then(|v| v.as_str());
+        for stop in &["TypeError", "isinstance"] {
+            assert!(
+                lhs != Some(*stop) && rhs != Some(*stop),
+                "R6 stop-list must keep {stop} out of mined rules; finding: {:#?}",
+                f
+            );
+        }
+    }
+}
+
 // ---------- F4b R7: stdlib-constructor co-occurrence is filtered ----------
 //
 // Spec `docs/spec/pr-miner-v0.md` F4b (R7 — item-cardinality post-filter):

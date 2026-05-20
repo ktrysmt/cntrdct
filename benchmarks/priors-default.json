@@ -29,10 +29,10 @@
   },
   "pr-miner": {
     "tp": 16,
-    "fp": 22,
-    "posterior_tp": 0.425,
-    "wilson_lower_95": 0.2785227481181953,
-    "prior_method": "wilson"
+    "fp": 0,
+    "posterior_tp": 0.9444444444444444,
+    "wilson_lower_95": 0.8049356770309068,
+    "prior_method": "jeffreys"
   },
   "unreachable-after-terminator": {
     "tp": 15,

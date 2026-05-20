@@ -110,6 +110,7 @@ fn entry(file: &str, expected: Vec<(&str, u32)>) -> ManifestEntry {
         source: None,
         license: None,
         sha256: None,
+        pr_miner_eligible: None,
     }
 }
 

@@ -144,7 +144,7 @@ statistical noise.
 Strict `>` boundary: an item at exactly the threshold survives.
 Distinguishes "exceeds N%" from "matches or exceeds N%".
 
-Empirical effect on shipped corpora (v0.4.3 → v0.4.4 reading):
+Empirical effect on shipped corpora (v0.4.3 measurement):
 
 | Corpus | Rule | Cardinality | Caught by F4b at 0.5? |
 |---|---|---|---|
@@ -155,25 +155,87 @@ Empirical effect on shipped corpora (v0.4.3 → v0.4.4 reading):
 The empirical FM-A pathology in the shipped wild corpora sits below
 the spec-aligned threshold. F4b at `MAX_ITEM_CARDINALITY = 0.5`
 catches only the upper-bound shape (items that are truly universal
-in the mining DB); it does not move the v0.1 calibration numbers
-(pr-miner 16 TP / 22 FP, posterior_tp 0.425). Two follow-up paths
-remain open:
-
-- F4b-bis — lower the threshold to ~0.20 with a corresponding
-  restructure of the synthetic test fixtures (current acquire /
-  lock / a-b pairings sit at 0.30 – 0.50 by construction and would
-  all drop). Trade-off: precision over the corpus at the cost of
-  test fixture rework.
-- R6 — per-language stop-list of constructors / builtins
-  (`Err`, `Ok`, `Some`, `None`, `Box::new`, `Vec::new`,
-  `isinstance`, `TypeError`, `ValueError`, ...). Empirically
-  eliminates FM-A by construction; spec-grounded via the same
-  Li-Zhou §3.2 phrasing.
+in the mining DB); on its own it does not move the v0.1 calibration
+numbers. F4c (R6 stop-list, added the same day) does — see below
+for the joint reading.
 
 F4b lands as the algorithmic primitive (so the cardinality dial
 becomes a first-class knob the calibrator can move per release)
 without claiming to close FM-A in v0. The choice between F4b-bis
 and R6 is deferred to a future Q-series entry.
+
+### F4c — Per-language stop-list (added 2026-05-21)
+
+R6 (per-language stop-list) ships in `src/detectors/pr_miner/mod.rs`
+as `RUST_STOPLIST` and `PYTHON_STOPLIST`. Items in the list for a
+given language are dropped from the corresponding transactions
+*before* mining and *before* the violation scan — same in-place
+filter, same pass — so they neither participate in rule discovery
+nor in violator emission. Citation grounding: Li-Zhou ESEC/FSE 2005
+§3.2 ("we filter common library calls"). The lists are intentionally
+narrow at v0:
+
+- Rust: `Err`, `Ok`, `Some`, `None`. Closes the empirical wild-
+  corpus `Err -> Ok` rule. `new` / `from` / `into` are deliberately
+  *not* included because the last-segment representation makes them
+  collide with legitimate user-defined constructors and converters.
+- Python: built-in exception classes (`TypeError`, `ValueError`,
+  `KeyError`, `Exception`, ...), built-in introspection
+  (`isinstance`, `issubclass`, `getattr` / `setattr` / `hasattr`,
+  `callable`), iteration / sequence helpers (`len`, `range`, `iter`,
+  `next`, `enumerate`, `zip`, `map`, `filter`), and inheritance
+  / I/O / debug primitives (`super`, `print`, `repr`). Closes the
+  empirical wild-corpus `TypeError -> isinstance` rule.
+
+Empirical effect (re-measured 2026-05-21 against the same corpora
+that defined the v0.1 FM-A baseline):
+
+| Corpus | Before R6 | After R6 |
+|---|---|---|
+| `benchmarks/wild-corpus/` | 19 pr-miner FPs (all `Err -> Ok`) | 0 |
+| `benchmarks/wild-corpus-python/` | 2 pr-miner FPs (`TypeError -> isinstance`) | 0 |
+| `benchmarks/corpus/` | 16 TPs + 2 cross-fixture FPs | 16 TPs + 2 cross-fixture FPs |
+
+R6 alone closes FM-A entirely. The remaining 2 seed-corpus FPs are
+the R8 cross-fixture pollution shape (`close_handle -> open_handle`
+on `unreachable_python_002.py`, `push -> new` on
+`clone_drift_009.rs`) — they survive R6 because neither item is in
+the stop-list. F4d below closes them.
+
+### F4d — Manifest-driven pr-miner eligibility (R8, added 2026-05-21)
+
+`benchmarks/corpus/manifest.jsonl` is a mixed-fixture corpus: each
+file is a positive for exactly one detector, and the per-detector
+fixtures share an `files/` subtree. When pr-miner scans the corpus,
+identifiers reused across peer-detector fixtures (`push` and `new`
+appearing in many `clone_drift_*.rs`; `close_handle` in one
+`unreachable_python_*.py`) leak rules from peer detectors' positives
+into pr-miner's mining DB and surface as violators on the same
+peer-detector files.
+
+The R8 fix is corpus-side: `ManifestEntry` gains an optional
+`pr_miner_eligible: Option<bool>` field. When `Some(false)`,
+`scripts/build_priors_corpus.py` drops every pr-miner finding on
+that file from the labelled corpus, so it never enters the
+calibration TP / FP tallies. Default (`None` / `Some(true)`) is the
+backward-compatible "eligible" interpretation.
+
+Scope:
+
+- The detector itself does *not* read the manifest. Real-world
+  `cntrdct scan` runs (where there is no manifest) are unaffected
+  by R8.
+- The flag applies only to the post-scan labelling pipeline.
+- The 90 non-pr-miner-positive entries under `benchmarks/corpus/`
+  are bulk-tagged `pr_miner_eligible: false`. The 16 pr-miner
+  positive fixtures plus the 6 `pr_miner_*_negative_*` files stay
+  unflagged (default eligible).
+
+Empirical effect: pr-miner labelled-corpus FP count drops from 2 to
+0 against `benchmarks/corpus/`. Combined with F4c above, pr-miner
+moves from 16 TP / 22 FP (`posterior_tp 0.425`) to 16 TP / 0 FP
+(`posterior_tp 0.944`, Jeffreys at n=16) — the same band as the
+other 0-FP detectors.
 
 ### F5 — Finding shape
 
@@ -416,7 +478,16 @@ synthesises a tempdir corpus large enough to trigger mining. The
 real signal arrives once the wild corpora (M-4 and the future
 P-1) populate.
 
-## Empirical FP analysis (v0.1, 2026-05)
+## Empirical FP analysis (v0.1, 2026-05; closed 2026-05-21)
+
+> **Resolution status:** the 22 FPs documented below are *closed* as
+> of 2026-05-21 by F4c (R6 stop-list) + F4d (R8 manifest eligibility).
+> Re-calibration against the same corpora moves pr-miner from 16 TP /
+> 22 FP / `posterior_tp = 0.425` (Wilson at n=38) to 16 TP / 0 FP /
+> `posterior_tp = 0.944` (Jeffreys at n=16, since the FP count drop
+> takes the sample below the Q-11 small-sample threshold). The v0.1
+> baseline is retained below for historical reference and for any
+> future analysis that compares against a known regression target.
 
 Recalibration after step 3 (`chore(priors): recalibrate against
 pr-miner v0.1 corpus`) labels 16 TP / 22 FP across `benchmarks/corpus`,
@@ -456,21 +527,20 @@ FM-A drives the bulk of the FP count and is what depresses
 
 ## v1 mitigations under consideration
 
-R6. Per-language stop-list of constructors / builtins. Maintain
-`src/detectors/pr_miner/stoplist_<lang>.rs` listing items that
-should be dropped from the transaction set before mining (e.g. Rust:
-`Err`, `Ok`, `Some`, `None`, `Box::new`, `Vec::new`, `String::from`,
-`Default::default`; Python: `isinstance`, `TypeError`, `ValueError`,
-`KeyError`, `len`, `range`, `print`, `super`, `iter`, `next`).
-Conservative; eliminates FM-A entirely on the observed corpora.
-Citation grounding for the choice would lean on the Li-Zhou paper's
-own stop-list-style filtering ("we filter common library calls"
-referenced in §3.2), so this stays within the cited algorithm's
-operating envelope. Open question: a generic stop-list risks
-suppressing legitimate paired APIs that happen to share a name with
-a stdlib symbol; per-language curation plus a `cntrdct.toml`
-extension knob (`[detectors.pr-miner] stoplist = ["Err", ...]`) is
-the proposed surface.
+R6. Per-language stop-list of constructors / builtins.
+**Landed 2026-05-21** as F4c (see above). Implementation ships
+`RUST_STOPLIST` and `PYTHON_STOPLIST` constants in
+`src/detectors/pr_miner/mod.rs` with last-segment matching; the
+filter runs unconditionally inside `detect()` between extraction
+and mining. The v0 lists are narrow (Rust:
+`Err` / `Ok` / `Some` / `None`; Python: built-in exception classes
++ introspection + iteration helpers + `super` / `print`) — broader
+items like `new` / `from` / `into` are deliberately excluded to
+avoid collisions with legitimate user-defined paired APIs. The
+spec-noted `cntrdct.toml [detectors.pr-miner] stoplist` user-
+override surface is *not yet* implemented; the default lists handle
+the observed wild-corpus FM-A on their own and the override knob is
+deferred until external usage demonstrates a need.
 
 R7. Optional fully-qualified item granularity (refines R2).
 Switching from "last segment" to the full path (`core::result::Result::Err`
@@ -493,17 +563,20 @@ paths (F4b-bis lower threshold + fixture rework, or R6 stop-list).
 The fully-qualified-path variant of R7 remains unimplemented at
 v0.4.4.
 
-R8. Cross-fixture isolation in mixed-fixture corpora. The seed
-corpus mixes positives from six detectors; pr-miner's mining DB
-includes peer-detector fixtures, so identifiers reused across
-fixtures (FM-B) leak rules from one detector's positives into
-another's. Two candidate mitigations: (a) corpus tagging via a
-manifest field (`pr_miner_eligible: true|false`) so calibration can
-exclude peer-detector fixtures from the mining DB; (b) ranker-side
-de-weighting of findings whose violation file has an `expected`
-entry for a different detector. Option (b) is purely Layer 2 and
-keeps the detector contract clean; option (a) costs a manifest-
-schema bump.
+R8. Cross-fixture isolation in mixed-fixture corpora.
+**Landed 2026-05-21** as F4d. Implementation took option (a):
+`ManifestEntry` gains an optional `pr_miner_eligible: Option<bool>`
+field with `serde(default)` so the schema bump is backward-
+compatible. `scripts/build_priors_corpus.py` reads the field and
+drops pr-miner findings on ineligible files from the labelled JSONL
+before calibration consumes it. 90 non-pr-miner-positive entries
+under `benchmarks/corpus/manifest.jsonl` are bulk-tagged
+`pr_miner_eligible: false`; the 16 pr-miner positive fixtures plus
+the 6 `pr_miner_*_negative_*` files stay unflagged (default
+eligible). Option (b) (Layer-2 de-weighting) was not pursued — the
+corpus-side fix is more honest about what pr-miner sees and does not
+introduce a new ranker-side coupling between detector and
+manifest.
 
 ## Compatibility
 
