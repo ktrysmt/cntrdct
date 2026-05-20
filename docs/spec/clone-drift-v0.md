@@ -26,6 +26,49 @@ before clustering; their drift signal is too noisy to act on. This guard
 mirrors the minimum-size filters in industrial NiCad and SourcererCC
 pipelines.
 
+### F2b — Intra-fn if-branch clone (added 2026-05-21)
+
+The function-level pipeline (F2 + F3 + F5) operates at top-level `fn`
+granularity. F2b adds a parallel sub-function pass that flags `if`/
+`else` expressions whose consequence and alternative blocks are
+byte-for-byte identical Rust source modulo whitespace and comments.
+The pass walks every `if_expression` in every Rust file independently
+of the F3 clone-grouping pipeline.
+
+Acceptance criterion:
+
+- consequence node kind = `block`
+- alternative is an `else_clause` wrapping a `block` (NOT another
+  `if_expression` — `else if ...` chains are out of scope; the
+  walker still recurses into the nested if so a flat else inside
+  the chain still fires)
+- normalised-token count of the consequence ≥ `INTRA_FN_IF_MIN_TOKENS`
+  (defaults to `MIN_FN_TOKENS = 22` — the function-level floor)
+- after stripping line and block comments and collapsing internal
+  whitespace runs, the consequence's source text is byte-identical
+  to the alternative's
+
+Equality uses source-text comparison, NOT normalised-token equality.
+Type-2 clones (same AST shape, different identifiers) are the
+canonical fan-out-by-argument pattern in real code: `if c {
+foo(self.i) } else { foo(self.j) }`. Wild-β corpus scanning under
+token-normalised comparison surfaced 20 such intentional fan-out
+findings (itertools, regex_syntax, object) — all FPs. Source-text
+equality collapses those to zero while still flagging the clippy
+ui-test trigger sites at audit-corpus
+`clippy_ui_if_same_then_else.rs:29` (and the further trigger at
+line 91 of the same fixture).
+
+Emission shape (F6) is unchanged except that `evidence.raw.kind` is
+set to `"intra-fn-if-same-then-else"` and `branch_token_count`
+records the consequence's normalised-token count.
+
+Citation set is unchanged: NiCad (Cordy-Roy ICPC 2008) defines clone
+detection at "function or fragment" granularity, and the F2b pass
+applies the same Type-1 signal at fragment granularity. Bettenburg
+MSR 2009 and Krinke ICSM 2007 likewise cover sub-function clone
+analysis.
+
 ### F3 — Type-3 clone grouping
 
 For each pair of extracted functions, compute Jaccard similarity over the multiset
@@ -295,6 +338,10 @@ in β.
 | T30 | 2 base fns + 1 repeated-body singleton (dominant size 2, length asymmetry > 0.15) | 0 Findings (F5d-ii: weak-dominant length-imbalance) |
 | T30b | 4 base fns + 1 break-clause drifted singleton (dominant size 4, length asymmetry > 0.15) | 1 Finding (F5d-ii exemption: strong dominant) |
 | T31 | 3 tiny delegate wrappers at MIN_GROUP_SIZE with dominant normalised length ≤ MIN_FN_TOKENS + 2 | 0 Findings (F5d-iii: small-cluster floor) |
+| T32 | fn containing `if true { ...same 6 stmts... } else { ...same 6 stmts... }` | 1 Finding, `evidence.raw.kind = "intra-fn-if-same-then-else"` (F2b) |
+| T33 | same shape but identifiers differ between branches (Type-2 fan-out) | 0 Findings (F2b source-text equality skips Type-2) |
+| T34 | `if c { 42 } else { 42 }` (below INTRA_FN_IF_MIN_TOKENS) | 0 Findings (F2b size floor) |
+| T35 | `else if` chain with non-identical inner branches | 0 Findings (F2b skips when alternative is another if_expression) |
 | T10 | one fn with parse error + valid drift fixture | invalid one skipped, drift still detected |
 
 ## Tunable constants (v0 defaults)
@@ -333,6 +380,10 @@ in β.
   exempt; the textbook bug pattern of "1 of N copies missed an
   update" with N ≥ 3 fires unaffected even at length imbalance > 0.15
   (seed-corpus `clone_drift_005` at 0.258 with N = 4 stays a TP).
+- `INTRA_FN_IF_MIN_TOKENS = 22` — F2b minimum normalised-token count
+  for the consequence block before the source-text equality check
+  runs. Set to match `MIN_FN_TOKENS` so the floor is consistent
+  across the function-level and intra-fn pipelines.
 - `SMALL_CLUSTER_TOKEN_BUFFER = 2` — F5d-iii buffer above
   `MIN_FN_TOKENS`. A cluster at exactly `MIN_GROUP_SIZE` whose
   dominant exemplar normalises to ≤ `MIN_FN_TOKENS +
@@ -346,8 +397,11 @@ change. Real-world calibration belongs to Layer 2 (ranker), not these constants.
 
 ## Non-goals (v0)
 
-- Multi-language
-- Statement-block granularity
+- Multi-language (F2b is Rust-only; Python intra-fn if-clone is a
+  preregistered future scope lift)
+- Statement-block granularity outside `if_expression` consequence /
+  alternative (e.g. clippy's `branches_sharing_code` lint, which
+  detects partial-overlap branches sharing only the head or tail)
 - Functions inside `impl` / `trait` / `mod`
 - Strict Type-3 weighted ranking
 - Git history / SZZ

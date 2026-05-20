@@ -181,3 +181,72 @@ fn t14_anomaly_class_logic() {
         findings[0].anomaly_class
     );
 }
+
+// ---------- F5b primitive-constant contradiction (added 2026-05-21) ----------
+
+#[test]
+fn t15_f5b_true_false_pair_is_contradiction() {
+    // F5b: `cfg(true)` and `cfg(false)` are atomic primitives whose
+    // conjunction is unsatisfiable under every configuration.
+    // Mirrors rustc UI test `tests/ui/cfg/both-true-false.rs` and the
+    // audit-corpus `rustc_ui_both_true_false.rs` fixture (lines 11 / 15).
+    let src = "#[cfg(false)]\n#[cfg(true)]\nfn f() {}\n";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "F5b: cfg(true)+cfg(false) must fire, got {:#?}",
+        findings
+    );
+    assert_eq!(
+        findings[0].evidence.raw["contradiction_kind"], "true-false",
+        "expected contradiction_kind=true-false, got {:?}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t16_f5b_true_false_order_independent() {
+    // The pair is symmetric; the order of the two cfg attributes
+    // does not change the verdict.
+    let src = "#[cfg(true)]\n#[cfg(false)]\nfn f() {}\n";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert_eq!(findings.len(), 1, "got {:#?}", findings);
+}
+
+#[test]
+fn t17_f5b_does_not_flag_single_true_or_false() {
+    // A single `cfg(true)` or `cfg(false)` is NOT a contradiction
+    // — the F5 surface requires two cfg attributes on the same item.
+    let true_only = "#[cfg(true)]\nfn f() {}\n";
+    let false_only = "#[cfg(false)]\nfn f() {}\n";
+    assert!(
+        run(vec![parsed("a.rs", true_only)]).is_empty(),
+        "single cfg(true) must not fire"
+    );
+    assert!(
+        run(vec![parsed("a.rs", false_only)]).is_empty(),
+        "single cfg(false) must not fire"
+    );
+}
+
+#[test]
+fn t18_f5b_does_not_collide_with_not_pair_evidence() {
+    // The existing F5a `not(X) vs X` path must continue to set
+    // contradiction_kind=not-pair and surface the canonical inner
+    // predicate. Pin so the F5b refactor doesn't leak the new key
+    // into the original shape.
+    let src = "#[cfg(feature = \"x\")]\n#[cfg(not(feature = \"x\"))]\nfn f() {}\n";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert_eq!(findings.len(), 1);
+    assert_eq!(
+        findings[0].evidence.raw["contradiction_kind"], "not-pair",
+        "F5a path must keep contradiction_kind=not-pair, got {:?}",
+        findings[0].evidence.raw
+    );
+    assert_eq!(
+        findings[0].evidence.raw["inner_predicate"], "feature = \"x\"",
+        "inner_predicate must reflect the F5a shape, got {:?}",
+        findings[0].evidence.raw
+    );
+}

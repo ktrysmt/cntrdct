@@ -141,11 +141,11 @@ fn analyze_item(item: tree_sitter::Node, file: &ParsedFile) -> Option<Finding> {
         return None;
     }
 
-    let mut pairs: Vec<(usize, usize)> = Vec::new();
+    let mut pairs: Vec<(usize, usize, ContradictionKind)> = Vec::new();
     for i in 0..attrs.len() {
         for j in (i + 1)..attrs.len() {
-            if is_contradictory_pair(&attrs[i], &attrs[j]) {
-                pairs.push((i, j));
+            if let Some(kind) = classify_contradiction(&attrs[i], &attrs[j]) {
+                pairs.push((i, j, kind));
             }
         }
     }
@@ -153,14 +153,23 @@ fn analyze_item(item: tree_sitter::Node, file: &ParsedFile) -> Option<Finding> {
         return None;
     }
 
-    let (i0, j0) = pairs[0];
+    let (i0, j0, kind) = pairs[0].clone();
     let a = &attrs[i0];
     let b = &attrs[j0];
 
-    let inner_predicate = if a.is_not {
-        a.inner_canonical.clone()
-    } else {
-        b.inner_canonical.clone()
+    let inner_predicate = match &kind {
+        ContradictionKind::NotPair => {
+            if a.is_not {
+                a.inner_canonical.clone()
+            } else {
+                b.inner_canonical.clone()
+            }
+        }
+        // F5b: `cfg(true)` and `cfg(false)` are atomic primitive
+        // contradictions — there is no shared inner predicate to
+        // report, so emit a literal description for downstream
+        // consumers and the SARIF message.
+        ContradictionKind::TrueFalse => "true vs false".to_string(),
     };
 
     let primary = node_location(file, item);
@@ -172,20 +181,26 @@ fn analyze_item(item: tree_sitter::Node, file: &ParsedFile) -> Option<Finding> {
     let attribute_lines = vec![a.location.0, b.location.0];
     let additional_pairs = pairs.len() - 1;
 
+    let message = match &kind {
+        ContradictionKind::NotPair => format!(
+            "item carries cfg pair `cfg({pred})` and `cfg(not({pred}))` — unsatisfiable under any configuration",
+            pred = inner_predicate
+        ),
+        ContradictionKind::TrueFalse => "item carries cfg pair `cfg(true)` and `cfg(false)` — unsatisfiable under any configuration".to_string(),
+    };
+
     Some(Finding {
         detector_id: "config-interaction".to_string(),
         primary,
         related,
-        message: format!(
-            "item carries cfg pair `cfg({pred})` and `cfg(not({pred}))` — unsatisfiable under any configuration",
-            pred = inner_predicate
-        ),
+        message,
         raw_severity: Severity::Warning,
         anomaly_class: AnomalyClass::Logic,
         evidence: Evidence {
             citation_keys: vec!["tartler-eurosys-2011", "nadi-icse-2014"],
             raw: serde_json::json!({
                 "inner_predicate": inner_predicate,
+                "contradiction_kind": kind.as_str(),
                 "attribute_lines": attribute_lines,
                 "additional_pairs": additional_pairs,
             }),
@@ -317,14 +332,54 @@ fn canonicalize(s: &str) -> String {
     out
 }
 
-fn is_contradictory_pair(a: &CfgAttr, b: &CfgAttr) -> bool {
+/// F5 classification: kind of structural contradiction between two
+/// cfg attributes attached to the same item. `NotPair` is the v0
+/// `not(X)` vs `X` shape (F5a). `TrueFalse` is the F5b primitive-
+/// constant pair: `cfg(true)` and `cfg(false)` are unsatisfiable
+/// together because no configuration can make a literal `false`
+/// hold while a literal `true` also holds (the AND is the literal
+/// `false`).
+#[derive(Debug, Clone)]
+enum ContradictionKind {
+    NotPair,
+    TrueFalse,
+}
+
+impl ContradictionKind {
+    fn as_str(&self) -> &'static str {
+        match self {
+            ContradictionKind::NotPair => "not-pair",
+            ContradictionKind::TrueFalse => "true-false",
+        }
+    }
+}
+
+fn classify_contradiction(a: &CfgAttr, b: &CfgAttr) -> Option<ContradictionKind> {
+    // F5a (original): one predicate is `not(X)` and the other is
+    // structurally equal to `X`.
     if a.is_not && !b.is_not && a.inner_canonical == b.canonical {
-        return true;
+        return Some(ContradictionKind::NotPair);
     }
     if b.is_not && !a.is_not && b.inner_canonical == a.canonical {
-        return true;
+        return Some(ContradictionKind::NotPair);
     }
-    false
+    // F5b (added 2026-05-21): primitive `true` paired with `false`.
+    // rustc's `cfg.attr.duplicates` reference behaviour treats two
+    // cfg attributes as conjunctive — `#[cfg(true)] #[cfg(false)]`
+    // means `cfg(true) AND cfg(false)`, which simplifies to
+    // `cfg(false)` and disables the item under every configuration.
+    // The shape is structurally NOT a `not(X) / X` pair, so the v0
+    // F5a check missed it (audit-corpus rustc_ui_both_true_false.rs
+    // lines 11 and 15). The primitive atoms are syntactically
+    // contradictory; no further reasoning is needed.
+    let primitive_pair = matches!(
+        (a.canonical.as_str(), b.canonical.as_str()),
+        ("true", "false") | ("false", "true")
+    );
+    if primitive_pair {
+        return Some(ContradictionKind::TrueFalse);
+    }
+    None
 }
 
 fn node_location(file: &ParsedFile, node: tree_sitter::Node) -> Location {
