@@ -177,10 +177,44 @@ fn run_pipeline(
         .collect()
 }
 
+/// F5b prefix-name match floor: the shorter name must be at least
+/// this many characters before a prefix match counts. Single- and
+/// two-letter abbreviations (`a`, `b`, `s`, `d`) are too noisy to
+/// prefix-match safely — `a` would otherwise prefix-match `alpha`,
+/// `apple`, `args`, etc.
+pub const PREFIX_MATCH_MIN_CHARS: usize = 3;
+
+/// True iff `a` and `b` agree case-insensitively under either strict
+/// equality (F5a) or strict prefix containment (F5b). The shorter
+/// name must be at least `PREFIX_MATCH_MIN_CHARS` characters long
+/// before prefix matching counts. Equal-length names that differ in
+/// any position never prefix-match (they would otherwise produce
+/// spurious matches between sibling identifiers of the same length).
+fn name_matches(a: &str, b: &str) -> bool {
+    if a == b {
+        return true;
+    }
+    if a.len() == b.len() {
+        return false;
+    }
+    let (short, long) = if a.len() < b.len() { (a, b) } else { (b, a) };
+    short.len() >= PREFIX_MATCH_MIN_CHARS && long.starts_with(short)
+}
+
 /// Apply the swap rule (F5 from the spec): the argument identifier
 /// multiset must be the reverse permutation of the parameter name
 /// multiset, case-insensitively. The detector skips identity matches
 /// where caller used the same names in the same order.
+///
+/// F5b (added 2026-05-21): the per-position name match accepts a
+/// strict prefix in either direction once the shorter side is
+/// `PREFIX_MATCH_MIN_CHARS` characters or longer. The Rice et al.
+/// ICSE 2017 detector — already cited as `rice-icse-2017` — uses
+/// abbreviation-aware matching to catch swaps like `set_attrs(dst,
+/// inf)` against `set_attrs(info, dstfn)` (audit-corpus
+/// `rarfile_set_attrs.py:14`). The strict path (F5a) and the prefix
+/// path (F5b) are tagged on `evidence.raw.match_kind` so downstream
+/// calibration can stratify priors.
 fn check_swap(
     call: &CallSite,
     defs_by_name: &HashMap<String, Vec<FnDef>>,
@@ -202,10 +236,15 @@ fn check_swap(
     let p0 = def.params[0].to_lowercase();
     let p1 = def.params[1].to_lowercase();
 
-    let identity = a0 == p0 && a1 == p1;
-    let swapped = a0 == p1 && a1 == p0;
+    let identity = name_matches(&a0, &p0) && name_matches(&a1, &p1);
+    let swapped = name_matches(&a0, &p1) && name_matches(&a1, &p0);
 
     if swapped && !identity {
+        let match_kind = if a0 == p1 && a1 == p0 {
+            "strict"
+        } else {
+            "prefix"
+        };
         Some(Finding {
             detector_id: "arg-swap".to_string(),
             primary: call.location.clone(),
@@ -222,6 +261,7 @@ fn check_swap(
                     "callee": call.callee,
                     "parameter_names": def.params.clone(),
                     "argument_names": call.args.clone(),
+                    "match_kind": match_kind,
                 }),
                 language_citation_status: citation_status,
             },
@@ -389,18 +429,22 @@ fn extract_python_fn_defs(file: &ParsedFile) -> Option<Vec<(String, FnDef)>> {
     for child in root.children(&mut cursor) {
         match child.kind() {
             "function_definition" => {
-                if let Some(entry) = parse_python_fn_def(child, file) {
+                if let Some(entry) = parse_python_fn_def(child, file, false) {
                     defs.push(entry);
                 }
             }
             "decorated_definition" => {
-                let mut dcursor = child.walk();
-                let kids: Vec<tree_sitter::Node> = child.children(&mut dcursor).collect();
-                if let Some(fn_def) = kids.iter().find(|c| c.kind() == "function_definition") {
-                    if let Some(entry) = parse_python_fn_def(*fn_def, file) {
-                        defs.push(entry);
-                    }
+                if let Some(entry) = parse_python_decorated_def(child, file, false) {
+                    defs.push(entry);
                 }
+            }
+            // F4b (added 2026-05-21): walk into class_definition bodies
+            // so methods become candidates for swap resolution. Methods
+            // are parsed with `is_method = true`; the `self` parameter
+            // is filtered out before arity checks so a 2-positional
+            // method matches the existing 2-arg call shape.
+            "class_definition" => {
+                collect_python_class_methods(child, file, &mut defs);
             }
             _ => {}
         }
@@ -408,13 +452,56 @@ fn extract_python_fn_defs(file: &ParsedFile) -> Option<Vec<(String, FnDef)>> {
     Some(defs)
 }
 
-fn parse_python_fn_def(node: tree_sitter::Node, file: &ParsedFile) -> Option<(String, FnDef)> {
+fn collect_python_class_methods(
+    class_node: tree_sitter::Node,
+    file: &ParsedFile,
+    defs: &mut Vec<(String, FnDef)>,
+) {
+    let Some(body) = class_node.child_by_field_name("body") else {
+        return;
+    };
+    let mut cursor = body.walk();
+    for child in body.children(&mut cursor) {
+        match child.kind() {
+            "function_definition" => {
+                if let Some(entry) = parse_python_fn_def(child, file, true) {
+                    defs.push(entry);
+                }
+            }
+            "decorated_definition" => {
+                if let Some(entry) = parse_python_decorated_def(child, file, true) {
+                    defs.push(entry);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn parse_python_decorated_def(
+    decorated: tree_sitter::Node,
+    file: &ParsedFile,
+    is_method: bool,
+) -> Option<(String, FnDef)> {
+    let mut cursor = decorated.walk();
+    let fn_def = decorated
+        .children(&mut cursor)
+        .find(|c| c.kind() == "function_definition")?;
+    parse_python_fn_def(fn_def, file, is_method)
+}
+
+fn parse_python_fn_def(
+    node: tree_sitter::Node,
+    file: &ParsedFile,
+    is_method: bool,
+) -> Option<(String, FnDef)> {
     let name_node = node.child_by_field_name("name")?;
     let name = node_text(name_node, &file.source);
 
     let params_node = node.child_by_field_name("parameters")?;
     let mut params: Vec<String> = Vec::new();
     let mut cursor = params_node.walk();
+    let mut first = true;
     for child in params_node.children(&mut cursor) {
         if !child.is_named() {
             continue;
@@ -432,6 +519,15 @@ fn parse_python_fn_def(node: tree_sitter::Node, file: &ParsedFile) -> Option<(St
             // silently producing a wrong arity match.
             _ => return None,
         };
+        // F4b: drop the implicit `self` (or `cls`) receiver of a
+        // class method before applying the `_`-prefix rejection rule.
+        // A leading `self`/`cls` is a Python convention — not a real
+        // semantic parameter for swap analysis.
+        if is_method && first && matches!(param_name.as_str(), "self" | "cls") {
+            first = false;
+            continue;
+        }
+        first = false;
         if param_name.starts_with('_') {
             return None;
         }
@@ -477,10 +573,19 @@ fn walk_python_for_calls(node: tree_sitter::Node, file: &ParsedFile, out: &mut V
 
 fn parse_python_call(node: tree_sitter::Node, file: &ParsedFile) -> Option<CallSite> {
     let function = node.child_by_field_name("function")?;
-    if function.kind() != "identifier" {
-        return None;
-    }
-    let callee = node_text(function, &file.source);
+    // F3b (added 2026-05-21): accept `self.<name>(...)` and
+    // `cls.<name>(...)` method calls in addition to bare-identifier
+    // calls. The receiver name is dropped; the attribute's
+    // identifier becomes the callee, mirroring how the method is
+    // registered in the per-file definition table under F4b.
+    // Deeper attribute access (`self.x.y(...)`, `obj.foo(...)`) is
+    // still out of v0 scope — only the single-segment `self.foo` /
+    // `cls.foo` shapes are admitted.
+    let callee = match function.kind() {
+        "identifier" => node_text(function, &file.source),
+        "attribute" => python_self_method_name(function, &file.source)?,
+        _ => return None,
+    };
 
     let arguments = node.child_by_field_name("arguments")?;
     let mut args = Vec::new();
@@ -504,6 +609,21 @@ fn parse_python_call(node: tree_sitter::Node, file: &ParsedFile) -> Option<CallS
         args,
         location: node_location(file, node),
     })
+}
+
+/// Extract the method name from a `self.<name>` or `cls.<name>`
+/// attribute node, or return None for any other receiver shape.
+fn python_self_method_name(attribute: tree_sitter::Node, source: &str) -> Option<String> {
+    let object = attribute.child_by_field_name("object")?;
+    let attr = attribute.child_by_field_name("attribute")?;
+    if object.kind() != "identifier" || attr.kind() != "identifier" {
+        return None;
+    }
+    let receiver = node_text(object, source);
+    if receiver != "self" && receiver != "cls" {
+        return None;
+    }
+    Some(node_text(attr, source))
 }
 
 // ---------- Shared helpers ----------

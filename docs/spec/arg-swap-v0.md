@@ -43,15 +43,29 @@ Skip definitions that:
 
 ### F3 — Call-site extraction
 
-Walk all `call_expression` nodes whose function operand is a single
-`identifier` (qualified paths and method calls are out of scope). Record:
+Walk all `call_expression` (Rust) and `call` (Python) nodes whose
+function operand is a single `identifier` and whose argument list
+contains only bare identifier arguments. Record:
 - callee name
-- argument list as a vector of `Option<String>` (Some(name) if the argument
-  is a simple identifier, None otherwise)
+- argument list as a vector of identifier names (in declaration order)
 - argument count
 - location
 
-Skip calls where any argument is `None` (non-identifier).
+Skip calls where any argument is non-identifier (keyword args,
+splats, literals, nested calls).
+
+### F3b — Method calls on `self` / `cls` (added 2026-05-21)
+
+In Python, the function operand may also be an `attribute` node of
+the shape `self.<name>` or `cls.<name>`. The attribute's identifier
+becomes the callee, mirroring how the corresponding method is
+registered in the per-file definition table (F4b). Deeper attribute
+chains (`obj.foo`, `self.x.y`) remain out of v0 scope — resolving the
+receiver type requires flow analysis. In Rust, method calls
+(`obj.method(args)`) are still skipped: tree-sitter-rust's
+`method_call_expression` is a distinct node kind from
+`call_expression` and Rust's UFCS/trait-resolution adds further
+ambiguity.
 
 ### F4 — Resolution
 
@@ -60,14 +74,38 @@ For each call site, look up its callee name in the per-file definition table.
   use it.
 - If zero or more than one match, skip.
 
+### F4b — Class methods (added 2026-05-21)
+
+In Python, walk into every `class_definition` body and register its
+`function_definition` (and `decorated_definition`-wrapped) methods
+under their bare name. The implicit `self` or `cls` receiver is the
+first parameter of any method per Python convention; F4b drops it
+before the `_`-prefix rejection rule (F2) and the arity check (F4),
+so a method declared `def foo(self, a, b):` registers with two
+parameters `[a, b]` and matches the same call shape that F3b
+accepts via `self.foo(args)`.
+
 ### F5 — Swap detection
 
 Given a 2-arg call to a 2-arg definition:
 - Let `(a0, a1)` = call argument names (lowercased).
 - Let `(p0, p1)` = parameter names (lowercased).
-- The call is **swapped** iff `a0 == p1 && a1 == p0` AND NOT
-  (`a0 == p0 && a1 == p1`). The second clause excludes cases where the user
-  used the same names in the same order.
+- Define `name_matches(a, b)` = either `a == b` (F5a strict path)
+  or one of `a` / `b` is a strict prefix of the other AND the
+  shorter side is at least `PREFIX_MATCH_MIN_CHARS = 3` characters
+  long (F5b prefix path). Equal-length distinct names never match.
+- The call is **identity** iff `name_matches(a0, p0) AND
+  name_matches(a1, p1)`.
+- The call is **swapped** iff `name_matches(a0, p1) AND
+  name_matches(a1, p0) AND NOT identity`.
+
+F5b is added 2026-05-21. The matching kind that produced the
+swap is recorded as `evidence.raw.match_kind = "strict"` for F5a
+or `"prefix"` for F5b. The Rice et al. ICSE 2017 detector — already
+cited as `rice-icse-2017` — uses abbreviation-aware matching to
+recover swaps where the call site abbreviates the parameter name
+(`dst` against `dstfn`, `inf` against `info`, the audit-corpus
+`rarfile_set_attrs.py:14` shape).
 
 ### F6 — Finding shape
 
@@ -126,14 +164,22 @@ Files that fail to parse are skipped silently in v0.
 | T9 | T1 fixture run twice | identical output |
 | T10 | empty input | 0 Findings, no error |
 | T11 | def + call in different files (same scan) | 1 Finding (cross-file resolution within scan) |
+| T25 | Python class method declared with `self`, called via `self.copy(src, dst)` | 1 Finding, `match_kind = "strict"` (F3b + F4b) |
+| T26 | rarfile shape: `self._set_attrs(dst, inf)` against `def _set_attrs(self, info, dstfn)` | 1 Finding, `match_kind = "prefix"` (F5b) |
+| T27 | call `copy(s, d)` against def `copy(dst, src)` (single-letter args) | 0 Findings (F5b prefix floor) |
+| T28 | call `copy(tar, src)` against def `copy(target_buf, source_buf)` (identity by prefix) | 0 Findings (F5b identity precedence) |
+| T29 | classmethod with `cls` receiver | 1 Finding (F4b drops `cls` like `self`) |
 
 ## Non-goals (v0)
 
 - N-ary swap detection (3+ params)
-- Method calls (`obj.method(a, b)`) and qualified paths
+- Rust method calls (`obj.method(a, b)`) and Python attribute chains
+  beyond the single-segment `self.<name>` / `cls.<name>` shape
+  admitted by F3b
 - Cross-crate / cross-module resolution beyond same scan
 - Type-aware matching (params with same type are inherently swappable)
-- Substring / fuzzy name matching
+- Fuzzy name matching beyond the strict-prefix shape admitted by F5b
+  (no Levenshtein, no edit distance, no semantic embeddings)
 
 ## References (P1)
 

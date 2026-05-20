@@ -856,6 +856,140 @@ pub fn parse_c<T: Parse>(t: TokenStream) -> Result<T> {
 }
 "#;
 
+// ---------- F2b intra-fn if-branch clone (added 2026-05-21) ----------
+
+const FN_IF_SAME_THEN_ELSE: &str = r#"
+fn case() {
+    if true {
+        let _ = Foo { bar: 42 };
+        let _ = 0..10;
+        let _ = ..;
+        let _ = 0..;
+        foo();
+        bar();
+    } else {
+        let _ = Foo { bar: 42 };
+        let _ = 0..10;
+        let _ = ..;
+        let _ = 0..;
+        foo();
+        bar();
+    }
+}
+"#;
+
+#[test]
+fn t32_f2b_intra_fn_if_branches_identical_source_fires() {
+    // F2b: clippy `if_same_then_else` shape — branches are byte-for-byte
+    // identical Rust source (modulo whitespace + comments). Mirrors the
+    // audit-corpus `clippy_ui_if_same_then_else.rs:29` expectation.
+    let files = vec![parsed("solo.rs", FN_IF_SAME_THEN_ELSE)];
+    let findings = run(files);
+    assert_eq!(
+        findings.len(),
+        1,
+        "F2b: identical-source if-branches must fire, got {:#?}",
+        findings
+    );
+    let raw = &findings[0].evidence.raw;
+    assert_eq!(
+        raw["kind"], "intra-fn-if-same-then-else",
+        "F2b emission must carry kind=intra-fn-if-same-then-else, got {raw}"
+    );
+}
+
+const FN_IF_TYPE_2_VARIANT: &str = r#"
+fn case() {
+    if cond {
+        let _ = self.i.next();
+        let _ = self.i.peek();
+        let _ = self.i.collect::<Vec<_>>();
+        return self.i.first();
+    } else {
+        let _ = self.j.next();
+        let _ = self.j.peek();
+        let _ = self.j.collect::<Vec<_>>();
+        return self.j.first();
+    }
+}
+"#;
+
+#[test]
+fn t33_f2b_does_not_fire_on_type2_identifier_variant() {
+    // F2b uses source-text equality, NOT normalised-token equality.
+    // Type-2 clones (same shape, different identifiers) are the
+    // canonical fan-out-by-argument pattern in real Rust code
+    // (itertools, regex_syntax, object on the wild β corpus); a
+    // normalised-token comparison would have produced 20 FPs there.
+    let files = vec![parsed("itertools.rs", FN_IF_TYPE_2_VARIANT)];
+    let findings = run(files);
+    assert!(
+        findings.is_empty(),
+        "F2b: Type-2 identifier variant must not fire, got {:#?}",
+        findings
+    );
+}
+
+const FN_IF_TINY_IDENTICAL: &str = r#"
+fn case() -> u32 {
+    if cond { 42 } else { 42 }
+}
+"#;
+
+#[test]
+fn t34_f2b_below_min_tokens_does_not_fire() {
+    // `if c { 42 } else { 42 }` normalises to ~7 tokens per branch
+    // — well below INTRA_FN_IF_MIN_TOKENS. Stylistic placeholders
+    // at this size are common (clippy itself sometimes warns at a
+    // smaller token threshold; cntrdct stays conservative for v0).
+    let files = vec![parsed("tiny.rs", FN_IF_TINY_IDENTICAL)];
+    let findings = run(files);
+    assert!(
+        findings.is_empty(),
+        "F2b: branches below INTRA_FN_IF_MIN_TOKENS must not fire, got {:#?}",
+        findings
+    );
+}
+
+const FN_ELSE_IF_CHAIN: &str = r#"
+fn case(x: u32) {
+    if x == 0 {
+        let _ = Foo { bar: 42 };
+        let _ = 0..10;
+        let _ = ..;
+        foo();
+        bar();
+    } else if x == 1 {
+        let _ = Foo { bar: 42 };
+        let _ = 0..10;
+        let _ = ..;
+        foo();
+        bar();
+    } else {
+        baz();
+    }
+}
+"#;
+
+#[test]
+fn t35_f2b_else_if_chain_outer_pair_does_not_fire() {
+    // F2b only fires when the `alternative` is a flat `else { block }`.
+    // An `else if ...` chain has another if_expression as the
+    // alternative; the inner if (with its own else-block) is checked
+    // recursively by the walker, but the OUTER pair (consequence vs
+    // else-if alternative) does not compare apples-to-apples.
+    let files = vec![parsed("chain.rs", FN_ELSE_IF_CHAIN)];
+    let findings = run(files);
+    // The inner if (`x == 1 { ... } else { baz(); }`) has
+    // dissimilar branches, so no F2b finding. The outer pair is not
+    // compared because the alternative is not a block.
+    assert!(
+        findings.is_empty(),
+        "F2b: outer pair of else-if chain must not fire, got {:#?}",
+        findings
+    );
+}
+
 #[test]
 fn t31_no_drift_on_small_cluster_floor() {
     // F5d-iii: a cluster at exactly MIN_GROUP_SIZE whose dominant

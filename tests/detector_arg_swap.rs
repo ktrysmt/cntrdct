@@ -395,14 +395,17 @@ fn t20_python_async_def_resolves() {
 }
 
 #[test]
-fn t21_python_class_method_not_top_level_skipped() {
-    // v0 only inspects module-top-level def. Methods inside a class body
-    // are not collected as definitions and so cannot resolve calls.
+fn t21_python_instance_variable_method_call_skipped() {
+    // F3b accepts `self.foo` / `cls.foo` receivers only. An arbitrary
+    // instance-variable call site (`c.copy(...)`) lacks the static
+    // hint that the receiver is the same class as the method's
+    // defining class — flow analysis to recover the type of `c` is
+    // out of v0 scope, so the call is conservatively skipped.
     let src = "class C:\n    def copy(self, dst, src):\n        return dst + src\n\ndef driver():\n    c = C()\n    dst = 1\n    src = 2\n    _ = c.copy(src, dst)\n";
     let findings = run(vec![parsed_python("a.py", src)]);
     assert!(
         findings.is_empty(),
-        "method calls and class bodies are out of v0 scope, got {:#?}",
+        "non-self/cls method receivers must stay out of v0 scope, got {:#?}",
         findings
     );
 }
@@ -484,6 +487,96 @@ fn caller() {
         .evidence
         .citation_keys
         .contains(&"allamanis-neurips-2021"));
+}
+
+// ---------- F3b / F4b / F5b lifts (added 2026-05-21) ----------
+
+#[test]
+fn t25_f4b_class_method_with_self_receiver_resolves() {
+    // F4b: methods declared inside a `class_definition` are now
+    // registered as defs with the leading `self` dropped, so a
+    // 2-positional method matches the 2-arg call shape. The call
+    // uses the `self.` receiver (F3b), and the args/params are an
+    // exact swap permutation — F5a strict path.
+    let src = "class C:\n    def copy(self, dst, src):\n        return dst + src\n    def driver(self):\n        dst = 1\n        src = 2\n        return self.copy(src, dst)\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "F4b: class method with self.X call must fire, got {:#?}",
+        findings
+    );
+    assert_eq!(
+        findings[0].evidence.raw["match_kind"], "strict",
+        "strict swap must report match_kind=strict, got {:?}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t26_f5b_prefix_match_swap_fires() {
+    // F5b: `self._set_attrs(dst, inf)` against `_set_attrs(self,
+    // info, dstfn)`. The arg names are not equal to the param
+    // names, but `dst` is a strict prefix of `dstfn` and `inf` of
+    // `info`, and the prefix-matching is a swap permutation. This
+    // mirrors the audit-corpus rarfile_set_attrs.py:14 shape that
+    // the PyPIBugs paper labels as ArgSwap.
+    let src = "class RarFile:\n    def _set_attrs(self, info, dstfn):\n        return None\n    def extract(self, dirs):\n        for dst, inf in dirs:\n            self._set_attrs(dst, inf)\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "F5b: prefix-match swap must fire on rarfile shape, got {:#?}",
+        findings
+    );
+    assert_eq!(
+        findings[0].evidence.raw["match_kind"], "prefix",
+        "prefix swap must report match_kind=prefix, got {:?}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t27_f5b_prefix_floor_rejects_short_names() {
+    // F5b requires the shorter name to be at least
+    // PREFIX_MATCH_MIN_CHARS (3) characters. `s` prefixing `src`
+    // is below the floor — no match — so the heuristic does not
+    // fire on toy one-letter abbreviations.
+    let src = "def copy(dst, src):\n    return dst + src\n\ndef driver():\n    d = 1\n    s = 2\n    _ = copy(s, d)\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert!(
+        findings.is_empty(),
+        "F5b: short-name prefix must not fire, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t28_f5b_prefix_match_no_false_positive_on_identity() {
+    // Both args prefix-match the corresponding params in order
+    // (`tar` ⊂ `target_buf`, `src` ⊂ `source_buf`) — identity, not
+    // a swap. Must not emit.
+    let src = "def copy(target_buf, source_buf):\n    return target_buf + source_buf\n\ndef driver():\n    tar = 1\n    src = 2\n    _ = copy(tar, src)\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert!(
+        findings.is_empty(),
+        "F5b: identity-by-prefix must not fire, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t29_f4b_cls_receiver_resolves() {
+    // F4b also drops the conventional `cls` receiver for
+    // classmethod-style defs.
+    let src = "class C:\n    @classmethod\n    def copy(cls, dst, src):\n        return dst + src\n    @classmethod\n    def driver(cls):\n        dst = 1\n        src = 2\n        return cls.copy(src, dst)\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "F4b: cls receiver swap must fire, got {:#?}",
+        findings
+    );
 }
 
 #[test]

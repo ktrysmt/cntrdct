@@ -89,10 +89,22 @@ byte-equal.
 
 For each item with two or more cfg attributes whose predicates are kept
 under F3, perform pairwise comparison. Two predicates `a` and `b` are a
-contradictory pair iff exactly one of:
+contradictory pair iff one of:
 
-- `a` is of the form `not(X)` and `X` is structurally equal to `b`, or
-- `b` is of the form `not(X)` and `X` is structurally equal to `a`.
+(F5a) `a` is of the form `not(X)` and `X` is structurally equal to `b`,
+or `b` is of the form `not(X)` and `X` is structurally equal to `a`.
+The shared inner predicate `X` is reported as
+`evidence.raw.inner_predicate` and the kind is `not-pair`.
+
+(F5b — added 2026-05-21) one predicate canonicalises to `true` and the
+other canonicalises to `false`. Multiple cfg attributes on a single
+item compose conjunctively per rustc's `cfg.attr.duplicates` reference
+behaviour, so `#[cfg(true)] #[cfg(false)]` reduces to
+`cfg(true) AND cfg(false) = cfg(false)` and the item is disabled under
+every configuration. Reported as `contradiction_kind = true-false` with
+`inner_predicate = "true vs false"`. Surface for the rustc UI test
+`tests/ui/cfg/both-true-false.rs` (audit-corpus
+`rustc_ui_both_true_false.rs` lines 11 and 15).
 
 Self-symmetric pairs (where both are `not(X)` of each other) cannot
 arise — `not(not(X))` differs syntactically from `X` and is therefore
@@ -173,6 +185,10 @@ cfg attribute are skipped without finding.
 | T12 | `cfg_attr(unix, cfg(not(unix)))` (cfg_attr nested) | 0 Findings (cfg_attr out of scope) |
 | T13 | item with three contradictory cfg attributes (`P`, `not(P)`, `not(P)`) | 1 Finding, `additional_pairs == 1` |
 | T14 | every Finding sets `anomaly_class = Logic` |  |
+| T15 | `#[cfg(false)] #[cfg(true)] fn f() {}` | 1 Finding, `contradiction_kind == "true-false"` (F5b) |
+| T16 | `#[cfg(true)] #[cfg(false)] fn f() {}` (order reversed) | 1 Finding (F5b is symmetric) |
+| T17 | single `#[cfg(true)] fn f() {}` or single `#[cfg(false)]` | 0 Findings (≥ 2 attrs required, F5 surface unchanged) |
+| T18 | existing F5a fixture | `contradiction_kind == "not-pair"` (F5b refactor must not leak into F5a evidence) |
 
 ## Non-goals (v0)
 

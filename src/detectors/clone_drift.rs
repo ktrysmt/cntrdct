@@ -197,6 +197,16 @@ impl Detector for CloneDrift {
                 "assi-tosem-2025",
             ],
         ));
+        // F2b: intra-fn if-then-else branch clone detection. The
+        // function-level pipeline above operates on top-level `fn`
+        // items only (granularity locked by F2). F2b runs in parallel
+        // and surfaces if-expressions whose `consequence` and
+        // `alternative` blocks normalise to identical token
+        // sequences. This is the same Type-1 / Type-2 clone signal
+        // applied at sub-function granularity — NiCad (Cordy-Roy
+        // ICPC 2008) defines clone detection at "function or
+        // fragment" granularity, so the citation set is unchanged.
+        findings.extend(run_intra_fn_if_clones_rust(ctx));
 
         findings.sort_by(|a, b| {
             a.primary
@@ -749,6 +759,197 @@ fn cluster(fns: &[FnInfo]) -> Vec<Vec<usize>> {
     }
     result.sort();
     result
+}
+
+// ---------- F2b intra-fn if-branch clone detection (added 2026-05-21) ----------
+
+/// Minimum normalised-token count for one branch of an if/else before
+/// F2b will emit. Bodies smaller than this are too noisy to act on
+/// — `if c { 0 } else { 0 }` is a stylistic placeholder, not a copy-
+/// paste duplicate. The 22-token floor matches the function-level
+/// `MIN_FN_TOKENS` so trivially-small block expressions are filtered
+/// out under both pipelines.
+pub const INTRA_FN_IF_MIN_TOKENS: usize = 22;
+
+fn run_intra_fn_if_clones_rust(ctx: &DetectContext) -> Vec<Finding> {
+    ctx.files
+        .par_iter()
+        .filter(|f| f.language == Language::Rust)
+        .flat_map_iter(|file| {
+            let mut local = Vec::new();
+            scan_rust_for_if_branch_clones(file, &mut local);
+            local
+        })
+        .collect()
+}
+
+fn scan_rust_for_if_branch_clones(file: &ParsedFile, findings: &mut Vec<Finding>) {
+    let mut parser = tree_sitter::Parser::new();
+    let lang = crate::parsers::parser_for(Language::Rust).ts_language();
+    if parser.set_language(&lang).is_err() {
+        return;
+    }
+    let Some(tree) = parser.parse(&file.source, None) else {
+        return;
+    };
+    let root = tree.root_node();
+    if root.has_error() {
+        return;
+    }
+    walk_rust_for_if_branches(root, file, findings);
+}
+
+fn walk_rust_for_if_branches(
+    node: tree_sitter::Node,
+    file: &ParsedFile,
+    findings: &mut Vec<Finding>,
+) {
+    if node.kind() == "if_expression" {
+        if let Some(f) = analyze_if_branches_rust(node, file) {
+            findings.push(f);
+        }
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        walk_rust_for_if_branches(child, file, findings);
+    }
+}
+
+fn analyze_if_branches_rust(if_expr: tree_sitter::Node, file: &ParsedFile) -> Option<Finding> {
+    let consequence = if_expr.child_by_field_name("consequence")?;
+    let alternative = if_expr.child_by_field_name("alternative")?;
+    // F2b only fires on a flat if / else — chained `else if` (where
+    // alternative is another `if_expression`) is out of scope for v0.
+    // The walker recurses into the inner if so a clone-pair within
+    // that nested branch still surfaces.
+    let alt_block = find_else_block_rust(alternative)?;
+    if consequence.kind() != "block" || alt_block.kind() != "block" {
+        return None;
+    }
+
+    // Size gate uses the function-level normalised-token count so the
+    // floor lines up with `MIN_FN_TOKENS` / `INTRA_FN_IF_MIN_TOKENS`.
+    let conseq_normalized = normalize_rust(consequence);
+    if conseq_normalized.len() < INTRA_FN_IF_MIN_TOKENS {
+        return None;
+    }
+
+    // Equality gate uses source-text comparison after whitespace and
+    // comment normalisation rather than normalised-token equality.
+    // Type-2 clones (same AST shape, different identifiers) are
+    // intentional in real code: `if c { foo(self.i) } else {
+    // foo(self.j) }` is the canonical fan-out-by-argument pattern,
+    // not a copy-paste bug. clippy's `if_same_then_else` agrees that
+    // identifiers must match, and the wild-corpus β scan with token-
+    // normalised comparison produced 20 such intentional-fan-out FPs
+    // (itertools, regex_syntax, object, ...). Strict source equality
+    // collapses those FPs to zero while still flagging the clippy
+    // ui-test trigger sites (audit-corpus
+    // clippy_ui_if_same_then_else.rs#L25 = line 29).
+    let conseq_src = normalize_block_source(consequence, &file.source)?;
+    let alt_src = normalize_block_source(alt_block, &file.source)?;
+    if conseq_src != alt_src {
+        return None;
+    }
+
+    let primary = node_location(file, if_expr);
+    let related = vec![
+        node_location(file, consequence),
+        node_location(file, alt_block),
+    ];
+
+    Some(Finding {
+        detector_id: "clone-drift".to_string(),
+        primary,
+        related,
+        message: format!(
+            "if-then-else branches contain identical source ({} tokens) — likely a copy-paste duplicate",
+            conseq_normalized.len()
+        ),
+        raw_severity: Severity::Warning,
+        anomaly_class: AnomalyClass::Logic,
+        evidence: Evidence {
+            citation_keys: vec![
+                "cordy-roy-icpc-2008",
+                "bettenburg-msr-2009",
+                "krinke-icsm-2007",
+            ],
+            raw: serde_json::json!({
+                "kind": "intra-fn-if-same-then-else",
+                "branch_token_count": conseq_normalized.len(),
+                "intra_fn_if_min_tokens": INTRA_FN_IF_MIN_TOKENS,
+            }),
+            language_citation_status: LanguageCitationStatus::Confirmed,
+        },
+    })
+}
+
+/// Source-text normalisation used by F2b: strip line and block
+/// comments, collapse internal whitespace runs to a single space,
+/// trim leading and trailing whitespace. Two blocks normalising to
+/// the same string are byte-for-byte identical Rust source modulo
+/// formatting and commentary.
+fn normalize_block_source(block: tree_sitter::Node, source: &str) -> Option<String> {
+    let text = block.utf8_text(source.as_bytes()).ok()?;
+    let mut out = String::with_capacity(text.len());
+    let mut prev_space = true;
+    let mut iter = text.chars().peekable();
+    while let Some(c) = iter.next() {
+        if c == '/' && iter.peek() == Some(&'/') {
+            // Line comment — consume to end of line.
+            while let Some(&n) = iter.peek() {
+                if n == '\n' {
+                    break;
+                }
+                iter.next();
+            }
+            continue;
+        }
+        if c == '/' && iter.peek() == Some(&'*') {
+            // Block comment — consume until matching `*/` (single
+            // nesting level; nested block comments are vanishingly
+            // rare and out of scope for v0).
+            iter.next();
+            while let Some(n) = iter.next() {
+                if n == '*' && iter.peek() == Some(&'/') {
+                    iter.next();
+                    break;
+                }
+            }
+            continue;
+        }
+        if c.is_whitespace() {
+            if !prev_space {
+                out.push(' ');
+                prev_space = true;
+            }
+        } else {
+            out.push(c);
+            prev_space = false;
+        }
+    }
+    let trimmed = out.trim().to_string();
+    Some(trimmed)
+}
+
+fn find_else_block_rust(alternative: tree_sitter::Node) -> Option<tree_sitter::Node> {
+    // `alternative` is an `else_clause` wrapping either a `block` (the
+    // `else { ... }` shape) or an `if_expression` (`else if ...`).
+    let mut cursor = alternative.walk();
+    for child in alternative.children(&mut cursor) {
+        if !child.is_named() {
+            continue;
+        }
+        if child.kind() == "block" {
+            return Some(child);
+        }
+        // else-if recurses through the outer walker; do NOT treat the
+        // nested if as the alt body for the surrounding pair.
+        if child.kind() == "if_expression" {
+            return None;
+        }
+    }
+    None
 }
 
 fn partition(group: &[usize], fns: &[FnInfo]) -> Vec<Vec<usize>> {
