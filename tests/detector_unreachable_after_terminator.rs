@@ -613,3 +613,142 @@ fn t28_rust_findings_remain_confirmed() {
         );
     }
 }
+
+// ---------- F4d compound divergence (added 2026-05-21) ----------
+
+#[test]
+fn t40_f4d_i_branch_merge_if_else_both_return() {
+    // F4d-i: an if/else where every branch ends with a divergent
+    // expression is itself a terminator. The statement that follows
+    // in the enclosing block is unreachable. Mirrors the rustc
+    // ui-test `expr_if.rs#L27` shape (audit-corpus line 29 expected).
+    let src = "fn f() { if true { return; } else { return; } bar(); }";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "F4d-i: bar() after if-else where both branches return must fire, got {:#?}",
+        findings
+    );
+    assert_eq!(
+        findings[0].evidence.raw["terminator_kind"], "if-branches-diverge",
+        "expected if-branches-diverge terminator kind, got {:?}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t41_f4d_i_branch_merge_if_else_no_alternative_does_not_fire() {
+    // F4d-i requires an explicit else branch — `if cond { return; }`
+    // alone is conditional and does NOT diverge.
+    let src = "fn f() { if true { return; } bar(); }";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert!(
+        findings.is_empty(),
+        "F4d-i: if without else must not fire, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t42_f4d_i_branch_merge_match_all_arms_return() {
+    // F4d-i extension: a match where every arm's body diverges is a
+    // terminator. The statement that follows is unreachable.
+    let src = "fn f(x: u32) { match x { 0 => return, 1 => return, _ => return } bar(); }";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "F4d-i: bar() after exhaustive divergent match must fire, got {:#?}",
+        findings
+    );
+    assert_eq!(
+        findings[0].evidence.raw["terminator_kind"], "match-arms-diverge",
+        "expected match-arms-diverge, got {:?}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t43_f4d_i_branch_merge_match_one_arm_falls_through_does_not_fire() {
+    // One non-divergent arm is enough for the match to NOT be a
+    // terminator under F4d-i — the value flows out of that arm.
+    let src = "fn f(x: u32) -> u32 { match x { 0 => return 0, _ => 1 }; bar(); 0 }";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert!(
+        findings.is_empty(),
+        "F4d-i: match with a non-divergent arm must not fire, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t44_f4d_ii_call_with_divergent_arg_then_arg() {
+    // F4d-ii: arguments evaluate left-to-right. A `return` in an
+    // earlier argument renders subsequent arguments unreachable.
+    // Mirrors rustc ui-test `expr_call.rs#L13` (audit-corpus line 15).
+    let src = "fn foo(_x: !, _y: usize) {}\nfn a() { foo(return, 22); }";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.evidence.raw["terminator_kind"] == "return"),
+        "F4d-ii: foo(return, 22) must emit on the trailing argument, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t45_f4d_ii_call_with_only_divergent_arg() {
+    // F4d-ii: when the divergent argument is the last/only one, the
+    // call itself never invokes — flag the call expression.
+    // Mirrors rustc ui-test `expr_call.rs#L18` (audit-corpus line 20).
+    let src = "fn bar(_x: !) {}\nfn b() { bar(return); }";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert!(
+        !findings.is_empty(),
+        "F4d-ii: bar(return) must emit on the call, got nothing"
+    );
+}
+
+#[test]
+fn t46_f4d_iii_return_with_divergent_block_value() {
+    // F4d-iii: `return EXPR` where EXPR evaluation diverges. The
+    // outer return is itself unreachable because EXPR never produces
+    // a value. Mirrors rustc ui-test `expr_return.rs#L10` (audit-
+    // corpus line 12: nested return-block).
+    let src = "fn a() { let _x: () = { return { return; } }; }";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert!(
+        !findings.is_empty(),
+        "F4d-iii: return with divergent value must fire, got nothing"
+    );
+}
+
+#[test]
+fn t47_f4d_iv_if_condition_diverges() {
+    // F4d-iv: `if {return} { ... }` — the if-condition is a block
+    // that diverges. The consequence block is unreachable because the
+    // condition never produces a value. Mirrors rustc ui-test
+    // `expr_if.rs#L7` (audit-corpus line 9).
+    let src = "fn foo() { if { return } { bar(); } }";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert!(
+        !findings.is_empty(),
+        "F4d-iv: divergent if-condition must flag the consequence, got nothing"
+    );
+}
+
+#[test]
+fn t48_f4d_does_not_regress_loop_without_break() {
+    // Spec non-goal: `loop { ... }` without `break` requires control-
+    // flow analysis. F4d must not silently widen into the loop case;
+    // a future spec extension will preregister the lift explicitly.
+    let src = "fn a() { loop { return; } bar(); }";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert!(
+        findings.is_empty(),
+        "F4d non-goal: loop-without-break must remain out of scope, got {:#?}",
+        findings
+    );
+}
