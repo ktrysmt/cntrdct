@@ -42,3 +42,4 @@
 # Reference
 
 - [FAQ](./faq.md)
+- [Releases and versioning](./releases.md)
