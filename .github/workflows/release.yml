@@ -53,13 +53,19 @@ jobs:
         if: matrix.use_cross
         run: cargo install --locked cross
 
+      # The `lsp` feature pulls tokio + tower-lsp so the `cntrdct-lsp`
+      # binary (gated by `required-features = ["lsp"]` in Cargo.toml) is
+      # built and shipped alongside `cntrdct` and `cargo-cntrdct`. The lsp
+      # module itself is `#[cfg(feature = "lsp")]` so the regular
+      # binaries do not pull the tokio runtime into their image.
+      # Prerequisite for T3-12 Phase 2 (vscode-cntrdct extension).
       - name: build (cargo)
         if: ${{ !matrix.use_cross }}
-        run: cargo build --release -p cntrdct --target ${{ matrix.target }}
+        run: cargo build --release -p cntrdct --features lsp --target ${{ matrix.target }}
 
       - name: build (cross)
         if: matrix.use_cross
-        run: cross build --release -p cntrdct --target ${{ matrix.target }}
+        run: cross build --release -p cntrdct --features lsp --target ${{ matrix.target }}
 
       - name: package (tar.gz)
         if: matrix.archive == 'tar.gz'
@@ -70,6 +76,7 @@ jobs:
           mkdir -p "dist/${stage}"
           cp "target/${{ matrix.target }}/release/cntrdct" "dist/${stage}/"
           cp "target/${{ matrix.target }}/release/cargo-cntrdct" "dist/${stage}/"
+          cp "target/${{ matrix.target }}/release/cntrdct-lsp" "dist/${stage}/"
           cp LICENSE README.md "dist/${stage}/"
           tar -C dist -czf "dist/${stage}.tar.gz" "${stage}"
           (cd dist && shasum -a 256 "${stage}.tar.gz" > "${stage}.tar.gz.sha256")
@@ -83,6 +90,7 @@ jobs:
           New-Item -ItemType Directory -Path "dist/$stage" -Force | Out-Null
           Copy-Item "target/${{ matrix.target }}/release/cntrdct.exe" "dist/$stage/"
           Copy-Item "target/${{ matrix.target }}/release/cargo-cntrdct.exe" "dist/$stage/"
+          Copy-Item "target/${{ matrix.target }}/release/cntrdct-lsp.exe" "dist/$stage/"
           Copy-Item LICENSE,README.md "dist/$stage/"
           Compress-Archive -Path "dist/$stage" -DestinationPath "dist/$stage.zip"
           $hash = Get-FileHash "dist/$stage.zip" -Algorithm SHA256

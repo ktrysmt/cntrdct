@@ -340,9 +340,20 @@ T3-12. LSP server
   smoke test continues to pass unchanged. The error-log path
   (`window/logMessage`) is intentionally left ungated — a stale scan
   that errored out describes a real failure the user wants to see.
+- Phase 2 prereq — `cntrdct-lsp` binary shipped in release artefacts
+  (landed 2026-05-20): `.github/workflows/release.yml` builds each
+  target with `--features lsp` so the third binary
+  (`cntrdct-lsp` / `cntrdct-lsp.exe`) ships in every per-target
+  tar.gz / zip alongside `cntrdct` and `cargo-cntrdct`. The lsp
+  module stays `#[cfg(feature = "lsp")]`-gated so the regular CLI
+  binaries are unaffected by the feature toggle. The
+  `aarch64-unknown-linux-gnu` row cross-compiles via `cross build
+  --features lsp` for the first time; first end-to-end confirmation
+  arrives with the next tag push.
 - Phase 2 — `vscode-cntrdct` extension scaffolding (TypeScript /
   pnpm), bundling the LSP binary auto-downloaded from GitHub
   Releases. Separate repository under `ktrysmt/vscode-cntrdct`.
+  Pending — now unblocked by the Phase 2 prereq above.
 - Phase 3 — VS Code Marketplace listing + announcement.
 
 T3-13. mdBook user guide

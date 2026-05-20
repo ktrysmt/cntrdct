@@ -152,10 +152,22 @@ will get its own follow-up entry once v0 is in users' hands.
 3. Phase 1.c — debouncing on didChange. Landed.
 4. Phase 1.c+ — per-URI generation counter gating `publish_diagnostics`
    against late-arriving stale `spawn_blocking` scans. Landed.
-5. Phase 2 — `vscode-cntrdct` extension scaffolding (TypeScript / pnpm,
+5. Phase 2 prereq — `cntrdct-lsp` binary shipped in the release
+   artefacts. Landed: `.github/workflows/release.yml`'s `build` matrix
+   now compiles each target with `--features lsp` so the
+   `required-features = ["lsp"]` gate on the third binary is
+   satisfied, and the per-target tar.gz / zip stage directory carries
+   `cntrdct-lsp` (or `cntrdct-lsp.exe`) alongside the existing
+   `cntrdct` and `cargo-cntrdct`. The lsp module itself stays
+   `#[cfg(feature = "lsp")]`-gated so the regular CLI binaries are
+   unaffected by the feature toggle. Cross-compilation under
+   `cross build` for `aarch64-unknown-linux-gnu` is exercised in the
+   same step as the native build; first end-to-end confirmation
+   arrives with the next tag push.
+6. Phase 2 — `vscode-cntrdct` extension scaffolding (TypeScript / pnpm,
    bundled with the LSP binary auto-downloaded from GitHub Releases).
    Pending.
-6. Phase 3 — Marketplace listing. Pending.
+7. Phase 3 — Marketplace listing. Pending.
 
 Phases 1 + 1.b + 1.c + 1.c+ together are the minimum to advertise the
 LSP as "ships diagnostics inline without choking on rapid typing and
