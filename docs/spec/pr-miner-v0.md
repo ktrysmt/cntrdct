@@ -237,6 +237,79 @@ moves from 16 TP / 22 FP (`posterior_tp 0.425`) to 16 TP / 0 FP
 (`posterior_tp 0.944`, Jeffreys at n=16) — the same band as the
 other 0-FP detectors.
 
+### F4e — Python noise-filter extraction carve-outs (added 2026-05-21)
+
+The audit-corpus review against PyPIBugs-style fixtures surfaced
+two recurring Python FP shapes that are noise in the Li-Zhou §3.2
+sense — the call is syntactically present but semantically does
+NOT participate in the paired-API contract the rule encodes.
+Both carve-outs apply at extraction time (F2) so the call never
+enters `Transaction.items` for either the mining DB or the
+violation scan, mirroring how F4c handles the same class of noise
+via a stop-list rather than a post-filter.
+
+(F4e-i) Context-manager cleanup synthesis. A `call` whose
+immediate parent is a Python `with_clause` / `with_item` is the
+resource the surrounding `with` block manages. Python's
+`with EXPR as NAME:` contract guarantees that `EXPR.__exit__`
+runs at block exit; for the canonical resource pairs the
+extractor synthesises the matching cleanup identifier into
+`Transaction.items` so paired-API rules (e.g. `{open} -> {close}`,
+`{acquire} -> {release}`) are satisfied by the implicit cleanup
+without any syntactic cleanup call in the body. The pairs the
+extractor recognises in v0 are:
+
+| context-manager call head | synthesised cleanup |
+|---|---|
+| `open` | `close` |
+| `acquire` | `release` |
+
+The original `call` head is NOT dropped — the open / acquire still
+appears in `items` so a function that opens AND legitimately calls
+`close` explicitly still satisfies both directions of the rule
+(`{open} -> {close}` and `{close} -> {open}`). Earlier drafts of
+F4e-i dropped the call instead of synthesising the cleanup; that
+spec produced a new FP class on shapes like
+`with open(p) as fh: ...; fh.close()` (defensive double-close
+idiom — the function lost its `open` item and tripped the
+`{close} -> {open}` and `{write} -> {open}` rules in the
+opposite direction). The synthesise-only formulation avoids both
+the original FN and the introduced FP. Heads not on the pair list
+(generic `with` over a non-standard context manager, e.g.
+`with database_session() as session:`) leave `items` unchanged.
+
+Pinned by `audit-corpus/files/nbrmd_test_ipynb_to_R.py:21` (the
+canonical FP shape: `with open(nb_file) as fp:` with no syntactic
+`close()` in the body) and
+`audit-corpus/files/carla_import.py:161`
+(`with open(...) as fh: ...; fh.close()` — must NOT trip the
+inverse `close -> open` rule after synthesis). Both pinned by
+tests t-prm-fp-1 and t-prm-fp-4.
+
+(F4e-ii) Non-identifier-chain attribute receivers. An `attribute`
+call whose `object` is anything other than an "identifier chain"
+(a recursive `attribute(identifier_chain, identifier)` or a single
+`identifier`) is dropped. Subscript receivers (`pieces[-1].write(x)`),
+call receivers (`get_handler().write(x)`), parenthesised
+expressions and arithmetic results are all skipped — they describe
+write-like operations on transient or computed objects whose
+type the extractor cannot resolve, and conflating them with the
+file/socket/lock idioms PR-Miner is mining inflates FP rate
+without recovering any TP.
+
+Pinned by `audit-corpus/files/rosrust_genaction.py:50`
+(`parse_action_spec` calls `pieces[-1].write(l + '\n')` on
+`io.StringIO` instances; `write` here is not the file-handle
+write that the mined `write -> close` / `write -> open` rules
+target) and tests t-prm-fp-2 / t-prm-fp-3.
+
+Both carve-outs are scoped to the Python extractor. The Rust
+extractor is unaffected — its analogous patterns surface different
+empirical FP shapes (overloaded `walk` / `kind` / `filter` /
+`collect` across tree-sitter and iterator ecosystems) that need
+separate analysis and a different stop-list extension. That work
+is preregistered in `ROADMAP.md` as a follow-up to F4e.
+
 ### F5 — Finding shape
 
 For each violating function:
@@ -345,6 +418,13 @@ listed in the table refer to the rule-relevant subset, not the total.
 | T13 | mixed-language transaction database where Rust calls `lock()` and Python calls `acquire()` (different identifiers) | no spurious rule across the synonym pair |
 | T14 | violating fn is decorated with `#[cntrdct::allow(pr-miner)]` (Rust) | violation suppressed |
 | T15 | `cntrdct.toml [languages.python] suppress = ["pr-miner"]` and corpus has Python violations only | 0 Findings |
+| t-prm-fp-1 | `def f(p): with open(p) as fp: data = fp.read()` | items contain `open` AND synthesised `close` (F4e-i) |
+| t-prm-fp-2 | `def f(): pieces[-1].write(x); other_call()` | `write` dropped (F4e-ii subscript receiver); `other_call` kept |
+| t-prm-fp-3 | `def f(): get_handler().write(x)` | `get_handler` kept; `write` dropped (F4e-ii call receiver) |
+| t-prm-fp-4 | `def f(p): with open(p) as fh: fh.write(x); fh.close()` | items contain both `open` and `close` (F4e-i must not drop) |
+| t-prm-fp-5 | `def f(lock): with lock.acquire() as l: do_stuff()` | items contain `acquire` AND synthesised `release` (F4e-i) |
+| t-prm-fp-6 | `def f(): with session() as s: do_stuff()` | items contain `session`; no synthesis (head not on pair table) |
+| t-prm-fp-7 | `def f(self): self.foo.lock(x)` | items contain `lock` (F4e-ii identifier-chain receiver kept) |
 
 ## Tunable constants (v0 defaults)
 
