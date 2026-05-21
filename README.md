@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Evidence-based linter for logical contradictions and technical
-inconsistencies in Rust (and Python) code. Every finding cites the
+inconsistencies in Rust and Python code. Every finding cites the
 peer-reviewed paper that justifies the detection. Alpha; runs
 entirely offline by default.
 
@@ -129,6 +129,21 @@ upstream-commit pin, and image-digest pin live under
 With the binary on `PATH`, Claude Code users can invoke `/cntrdct` to
 run a scan and have the top findings summarised in chat
 (`.claude/skills/cntrdct/`).
+
+## Editor / LSP integration
+
+A companion `cntrdct-lsp` binary speaks the Language Server Protocol
+and publishes diagnostics on `didOpen` / `didChange` / `didSave`. The
+binary ships in the GitHub Releases archive alongside `cntrdct` and is
+built behind an optional Cargo feature for source installs:
+
+```sh
+cargo install cntrdct --features lsp
+```
+
+The VS Code extension bundling the LSP is tracked in
+[ROADMAP T3-12](ROADMAP.md). Spec:
+[`docs/spec/lsp-v0.md`](docs/spec/lsp-v0.md).
 
 ## License
 
