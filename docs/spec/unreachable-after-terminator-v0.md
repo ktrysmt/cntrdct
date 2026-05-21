@@ -189,9 +189,39 @@ block as unreachable — the condition never produces a value, so the
 body is never selected. Pinned by t47 against rustc's
 `expr_if.rs#L7` shape.
 
+(F4d-v) Loop without targeting break (added 2026-05-21). A bare
+`loop_expression` diverges when no `break_expression` in its body
+targets the same `loop_expression`. Targeting is resolved
+syntactically:
+
+- An unlabelled `break;` targets the innermost enclosing loop-like
+  construct (`loop_expression`, `while_expression`, `for_expression`).
+  It only exits the candidate `loop_expression` when no other
+  loop-like construct lies between the candidate and the break.
+- A labelled `break 'name;` targets the loop-like construct that
+  carries the same label.
+- `closure_expression` and `async_block` introduce a hard scope
+  boundary: a `break` inside one of them cannot syntactically target
+  a loop on the outside (Rust forbids it), so the walk does not
+  descend into them when computing target reachability.
+
+The classifier emits `terminator_kind = "loop-no-break"`. Examples:
+
+```rust
+loop { return; } bar();   // F4d-v: loop body diverges; bar unreachable
+'outer: loop { loop { break 'outer; } } bar();   // 0 Findings — outer has a labelled break targeting it
+loop { 'middle: loop { loop { break 'middle; } } } bar();   // F4d-v: outermost has no break targeting it
+loop { break; } bar();   // 0 Findings — innermost-rule break targets self
+```
+
+Pinned by t50, t51, t52, t53 against rustc's `expr_loop.rs#L7,L17,L29`
+shapes. The F4d non-goal for `loop { ... }` no-break (formerly t48) is
+retired by F4d-v; the equivalent assertion now lives at t50 with the
+opposite expected count.
+
 ### Divergent-expression classifier
 
-F4d-i / F4d-ii / F4d-iii / F4d-iv share a single recursive
+F4d-i / F4d-ii / F4d-iii / F4d-iv / F4d-v share a single recursive
 classifier `rust_expression_diverges(expr) -> Option<terminator_kind>`:
 
 - `return_expression` / `break_expression` / `continue_expression`
@@ -204,23 +234,84 @@ classifier `rust_expression_diverges(expr) -> Option<terminator_kind>`:
   alternative diverge).
 - `match_expression` diverges iff every arm's value expression
   diverges.
+- `loop_expression` diverges iff F4d-v fires (no `break` in the body
+  targets this loop).
 
 Recursion follows the finite AST hierarchy and always terminates.
 
-### F4d non-goals (preregistered)
+### F4e — Python constant-condition branch (added 2026-05-21)
+
+Python's audit-corpus FN review against CodeQL's `UnreachableCode`
+query test fixture (`codeql_python_unreachable_test.py`) showed four
+expected findings that the AST-local F3 walker cannot reach because
+they require evaluating the branch condition at parse time, not
+following a terminator:
+
+- `while False:` or `while 0:` — the body is unreachable.
+- `if False: BODY` — `BODY` is unreachable; any `elif` / `else`
+  branches remain reachable.
+- `if True: BODY else: OTHER` — `OTHER` is unreachable; subsequent
+  `elif` arms (which are syntactic sugar for a nested `else: if`) are
+  also unreachable, but `BODY` is reachable.
+
+The constant-condition classifier `python_constant_condition(node)`
+recognises a closed set of literal forms in v0:
+
+- `false` and `true` (the `False` / `True` keyword tokens).
+- `integer` literal whose numeric text is exactly `0` (falsy) or any
+  non-zero integer (truthy).
+- `none` (the `None` keyword; falsy).
+- `string` whose surface text (with surrounding quotes stripped) is
+  empty (`""` / `''`; falsy).
+
+All other expression shapes — identifier references, attribute access,
+calls, arithmetic, parenthesised expressions, conjunctions —
+fall back to "indeterminate" and produce no F4e finding. Constant
+folding of `not False`, `0 == 0`, `True and True`, container literals
+(`[]`, `{}`, `()`, `set()`), and the `while 0.0:` / `if None:` float
+shape are explicit non-goals.
+
+F4e fires emit `terminator_kind = "constant-false-while"`,
+`"constant-false-if"`, or `"constant-true-if-else"` (so calibration
+priors can stratify by sub-rule) and carry the original `if` / `while`
+keyword node as the related location. Pinned by t55 - t59 against the
+CodeQL fixture shapes.
+
+F4e carve-outs (matching CodeQL's UnreachableCode test fixture
+explicit non-findings, `codeql_python_unreachable_test.py` lines
+96-97 and 114-116):
+
+- Type-checking import guard. `if False:` is silently treated as a
+  non-finding when its block contains only `import_statement`,
+  `import_from_statement`, or `future_import_statement` named
+  children. This is the pre-PEP-484 fallback for the modern
+  `if typing.TYPE_CHECKING:` idiom and produces no runtime code; the
+  body is unreachable by design.
+- Generator-marker idiom. `if False:` is silently treated as a
+  non-finding when its block contains exactly one statement whose
+  inner expression is a `yield` (`yield_expression`). The idiom
+  forces the surrounding `def` to be a generator function without
+  ever executing the yield (CodeQL `ODASA-6783`).
+
+Both carve-outs apply only to the F4e-ii (`constant-false-if`)
+sub-rule; the F4e-i (`constant-false-while`) and F4e-iii
+(`constant-true-if-else`) sub-rules never short-circuit.
+
+### F4d / F4e non-goals (preregistered)
 
 The following remain explicit non-goals; lifting them requires a
 separate spec extension with its own corpus pre-registration:
 
-- `loop { ... }` whose body never executes `break` (control-flow
-  analysis required; pinned by t48).
-- `while cond { ... }` where `cond` is a constant true (constant
-  folding required).
-- Python `while False:` / `if False:` / `if True:` constant-condition
-  branches (CodeQL Python test cases — see
-  `benchmarks/audit-corpus/manifest.jsonl` note).
-- Python `except` handler reachability based on the exception type.
+- `while cond { ... }` (Rust) where `cond` is a constant true
+  (constant folding for Rust expressions; spec-mirror of F4e but on
+  the Rust side).
+- Python `except` handler reachability based on the exception type
+  (requires class-hierarchy and raise-set analysis).
 - Macro argument re-parsing (`panic!(return, x)` etc.).
+- Python `while 0.0:` / `while None:` / `while []:` /
+  `while "":` constant-falsy shapes beyond the four literal kinds
+  named in F4e (integer / boolean / `None` / empty string). Reserved
+  for a v1 widening once the FP rate of v0 F4e is measured.
 
 ### F5 — Finding shape
 
@@ -316,7 +407,18 @@ Functions / blocks consisting solely of attributes are skipped.
 | T45 | `bar(return)` | 1 Finding on the call (F4d-ii: only-arg divergent, call never invokes) |
 | T46 | `let _x: () = { return { return; } };` | ≥ 1 Finding on the outer return (F4d-iii: nested return) |
 | T47 | `if { return } { bar(); }` | ≥ 1 Finding on the consequence block (F4d-iv: divergent condition) |
-| T48 | `loop { return; } bar();` | 0 Findings (non-goal: loop without break stays unhandled) |
+| T50 | `loop { return; } bar();` | 1 Finding on `bar()`, terminator_kind = `loop-no-break` (F4d-v: retires T48) |
+| T51 | `loop { break; } bar();` | 0 Findings (F4d-v: innermost-rule break exits the loop) |
+| T52 | `'outer: loop { loop { break 'outer; } } bar();` | 0 Findings (F4d-v: outer has a labelled break targeting it) |
+| T53 | `loop { 'middle: loop { loop { break 'middle; } } } bar();` | 1 Finding, terminator_kind = `loop-no-break` (outer has no targeting break) |
+| T54 | closure inside loop with bare `break;`: `loop { let _c = || { loop { break; } }; } bar();` | ≥ 1 Finding (F4d-v: closures are a hard break-target boundary) |
+| T55 | `def f(): while False: x = 1` | 1 Finding on `x = 1`, terminator_kind = `constant-false-while` (F4e-i) |
+| T56 | `def f(): while 0: x = 1` | 1 Finding, terminator_kind = `constant-false-while` |
+| T57 | `def f(): if False: x = 1` | 1 Finding on `x = 1`, terminator_kind = `constant-false-if` (F4e-ii) |
+| T58 | `def f(): if True: x = 1 else: y = 2` | 1 Finding on `y = 2`, terminator_kind = `constant-true-if-else` (F4e-iii) |
+| T59 | `if False: from typing import Any` | 0 Findings (F4e-ii carve-out: type-check import idiom) |
+| T60 | `def gen(): if False: yield None` | 0 Findings (F4e-ii carve-out: generator-marker idiom, CodeQL ODASA-6783) |
+| T61 | `def f(x): if x: a = 1 else: b = 2` | 0 Findings (F4e silent for non-literal conditions) |
 
 ## Tunable constants (v0 defaults)
 
@@ -328,9 +430,11 @@ Exposed as `pub const` for visibility; not user-tunable from CLI in v0.
 ## Non-goals (v0)
 
 - Inter-procedural reachability (e.g. helper functions that always panic)
-- `loop { ... }` without `break` (control-flow analysis required)
-- Constant-condition branches (`while 0:`, `if False:`, `if True:` in
-  Python; same shape in Rust). Constant folding is out of scope.
+- Rust-side `while cond { ... }` constant folding (constant-folding for
+  Rust expressions is preregistered separately; F4d-v handles only the
+  bare `loop { ... }` shape).
+- Python `except` handler reachability based on the exception type
+  (requires class-hierarchy and raise-set analysis).
 - Cross-language: only Rust in v0 (mirrors clone-drift / arg-swap /
   comment-code)
 - Attribute parsing beyond substring match

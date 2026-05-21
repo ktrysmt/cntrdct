@@ -149,6 +149,12 @@ fn walk_rust(node: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Find
     if node.kind() == "if_expression" {
         analyze_rust_if_condition(node, file, findings);
     }
+    // Closure bodies and async blocks introduce a hard break-target
+    // boundary (Rust forbids `break` from escaping them). Descend for
+    // the other rules — F4d-i / ii / iii / iv still apply inside —
+    // but stop recursion here so the outer `walk_rust` continues with
+    // unchanged scope; the break-target search inside F4d-v handles
+    // the boundary itself via `rust_has_break_targeting_self`.
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         walk_rust(child, file, findings);
@@ -296,6 +302,11 @@ fn rust_terminator_kind(stmt: tree_sitter::Node, source: &str) -> Option<&'stati
         // unreachable.
         "if_expression" => rust_if_all_branches_diverge(inner, source),
         "match_expression" => rust_match_all_arms_diverge(inner, source),
+        // F4d-v: a bare `loop { ... }` whose body never `break`s out
+        // of it diverges — the loop never terminates, so any statement
+        // following the loop in the enclosing block is unreachable.
+        // The targeting analysis lives in `rust_loop_diverges`.
+        "loop_expression" => rust_loop_diverges(inner, source),
         _ => None,
     }
 }
@@ -317,6 +328,7 @@ fn rust_expression_diverges(expr: tree_sitter::Node, source: &str) -> Option<&'s
         "block" => rust_block_diverges(expr, source),
         "if_expression" => rust_if_all_branches_diverge(expr, source),
         "match_expression" => rust_match_all_arms_diverge(expr, source),
+        "loop_expression" => rust_loop_diverges(expr, source),
         _ => None,
     }
 }
@@ -385,6 +397,113 @@ fn rust_match_all_arms_diverge(
         rust_expression_diverges(value, source)?;
     }
     Some("match-arms-diverge")
+}
+
+/// F4d-v: a `loop_expression` diverges iff no `break_expression`
+/// inside its body targets this same loop. The targeting analysis
+/// resolves labelled `break 'name` against the loop's own label and
+/// unlabelled `break` against the innermost enclosing loop-like
+/// construct (`loop_expression` / `while_expression` / `for_expression`).
+fn rust_loop_diverges(loop_node: tree_sitter::Node, source: &str) -> Option<&'static str> {
+    let body = rust_loop_body(loop_node)?;
+    let self_label = rust_loop_label(loop_node, source);
+    if rust_has_break_targeting_self(body, self_label.as_deref(), 0, source) {
+        None
+    } else {
+        Some("loop-no-break")
+    }
+}
+
+/// Locate a `loop_expression`'s body block. tree-sitter-rust does not
+/// expose a `body` field for `loop_expression`, so iterate children
+/// and pick the first `block`.
+fn rust_loop_body(loop_node: tree_sitter::Node) -> Option<tree_sitter::Node> {
+    let mut cursor = loop_node.walk();
+    let found = loop_node
+        .children(&mut cursor)
+        .find(|c| c.kind() == "block");
+    found
+}
+
+/// Return the bare identifier name of a `loop_expression`'s label
+/// (e.g. `'outer` -> `"outer"`), or `None` for an unlabelled loop.
+/// The `label` child node has the shape `label { identifier }`.
+fn rust_loop_label(loop_node: tree_sitter::Node, source: &str) -> Option<String> {
+    rust_label_identifier(loop_node, source)
+}
+
+/// Return the target identifier of a `break_expression`'s label
+/// (e.g. `break 'outer` -> `"outer"`), or `None` for an unlabelled
+/// break.
+fn rust_break_label(break_node: tree_sitter::Node, source: &str) -> Option<String> {
+    rust_label_identifier(break_node, source)
+}
+
+fn rust_label_identifier(parent: tree_sitter::Node, source: &str) -> Option<String> {
+    let mut cursor = parent.walk();
+    for child in parent.children(&mut cursor) {
+        if child.kind() != "label" {
+            continue;
+        }
+        let mut inner = child.walk();
+        for inner_child in child.children(&mut inner) {
+            if inner_child.kind() == "identifier" {
+                return inner_child
+                    .utf8_text(source.as_bytes())
+                    .ok()
+                    .map(str::to_owned);
+            }
+        }
+    }
+    None
+}
+
+/// True iff a `break_expression` exists inside `node` whose target is
+/// the loop that owns `self_label`. `nesting_depth` counts the number
+/// of loop-like ancestors between `node` and the candidate loop:
+/// an unlabelled `break` only targets the candidate when `nesting_depth
+/// == 0`. `closure_expression` and `async_block` are not descended
+/// into — Rust forbids `break` from escaping either, so any break
+/// inside them cannot target an outer loop.
+fn rust_has_break_targeting_self(
+    node: tree_sitter::Node,
+    self_label: Option<&str>,
+    nesting_depth: u32,
+    source: &str,
+) -> bool {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        let kind = child.kind();
+        if matches!(kind, "closure_expression" | "async_block") {
+            continue;
+        }
+        if kind == "break_expression" {
+            match rust_break_label(child, source) {
+                Some(target) => {
+                    if Some(target.as_str()) == self_label {
+                        return true;
+                    }
+                }
+                None => {
+                    if nesting_depth == 0 {
+                        return true;
+                    }
+                }
+            }
+        }
+        let new_depth = if matches!(
+            kind,
+            "loop_expression" | "while_expression" | "for_expression"
+        ) {
+            nesting_depth + 1
+        } else {
+            nesting_depth
+        };
+        if rust_has_break_targeting_self(child, self_label, new_depth, source) {
+            return true;
+        }
+    }
+    false
 }
 
 // ---------- F4d-ii / F4d-iii / F4d-iv emission helpers ----------
@@ -558,6 +677,19 @@ fn walk_python(node: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Fi
     if node.kind() == "block" {
         analyze_python_block(node, file, findings);
     }
+    // F4e: constant-condition `if` / `while` branch reachability.
+    // CodeQL's `UnreachableCode` query flags the body of
+    // `while False:` / `while 0:` and the unreachable arm of
+    // `if False: ... else: ...` / `if True: ... else: ...`. The
+    // classifier `python_constant_condition` recognises only the
+    // four literal forms named in F4e (bool / integer / None /
+    // empty string); other shapes fall back to indeterminate.
+    if node.kind() == "while_statement" {
+        analyze_python_while_constant(node, file, findings);
+    }
+    if node.kind() == "if_statement" {
+        analyze_python_if_constant(node, file, findings);
+    }
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         walk_python(child, file, findings);
@@ -648,6 +780,217 @@ fn python_exit_call_kind(call: tree_sitter::Node, source: &str) -> Option<&'stat
         .iter()
         .copied()
         .find(|&name| name == normalized)
+}
+
+/// F4e classifier — evaluate the truthiness of a Python condition
+/// expression at parse time. Returns `Some(true)` for truthy
+/// constants, `Some(false)` for falsy constants, and `None` for any
+/// expression that is not a recognised literal (identifier, call,
+/// boolean operator, parenthesised expression, etc. all return
+/// `None`). v0 recognises four literal forms:
+///
+/// - `false` / `true` keyword tokens.
+/// - `integer` literal whose text parses to exactly `0` (falsy) or
+///   any other integer (truthy). Hex, binary, octal forms are NOT
+///   accepted in v0; only base-10 `0` is recognised as falsy.
+/// - `none` keyword token (falsy).
+/// - `string` whose surface text contains no characters between its
+///   delimiters (falsy). Triple-quoted and prefixed strings (`b""`,
+///   `r""`, `f""`) are also accepted at the kind level; the inner
+///   emptiness check is identical.
+fn python_constant_condition(node: tree_sitter::Node, source: &str) -> Option<bool> {
+    match node.kind() {
+        "false" => Some(false),
+        "true" => Some(true),
+        "none" => Some(false),
+        "integer" => {
+            let text = node.utf8_text(source.as_bytes()).ok()?;
+            // Base-10 only: `0`, `00`, etc. produce falsy; non-zero
+            // integers produce truthy. Hex / binary / octal literals
+            // (`0x0`, `0b0`, `0o0`) are explicitly excluded in v0.
+            let trimmed = text.trim();
+            if trimmed.starts_with("0x")
+                || trimmed.starts_with("0X")
+                || trimmed.starts_with("0b")
+                || trimmed.starts_with("0B")
+                || trimmed.starts_with("0o")
+                || trimmed.starts_with("0O")
+            {
+                return None;
+            }
+            let value: i128 = trimmed.replace('_', "").parse().ok()?;
+            Some(value != 0)
+        }
+        "string" => {
+            // tree-sitter-python `string` wraps `string_start`,
+            // optional `string_content`, and `string_end`. Empty iff
+            // the only named children are start/end (no content).
+            let mut cursor = node.walk();
+            let has_content = node
+                .children(&mut cursor)
+                .any(|c| c.kind() == "string_content");
+            Some(has_content)
+        }
+        _ => None,
+    }
+}
+
+fn analyze_python_while_constant(
+    while_node: tree_sitter::Node,
+    file: &ParsedFile,
+    findings: &mut Vec<Finding>,
+) {
+    let mut cursor = while_node.walk();
+    let mut named = while_node.children(&mut cursor).filter(|c| c.is_named());
+    let condition = match named.next() {
+        Some(n) => n,
+        None => return,
+    };
+    if let Some(false) = python_constant_condition(condition, &file.source) {
+        let body = match while_node.child_by_field_name("body") {
+            Some(b) => b,
+            None => return,
+        };
+        let first_stmt = first_named_stmt_in_python_block(body);
+        if let Some(stmt) = first_stmt {
+            findings.push(build_finding(
+                file,
+                stmt,
+                condition,
+                "constant-false-while",
+                1,
+                LanguageCitationStatus::Unconfirmed,
+            ));
+        }
+    }
+}
+
+fn analyze_python_if_constant(
+    if_node: tree_sitter::Node,
+    file: &ParsedFile,
+    findings: &mut Vec<Finding>,
+) {
+    let if_children: Vec<tree_sitter::Node> = {
+        let mut cursor = if_node.walk();
+        if_node.children(&mut cursor).collect()
+    };
+    let condition = if_children.iter().find(|c| c.is_named()).copied();
+    let Some(condition) = condition else {
+        return;
+    };
+    let cond_value = python_constant_condition(condition, &file.source);
+    let Some(cond_value) = cond_value else {
+        return;
+    };
+
+    let consequence = match if_node.child_by_field_name("consequence") {
+        Some(b) => b,
+        None => return,
+    };
+    let else_clause = if_children
+        .iter()
+        .find(|c| c.kind() == "else_clause")
+        .copied();
+
+    if !cond_value {
+        // F4e-ii: `if False:` consequence is unreachable. Two carve-
+        // outs match CodeQL's UnreachableCode fixture explicit non-
+        // findings: (a) type-checking import guards
+        // (`if False: from X import Y`) and (b) the generator-marker
+        // idiom (`if False: yield ...`). Both produce no runtime code
+        // and are deliberate by-design rather than bugs.
+        if python_if_false_body_is_carveout(consequence) {
+            return;
+        }
+        if let Some(stmt) = first_named_stmt_in_python_block(consequence) {
+            findings.push(build_finding(
+                file,
+                stmt,
+                condition,
+                "constant-false-if",
+                1,
+                LanguageCitationStatus::Unconfirmed,
+            ));
+        }
+    } else if let Some(else_clause) = else_clause {
+        // F4e-iii: `if True: ... else: <unreachable>`. The else_clause
+        // wraps a block child whose first statement is the unreachable
+        // entry. `elif` branches under a truthy `if` are also
+        // unreachable but they parse as `elif_clause` siblings of the
+        // else; v0 reports only the immediate `else_clause` body to
+        // keep the FP surface narrow. Multi-branch widening is a v1
+        // non-goal.
+        let else_children: Vec<tree_sitter::Node> = {
+            let mut inner = else_clause.walk();
+            else_clause.children(&mut inner).collect()
+        };
+        let block = else_children.iter().find(|c| c.kind() == "block").copied();
+        if let Some(block) = block {
+            if let Some(stmt) = first_named_stmt_in_python_block(block) {
+                findings.push(build_finding(
+                    file,
+                    stmt,
+                    condition,
+                    "constant-true-if-else",
+                    1,
+                    LanguageCitationStatus::Unconfirmed,
+                ));
+            }
+        }
+    }
+}
+
+fn first_named_stmt_in_python_block(block: tree_sitter::Node) -> Option<tree_sitter::Node> {
+    let mut cursor = block.walk();
+    let found = block
+        .children(&mut cursor)
+        .find(|c| c.is_named() && c.kind() != "comment");
+    found
+}
+
+/// F4e-ii carve-outs. True when every non-comment statement in the
+/// `if False:` body is one of the recognised idiomatic shapes:
+///
+/// - `import_statement` / `import_from_statement` /
+///   `future_import_statement` — type-checking import guards
+///   (pre-`typing.TYPE_CHECKING` fallback). All statements must be
+///   imports; a mixed body (e.g. `if False: import x; print(1)`)
+///   does NOT match.
+/// - A single statement whose inner expression is `yield_expression`
+///   — the generator-marker idiom (CodeQL ODASA-6783). Multiple
+///   yield statements still match as long as every statement in the
+///   body is a yield expression statement.
+///
+/// Returns false if the body is empty.
+fn python_if_false_body_is_carveout(block: tree_sitter::Node) -> bool {
+    let stmts: Vec<tree_sitter::Node> = {
+        let mut cursor = block.walk();
+        block
+            .children(&mut cursor)
+            .filter(|c| c.is_named() && c.kind() != "comment")
+            .collect()
+    };
+    if stmts.is_empty() {
+        return false;
+    }
+    let all_imports = stmts.iter().all(|s| {
+        matches!(
+            s.kind(),
+            "import_statement" | "import_from_statement" | "future_import_statement"
+        )
+    });
+    if all_imports {
+        return true;
+    }
+    let all_yields = stmts.iter().all(|s| {
+        if s.kind() != "expression_statement" {
+            return false;
+        }
+        let mut inner_cursor = s.walk();
+        let inner = s.children(&mut inner_cursor).find(|c| c.is_named());
+        matches!(inner.map(|n| n.kind()), Some("yield"))
+    });
+    all_yields
 }
 
 // ---------- Shared finding construction ----------

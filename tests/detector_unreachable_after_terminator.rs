@@ -739,16 +739,200 @@ fn t47_f4d_iv_if_condition_diverges() {
     );
 }
 
+// ---------- F4d-v: loop without targeting break (added 2026-05-21) ----------
+
 #[test]
-fn t48_f4d_does_not_regress_loop_without_break() {
-    // Spec non-goal: `loop { ... }` without `break` requires control-
-    // flow analysis. F4d must not silently widen into the loop case;
-    // a future spec extension will preregister the lift explicitly.
+fn t50_f4d_v_loop_with_return_flags_following_stmt() {
+    // F4d-v retires the former t48 non-goal. A bare `loop { return; }`
+    // diverges (the loop has no break targeting it), so the following
+    // statement is unreachable.
     let src = "fn a() { loop { return; } bar(); }";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "F4d-v: loop-with-return-no-break must flag, got {:#?}",
+        findings
+    );
+    assert_eq!(
+        findings[0].evidence.raw["terminator_kind"], "loop-no-break",
+        "got: {}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t51_f4d_v_loop_with_unlabelled_break_does_not_flag() {
+    // The break exits this same loop (innermost-rule), so the loop is
+    // reachable past its body — no F4d-v finding.
+    let src = "fn b() { loop { break; } bar(); }";
     let findings = run(vec![parsed("a.rs", src)]);
     assert!(
         findings.is_empty(),
-        "F4d non-goal: loop-without-break must remain out of scope, got {:#?}",
+        "loop with innermost break must not flag, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t52_f4d_v_labelled_break_targets_outer() {
+    // The inner `loop` has no break to itself, but the labelled break
+    // exits the outer 'outer loop. The outer loop is therefore exited
+    // by the break — no F4d-v finding on the println.
+    let src = "fn d() { 'outer: loop { loop { break 'outer; } } println!(\"alive\"); }";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert!(
+        findings.is_empty(),
+        "'outer loop has a labelled break targeting it, must not flag, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t53_f4d_v_inner_break_to_inner_label_outer_diverges() {
+    // The break targets the 'middle loop (the inner labelled one), not
+    // the outermost loop. The outermost loop therefore has no break
+    // targeting it and diverges → following println is unreachable.
+    let src = "fn e() { loop { 'middle: loop { loop { break 'middle; } } } println!(\"dead\"); }";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "outer loop without a break targeting it must flag, got {:#?}",
+        findings
+    );
+    assert_eq!(
+        findings[0].evidence.raw["terminator_kind"], "loop-no-break",
+        "got: {}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t54_f4d_v_break_inside_closure_does_not_escape() {
+    // A closure introduces a hard break-target boundary. The break
+    // inside the closure cannot target the outer `loop`, so the outer
+    // loop still has no break targeting it and diverges.
+    let src = "fn f() { loop { let _c = || { loop { break; } }; } bar(); }";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert!(
+        !findings.is_empty(),
+        "closure break boundary: outer loop must still flag, got nothing"
+    );
+    let outer_loop_flag = findings
+        .iter()
+        .any(|f| f.evidence.raw["terminator_kind"] == "loop-no-break");
+    assert!(
+        outer_loop_flag,
+        "expected a loop-no-break finding, got kinds: {:?}",
+        findings
+            .iter()
+            .map(|f| f.evidence.raw["terminator_kind"].clone())
+            .collect::<Vec<_>>()
+    );
+}
+
+// ---------- F4e: Python constant-condition branch (added 2026-05-21) ----------
+
+#[test]
+fn t55_f4e_while_false_body_unreachable() {
+    let src = "def f():\n    while False:\n        x = 1\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "F4e-i: while False body must flag, got {:#?}",
+        findings
+    );
+    assert_eq!(
+        findings[0].evidence.raw["terminator_kind"], "constant-false-while",
+        "got: {}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t56_f4e_while_zero_body_unreachable() {
+    let src = "def f():\n    while 0:\n        x = 1\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "F4e-i: while 0 body must flag, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t57_f4e_if_false_body_unreachable() {
+    let src = "def f():\n    if False:\n        x = 1\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "F4e-ii: if False body must flag, got {:#?}",
+        findings
+    );
+    assert_eq!(
+        findings[0].evidence.raw["terminator_kind"], "constant-false-if",
+        "got: {}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t58_f4e_if_true_else_body_unreachable() {
+    let src = "def f():\n    if True:\n        x = 1\n    else:\n        y = 2\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "F4e-iii: else of if True must flag, got {:#?}",
+        findings
+    );
+    assert_eq!(
+        findings[0].evidence.raw["terminator_kind"], "constant-true-if-else",
+        "got: {}",
+        findings[0].evidence.raw
+    );
+}
+
+#[test]
+fn t59_f4e_if_false_typecheck_import_carveout() {
+    // CodeQL UnreachableCode fixture explicitly does NOT flag this
+    // shape (pre-`typing.TYPE_CHECKING` idiom). cntrdct mirrors the
+    // carve-out so eval precision against the audit corpus is not
+    // dragged down by a deliberate by-design body.
+    let src = "if False:\n    from typing import Any\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert!(
+        findings.is_empty(),
+        "F4e-ii carve-out (import idiom) must not flag, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t60_f4e_if_false_generator_marker_carveout() {
+    // CodeQL ODASA-6783: `if False: yield ...` is the "this def is a
+    // generator" marker. cntrdct mirrors the carve-out.
+    let src = "def gen():\n    if False:\n        yield None\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert!(
+        findings.is_empty(),
+        "F4e-ii carve-out (generator-marker idiom) must not flag, got {:#?}",
+        findings
+    );
+}
+
+#[test]
+fn t61_f4e_indeterminate_condition_no_flag() {
+    // `if x:` where `x` is not a recognised literal must NOT trip F4e.
+    let src = "def f(x):\n    if x:\n        a = 1\n    else:\n        b = 2\n";
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert!(
+        findings.is_empty(),
+        "F4e must remain silent for non-literal conditions, got {:#?}",
         findings
     );
 }
