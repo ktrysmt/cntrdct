@@ -181,9 +181,57 @@ Files that fail to parse are skipped silently in v0.
 - Fuzzy name matching beyond the strict-prefix shape admitted by F5b
   (no Levenshtein, no edit distance, no semantic embeddings)
 
+## Name-correlation upper bound (recorded 2026-05-21)
+
+The audit corpus at `benchmarks/audit-corpus/` carries four
+expected `arg-swap` entries (one `github-commit`, three
+`paper-appendix`). cntrdct currently recovers one — the
+`rarfile_set_attrs.py:14` case — via F3b + F4b + F5b. The
+remaining three were re-examined against the cover-based checker
+described in Scott et al. ASE 2020 (SwapD, arXiv 2009.09117,
+§3.4), which is the published state-of-the-art for syntactic
+name-correlation arg-swap detection. The result is that none of
+the three FNs would be caught by SwapD either:
+
+- `unv_app_settings.py:41` — `update_dict_recur(settings,
+  base_settings)` against signature `(base_dict, override_dict)`.
+  After SwapD's intra-position common-morpheme elimination, the
+  argument morpheme set at position 0 collapses to ∅, so the
+  cover-based checker skips the call (SwapD §3.4 step 2).
+- `nbrmd_test_ipynb_to_R.py:26` — `compare_notebooks(nb1, nb2)`
+  against signature `(notebook_expected, notebook_actual)`. The
+  argument morphemes collapse to {`nb`, `nb`}; intra-position
+  elimination leaves both sides empty.
+- `totalsegmentator_statistics.py:10` —
+  `get_radiomics_features(ct_file, mask)` against signature
+  `(seg_file, img_file)`. After common-morpheme elimination the
+  surviving morphemes share no first character, so SwapD's
+  similarity metric (which is zero when first characters differ;
+  §3.2) collapses every coverage to 0 and the dual threshold
+  `(<α₁=0.5, >α₂=0.75)` cannot be satisfied.
+
+All three are genuine semantic swaps (CT vs. segmentation, base
+vs. override, expected vs. actual) that require reasoning beyond
+identifier morphology — either the Allamanis et al. NeurIPS 2021
+self-supervised PyBugLab approach (a learned graph-neural-network
+model, not a deterministic checker) or LLM adjudication. Neither
+fits Layer 1's deterministic, citation-grounded contract. The
+current `recall_upper_bound = 0.25` is therefore the
+**name-correlation ceiling** for this corpus, not a v0 scope
+choice. Closing the remaining gap is a Layer-3 architecture
+question, tracked separately in ROADMAP and not in scope for
+F5c-or-later spec amendments.
+
 ## References (P1)
 
 - `li-zhou-fse-2005` — Li & Zhou, "PR-Miner: Automatically Extracting Implicit
   Programming Rules and Detecting Violations in Large Software Code", ESEC/FSE 2005
 - `rice-icse-2017` — Rice, Aftandilian, Jaspan, Johnston, Pradel, Arroyo-Paredes,
   "Detecting Argument Selection Defects", ICSE 2017
+- `scott-ase-2020` (consulted but not added to `CITATIONS`) — Scott,
+  Ranieri, Kot, Kashyap, "Out of Sight, Out of Place: Detecting and
+  Assessing Swapped Arguments", ASE 2020 (arXiv 2009.09117). Read
+  alongside the audit-corpus FN review; SwapD's cover-based checker
+  also misses the three FN cases above, which is why the
+  name-correlation ceiling section above documents this and the
+  detector does not adopt SwapD's algorithm in v0.
