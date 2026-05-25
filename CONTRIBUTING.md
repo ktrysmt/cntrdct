@@ -111,20 +111,46 @@ flow is:
 
 ## Adding a new language to an existing detector
 
-Same flow as M-3 (see `ROADMAP.md`):
+The cntrdct rebuild (`REBUILD.md` R-1 onwards) routes all
+cross-cutting detectors through a language-agnostic IR layer
+(`src/ir.rs`). After R-1 lands in v0.6.0, adding a new language to
+every cross-cutting detector requires one parser converter plus
+corpus and survey work, not detector edits.
 
-1. Run a literature survey for the target language. Record the
-   outcome at `docs/surveys/<detector>-<lang>-<YYYY-MM>.md` whether or
-   not it produces a citation.
-2. If a qualifying citation exists, add it to `CITATIONS.md` with the
-   `Languages:` line and update the detector's `Citation` array's
-   `languages` field. The detector's findings emit
-   `LanguageCitationStatus::Confirmed` for that language.
-3. If no qualifying citation exists, point `CITATIONS.md` at the
+1. Run a literature survey for the target language for each
+   cross-cutting detector you intend to cover (arg-swap, clone-drift,
+   comment-code, pr-miner, unreachable-after-terminator). Record
+   each outcome at `docs/surveys/<detector>-<lang>-<YYYY-MM>.md`
+   whether or not the survey produces a citation.
+2. If a qualifying citation exists per `docs/spec/citations-policy.md`
+   clause (a), (b), or (c): add it to `CITATIONS.md` with the
+   `Languages:` line and update the relevant detector's `Citation`
+   array's `languages` field. Findings emit
+   `LanguageCitationStatus::Confirmed` for that (detector, language)
+   pair.
+3. If no qualifying citation exists: point `CITATIONS.md` at the
    survey via the `unconfirmed:` form. Findings emit
    `LanguageCitationStatus::Unconfirmed`.
-4. Extend `supported_languages()` and add corpus cases (≥ 8 positives,
-   ≥ 3 negatives) in the new language.
+4. Add the IR converter at `src/parsers/<lang>.rs` (tree-sitter AST
+   → `IrFile`). Add the `tree-sitter-<lang>` Cargo dependency.
+   Register the language in `src/core.rs::Language` and
+   `src/parsers/mod.rs::parser_for`.
+5. Extend each migrated detector's `supported_languages()` to
+   include the new variant.
+6. Add corpus cases (≥ 8 positives, ≥ 3 negatives) per opted-in
+   detector under `benchmarks/wild-corpus-<lang>/`.
+
+If you also want to add a language-specific detector (something
+whose concept does not transfer across languages — e.g. a Go
+build-tag interaction analogue of `config-interaction`), place it
+under `src/detectors/lang/<lang>_<id>.rs`. Language-specific
+detectors read tree-sitter ASTs directly and follow the same P1
+citation rules as cross-cutting ones.
+
+The transitional v0.5.x flow (per-detector `match Language::*` arms,
+~1500-1900 LOC per language) is retired by R-1 along with the IR
+migration. Until R-1 ships, follow the spec at
+`docs/spec/multilang-v0.md` §F6 (Pattern A).
 
 ## Citation format
 

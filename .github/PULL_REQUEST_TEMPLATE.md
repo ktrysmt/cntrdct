@@ -8,15 +8,15 @@ Append `!` for a breaking change. See CONTRIBUTING.md for the full list.
 
 ## Summary
 
-<!-- 1-3 sentences: what changes and why. Link the ROADMAP entry, issue,
-or design doc this closes. -->
+<!-- 1-3 sentences: what changes and why. Link the REBUILD.md entry
+(R-1, R-2, ...), the issue, or the design doc this closes. -->
 
 ## Checklist
 
 - [ ] Conventional Commit prefix in title and commits
 - [ ] Commits are signed off (`git commit -s`; DCO line `Signed-off-by:` present)
 - [ ] Did not stage unrelated files; staging used explicit paths, not `git add -A`
-- [ ] ROADMAP entry updated to `[x]` (or a new entry added) when this PR closes a roadmap item
+- [ ] REBUILD.md R-series entry updated to `[x]` (or a new R-entry added) when this PR closes a rebuild-plan item
 
 ## Detector / corpus changes
 
