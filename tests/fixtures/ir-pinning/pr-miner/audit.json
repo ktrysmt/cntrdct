@@ -1,0 +1,350 @@
+[
+  {
+    "finding": {
+      "detector_id": "pr-miner",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/django_mobile_setup.py",
+        "start_line": 17,
+        "start_col": 1,
+        "end_line": 21,
+        "end_col": 42
+      },
+      "related": [
+        {
+          "file": "benchmarks/audit-corpus/files/apache_ranger_tagsync_setup.py",
+          "start_line": 20,
+          "start_col": 1,
+          "end_line": 77,
+          "end_col": 12
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/apache_ranger_tagsync_setup.py",
+          "start_line": 80,
+          "start_col": 1,
+          "end_line": 86,
+          "end_col": 18
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/apache_ranger_tagsync_setup.py",
+          "start_line": 89,
+          "start_col": 1,
+          "end_line": 281,
+          "end_col": 63
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/ars0n_fire_scanner.py",
+          "start_line": 17,
+          "start_col": 1,
+          "end_line": 20,
+          "end_col": 14
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/ars0n_fire_scanner.py",
+          "start_line": 22,
+          "start_col": 1,
+          "end_line": 46,
+          "end_col": 87
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/carla_import.py",
+          "start_line": 28,
+          "start_col": 1,
+          "end_line": 81,
+          "end_col": 22
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/carla_import.py",
+          "start_line": 82,
+          "start_col": 1,
+          "end_line": 160,
+          "end_col": 18
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/carla_import.py",
+          "start_line": 161,
+          "start_col": 1,
+          "end_line": 222,
+          "end_col": 22
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/django_secure_conf.py",
+          "start_line": 8,
+          "start_col": 1,
+          "end_line": 15,
+          "end_col": 19
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/django_secure_setup.py",
+          "start_line": 15,
+          "start_col": 1,
+          "end_line": 22,
+          "end_col": 19
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/nbrmd_test_ipynb_to_R.py",
+          "start_line": 13,
+          "start_col": 1,
+          "end_line": 26,
+          "end_col": 32
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/pytago_fileloop.py",
+          "start_line": 5,
+          "start_col": 1,
+          "end_line": 17,
+          "end_col": 21
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/rosrust_genaction.py",
+          "start_line": 59,
+          "start_col": 1,
+          "end_line": 62,
+          "end_col": 14
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/rosrust_genaction.py",
+          "start_line": 64,
+          "start_col": 1,
+          "end_line": 137,
+          "end_col": 95
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/sanic_prometheus_release.py",
+          "start_line": 13,
+          "start_col": 1,
+          "end_line": 18,
+          "end_col": 19
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/sanic_prometheus_release.py",
+          "start_line": 21,
+          "start_col": 1,
+          "end_line": 36,
+          "end_col": 58
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/telluric_fitter_setup.py",
+          "start_line": 34,
+          "start_col": 1,
+          "end_line": 60,
+          "end_col": 19
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/telluric_fitter_setup.py",
+          "start_line": 64,
+          "start_col": 1,
+          "end_line": 101,
+          "end_col": 11
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/tera_docker_setup.py",
+          "start_line": 18,
+          "start_col": 1,
+          "end_line": 26,
+          "end_col": 34
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/tugraph_det_ver.py",
+          "start_line": 21,
+          "start_col": 1,
+          "end_line": 33,
+          "end_col": 14
+        }
+      ],
+      "message": "function calls open but never close; 20 of 21 similar functions (95%) call both",
+      "raw_severity": "Warning",
+      "anomaly_class": "Logic",
+      "evidence": {
+        "citation_keys": [
+          "li-zhou-fse-2005"
+        ],
+        "raw": {
+          "confidence": 0.9523809523809523,
+          "related_capped": false,
+          "rule_lhs": "open",
+          "rule_rhs": "close",
+          "support": 20,
+          "transaction_count": 59
+        },
+        "language_citation_status": "Unconfirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 20.0
+  },
+  {
+    "finding": {
+      "detector_id": "pr-miner",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/tugraph_det_ver.py",
+        "start_line": 9,
+        "start_col": 1,
+        "end_line": 19,
+        "end_col": 57
+      },
+      "related": [
+        {
+          "file": "benchmarks/audit-corpus/files/apache_ranger_tagsync_setup.py",
+          "start_line": 20,
+          "start_col": 1,
+          "end_line": 77,
+          "end_col": 12
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/apache_ranger_tagsync_setup.py",
+          "start_line": 80,
+          "start_col": 1,
+          "end_line": 86,
+          "end_col": 18
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/apache_ranger_tagsync_setup.py",
+          "start_line": 89,
+          "start_col": 1,
+          "end_line": 281,
+          "end_col": 63
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/ars0n_fire_scanner.py",
+          "start_line": 17,
+          "start_col": 1,
+          "end_line": 20,
+          "end_col": 14
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/ars0n_fire_scanner.py",
+          "start_line": 22,
+          "start_col": 1,
+          "end_line": 46,
+          "end_col": 87
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/carla_import.py",
+          "start_line": 28,
+          "start_col": 1,
+          "end_line": 81,
+          "end_col": 22
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/carla_import.py",
+          "start_line": 82,
+          "start_col": 1,
+          "end_line": 160,
+          "end_col": 18
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/carla_import.py",
+          "start_line": 161,
+          "start_col": 1,
+          "end_line": 222,
+          "end_col": 22
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/django_secure_conf.py",
+          "start_line": 8,
+          "start_col": 1,
+          "end_line": 15,
+          "end_col": 19
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/django_secure_setup.py",
+          "start_line": 15,
+          "start_col": 1,
+          "end_line": 22,
+          "end_col": 19
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/nbrmd_test_ipynb_to_R.py",
+          "start_line": 13,
+          "start_col": 1,
+          "end_line": 26,
+          "end_col": 32
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/pytago_fileloop.py",
+          "start_line": 5,
+          "start_col": 1,
+          "end_line": 17,
+          "end_col": 21
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/rosrust_genaction.py",
+          "start_line": 59,
+          "start_col": 1,
+          "end_line": 62,
+          "end_col": 14
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/rosrust_genaction.py",
+          "start_line": 64,
+          "start_col": 1,
+          "end_line": 137,
+          "end_col": 95
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/sanic_prometheus_release.py",
+          "start_line": 13,
+          "start_col": 1,
+          "end_line": 18,
+          "end_col": 19
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/sanic_prometheus_release.py",
+          "start_line": 21,
+          "start_col": 1,
+          "end_line": 36,
+          "end_col": 58
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/telluric_fitter_setup.py",
+          "start_line": 34,
+          "start_col": 1,
+          "end_line": 60,
+          "end_col": 19
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/telluric_fitter_setup.py",
+          "start_line": 64,
+          "start_col": 1,
+          "end_line": 101,
+          "end_col": 11
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/tera_docker_setup.py",
+          "start_line": 18,
+          "start_col": 1,
+          "end_line": 26,
+          "end_col": 34
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/tugraph_det_ver.py",
+          "start_line": 21,
+          "start_col": 1,
+          "end_line": 33,
+          "end_col": 14
+        }
+      ],
+      "message": "function calls open but never close; 20 of 21 similar functions (95%) call both",
+      "raw_severity": "Warning",
+      "anomaly_class": "Logic",
+      "evidence": {
+        "citation_keys": [
+          "li-zhou-fse-2005"
+        ],
+        "raw": {
+          "confidence": 0.9523809523809523,
+          "related_capped": false,
+          "rule_lhs": "open",
+          "rule_rhs": "close",
+          "support": 20,
+          "transaction_count": 59
+        },
+        "language_citation_status": "Unconfirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 20.0
+  }
+]

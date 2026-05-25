@@ -1,0 +1,1022 @@
+[
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/anycode_decode_project_path.rs",
+        "start_line": 8,
+        "start_col": 1,
+        "end_line": 29,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/azalea_legacy_blocks_motion.rs",
+        "start_line": 8,
+        "start_col": 1,
+        "end_line": 18,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/boundless_default_registry.rs",
+        "start_line": 10,
+        "start_col": 1,
+        "end_line": 23,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'may fail' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "A",
+          "trigger": "may fail"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/glium_draw_parameters_validate.rs",
+        "start_line": 6,
+        "start_col": 1,
+        "end_line": 20,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/lakefs_internal_delete_gc_rules.rs",
+        "start_line": 6,
+        "start_col": 1,
+        "end_line": 37,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/lsvine_transform_readdir.rs",
+        "start_line": 18,
+        "start_col": 1,
+        "end_line": 51,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/move_native_destroy_signer.rs",
+        "start_line": 7,
+        "start_col": 1,
+        "end_line": 16,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/nono_warn_for_deprecated_flags.rs",
+        "start_line": 10,
+        "start_col": 1,
+        "end_line": 18,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/parking_lot_core_unpark.rs",
+        "start_line": 29,
+        "start_col": 1,
+        "end_line": 92,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'panic' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "B",
+          "trigger": "panic"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/parking_lot_core_unpark.rs",
+        "start_line": 122,
+        "start_col": 1,
+        "end_line": 225,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'panic' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "B",
+          "trigger": "panic"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/pkg_config_rs_find_library.rs",
+        "start_line": 7,
+        "start_col": 1,
+        "end_line": 9,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/readur_test_app_state_legacy.rs",
+        "start_line": 7,
+        "start_col": 1,
+        "end_line": 10,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/reflex_find_ruby_gem_names.rs",
+        "start_line": 7,
+        "start_col": 1,
+        "end_line": 13,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/rust_s3_set_retries.rs",
+        "start_line": 23,
+        "start_col": 1,
+        "end_line": 25,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'may fail' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "A",
+          "trigger": "may fail"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/rusticata_tls_handshake_next_protocol.rs",
+        "start_line": 10,
+        "start_col": 1,
+        "end_line": 18,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/rusticata_tls_handshake_next_protocol.rs",
+        "start_line": 25,
+        "start_col": 1,
+        "end_line": 30,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/smolvm_export_layer.rs",
+        "start_line": 10,
+        "start_col": 1,
+        "end_line": 44,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/sui_mysten_metrics_channel.rs",
+        "start_line": 8,
+        "start_col": 1,
+        "end_line": 22,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/sui_mysten_metrics_channel.rs",
+        "start_line": 26,
+        "start_col": 1,
+        "end_line": 44,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/teensycore_write_byte.rs",
+        "start_line": 10,
+        "start_col": 1,
+        "end_line": 14,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/vcpkg_rs_probe_package.rs",
+        "start_line": 7,
+        "start_col": 1,
+        "end_line": 9,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/vortex_buffer_get_bit.rs",
+        "start_line": 11,
+        "start_col": 1,
+        "end_line": 13,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'panic' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "B",
+          "trigger": "panic"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/vst2_process_deprecated.rs",
+        "start_line": 6,
+        "start_col": 1,
+        "end_line": 6,
+        "end_col": 125
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/wasmtime_fuzz_roundtrip.rs",
+        "start_line": 13,
+        "start_col": 1,
+        "end_line": 30,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'may fail' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "A",
+          "trigger": "may fail"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/whisky_archive_constructors.rs",
+        "start_line": 68,
+        "start_col": 1,
+        "end_line": 70,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/whisky_archive_constructors.rs",
+        "start_line": 73,
+        "start_col": 1,
+        "end_line": 75,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/whisky_archive_constructors.rs",
+        "start_line": 78,
+        "start_col": 1,
+        "end_line": 80,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/whisky_archive_constructors.rs",
+        "start_line": 83,
+        "start_col": 1,
+        "end_line": 85,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'deprecated' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "C",
+          "trigger": "deprecated"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/zarrs_bitround_round_bytes.rs",
+        "start_line": 42,
+        "start_col": 1,
+        "end_line": 48,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'panic' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "B",
+          "trigger": "panic"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/zarrs_bitround_round_bytes.rs",
+        "start_line": 54,
+        "start_col": 1,
+        "end_line": 60,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'panic' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "B",
+          "trigger": "panic"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/zarrs_bitround_round_bytes.rs",
+        "start_line": 66,
+        "start_col": 1,
+        "end_line": 72,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'panic' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "B",
+          "trigger": "panic"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/zarrs_bitround_round_bytes.rs",
+        "start_line": 78,
+        "start_col": 1,
+        "end_line": 84,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'panic' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "B",
+          "trigger": "panic"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/zarrs_bitround_round_bytes.rs",
+        "start_line": 90,
+        "start_col": 1,
+        "end_line": 96,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'panic' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "B",
+          "trigger": "panic"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/zarrs_bitround_round_bytes.rs",
+        "start_line": 102,
+        "start_col": 1,
+        "end_line": 108,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'panic' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "B",
+          "trigger": "panic"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  }
+]

@@ -1,0 +1,96 @@
+[
+  {
+    "finding": {
+      "detector_id": "clone-drift",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/clippy_ui_if_same_then_else.rs",
+        "start_line": 29,
+        "start_col": 5,
+        "end_line": 45,
+        "end_col": 6
+      },
+      "related": [
+        {
+          "file": "benchmarks/audit-corpus/files/clippy_ui_if_same_then_else.rs",
+          "start_line": 29,
+          "start_col": 13,
+          "end_line": 37,
+          "end_col": 6
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/clippy_ui_if_same_then_else.rs",
+          "start_line": 37,
+          "start_col": 12,
+          "end_line": 45,
+          "end_col": 6
+        }
+      ],
+      "message": "if-then-else branches contain identical source (28 tokens) — likely a copy-paste duplicate",
+      "raw_severity": "Warning",
+      "anomaly_class": "Logic",
+      "evidence": {
+        "citation_keys": [
+          "cordy-roy-icpc-2008",
+          "bettenburg-msr-2009",
+          "krinke-icsm-2007"
+        ],
+        "raw": {
+          "branch_token_count": 28,
+          "intra_fn_if_min_tokens": 22,
+          "kind": "intra-fn-if-same-then-else"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 2.0
+  },
+  {
+    "finding": {
+      "detector_id": "clone-drift",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/clippy_ui_if_same_then_else.rs",
+        "start_line": 91,
+        "start_col": 5,
+        "end_line": 105,
+        "end_col": 6
+      },
+      "related": [
+        {
+          "file": "benchmarks/audit-corpus/files/clippy_ui_if_same_then_else.rs",
+          "start_line": 91,
+          "start_col": 13,
+          "end_line": 98,
+          "end_col": 6
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/clippy_ui_if_same_then_else.rs",
+          "start_line": 98,
+          "start_col": 12,
+          "end_line": 105,
+          "end_col": 6
+        }
+      ],
+      "message": "if-then-else branches contain identical source (22 tokens) — likely a copy-paste duplicate",
+      "raw_severity": "Warning",
+      "anomaly_class": "Logic",
+      "evidence": {
+        "citation_keys": [
+          "cordy-roy-icpc-2008",
+          "bettenburg-msr-2009",
+          "krinke-icsm-2007"
+        ],
+        "raw": {
+          "branch_token_count": 22,
+          "intra_fn_if_min_tokens": 22,
+          "kind": "intra-fn-if-same-then-else"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 2.0
+  }
+]

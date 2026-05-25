@@ -1,0 +1,62 @@
+[
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/wild-corpus/files/parking_lot_core__parking_lot.rs",
+        "start_line": 736,
+        "start_col": 1,
+        "end_line": 799,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'panic' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "B",
+          "trigger": "panic"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  },
+  {
+    "finding": {
+      "detector_id": "comment-code",
+      "primary": {
+        "file": "benchmarks/wild-corpus/files/parking_lot_core__parking_lot.rs",
+        "start_line": 892,
+        "start_col": 1,
+        "end_line": 995,
+        "end_col": 2
+      },
+      "related": [],
+      "message": "doc comment claims 'panic' but implementation does not match",
+      "raw_severity": "Note",
+      "anomaly_class": "Documentation",
+      "evidence": {
+        "citation_keys": [
+          "tan-sosp-2007",
+          "tan-pldi-2011"
+        ],
+        "raw": {
+          "pattern": "B",
+          "trigger": "panic"
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 0.0
+  }
+]

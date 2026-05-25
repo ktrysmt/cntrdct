@@ -1,0 +1,49 @@
+[
+  {
+    "finding": {
+      "detector_id": "arg-swap",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/rarfile_set_attrs.py",
+        "start_line": 14,
+        "start_col": 17,
+        "end_line": 14,
+        "end_col": 42
+      },
+      "related": [
+        {
+          "file": "benchmarks/audit-corpus/files/rarfile_set_attrs.py",
+          "start_line": 16,
+          "start_col": 5,
+          "end_line": 18,
+          "end_col": 20
+        }
+      ],
+      "message": "call argument order swapped relative to definition of `_set_attrs`",
+      "raw_severity": "Warning",
+      "anomaly_class": "Interface",
+      "evidence": {
+        "citation_keys": [
+          "li-zhou-fse-2005",
+          "rice-icse-2017",
+          "allamanis-neurips-2021"
+        ],
+        "raw": {
+          "argument_names": [
+            "dst",
+            "inf"
+          ],
+          "callee": "_set_attrs",
+          "match_kind": "prefix",
+          "parameter_names": [
+            "info",
+            "dstfn"
+          ]
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 1.0
+  }
+]
