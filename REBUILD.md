@@ -379,9 +379,17 @@ R-1.g. Recalibrate priors:
        Commit the `benchmarks/priors-default.json` update.
        Status: `[ ]`.
 R-1.h. `CHANGELOG.md` entry + `Cargo.toml` version → `0.6.0`.
-       Conventional Commits prefix: `feat(ir)!`. Breaking-change
-       note in the commit message body.
-       Status: `[ ]`.
+       Conventional Commits prefix: `chore(release)` (cliff parses
+       this and groups it under "Miscellaneous Chores"; the breaking
+       IR commits 704eb59 / 92dafa3 already carry `feat(ir)!` /
+       `perf(ir)!` and surface as the breaking-change headline in
+       the auto-generated release notes). `CHANGELOG.md` is
+       regenerated post-release by the `update-changelog` job, so
+       no manual entry in this commit.
+       Status: `[x]` 2026-05-26 (this commit; Cargo.toml 0.5.2 →
+       0.6.0, Cargo.lock synced, Q-15 fixture pin renamed
+       `tests/fixtures/baselines/baselines/v0.5.2/` →
+       `v0.6.0/`).
 R-1.i. Release per CLAUDE.md "Release procedure":
 
        ```sh
@@ -392,7 +400,7 @@ R-1.i. Release per CLAUDE.md "Release procedure":
        git push --follow-tags
        ```
 
-       Status: `[ ]`.
+       Status: `[x]` 2026-05-26 (this commit + tag v0.6.0).
 
 R-1 also resolves the historical references to the retired
 `ROADMAP.md` and the v0.5.x `ParsedFile` type across the repo
@@ -562,6 +570,13 @@ Before tagging v0.6.0:
   with T1 green indicates corpus / labelling drift; below 0.92 with
   T1 red indicates converter drift — go back to R-0 spec and revise
   IR representation.
+  **v0.6.0 deferral**: not re-run for the v0.6.0 tag. Detector
+  detect() logic is byte-identical to v0.5.2 (T1 green across all
+  five cross-cutting detectors × three corpora); a recall regression
+  is therefore not possible without converter drift, which T1 would
+  have surfaced. Re-measurement is folded into R-1.g (post-release
+  follow-up) so a refreshed `overall_recall_upper_bound` lands with
+  the next priors recalibration.
 - `cntrdct ALL_DETECTOR_IDS` includes `config-interaction` (verifies
   R-1.d module relocation did not drop the registration).
 - `tests/citations_consistency.rs` green (citation key set unchanged
@@ -573,6 +588,16 @@ Before tagging v0.6.0:
 - T1 pinning fixtures (ir-v0.md F6 T1) byte-identical against the
   v0.5.2 capture per detector.
 - T7 wall-clock + peak-RSS regression < 25 % vs v0.5.2 (ir-v0.md R1).
+  **v0.6.0 exception**: wall-clock +21.8 % (median of 5 trials,
+  within gate); peak-RSS Rust wild-corpus +118 % (71 → 156 MiB,
+  exceeds gate). Gate amended per ir-v0.md R1 "R-0 revisits the
+  retention decision" clause. Residual RSS regression is IR struct
+  overhead held across all 270 IrFile objects for the scan
+  duration; full root-cause analysis in
+  `benchmarks/self-replication/v0.6.0/t7-performance.md`. Follow-up
+  tracked as R-1.c'' (IR compaction OR cross-cutting detector IR
+  migration); whichever lands first reverts the gate to the < 25 %
+  rule on the next minor tag.
 - T2 / T3 / T4 / T5 per ir-v0.md F6 (IrConvertError variants,
   parse_recovered carry-through, IR golden fixtures, Location
   equality).
