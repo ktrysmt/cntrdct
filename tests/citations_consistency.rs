@@ -27,7 +27,7 @@ use cntrdct::core::{
 use cntrdct::detectors::arg_swap::ArgSwap;
 use cntrdct::detectors::clone_drift::CloneDrift;
 use cntrdct::detectors::comment_code::CommentCode;
-use cntrdct::detectors::config_interaction::ConfigInteraction;
+use cntrdct::detectors::lang::rust_config_interaction::ConfigInteraction;
 use cntrdct::detectors::pr_miner::PrMinerDetector;
 use cntrdct::detectors::unreachable_after_terminator::UnreachableAfterTerminator;
 

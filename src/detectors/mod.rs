@@ -4,6 +4,6 @@
 pub mod arg_swap;
 pub mod clone_drift;
 pub mod comment_code;
-pub mod config_interaction;
+pub mod lang;
 pub mod pr_miner;
 pub mod unreachable_after_terminator;

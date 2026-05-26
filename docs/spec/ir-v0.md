@@ -816,8 +816,8 @@ historical commentary in this spec survives.
 
 ### F5 — Language-specific escape hatch
 
-Detectors under `src/detectors/lang/` (the planned post-R-1 home
-for `config_interaction.rs` and the R-5 Python
+Detectors under `src/detectors/lang/` (the post-R-1 home for
+`rust_config_interaction.rs` and the planned R-5 Python
 `python_unreachable_except.rs`) implement the same `Detector` trait
 but access tree-sitter directly via the IR's retained handles:
 

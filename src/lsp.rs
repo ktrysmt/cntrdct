@@ -40,7 +40,7 @@ use crate::core::{Detector, Finding, Severity};
 use crate::detectors::arg_swap::ArgSwap;
 use crate::detectors::clone_drift::CloneDrift;
 use crate::detectors::comment_code::CommentCode;
-use crate::detectors::config_interaction::ConfigInteraction;
+use crate::detectors::lang::rust_config_interaction::ConfigInteraction;
 use crate::detectors::pr_miner::PrMinerDetector;
 use crate::detectors::unreachable_after_terminator::UnreachableAfterTerminator;
 

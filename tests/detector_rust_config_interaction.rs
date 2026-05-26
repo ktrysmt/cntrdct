@@ -9,7 +9,7 @@ use cntrdct::core::{
     register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
     Language,
 };
-use cntrdct::detectors::config_interaction::ConfigInteraction;
+use cntrdct::detectors::lang::rust_config_interaction::ConfigInteraction;
 use cntrdct::ir::IrFile;
 
 fn parsed(name: &str, src: &str) -> IrFile {

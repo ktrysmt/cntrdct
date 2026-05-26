@@ -344,8 +344,11 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
 R-1.d. `git mv src/detectors/config_interaction.rs
        src/detectors/lang/rust_config_interaction.rs` + module
        path updates + test path rewrite
-       (`tests/detector_config_interaction.rs`).
-       Status: `[ ]`.
+       (`tests/detector_config_interaction.rs` →
+       `tests/detector_rust_config_interaction.rs`).
+       Status: `[x]` 2026-05-26 (this commit; `src/detectors/lang/mod.rs`
+       added, every import site updated, T1 fixtures byte-identical,
+       `cntrdct ALL_DETECTOR_IDS` still lists `config-interaction`).
 R-1.e. Retire Q-15 baseline scaffolding:
 
        ```sh
