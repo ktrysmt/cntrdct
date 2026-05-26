@@ -32,7 +32,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::core::{Finding, Language, ParsedFile, Severity};
+use crate::core::{Finding, Language, Severity};
+use crate::ir::IrFile;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use serde::Deserialize;
 use thiserror::Error;
@@ -240,26 +241,18 @@ pub struct AttributeSuppression {
 /// - [`Language::Python`]: collect `# cntrdct: allow(...)` line
 ///   comments. See module-level docs for the trailing / standalone
 ///   semantics.
-pub fn collect_attribute_suppressions(file: &ParsedFile) -> Vec<AttributeSuppression> {
+pub fn collect_attribute_suppressions(file: &IrFile) -> Vec<AttributeSuppression> {
     match file.language {
         Language::Rust => collect_rust_suppressions(file),
         Language::Python => collect_python_suppressions(file),
     }
 }
 
-fn collect_rust_suppressions(file: &ParsedFile) -> Vec<AttributeSuppression> {
-    let mut parser = tree_sitter::Parser::new();
-    let lang = crate::parsers::parser_for(Language::Rust).ts_language();
-    if parser.set_language(&lang).is_err() {
+fn collect_rust_suppressions(file: &IrFile) -> Vec<AttributeSuppression> {
+    if file.parse_recovered {
         return vec![];
     }
-    let Some(tree) = parser.parse(&file.source, None) else {
-        return vec![];
-    };
-    let root = tree.root_node();
-    if root.has_error() {
-        return vec![];
-    }
+    let root = file.raw_tree.root_node();
 
     let mut out = Vec::new();
     let mut cursor = root.walk();
@@ -302,16 +295,8 @@ fn collect_rust_suppressions(file: &ParsedFile) -> Vec<AttributeSuppression> {
 /// Empty argument list (`# cntrdct: allow()`) is the catch-all that
 /// suppresses every detector on the suppression range, matching the
 /// Rust attribute's empty-form semantics.
-fn collect_python_suppressions(file: &ParsedFile) -> Vec<AttributeSuppression> {
-    let mut parser = tree_sitter::Parser::new();
-    let lang = crate::parsers::parser_for(Language::Python).ts_language();
-    if parser.set_language(&lang).is_err() {
-        return vec![];
-    }
-    let Some(tree) = parser.parse(&file.source, None) else {
-        return vec![];
-    };
-    let root = tree.root_node();
+fn collect_python_suppressions(file: &IrFile) -> Vec<AttributeSuppression> {
+    let root = file.raw_tree.root_node();
     // Unlike Rust's hard `has_error` bail, Python source with a single
     // misindented stretch can still carry well-formed suppression
     // comments earlier in the file. tree-sitter recovers locally;
@@ -561,7 +546,7 @@ fn node_text(node: &tree_sitter::Node, source: &str) -> String {
 /// findings in the same input order.
 pub fn apply(
     config: &Config,
-    files: &[ParsedFile],
+    files: &[IrFile],
     findings: Vec<Finding>,
 ) -> Result<Vec<Finding>, ConfigError> {
     let exclude_set = build_globset(&config.paths.exclude)?;
@@ -658,19 +643,49 @@ mod tests {
     };
     use std::path::PathBuf;
 
-    fn parsed_file(name: &str, body: &str) -> ParsedFile {
-        ParsedFile {
-            path: PathBuf::from(name),
-            language: Language::Rust,
-            source: body.to_string(),
-        }
+    fn parsed_file(name: &str, body: &str) -> IrFile {
+        build_ir_for_test(name, Language::Rust, body)
     }
 
-    fn parsed_python(name: &str, body: &str) -> ParsedFile {
-        ParsedFile {
-            path: PathBuf::from(name),
-            language: Language::Python,
-            source: body.to_string(),
+    fn parsed_python(name: &str, body: &str) -> IrFile {
+        build_ir_for_test(name, Language::Python, body)
+    }
+
+    fn build_ir_for_test(name: &str, lang: Language, body: &str) -> IrFile {
+        use std::sync::Arc;
+        let provider = crate::parsers::parser_for(lang);
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&provider.ts_language())
+            .expect("set language");
+        let tree = parser.parse(body, None).expect("parse source");
+        let source: Arc<str> = Arc::from(body);
+        match provider.to_ir(tree, source.clone(), PathBuf::from(name)) {
+            Ok(ir) => ir,
+            Err(_) => {
+                // For tests with empty Python `source: String::new()`
+                // (the per-language suppression case) the body is
+                // intentionally blank. Construct a minimal IrFile
+                // directly so the test can drive `apply()` without
+                // tripping the EmptySource gate.
+                let provider = crate::parsers::parser_for(lang);
+                let mut p = tree_sitter::Parser::new();
+                p.set_language(&provider.ts_language()).unwrap();
+                let placeholder = match lang {
+                    Language::Rust => "fn _x() {}\n",
+                    Language::Python => "def _x():\n    pass\n",
+                };
+                let tree = p.parse(placeholder, None).expect("parse placeholder");
+                IrFile {
+                    path: PathBuf::from(name),
+                    language: lang,
+                    source: Arc::from(body),
+                    fns: Vec::new(),
+                    top_level_comments: Vec::new(),
+                    parse_recovered: false,
+                    raw_tree: Arc::new(crate::ir::SyncTree::new(tree)),
+                }
+            }
         }
     }
 
@@ -975,16 +990,8 @@ def f():
             "#,
         )
         .unwrap();
-        let py = ParsedFile {
-            path: PathBuf::from("a.py"),
-            language: Language::Python,
-            source: String::new(),
-        };
-        let rs = ParsedFile {
-            path: PathBuf::from("a.rs"),
-            language: Language::Rust,
-            source: String::new(),
-        };
+        let py = build_ir_for_test("a.py", Language::Python, "");
+        let rs = build_ir_for_test("a.rs", Language::Rust, "");
         let f_py = finding_at("clone-drift", "a.py", 1);
         let f_rs = finding_at("clone-drift", "a.rs", 1);
         let out = apply(&cfg, &[py, rs], vec![f_py, f_rs]).unwrap();
@@ -1001,11 +1008,7 @@ def f():
             "#,
         )
         .unwrap();
-        let py = ParsedFile {
-            path: PathBuf::from("a.py"),
-            language: Language::Python,
-            source: String::new(),
-        };
+        let py = build_ir_for_test("a.py", Language::Python, "");
         let f_other = finding_at("arg-swap", "a.py", 1);
         let out = apply(&cfg, &[py], vec![f_other.clone()]).unwrap();
         assert_eq!(out.len(), 1);

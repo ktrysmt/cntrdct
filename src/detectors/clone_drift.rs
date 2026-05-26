@@ -3,7 +3,7 @@
 //! Spec: `cntrdct/docs/spec/clone-drift-v0.md`; Python via `multilang-v0.md` Pattern A.
 //!
 //! Algorithm (shared):
-//! 1. Parse each ParsedFile for the target language with tree-sitter, collect top-level fns.
+//! 1. Parse each IrFile for the target language with tree-sitter, collect top-level fns.
 //! 2. Normalize each fn to a sequence of AST node kinds with identifiers and
 //!    literals replaced by placeholder tokens.
 //! 3. Build n-gram sets and compute pairwise Jaccard similarity.
@@ -21,8 +21,9 @@ use std::collections::{HashMap, HashSet};
 
 use crate::core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
-    LanguageCitationStatus, Location, ParsedFile, Severity,
+    LanguageCitationStatus, Location, Severity,
 };
+use crate::ir::IrFile;
 use rayon::prelude::*;
 
 pub const SIMILARITY_THRESHOLD: f64 = 0.5;
@@ -222,7 +223,7 @@ impl Detector for CloneDrift {
 fn run_detect_for_language(
     ctx: &DetectContext,
     lang: Language,
-    extract_fns_fn: fn(&ParsedFile) -> Option<Vec<FnInfo>>,
+    extract_fns_fn: fn(&IrFile) -> Option<Vec<FnInfo>>,
     citation_status: LanguageCitationStatus,
     citation_keys: &'static [&'static str],
 ) -> Vec<Finding> {
@@ -431,7 +432,7 @@ fn emit_findings_for_scope(
 /// 4. Parent directory of the file as a string. Bare filenames with
 ///    no parent yield the empty scope (preserves backward-compat
 ///    with existing test fixtures using bare names).
-fn scope_id(file: &ParsedFile) -> String {
+fn scope_id(file: &IrFile) -> String {
     if let Some(s) = scope_from_provenance(&file.source) {
         return s;
     }
@@ -519,16 +520,11 @@ fn scope_from_underscore_basename(path: &std::path::Path) -> Option<String> {
     Some(format!("underscore::{prefix}"))
 }
 
-fn extract_rust_fns(file: &ParsedFile) -> Option<Vec<FnInfo>> {
-    let mut parser = tree_sitter::Parser::new();
-    let lang = crate::parsers::parser_for(Language::Rust).ts_language();
-    parser.set_language(&lang).ok()?;
-    let tree = parser.parse(&file.source, None)?;
-    let root = tree.root_node();
-
-    if root.has_error() {
+fn extract_rust_fns(file: &IrFile) -> Option<Vec<FnInfo>> {
+    if file.parse_recovered {
         return None;
     }
+    let root = file.raw_tree.root_node();
 
     let mut fns = Vec::new();
     let mut cursor = root.walk();
@@ -625,17 +621,11 @@ fn walk_normalize_python(node: tree_sitter::Node, out: &mut Vec<String>) {
     }
 }
 
-fn extract_python_fns(file: &ParsedFile) -> Option<Vec<FnInfo>> {
-    let mut parser = tree_sitter::Parser::new();
-    parser
-        .set_language(&crate::parsers::parser_for(Language::Python).ts_language())
-        .ok()?;
-    let tree = parser.parse(&file.source, None)?;
-    let root = tree.root_node();
-
-    if root.has_error() {
+fn extract_python_fns(file: &IrFile) -> Option<Vec<FnInfo>> {
+    if file.parse_recovered {
         return None;
     }
+    let root = file.raw_tree.root_node();
 
     let mut fns = Vec::new();
     let mut cursor = root.walk();
@@ -690,7 +680,7 @@ fn jaccard(a: &HashSet<Vec<String>>, b: &HashSet<Vec<String>>) -> f64 {
     inter as f64 / union as f64
 }
 
-fn node_location(file: &ParsedFile, node: tree_sitter::Node) -> Location {
+fn node_location(file: &IrFile, node: tree_sitter::Node) -> Location {
     let start = node.start_position();
     let end = node.end_position();
     Location {
@@ -783,27 +773,15 @@ fn run_intra_fn_if_clones_rust(ctx: &DetectContext) -> Vec<Finding> {
         .collect()
 }
 
-fn scan_rust_for_if_branch_clones(file: &ParsedFile, findings: &mut Vec<Finding>) {
-    let mut parser = tree_sitter::Parser::new();
-    let lang = crate::parsers::parser_for(Language::Rust).ts_language();
-    if parser.set_language(&lang).is_err() {
+fn scan_rust_for_if_branch_clones(file: &IrFile, findings: &mut Vec<Finding>) {
+    if file.parse_recovered {
         return;
     }
-    let Some(tree) = parser.parse(&file.source, None) else {
-        return;
-    };
-    let root = tree.root_node();
-    if root.has_error() {
-        return;
-    }
+    let root = file.raw_tree.root_node();
     walk_rust_for_if_branches(root, file, findings);
 }
 
-fn walk_rust_for_if_branches(
-    node: tree_sitter::Node,
-    file: &ParsedFile,
-    findings: &mut Vec<Finding>,
-) {
+fn walk_rust_for_if_branches(node: tree_sitter::Node, file: &IrFile, findings: &mut Vec<Finding>) {
     if node.kind() == "if_expression" {
         if let Some(f) = analyze_if_branches_rust(node, file) {
             findings.push(f);
@@ -815,7 +793,7 @@ fn walk_rust_for_if_branches(
     }
 }
 
-fn analyze_if_branches_rust(if_expr: tree_sitter::Node, file: &ParsedFile) -> Option<Finding> {
+fn analyze_if_branches_rust(if_expr: tree_sitter::Node, file: &IrFile) -> Option<Finding> {
     let consequence = if_expr.child_by_field_name("consequence")?;
     let alternative = if_expr.child_by_field_name("alternative")?;
     // F2b only fires on a flat if / else — chained `else if` (where

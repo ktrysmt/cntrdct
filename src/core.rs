@@ -81,7 +81,7 @@ impl Language {
         &[Language::Rust, Language::Python]
     }
 
-    /// Canonical lowercase name used in `ParsedFile.language` strings,
+    /// Canonical lowercase name used in `IrFile.language` strings,
     /// `cntrdct.toml` keys, and SARIF output.
     pub fn canonical_name(self) -> &'static str {
         match self {
@@ -251,19 +251,6 @@ pub struct Finding {
 
 // ---------- Parser context ----------
 
-/// One source file presented to a detector run.
-#[derive(Debug, Clone)]
-pub struct ParsedFile {
-    /// Filesystem path of the source file.
-    pub path: PathBuf,
-    /// Language of the source file. Set by the file walker via
-    /// `crate::parsers::detect_language` and consumed by detectors to
-    /// dispatch per-language scan logic.
-    pub language: Language,
-    /// File contents as UTF-8.
-    pub source: String,
-}
-
 /// Aggregate statistics over the corpus passed to a detector run.
 #[derive(Debug, Default)]
 pub struct CorpusStats {
@@ -281,10 +268,16 @@ pub struct DetectorConfig {
 }
 
 /// Inputs handed to `Detector::detect`.
+///
+/// R-1 (ir-v0.md §F4): the per-file input type is [`crate::ir::IrFile`]
+/// — a converted IR shell that retains the source text, the
+/// tree-sitter tree, and the language-agnostic IR structure
+/// (`fns`, `top_level_comments`, `parse_recovered`). The v0.5.x
+/// `ParsedFile` type is retired; no compatibility shim is provided.
 #[derive(Debug)]
 pub struct DetectContext<'a> {
     /// Files in scope for this detection run.
-    pub files: &'a [ParsedFile],
+    pub files: &'a [crate::ir::IrFile],
     /// Corpus-level statistics.
     pub stats: &'a CorpusStats,
     /// Per-run configuration.

@@ -25,8 +25,9 @@
 
 use crate::core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
-    LanguageCitationStatus, Location, ParsedFile, Severity,
+    LanguageCitationStatus, Location, Severity,
 };
+use crate::ir::IrFile;
 use rayon::prelude::*;
 
 static CITATIONS: &[Citation] = &[
@@ -126,22 +127,11 @@ impl Detector for CommentCode {
     }
 }
 
-fn collect_rust_findings(file: &ParsedFile, out: &mut Vec<Finding>) {
-    let mut parser = tree_sitter::Parser::new();
-    if parser
-        .set_language(&crate::parsers::parser_for(Language::Rust).ts_language())
-        .is_err()
-    {
+fn collect_rust_findings(file: &IrFile, out: &mut Vec<Finding>) {
+    if file.parse_recovered {
         return;
     }
-    let tree = match parser.parse(&file.source, None) {
-        Some(t) => t,
-        None => return,
-    };
-    let root = tree.root_node();
-    if root.has_error() {
-        return;
-    }
+    let root = file.raw_tree.root_node();
 
     let mut cursor = root.walk();
     let children: Vec<tree_sitter::Node> = root.children(&mut cursor).collect();
@@ -289,7 +279,7 @@ fn attribute_item_is_deprecated(node: tree_sitter::Node, source: &str) -> bool {
 }
 
 fn make_finding(
-    file: &ParsedFile,
+    file: &IrFile,
     node: tree_sitter::Node,
     pattern: &'static str,
     trigger: &'static str,
@@ -304,7 +294,7 @@ fn make_finding(
 }
 
 fn make_finding_with_status(
-    file: &ParsedFile,
+    file: &IrFile,
     node: tree_sitter::Node,
     pattern: &'static str,
     trigger: &'static str,
@@ -345,21 +335,11 @@ fn make_finding_with_status(
 
 const PYTHON_RAISES_TRIGGERS: &[&str] = &["raises", "may raise", "throws"];
 
-fn collect_python_findings(file: &ParsedFile, out: &mut Vec<Finding>) {
-    let mut parser = tree_sitter::Parser::new();
-    if parser
-        .set_language(&crate::parsers::parser_for(Language::Python).ts_language())
-        .is_err()
-    {
+fn collect_python_findings(file: &IrFile, out: &mut Vec<Finding>) {
+    if file.parse_recovered {
         return;
     }
-    let Some(tree) = parser.parse(&file.source, None) else {
-        return;
-    };
-    let root = tree.root_node();
-    if root.has_error() {
-        return;
-    }
+    let root = file.raw_tree.root_node();
 
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
@@ -385,7 +365,7 @@ fn collect_python_findings(file: &ParsedFile, out: &mut Vec<Finding>) {
 fn analyze_python_function(
     fn_def: tree_sitter::Node,
     decorators: &[tree_sitter::Node],
-    file: &ParsedFile,
+    file: &IrFile,
     out: &mut Vec<Finding>,
 ) {
     let body = match fn_def.child_by_field_name("body") {
@@ -681,7 +661,7 @@ fn decorator_is_deprecated(node: tree_sitter::Node, source: &str) -> bool {
     last == "deprecated"
 }
 
-fn node_location(file: &ParsedFile, node: tree_sitter::Node) -> Location {
+fn node_location(file: &IrFile, node: tree_sitter::Node) -> Location {
     let start = node.start_position();
     let end = node.end_position();
     Location {

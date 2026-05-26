@@ -7,19 +7,17 @@ use std::path::PathBuf;
 
 use cntrdct::core::{
     register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
-    Language, ParsedFile,
+    Language,
 };
 use cntrdct::detectors::config_interaction::ConfigInteraction;
+use cntrdct::ir::IrFile;
 
-fn parsed(name: &str, src: &str) -> ParsedFile {
-    ParsedFile {
-        path: PathBuf::from(name),
-        language: Language::Rust,
-        source: src.to_string(),
-    }
+fn parsed(name: &str, src: &str) -> IrFile {
+    cntrdct::ir_from_source(&PathBuf::from(name), Language::Rust, src.to_string())
+        .expect("ir_from_source")
 }
 
-fn run(files: Vec<ParsedFile>) -> Vec<Finding> {
+fn run(files: Vec<IrFile>) -> Vec<Finding> {
     let detector = ConfigInteraction::new();
     register_detector(&detector).expect("detector must satisfy P1");
     let stats = CorpusStats::default();
@@ -138,11 +136,12 @@ fn t10_empty_input() {
 
 #[test]
 fn t11_non_rust_file_skipped() {
-    let other = ParsedFile {
-        path: PathBuf::from("a.py"),
-        language: Language::Python,
-        source: "# nothing\n".to_string(),
-    };
+    let other = cntrdct::ir_from_source(
+        &PathBuf::from("a.py"),
+        Language::Python,
+        "# nothing\n".to_string(),
+    )
+    .expect("ir_from_source");
     let findings = run(vec![other]);
     assert!(
         findings.is_empty(),

@@ -1,0 +1,276 @@
+{
+  "path": "nested_if_match.rs",
+  "language": "rust",
+  "fns": [
+    {
+      "name": "classify",
+      "params": [
+        {
+          "name": "x",
+          "kind": "Plain",
+          "location": {
+            "file": "nested_if_match.rs",
+            "start_line": 1,
+            "start_col": 13,
+            "end_line": 1,
+            "end_col": 19,
+            "start_byte": 12,
+            "end_byte": 18
+          }
+        }
+      ],
+      "body": {
+        "statements": [
+          {
+            "kind": {
+              "If": {
+                "condition": {
+                  "Other": {
+                    "node_kind": "binary_expression",
+                    "node_ref": {
+                      "start_byte": 45,
+                      "end_byte": 50,
+                      "start_row": 1,
+                      "start_col": 7,
+                      "end_row": 1,
+                      "end_col": 12
+                    }
+                  }
+                },
+                "consequence": {
+                  "statements": [
+                    {
+                      "kind": {
+                        "Match": {
+                          "scrutinee": {
+                            "Ident": "x"
+                          },
+                          "arms": [
+                            {
+                              "body": {
+                                "Literal": {
+                                  "String": {
+                                    "is_empty": false
+                                  }
+                                }
+                              },
+                              "location": {
+                                "file": "nested_if_match.rs",
+                                "start_line": 4,
+                                "start_col": 13,
+                                "end_line": 4,
+                                "end_col": 31,
+                                "start_byte": 83,
+                                "end_byte": 101
+                              }
+                            },
+                            {
+                              "body": {
+                                "Literal": {
+                                  "String": {
+                                    "is_empty": false
+                                  }
+                                }
+                              },
+                              "location": {
+                                "file": "nested_if_match.rs",
+                                "start_line": 5,
+                                "start_col": 13,
+                                "end_line": 5,
+                                "end_col": 29,
+                                "start_byte": 114,
+                                "end_byte": 130
+                              }
+                            }
+                          ],
+                          "terminator": null,
+                          "location": {
+                            "file": "nested_if_match.rs",
+                            "start_line": 3,
+                            "start_col": 9,
+                            "end_line": 6,
+                            "end_col": 10,
+                            "start_byte": 61,
+                            "end_byte": 140
+                          }
+                        }
+                      },
+                      "attributes": [],
+                      "location": {
+                        "file": "nested_if_match.rs",
+                        "start_line": 3,
+                        "start_col": 9,
+                        "end_line": 6,
+                        "end_col": 10,
+                        "start_byte": 61,
+                        "end_byte": 140
+                      }
+                    }
+                  ],
+                  "terminator": null,
+                  "normalised_tokens": [
+                    {
+                      "Kind": "block"
+                    },
+                    {
+                      "Kind": "expression_statement"
+                    },
+                    {
+                      "Kind": "match_expression"
+                    },
+                    "Ident",
+                    {
+                      "Kind": "match_block"
+                    },
+                    {
+                      "Kind": "match_arm"
+                    },
+                    {
+                      "Kind": "match_pattern"
+                    },
+                    {
+                      "Kind": "negative_literal"
+                    },
+                    "LitInt",
+                    "LitStr",
+                    {
+                      "Kind": "match_arm"
+                    },
+                    {
+                      "Kind": "match_pattern"
+                    },
+                    "LitStr"
+                  ],
+                  "location": {
+                    "file": "nested_if_match.rs",
+                    "start_line": 2,
+                    "start_col": 14,
+                    "end_line": 7,
+                    "end_col": 6,
+                    "start_byte": 51,
+                    "end_byte": 146
+                  }
+                },
+                "alternative": null,
+                "terminator": null,
+                "location": {
+                  "file": "nested_if_match.rs",
+                  "start_line": 2,
+                  "start_col": 5,
+                  "end_line": 11,
+                  "end_col": 6,
+                  "start_byte": 42,
+                  "end_byte": 216
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "nested_if_match.rs",
+              "start_line": 2,
+              "start_col": 5,
+              "end_line": 11,
+              "end_col": 6,
+              "start_byte": 42,
+              "end_byte": 216
+            }
+          }
+        ],
+        "terminator": null,
+        "normalised_tokens": [
+          {
+            "Kind": "block"
+          },
+          {
+            "Kind": "expression_statement"
+          },
+          {
+            "Kind": "if_expression"
+          },
+          {
+            "Kind": "binary_expression"
+          },
+          "Ident",
+          "LitInt",
+          {
+            "Kind": "block"
+          },
+          {
+            "Kind": "expression_statement"
+          },
+          {
+            "Kind": "match_expression"
+          },
+          "Ident",
+          {
+            "Kind": "match_block"
+          },
+          {
+            "Kind": "match_arm"
+          },
+          {
+            "Kind": "match_pattern"
+          },
+          {
+            "Kind": "negative_literal"
+          },
+          "LitInt",
+          "LitStr",
+          {
+            "Kind": "match_arm"
+          },
+          {
+            "Kind": "match_pattern"
+          },
+          "LitStr",
+          {
+            "Kind": "else_clause"
+          },
+          {
+            "Kind": "if_expression"
+          },
+          {
+            "Kind": "binary_expression"
+          },
+          "Ident",
+          "LitInt",
+          {
+            "Kind": "block"
+          },
+          "LitStr",
+          {
+            "Kind": "else_clause"
+          },
+          {
+            "Kind": "block"
+          },
+          "LitStr"
+        ],
+        "location": {
+          "file": "nested_if_match.rs",
+          "start_line": 1,
+          "start_col": 37,
+          "end_line": 12,
+          "end_col": 2,
+          "start_byte": 36,
+          "end_byte": 218
+        }
+      },
+      "return_type_text": "&'static str",
+      "decorators": [],
+      "is_method": false,
+      "leading_doc": null,
+      "location": {
+        "file": "nested_if_match.rs",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 12,
+        "end_col": 2,
+        "start_byte": 0,
+        "end_byte": 218
+      }
+    }
+  ],
+  "top_level_comments": [],
+  "parse_recovered": false
+}

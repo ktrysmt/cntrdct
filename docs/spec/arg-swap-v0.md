@@ -27,11 +27,12 @@ best match.
 
 ### F1 — Input
 
-Accepts `&[ParsedFile]`. Files where `language != "rust"` are skipped.
+Accepts `&[IrFile]` (R-1 / ir-v0.md F4 override). Files where
+`language != Language::Rust` are skipped.
 
 ### F2 — Definition extraction
 
-For each ParsedFile, walk top-level `fn` items. Record:
+For each IrFile, walk top-level `fn` items. Record:
 - function name
 - parameter count
 - parameter names (in declaration order)

@@ -1,0 +1,222 @@
+{
+  "path": "impl_methods.rs",
+  "language": "rust",
+  "fns": [
+    {
+      "name": "new",
+      "params": [
+        {
+          "name": "start",
+          "kind": "Plain",
+          "location": {
+            "file": "impl_methods.rs",
+            "start_line": 8,
+            "start_col": 16,
+            "end_line": 8,
+            "end_col": 26,
+            "start_byte": 132,
+            "end_byte": 142
+          }
+        }
+      ],
+      "body": {
+        "statements": [
+          {
+            "kind": {
+              "Other": {
+                "node_kind": "struct_expression",
+                "node_ref": {
+                  "start_byte": 165,
+                  "end_byte": 189,
+                  "start_row": 8,
+                  "start_col": 8,
+                  "end_row": 8,
+                  "end_col": 32
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "impl_methods.rs",
+              "start_line": 9,
+              "start_col": 9,
+              "end_line": 9,
+              "end_col": 33,
+              "start_byte": 165,
+              "end_byte": 189
+            }
+          }
+        ],
+        "terminator": null,
+        "normalised_tokens": [
+          {
+            "Kind": "block"
+          },
+          {
+            "Kind": "struct_expression"
+          },
+          "Ident",
+          {
+            "Kind": "field_initializer_list"
+          },
+          {
+            "Kind": "field_initializer"
+          },
+          "Ident",
+          "Ident"
+        ],
+        "location": {
+          "file": "impl_methods.rs",
+          "start_line": 8,
+          "start_col": 39,
+          "end_line": 10,
+          "end_col": 6,
+          "start_byte": 155,
+          "end_byte": 195
+        }
+      },
+      "return_type_text": "Counter",
+      "decorators": [],
+      "is_method": true,
+      "leading_doc": "Build a new counter.",
+      "location": {
+        "file": "impl_methods.rs",
+        "start_line": 8,
+        "start_col": 5,
+        "end_line": 10,
+        "end_col": 6,
+        "start_byte": 121,
+        "end_byte": 195
+      }
+    },
+    {
+      "name": "add",
+      "params": [
+        {
+          "name": "&mut self",
+          "kind": "Receiver",
+          "location": {
+            "file": "impl_methods.rs",
+            "start_line": 12,
+            "start_col": 16,
+            "end_line": 12,
+            "end_col": 25,
+            "start_byte": 212,
+            "end_byte": 221
+          }
+        },
+        {
+          "name": "delta",
+          "kind": "Plain",
+          "location": {
+            "file": "impl_methods.rs",
+            "start_line": 12,
+            "start_col": 27,
+            "end_line": 12,
+            "end_col": 37,
+            "start_byte": 223,
+            "end_byte": 233
+          }
+        }
+      ],
+      "body": {
+        "statements": [
+          {
+            "kind": {
+              "Other": {
+                "node_kind": "assignment_expression",
+                "node_ref": {
+                  "start_byte": 245,
+                  "end_byte": 276,
+                  "start_row": 12,
+                  "start_col": 8,
+                  "end_row": 12,
+                  "end_col": 39
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "impl_methods.rs",
+              "start_line": 13,
+              "start_col": 9,
+              "end_line": 13,
+              "end_col": 41,
+              "start_byte": 245,
+              "end_byte": 277
+            }
+          }
+        ],
+        "terminator": null,
+        "normalised_tokens": [
+          {
+            "Kind": "block"
+          },
+          {
+            "Kind": "expression_statement"
+          },
+          {
+            "Kind": "assignment_expression"
+          },
+          {
+            "Kind": "field_expression"
+          },
+          {
+            "Kind": "self"
+          },
+          "Ident",
+          {
+            "Kind": "binary_expression"
+          },
+          {
+            "Kind": "field_expression"
+          },
+          {
+            "Kind": "self"
+          },
+          "Ident",
+          "Ident"
+        ],
+        "location": {
+          "file": "impl_methods.rs",
+          "start_line": 12,
+          "start_col": 39,
+          "end_line": 14,
+          "end_col": 6,
+          "start_byte": 235,
+          "end_byte": 283
+        }
+      },
+      "return_type_text": null,
+      "decorators": [],
+      "is_method": true,
+      "leading_doc": null,
+      "location": {
+        "file": "impl_methods.rs",
+        "start_line": 12,
+        "start_col": 5,
+        "end_line": 14,
+        "end_col": 6,
+        "start_byte": 201,
+        "end_byte": 283
+      }
+    }
+  ],
+  "top_level_comments": [
+    {
+      "kind": "RustDocLine",
+      "text": "A small struct with two methods.\n",
+      "target": null,
+      "location": {
+        "file": "impl_methods.rs",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 2,
+        "end_col": 1,
+        "start_byte": 0,
+        "end_byte": 37
+      }
+    }
+  ],
+  "parse_recovered": false
+}

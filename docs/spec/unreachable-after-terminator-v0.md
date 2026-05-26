@@ -37,10 +37,11 @@ optional Layer 3 verdict gives reviewers a separate, citable signal.
 
 ### F1 — Input
 
-Accepts `&[ParsedFile]` via `DetectContext`. Files where `language != "rust"`
-are skipped without error. Files whose tree-sitter parse root has any error
-are skipped silently in v0, mirroring the other detectors. Empty input
-returns `Ok(vec![])`.
+Accepts `&[IrFile]` via `DetectContext` (R-1 / ir-v0.md F4 override).
+Files whose `language` is not in `supported_languages()` are skipped
+without error. Files whose IR conversion recovered
+(`IrFile.parse_recovered == true`) are skipped silently in v0,
+mirroring the other detectors. Empty input returns `Ok(vec![])`.
 
 ### F2 — Block discovery
 

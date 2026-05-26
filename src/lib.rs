@@ -27,6 +27,7 @@ pub mod core;
 pub mod cross_model_kappa;
 pub mod detectors;
 pub mod eval;
+pub mod ir;
 pub mod llm_calibration;
 #[cfg(feature = "lsp")]
 pub mod lsp;
@@ -65,7 +66,7 @@ use crate::baselines::{
 use crate::calibration::{compute_priors, load_corpus, CalibrationError, DetectorPrior};
 use crate::core::{
     register_detector, Adjudicator, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
-    ParsedFile, RankedFinding, Ranker,
+    RankedFinding, Ranker,
 };
 use crate::cross_model_kappa::{
     current_iso8601_utc, current_utc_date, load_corpus as load_audit_corpus, run_audit,
@@ -78,6 +79,7 @@ use crate::detectors::config_interaction::ConfigInteraction;
 use crate::detectors::pr_miner::PrMinerDetector;
 use crate::detectors::unreachable_after_terminator::UnreachableAfterTerminator;
 use crate::eval::{evaluate, load_manifest, EvalError, EvalReport};
+use crate::ir::IrFile;
 use crate::llm_calibration::{
     apply_platt, fit_registry, load_corpus as load_llm_corpus, PlattError, PlattRegistry,
 };
@@ -86,6 +88,7 @@ use crate::ranker::{CalibratedRanker, UncalibratedRanker};
 use crate::recall_audit::{audit_recall, load_audit_manifest, RecallAuditError, RecallAuditReport};
 use rayon::prelude::*;
 use std::collections::HashMap;
+use std::sync::Arc;
 use thiserror::Error;
 use walkdir::WalkDir;
 
@@ -163,10 +166,11 @@ pub fn scan(path: &Path) -> Result<Vec<Finding>, ScanError> {
     scan_full(path).map(|(findings, _)| findings)
 }
 
-/// Like [`scan`] but also returns the parsed files. Callers that want to run
-/// the suppression filter (`crate::config::apply`) need both. Equivalent to
-/// [`scan_full_with_config`] called with the default (empty) config.
-pub fn scan_full(path: &Path) -> Result<(Vec<Finding>, Vec<ParsedFile>), ScanError> {
+/// Like [`scan`] but also returns the parsed [`IrFile`] vector. Callers
+/// that want to run the suppression filter (`crate::config::apply`) need
+/// both. Equivalent to [`scan_full_with_config`] called with the default
+/// (empty) config.
+pub fn scan_full(path: &Path) -> Result<(Vec<Finding>, Vec<IrFile>), ScanError> {
     scan_full_with_config(path, &crate::config::Config::default())
 }
 
@@ -175,10 +179,18 @@ pub fn scan_full(path: &Path) -> Result<(Vec<Finding>, Vec<ParsedFile>), ScanErr
 /// with `enabled = false` causes the walker to skip files of that language;
 /// every other language stays enabled. Spec: M-5
 /// (`docs/spec/multilang-v0.md`).
+///
+/// R-1 (ir-v0.md §F2): each file is parsed once via
+/// [`ParserProvider::to_ir`] and the resulting [`IrFile`] flows through
+/// every detector. Files whose conversion returns
+/// [`crate::ir::IrConvertError`] are silently skipped per the F2
+/// production-runtime contract — `EmptySource` swallows the file with
+/// no log; `LanguageMismatch` / `StructuralInvariant` skip and continue
+/// so a single pathological file does not abort the scan.
 pub fn scan_full_with_config(
     path: &Path,
     config: &crate::config::Config,
-) -> Result<(Vec<Finding>, Vec<ParsedFile>), ScanError> {
+) -> Result<(Vec<Finding>, Vec<IrFile>), ScanError> {
     if !path.exists() {
         return Err(ScanError::PathNotFound(path.to_path_buf()));
     }
@@ -188,20 +200,46 @@ pub fn scan_full_with_config(
         .filter(|(_, lang)| config.language_enabled(*lang))
         .collect();
 
-    // Read files in parallel. Unreadable files (permission errors, transient
-    // races) are silently skipped, matching the previous serial behaviour.
-    let parsed: Vec<ParsedFile> = source_paths
+    // Read + parse + convert each file to IR in parallel. Unreadable
+    // files (permission errors, transient races) and conversion errors
+    // are silently skipped per F2's production-runtime contract.
+    let parsed: Vec<IrFile> = source_paths
         .par_iter()
-        .filter_map(|(p, lang)| {
-            fs::read_to_string(p).ok().map(|source| ParsedFile {
-                path: p.clone(),
-                language: *lang,
-                source,
-            })
-        })
+        .filter_map(|(p, lang)| read_and_convert_to_ir(p, *lang))
         .collect();
 
     run_detectors_on(parsed)
+}
+
+/// Read `path` from disk and run it through the appropriate
+/// [`ParserProvider::to_ir`] converter. Returns `None` for any failure
+/// shape — unreadable file, parse failure, or [`crate::ir::IrConvertError`]
+/// variant — matching the v0.5.x "silently skip" behaviour at the file
+/// walker boundary.
+fn read_and_convert_to_ir(path: &Path, lang: Language) -> Option<IrFile> {
+    let source = fs::read_to_string(path).ok()?;
+    convert_source_to_ir(path, lang, source)
+}
+
+/// Build an [`IrFile`] from in-memory source for the supplied
+/// language. Returns `None` if parsing or conversion fails. Public so
+/// integration tests under `tests/` can construct IR inputs without
+/// re-implementing the parser_for + to_ir dance per test file.
+pub fn ir_from_source(path: &Path, lang: Language, source: String) -> Option<IrFile> {
+    convert_source_to_ir(path, lang, source)
+}
+
+/// Shared body of [`read_and_convert_to_ir`] / [`scan_buffer`]: given
+/// already-loaded source text, produce an [`IrFile`] via the
+/// language's parser provider. Returns `None` on any conversion error
+/// (matches the v0.5.x silent-skip semantics at the walker boundary).
+fn convert_source_to_ir(path: &Path, lang: Language, source: String) -> Option<IrFile> {
+    let provider = crate::parsers::parser_for(lang);
+    let mut parser = tree_sitter::Parser::new();
+    parser.set_language(&provider.ts_language()).ok()?;
+    let tree = parser.parse(&source, None)?;
+    let shared: Arc<str> = Arc::from(source);
+    provider.to_ir(tree, shared, path.to_path_buf()).ok()
 }
 
 /// Buffer-only scan path used by the LSP server (T3-12 Phase 1.b).
@@ -213,26 +251,24 @@ pub fn scan_full_with_config(
 /// extension does not map to a [`Language`] — the caller (e.g.
 /// `cntrdct::lsp::CntrdctLsp`) does not need to gate on language up
 /// front. Spec: `docs/spec/lsp-v0.md` Phase 1.b.
-pub fn scan_buffer(
-    path: &Path,
-    source: String,
-) -> Result<(Vec<Finding>, Vec<ParsedFile>), ScanError> {
+pub fn scan_buffer(path: &Path, source: String) -> Result<(Vec<Finding>, Vec<IrFile>), ScanError> {
     let Some(language) = detect_language(path) else {
         return Ok((Vec::new(), Vec::new()));
     };
-    let parsed = vec![ParsedFile {
-        path: path.to_path_buf(),
-        language,
-        source,
-    }];
-    run_detectors_on(parsed)
+    let Some(ir_file) = convert_source_to_ir(path, language, source) else {
+        // The LSP/scan_buffer callers prefer "no findings on convert
+        // failure" over a hard error so a single broken keystroke does
+        // not propagate up as a scan error.
+        return Ok((Vec::new(), Vec::new()));
+    };
+    run_detectors_on(vec![ir_file])
 }
 
-/// Run all six Layer 1 detectors over a pre-built [`ParsedFile`] vector.
+/// Run all six Layer 1 detectors over a pre-built [`IrFile`] vector.
 /// Shared between the disk-walking [`scan_full_with_config`] and the
 /// buffer-only [`scan_buffer`] (used by the LSP server) so the registration
 /// list and ordering rules live in exactly one place.
-fn run_detectors_on(parsed: Vec<ParsedFile>) -> Result<(Vec<Finding>, Vec<ParsedFile>), ScanError> {
+fn run_detectors_on(parsed: Vec<IrFile>) -> Result<(Vec<Finding>, Vec<IrFile>), ScanError> {
     let clone_drift = CloneDrift::new();
     let arg_swap = ArgSwap::new();
     let comment_code = CommentCode::new();
@@ -294,7 +330,7 @@ fn run_detectors_on(parsed: Vec<ParsedFile>) -> Result<(Vec<Finding>, Vec<Parsed
 pub fn apply_suppression(
     config_override: Option<&Path>,
     scan_root: &Path,
-    files: &[ParsedFile],
+    files: &[IrFile],
     findings: Vec<Finding>,
 ) -> Result<Vec<Finding>, crate::config::ConfigError> {
     let config = load_config(config_override, scan_root)?;

@@ -10,28 +10,19 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use crate::core::{Language, Location, ParsedFile};
+use crate::core::{Language, Location};
+use crate::ir::IrFile;
 
 use super::Transaction;
 
 /// Extract one `Transaction` per top-level `function_item` in `file`. Files
 /// that fail to parse, or whose root has any parse error, return an empty
 /// vector (silent skip per spec N5 / F1).
-pub fn extract(file: &ParsedFile) -> Vec<Transaction> {
-    let mut parser = tree_sitter::Parser::new();
-    if parser
-        .set_language(&crate::parsers::parser_for(Language::Rust).ts_language())
-        .is_err()
-    {
+pub fn extract(file: &IrFile) -> Vec<Transaction> {
+    if file.parse_recovered {
         return Vec::new();
     }
-    let Some(tree) = parser.parse(&file.source, None) else {
-        return Vec::new();
-    };
-    let root = tree.root_node();
-    if root.has_error() {
-        return Vec::new();
-    }
+    let root = file.raw_tree.root_node();
 
     let mut out = Vec::new();
     let mut cursor = root.walk();
@@ -115,12 +106,17 @@ mod tests {
     use crate::core::Language;
     use std::path::PathBuf;
 
-    fn pf(src: &str) -> ParsedFile {
-        ParsedFile {
-            path: PathBuf::from("a.rs"),
-            language: Language::Rust,
-            source: src.to_string(),
-        }
+    fn pf(src: &str) -> IrFile {
+        use std::sync::Arc;
+        let provider = crate::parsers::parser_for(Language::Rust);
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&provider.ts_language())
+            .expect("set rust language");
+        let tree = parser.parse(src, None).expect("parse rust");
+        provider
+            .to_ir(tree, Arc::from(src), PathBuf::from("a.rs"))
+            .expect("to_ir")
     }
 
     #[test]

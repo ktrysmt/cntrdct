@@ -77,6 +77,13 @@ struct UriState {
     /// past the sleep when its `JoinHandle::abort()` ran and so
     /// continued executing on the blocking pool until completion.
     latest_generation: u64,
+    /// Findings from the most recent scan whose `IrFile.parse_recovered`
+    /// was false — i.e. the last buffer state tree-sitter parsed
+    /// cleanly. Reused when a subsequent didChange produces a recovered
+    /// (mid-keystroke) tree so the editor's problems pane does not
+    /// blink between every keystroke. ir-v0.md §F5 LSP non-regression
+    /// requirement; eviction happens on `did_close`.
+    last_clean_findings: Option<Vec<Finding>>,
 }
 
 /// The cntrdct LSP server.
@@ -189,6 +196,15 @@ impl LanguageServer for CntrdctLsp {
         // still running cannot land its publish after we clear the
         // editor's problems pane.
         self.cancel_pending_and_bump(&uri).await;
+        // F5: evict the per-URI clean-findings cache too — the buffer
+        // is gone, and the next `did_open` for the same URI starts a
+        // fresh state.
+        {
+            let mut guard = self.state.lock().await;
+            if let Some(entry) = guard.get_mut(&uri) {
+                entry.last_clean_findings = None;
+            }
+        }
         // The empty publish here is unconditional — closing the buffer
         // always clears its diagnostics. Any in-flight stale scan has
         // already been invalidated by the generation bump above and
@@ -307,19 +323,28 @@ async fn scan_and_publish_if_current(
     let scan_result =
         tokio::task::spawn_blocking(move || crate::scan_buffer(&scan_path, text)).await;
 
-    let findings = match scan_result {
-        Ok(Ok((findings, _parsed))) => findings,
+    // F5 LSP non-regression (ir-v0.md): inspect the returned IR vector
+    // to discover whether the buffer state was parse-clean. A
+    // recovered tree (`parse_recovered = true`) means tree-sitter saw
+    // syntax errors and every cross-cutting detector early-returned;
+    // we substitute the cached findings from the last clean parse
+    // rather than blanking out the editor's problems pane.
+    let (findings, parse_recovered) = match scan_result {
+        Ok(Ok((findings, files))) => {
+            let recovered = files.iter().any(|f| f.parse_recovered);
+            (findings, recovered)
+        }
         Ok(Err(e)) => {
             client
                 .log_message(MessageType::ERROR, format!("cntrdct scan failed: {e}"))
                 .await;
-            Vec::new()
+            (Vec::new(), false)
         }
         Err(e) => {
             client
                 .log_message(MessageType::ERROR, format!("cntrdct scan panicked: {e}"))
                 .await;
-            Vec::new()
+            (Vec::new(), false)
         }
     };
 
@@ -327,12 +352,43 @@ async fn scan_and_publish_if_current(
         return;
     }
 
-    let diagnostics: Vec<Diagnostic> = findings
+    let publishable = if parse_recovered {
+        // Mid-keystroke: keep the prior clean findings visible.
+        cached_or_empty(state, &uri).await
+    } else {
+        // Clean parse: store the new findings as the cache for any
+        // subsequent recovered tree to fall back on.
+        cache_clean_findings(state, &uri, findings.clone()).await;
+        findings
+    };
+
+    let diagnostics: Vec<Diagnostic> = publishable
         .iter()
         .filter(|f| f.primary.file == path)
         .map(|f| finding_to_diagnostic(&uri, f))
         .collect();
     client.publish_diagnostics(uri, diagnostics, None).await;
+}
+
+/// F5 cache lookup: return the URI's `last_clean_findings` if any,
+/// else empty. Used when the current buffer state failed to parse
+/// cleanly — we want the editor to keep showing the diagnostics from
+/// the last good parse rather than flicker every keystroke.
+async fn cached_or_empty(state: &StateMap, uri: &Url) -> Vec<Finding> {
+    state
+        .lock()
+        .await
+        .get(uri)
+        .and_then(|s| s.last_clean_findings.clone())
+        .unwrap_or_default()
+}
+
+/// F5 cache write: store `findings` as the URI's `last_clean_findings`
+/// so a subsequent recovered-parse event can fall back to them.
+async fn cache_clean_findings(state: &StateMap, uri: &Url, findings: Vec<Finding>) {
+    let mut guard = state.lock().await;
+    let entry = guard.entry(uri.clone()).or_default();
+    entry.last_clean_findings = Some(findings);
 }
 
 fn read_file_sync(path: std::path::PathBuf) -> Option<String> {
@@ -600,5 +656,42 @@ mod tests {
         let uri = Url::parse("file:///tmp/never-touched.rs").unwrap();
         assert!(!is_current(&state, &uri, 0).await);
         assert!(!is_current(&state, &uri, 42).await);
+    }
+
+    // ---------- F5 last-clean-findings cache ----------
+
+    #[tokio::test]
+    async fn cache_clean_findings_round_trips_per_uri() {
+        let state = empty_state();
+        let uri = buffer_uri();
+        // Empty cache => no findings.
+        assert!(cached_or_empty(&state, &uri).await.is_empty());
+
+        let f = vec![make_finding("clone-drift", Severity::Warning)];
+        cache_clean_findings(&state, &uri, f.clone()).await;
+
+        let got = cached_or_empty(&state, &uri).await;
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].detector_id, "clone-drift");
+    }
+
+    #[tokio::test]
+    async fn cache_clean_findings_is_per_uri() {
+        let state = empty_state();
+        let a = Url::parse("file:///tmp/a.rs").unwrap();
+        let b = Url::parse("file:///tmp/b.rs").unwrap();
+
+        cache_clean_findings(
+            &state,
+            &a,
+            vec![make_finding("arg-swap", Severity::Warning)],
+        )
+        .await;
+        // b URI has no cache entry; lookup must not see a's findings.
+        assert!(cached_or_empty(&state, &b).await.is_empty());
+        // a's cache is intact.
+        let got_a = cached_or_empty(&state, &a).await;
+        assert_eq!(got_a.len(), 1);
+        assert_eq!(got_a[0].detector_id, "arg-swap");
     }
 }

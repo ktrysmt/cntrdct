@@ -31,8 +31,9 @@ use std::collections::HashMap;
 
 use crate::core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
-    LanguageCitationStatus, Location, ParsedFile, Severity,
+    LanguageCitationStatus, Location, Severity,
 };
+use crate::ir::IrFile;
 use rayon::prelude::*;
 
 static CITATIONS: &[Citation] = &[
@@ -90,8 +91,8 @@ struct CallSite {
     location: Location,
 }
 
-type ExtractDefs = fn(&ParsedFile) -> Option<Vec<(String, FnDef)>>;
-type ExtractCalls = fn(&ParsedFile) -> Option<Vec<CallSite>>;
+type ExtractDefs = fn(&IrFile) -> Option<Vec<(String, FnDef)>>;
+type ExtractCalls = fn(&IrFile) -> Option<Vec<CallSite>>;
 
 impl Detector for ArgSwap {
     fn id(&self) -> &'static str {
@@ -273,17 +274,11 @@ fn check_swap(
 
 // ---------- Rust extraction ----------
 
-fn extract_rust_fn_defs(file: &ParsedFile) -> Option<Vec<(String, FnDef)>> {
-    let mut parser = tree_sitter::Parser::new();
-    parser
-        .set_language(&crate::parsers::parser_for(Language::Rust).ts_language())
-        .ok()?;
-    let tree = parser.parse(&file.source, None)?;
-    let root = tree.root_node();
-    if root.has_error() {
+fn extract_rust_fn_defs(file: &IrFile) -> Option<Vec<(String, FnDef)>> {
+    if file.parse_recovered {
         return None;
     }
-
+    let root = file.raw_tree.root_node();
     let mut defs = Vec::new();
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
@@ -296,7 +291,7 @@ fn extract_rust_fn_defs(file: &ParsedFile) -> Option<Vec<(String, FnDef)>> {
     Some(defs)
 }
 
-fn parse_rust_fn_def(node: tree_sitter::Node, file: &ParsedFile) -> Option<(String, FnDef)> {
+fn parse_rust_fn_def(node: tree_sitter::Node, file: &IrFile) -> Option<(String, FnDef)> {
     let name_node = node.child_by_field_name("name")?;
     let name = node_text(name_node, &file.source);
 
@@ -340,23 +335,17 @@ fn extract_rust_pattern_identifier(node: tree_sitter::Node, source: &str) -> Opt
     }
 }
 
-fn extract_rust_call_sites(file: &ParsedFile) -> Option<Vec<CallSite>> {
-    let mut parser = tree_sitter::Parser::new();
-    parser
-        .set_language(&crate::parsers::parser_for(Language::Rust).ts_language())
-        .ok()?;
-    let tree = parser.parse(&file.source, None)?;
-    let root = tree.root_node();
-    if root.has_error() {
+fn extract_rust_call_sites(file: &IrFile) -> Option<Vec<CallSite>> {
+    if file.parse_recovered {
         return None;
     }
-
+    let root = file.raw_tree.root_node();
     let mut calls = Vec::new();
     walk_rust_for_calls(root, file, &mut calls);
     Some(calls)
 }
 
-fn walk_rust_for_calls(node: tree_sitter::Node, file: &ParsedFile, out: &mut Vec<CallSite>) {
+fn walk_rust_for_calls(node: tree_sitter::Node, file: &IrFile, out: &mut Vec<CallSite>) {
     if node.kind() == "call_expression" {
         if let Some(call) = parse_rust_call(node, file) {
             out.push(call);
@@ -368,7 +357,7 @@ fn walk_rust_for_calls(node: tree_sitter::Node, file: &ParsedFile, out: &mut Vec
     }
 }
 
-fn parse_rust_call(node: tree_sitter::Node, file: &ParsedFile) -> Option<CallSite> {
+fn parse_rust_call(node: tree_sitter::Node, file: &IrFile) -> Option<CallSite> {
     let function = node.child_by_field_name("function")?;
     if function.kind() != "identifier" {
         return None;
@@ -413,17 +402,11 @@ fn parse_rust_call(node: tree_sitter::Node, file: &ParsedFile) -> Option<CallSit
 // out of v0 scope (mirrors the Rust path which only walks direct
 // children of the module root).
 
-fn extract_python_fn_defs(file: &ParsedFile) -> Option<Vec<(String, FnDef)>> {
-    let mut parser = tree_sitter::Parser::new();
-    parser
-        .set_language(&crate::parsers::parser_for(Language::Python).ts_language())
-        .ok()?;
-    let tree = parser.parse(&file.source, None)?;
-    let root = tree.root_node();
-    if root.has_error() {
+fn extract_python_fn_defs(file: &IrFile) -> Option<Vec<(String, FnDef)>> {
+    if file.parse_recovered {
         return None;
     }
-
+    let root = file.raw_tree.root_node();
     let mut defs = Vec::new();
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
@@ -454,7 +437,7 @@ fn extract_python_fn_defs(file: &ParsedFile) -> Option<Vec<(String, FnDef)>> {
 
 fn collect_python_class_methods(
     class_node: tree_sitter::Node,
-    file: &ParsedFile,
+    file: &IrFile,
     defs: &mut Vec<(String, FnDef)>,
 ) {
     let Some(body) = class_node.child_by_field_name("body") else {
@@ -480,7 +463,7 @@ fn collect_python_class_methods(
 
 fn parse_python_decorated_def(
     decorated: tree_sitter::Node,
-    file: &ParsedFile,
+    file: &IrFile,
     is_method: bool,
 ) -> Option<(String, FnDef)> {
     let mut cursor = decorated.walk();
@@ -492,7 +475,7 @@ fn parse_python_decorated_def(
 
 fn parse_python_fn_def(
     node: tree_sitter::Node,
-    file: &ParsedFile,
+    file: &IrFile,
     is_method: bool,
 ) -> Option<(String, FnDef)> {
     let name_node = node.child_by_field_name("name")?;
@@ -543,23 +526,17 @@ fn parse_python_fn_def(
     ))
 }
 
-fn extract_python_call_sites(file: &ParsedFile) -> Option<Vec<CallSite>> {
-    let mut parser = tree_sitter::Parser::new();
-    parser
-        .set_language(&crate::parsers::parser_for(Language::Python).ts_language())
-        .ok()?;
-    let tree = parser.parse(&file.source, None)?;
-    let root = tree.root_node();
-    if root.has_error() {
+fn extract_python_call_sites(file: &IrFile) -> Option<Vec<CallSite>> {
+    if file.parse_recovered {
         return None;
     }
-
+    let root = file.raw_tree.root_node();
     let mut calls = Vec::new();
     walk_python_for_calls(root, file, &mut calls);
     Some(calls)
 }
 
-fn walk_python_for_calls(node: tree_sitter::Node, file: &ParsedFile, out: &mut Vec<CallSite>) {
+fn walk_python_for_calls(node: tree_sitter::Node, file: &IrFile, out: &mut Vec<CallSite>) {
     if node.kind() == "call" {
         if let Some(call) = parse_python_call(node, file) {
             out.push(call);
@@ -571,7 +548,7 @@ fn walk_python_for_calls(node: tree_sitter::Node, file: &ParsedFile, out: &mut V
     }
 }
 
-fn parse_python_call(node: tree_sitter::Node, file: &ParsedFile) -> Option<CallSite> {
+fn parse_python_call(node: tree_sitter::Node, file: &IrFile) -> Option<CallSite> {
     let function = node.child_by_field_name("function")?;
     // F3b (added 2026-05-21): accept `self.<name>(...)` and
     // `cls.<name>(...)` method calls in addition to bare-identifier
@@ -632,7 +609,7 @@ fn node_text(node: tree_sitter::Node, source: &str) -> String {
     source[node.byte_range()].to_string()
 }
 
-fn node_location(file: &ParsedFile, node: tree_sitter::Node) -> Location {
+fn node_location(file: &IrFile, node: tree_sitter::Node) -> Location {
     let start = node.start_position();
     let end = node.end_position();
     Location {

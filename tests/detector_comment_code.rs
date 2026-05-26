@@ -4,27 +4,22 @@ use std::path::PathBuf;
 
 use cntrdct::core::{
     register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
-    Language, LanguageCitationStatus, ParsedFile, Severity,
+    Language, LanguageCitationStatus, Severity,
 };
 use cntrdct::detectors::comment_code::CommentCode;
+use cntrdct::ir::IrFile;
 
-fn parsed(name: &str, src: &str) -> ParsedFile {
-    ParsedFile {
-        path: PathBuf::from(name),
-        language: Language::Rust,
-        source: src.to_string(),
-    }
+fn parsed(name: &str, src: &str) -> IrFile {
+    cntrdct::ir_from_source(&PathBuf::from(name), Language::Rust, src.to_string())
+        .expect("ir_from_source")
 }
 
-fn parsed_python(name: &str, src: &str) -> ParsedFile {
-    ParsedFile {
-        path: PathBuf::from(name),
-        language: Language::Python,
-        source: src.to_string(),
-    }
+fn parsed_python(name: &str, src: &str) -> IrFile {
+    cntrdct::ir_from_source(&PathBuf::from(name), Language::Python, src.to_string())
+        .expect("ir_from_source")
 }
 
-fn run(files: Vec<ParsedFile>) -> Vec<Finding> {
+fn run(files: Vec<IrFile>) -> Vec<Finding> {
     let detector = CommentCode::new();
     register_detector(&detector).expect("comment-code must satisfy P1");
     let stats = CorpusStats::default();

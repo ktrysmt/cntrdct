@@ -23,6 +23,16 @@ specs under `docs/spec/`. They are not duplicated here.
 - `(carry-over)` — inherited from the retired `ROADMAP.md`,
   re-prioritised under the rebuild plan
 
+REBUILD.md doubles as the task tracker for the rebuild. When a
+phase or sub-step advances, update its `[ ]` / `[~]` / `[x]`
+marker in place and append a one-line `Status:` entry on the same
+sub-step recording the landing date plus the commit / PR (or
+"uncommitted in working tree" when no commit exists yet) that did
+the work. A session picking up the rebuild then sees where it
+stopped without re-reading the diff. The R-1 release gate (§9)
+reads from these markers; stale entries silently weaken the gate,
+so do not skip updates.
+
 ## 0. Why rebuild
 
 The retired `ROADMAP.md` accumulated three structural premises that
@@ -205,7 +215,7 @@ R-0. IR design spec — `[x]`
   for partial-parse non-regression. See ir-v0.md "Risks and open
   questions" R8-R11 for derived decisions; do not re-litigate.
 
-R-1. IR implementation + Rust/Python migration — `[ ]`
+R-1. IR implementation + Rust/Python migration — `[~]`
 
 Authoritative design: `docs/spec/ir-v0.md`. Sub-step ordering is
 binding (ir-v0.md R11):
@@ -215,22 +225,84 @@ R-1.0. Capture T1 pinning fixtures (ir-v0.md F6 T1) at v0.5.2 HEAD
        `benchmarks/audit-corpus` and `benchmarks/wild-corpus*` per
        detector, snapshot to `tests/fixtures/ir-pinning/<detector>/
        {audit,wild}.json`.
+       Status: `[x]` 2026-05-26 (commit b6c6540).
 R-1.a. Create `src/ir.rs` with the IR types per ir-v0.md F1.
+       Status: `[x]` 2026-05-26 (uncommitted in working tree;
+       `src/ir.rs` carries every F1 type + `IrConvertError`
+       variants + `IrFile::resolve` + hand-written `NodeRef`
+       `Serialize` impl, plus 7 inline unit tests).
 R-1.b. Promote `src/parsers.rs` to `src/parsers/{mod,rust,python}.rs`
        and implement `to_ir` per ParserProvider per ir-v0.md F2.
+       Status: `[x]` 2026-05-26 (uncommitted in working tree;
+       `mod.rs` adds `to_ir` to the `ParserProvider` trait +
+       `build_ir_shell` shared prelude, `rust.rs` / `python.rs`
+       implement the full F1 surface — IrFn / IrParam / IrBlock /
+       IrStmt + statement classification / IrCallSite / IrPath /
+       IrExpr / IrLiteral / IrTerminator / IrComment / IrDecorator
+       + byte-identical `walk_normalize_*` tokenisation. F6 T2 /
+       T3 / T4 / T5 land in this sub-step under
+       `tests/ir_{convert_error,recovery,convert,location}.rs` +
+       `tests/fixtures/ir/{rust,python}/{impl_methods,
+       class_methods,nested_calls,nested_if_match}.{rs,py,json}`;
+       F6 T1 was captured in R-1.0, T6 and T7 still pending per
+       ir-v0.md R11 ordering).
 R-1.c. Rewrite the five cross-cutting detectors against IR.
        Suggested order: comment-code → arg-swap →
        unreachable-after-terminator → clone-drift → pr-miner.
        `cntrdct-lsp` LSP cache change (ir-v0.md F5 non-regression)
        lands in this commit.
+       Status: `[x]` 2026-05-26 (uncommitted in working tree;
+       R-1.c0 deletes `ParsedFile` from `src/core.rs` and switches
+       `DetectContext.files` to `&[IrFile]`; `src/lib.rs` now parses
+       each file once via `parser_for(lang).to_ir(...)` and the
+       resulting `IrFile` flows through every detector — eliminates
+       the v0.5.x per-detector double-parse; `src/ir.rs` adds a
+       `SyncTree` newtype with `unsafe impl Sync` so
+       `Arc<SyncTree>: Sync` lets the existing `par_iter()` paths
+       compile; `src/config.rs` `collect_attribute_suppressions` and
+       `apply()` take `&IrFile`; the five cross-cutting detectors
+       (`arg_swap.rs`, `clone_drift.rs`, `comment_code.rs`,
+       `pr_miner/{mod,extract_rust,extract_python}.rs`,
+       `unreachable_after_terminator.rs`) and `config_interaction.rs`
+       drop their internal `tree_sitter::Parser::set_language` +
+       `parser.parse(&source, None)` prelude and read
+       `file.raw_tree.root_node()` directly. LSP F5 non-regression:
+       `src/lsp.rs` `UriState` gains `last_clean_findings:
+       Option<Vec<Finding>>`, populated when `IrFile.parse_recovered
+       == false` and re-published when a subsequent buffer state is
+       recovered so the editor's problems pane no longer blinks
+       mid-keystroke; eviction on `did_close`. The cross-cutting
+       detectors still touch `IrFile.raw_tree` rather than consuming
+       IR (`IrFn` / `IrBlock` / `IrStmt` / `IrCallSite`)
+       semantically — the ir-v0.md F5 "cross-cutting detectors must
+       not touch raw_tree" discipline is documentation-level (F5
+       explicitly defers type-system enforcement) and a follow-up
+       commit will rewrite the detector internals to consume IR
+       fields, preserving the byte-identical T1 pinning. T1
+       byte-identical against the v0.5.2 capture verified across
+       all 5 detectors × 3 corpora (audit / wild-rust /
+       wild-python); `tests/ir_pinning.rs` runs the comparison.
+       The 6 detector integration test files (`tests/detector_*.rs`)
+       and `src/detectors/pr_miner/extract_{rust,python}.rs` inline
+       tests rebuild `IrFile` inputs via the new public helper
+       `cntrdct::ir_from_source(path, lang, source)`. Spec sweep:
+       `arg-swap-v0.md`, `clone-drift-v0.md`, `comment-code-v0.md`,
+       `unreachable-after-terminator-v0.md`, `pr-miner-v0.md` F1
+       input sections updated to `&[IrFile]`. `cargo test
+       --all-targets`, `cargo clippy --all-targets -- -D warnings`,
+       `cargo fmt --all -- --check` all green; the
+       `cargo test --features lsp` variant likewise green
+       (includes two new F5 cache unit tests).
 R-1.c'. T7 measurement (ir-v0.md F6 T7): capture wall-clock +
        peak-RSS on `benchmarks/wild-corpus-python` (~600 files)
        via the still-present `tests/baselines.rs` harness. MUST
        run before R-1.e retires that harness.
+       Status: `[ ]`.
 R-1.d. `git mv src/detectors/config_interaction.rs
        src/detectors/lang/rust_config_interaction.rs` + module
        path updates + test path rewrite
        (`tests/detector_config_interaction.rs`).
+       Status: `[ ]`.
 R-1.e. Retire Q-15 baseline scaffolding:
 
        ```sh
@@ -245,10 +317,12 @@ R-1.e. Retire Q-15 baseline scaffolding:
        flags from `cntrdct eval` (clap + match). Rewrite the
        README "Baseline comparison" section as "Self-replication
        ledger" documenting `benchmarks/self-replication/v<release>/`.
+       Status: `[ ]`.
 R-1.f. Introduce `benchmarks/self-replication/v0.6.0/cntrdct.jsonl`
        as the eval snapshot. Add an `assemble_report` helper
        computing the delta against the previous tag's snapshot
        (F1 / P / R deltas). Manual refresh per release; no CI gate.
+       Status: `[ ]`.
 R-1.g. Recalibrate priors:
 
        ```sh
@@ -257,9 +331,11 @@ R-1.g. Recalibrate priors:
        ```
 
        Commit the `benchmarks/priors-default.json` update.
+       Status: `[ ]`.
 R-1.h. `CHANGELOG.md` entry + `Cargo.toml` version → `0.6.0`.
        Conventional Commits prefix: `feat(ir)!`. Breaking-change
        note in the commit message body.
+       Status: `[ ]`.
 R-1.i. Release per CLAUDE.md "Release procedure":
 
        ```sh
@@ -269,6 +345,8 @@ R-1.i. Release per CLAUDE.md "Release procedure":
        git tag -a v0.6.0 -m "release v0.6.0"
        git push --follow-tags
        ```
+
+       Status: `[ ]`.
 
 R-1 also resolves the historical references to the retired
 `ROADMAP.md` and the v0.5.x `ParsedFile` type across the repo

@@ -52,14 +52,14 @@ Per-language grounding:
 
 ### F1 — Input
 
-Accepts `&[ParsedFile]` via `DetectContext`. Per
-`multilang-v0.md` F6 Pattern A, the detector dispatches on
+Accepts `&[IrFile]` via `DetectContext` (R-1 / ir-v0.md F4 override).
+Per `multilang-v0.md` F6 Pattern A, the detector dispatches on
 `file.language` internally. Files of unsupported languages are
 skipped without error. Empty input returns `Ok(vec![])`.
 
 ### F2 — Function and call-site extraction
 
-For each `ParsedFile` of a supported language, walk the syntax tree
+For each `IrFile` of a supported language, walk the syntax tree
 and emit one `Transaction` per top-level function definition.
 A `Transaction` is the multiset of `Item`s extracted from the body
 of that function.

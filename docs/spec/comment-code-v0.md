@@ -29,9 +29,11 @@ deterministic and dependency-light per design constraint P3.
 
 ### F1 — Input
 
-Accepts `&[ParsedFile]`. Files where `language != "rust"` are skipped. Files
-that fail to parse (root has any error) are skipped silently, mirroring the
-other detectors.
+Accepts `&[IrFile]` (R-1 / ir-v0.md F4 override). Files where
+`language != Language::Rust` are skipped (Python files run through the
+Python-side helper in the same detector). Files whose tree-sitter parse
+recovered (`IrFile.parse_recovered == true`) are skipped silently,
+mirroring the other detectors.
 
 ### F2 — Doc-comment extraction
 

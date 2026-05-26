@@ -18,9 +18,10 @@ use std::path::PathBuf;
 
 use cntrdct::core::{
     register_detector, AnomalyClass, CorpusStats, DetectContext, Detector, DetectorConfig, Finding,
-    Language, LanguageCitationStatus, ParsedFile, Severity,
+    Language, LanguageCitationStatus, Severity,
 };
 use cntrdct::detectors::pr_miner::{PrMinerDetector, MAX_RELATED};
+use cntrdct::ir::IrFile;
 
 /// Build N filler functions that each call `filler_a(); filler_b();`. The
 /// shared pair contributes a high-confidence `filler_a <-> filler_b` rule
@@ -36,15 +37,12 @@ fn fillers(n: usize) -> String {
     out
 }
 
-fn parsed_rust(name: &str, src: &str) -> ParsedFile {
-    ParsedFile {
-        path: PathBuf::from(name),
-        language: Language::Rust,
-        source: src.to_string(),
-    }
+fn parsed_rust(name: &str, src: &str) -> IrFile {
+    cntrdct::ir_from_source(&PathBuf::from(name), Language::Rust, src.to_string())
+        .expect("ir_from_source")
 }
 
-fn run(files: Vec<ParsedFile>) -> Vec<Finding> {
+fn run(files: Vec<IrFile>) -> Vec<Finding> {
     let detector = PrMinerDetector::new();
     register_detector(&detector).expect("pr-miner must satisfy P1");
     let stats = CorpusStats::default();
@@ -59,7 +57,7 @@ fn run(files: Vec<ParsedFile>) -> Vec<Finding> {
 
 // ---------- T1: single-violation scenario ----------
 
-fn t1_corpus() -> Vec<ParsedFile> {
+fn t1_corpus() -> Vec<IrFile> {
     let mut src = String::new();
     for i in 0..9 {
         src.push_str(&format!(
@@ -308,12 +306,9 @@ fn t12_related_is_capped_and_flag_is_set() {
 
 // ---------- Python helpers (v0.1) ----------
 
-fn parsed_python(name: &str, src: &str) -> ParsedFile {
-    ParsedFile {
-        path: PathBuf::from(name),
-        language: Language::Python,
-        source: src.to_string(),
-    }
+fn parsed_python(name: &str, src: &str) -> IrFile {
+    cntrdct::ir_from_source(&PathBuf::from(name), Language::Python, src.to_string())
+        .expect("ir_from_source")
 }
 
 /// Build N Python filler functions, each calling the same `filler_a();

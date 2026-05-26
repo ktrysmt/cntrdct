@@ -14,12 +14,13 @@ Status: active draft, approved for TDD implementation 2026-05-02.
 
 ### F1 — Input
 
-Accepts `&[ParsedFile]` via `DetectContext`. Files with `language != "rust"` are
-skipped without error. Empty input returns `Ok(vec![])`.
+Accepts `&[IrFile]` via `DetectContext` (R-1 / ir-v0.md F4 override).
+Files with `language != Language::Rust` are skipped without error.
+Empty input returns `Ok(vec![])`.
 
 ### F2 — Function extraction
 
-Extracts every top-level `fn` definition from each ParsedFile. Functions inside
+Extracts every top-level `fn` definition from each IrFile. Functions inside
 `impl`, `trait`, or `mod` blocks are out of scope for v0. Functions whose
 normalized AST token sequence is shorter than `MIN_FN_TOKENS` are dropped
 before clustering; their drift signal is too noisy to act on. This guard

@@ -6,8 +6,9 @@
 
 use crate::core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
-    LanguageCitationStatus, Location, ParsedFile, Severity,
+    LanguageCitationStatus, Location, Severity,
 };
+use crate::ir::IrFile;
 use rayon::prelude::*;
 
 pub const TERMINATOR_MACROS: &[&str] = &[
@@ -106,24 +107,15 @@ impl Detector for UnreachableAfterTerminator {
 
 // ---------- Rust scan ----------
 
-fn scan_rust(file: &ParsedFile, findings: &mut Vec<Finding>) {
-    let mut parser = tree_sitter::Parser::new();
-    let lang = crate::parsers::parser_for(Language::Rust).ts_language();
-    if parser.set_language(&lang).is_err() {
+fn scan_rust(file: &IrFile, findings: &mut Vec<Finding>) {
+    if file.parse_recovered {
         return;
     }
-    let tree = match parser.parse(&file.source, None) {
-        Some(t) => t,
-        None => return,
-    };
-    let root = tree.root_node();
-    if root.has_error() {
-        return;
-    }
+    let root = file.raw_tree.root_node();
     walk_rust(root, file, findings);
 }
 
-fn walk_rust(node: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Finding>) {
+fn walk_rust(node: tree_sitter::Node, file: &IrFile, findings: &mut Vec<Finding>) {
     if node.kind() == "block" {
         analyze_rust_block(node, file, findings);
     }
@@ -161,7 +153,7 @@ fn walk_rust(node: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Find
     }
 }
 
-fn analyze_rust_block(block: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Finding>) {
+fn analyze_rust_block(block: tree_sitter::Node, file: &IrFile, findings: &mut Vec<Finding>) {
     if is_rust_suppressed(block, &file.source) {
         return;
     }
@@ -508,7 +500,7 @@ fn rust_has_break_targeting_self(
 
 // ---------- F4d-ii / F4d-iii / F4d-iv emission helpers ----------
 
-fn analyze_rust_call_args(call: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Finding>) {
+fn analyze_rust_call_args(call: tree_sitter::Node, file: &IrFile, findings: &mut Vec<Finding>) {
     let Some(args_node) = call.child_by_field_name("arguments") else {
         return;
     };
@@ -550,7 +542,7 @@ fn analyze_rust_call_args(call: tree_sitter::Node, file: &ParsedFile, findings: 
 
 fn analyze_rust_divergent_carrier(
     expr: tree_sitter::Node,
-    file: &ParsedFile,
+    file: &IrFile,
     findings: &mut Vec<Finding>,
 ) {
     // For `return EXPR` or `break EXPR`, the inner value is evaluated
@@ -576,7 +568,7 @@ fn analyze_rust_divergent_carrier(
 
 fn analyze_rust_if_condition(
     if_expr: tree_sitter::Node,
-    file: &ParsedFile,
+    file: &IrFile,
     findings: &mut Vec<Finding>,
 ) {
     let Some(condition) = if_expr.child_by_field_name("condition") else {
@@ -656,24 +648,15 @@ fn rust_attribute_contains(attr: tree_sitter::Node, source: &str, token: &str) -
 // matches before SARIF emission. Project-level suppression via
 // `cntrdct.toml` (T2-7 / M-5) continues to apply.
 
-fn scan_python(file: &ParsedFile, findings: &mut Vec<Finding>) {
-    let mut parser = tree_sitter::Parser::new();
-    let lang = crate::parsers::parser_for(Language::Python).ts_language();
-    if parser.set_language(&lang).is_err() {
+fn scan_python(file: &IrFile, findings: &mut Vec<Finding>) {
+    if file.parse_recovered {
         return;
     }
-    let tree = match parser.parse(&file.source, None) {
-        Some(t) => t,
-        None => return,
-    };
-    let root = tree.root_node();
-    if root.has_error() {
-        return;
-    }
+    let root = file.raw_tree.root_node();
     walk_python(root, file, findings);
 }
 
-fn walk_python(node: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Finding>) {
+fn walk_python(node: tree_sitter::Node, file: &IrFile, findings: &mut Vec<Finding>) {
     if node.kind() == "block" {
         analyze_python_block(node, file, findings);
     }
@@ -696,7 +679,7 @@ fn walk_python(node: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Fi
     }
 }
 
-fn analyze_python_block(block: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Finding>) {
+fn analyze_python_block(block: tree_sitter::Node, file: &IrFile, findings: &mut Vec<Finding>) {
     let stmts: Vec<tree_sitter::Node> = {
         let mut cursor = block.walk();
         block
@@ -837,7 +820,7 @@ fn python_constant_condition(node: tree_sitter::Node, source: &str) -> Option<bo
 
 fn analyze_python_while_constant(
     while_node: tree_sitter::Node,
-    file: &ParsedFile,
+    file: &IrFile,
     findings: &mut Vec<Finding>,
 ) {
     let mut cursor = while_node.walk();
@@ -867,7 +850,7 @@ fn analyze_python_while_constant(
 
 fn analyze_python_if_constant(
     if_node: tree_sitter::Node,
-    file: &ParsedFile,
+    file: &IrFile,
     findings: &mut Vec<Finding>,
 ) {
     let if_children: Vec<tree_sitter::Node> = {
@@ -996,7 +979,7 @@ fn python_if_false_body_is_carveout(block: tree_sitter::Node) -> bool {
 // ---------- Shared finding construction ----------
 
 fn build_finding(
-    file: &ParsedFile,
+    file: &IrFile,
     follower: tree_sitter::Node,
     terminator: tree_sitter::Node,
     kind: &'static str,
@@ -1028,7 +1011,7 @@ fn build_finding(
     }
 }
 
-fn node_location(file: &ParsedFile, node: tree_sitter::Node) -> Location {
+fn node_location(file: &IrFile, node: tree_sitter::Node) -> Location {
     let start = node.start_position();
     let end = node.end_position();
     Location {

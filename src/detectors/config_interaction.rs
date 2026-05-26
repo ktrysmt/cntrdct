@@ -5,8 +5,9 @@
 
 use crate::core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
-    LanguageCitationStatus, Location, ParsedFile, Severity,
+    LanguageCitationStatus, Location, Severity,
 };
+use crate::ir::IrFile;
 use rayon::prelude::*;
 
 static CITATIONS: &[Citation] = &[
@@ -98,24 +99,15 @@ impl Detector for ConfigInteraction {
     }
 }
 
-fn scan_file(file: &ParsedFile, findings: &mut Vec<Finding>) {
-    let mut parser = tree_sitter::Parser::new();
-    let lang = crate::parsers::parser_for(Language::Rust).ts_language();
-    if parser.set_language(&lang).is_err() {
+fn scan_file(file: &IrFile, findings: &mut Vec<Finding>) {
+    if file.parse_recovered {
         return;
     }
-    let tree = match parser.parse(&file.source, None) {
-        Some(t) => t,
-        None => return,
-    };
-    let root = tree.root_node();
-    if root.has_error() {
-        return;
-    }
+    let root = file.raw_tree.root_node();
     walk(root, file, findings);
 }
 
-fn walk(node: tree_sitter::Node, file: &ParsedFile, findings: &mut Vec<Finding>) {
+fn walk(node: tree_sitter::Node, file: &IrFile, findings: &mut Vec<Finding>) {
     if ITEM_KINDS.contains(&node.kind()) {
         if let Some(f) = analyze_item(node, file) {
             findings.push(f);
@@ -135,7 +127,7 @@ struct CfgAttr {
     location: (u32, u32, u32, u32),
 }
 
-fn analyze_item(item: tree_sitter::Node, file: &ParsedFile) -> Option<Finding> {
+fn analyze_item(item: tree_sitter::Node, file: &IrFile) -> Option<Finding> {
     let attrs = collect_cfg_attrs(item, &file.source);
     if attrs.len() < 2 {
         return None;
@@ -382,7 +374,7 @@ fn classify_contradiction(a: &CfgAttr, b: &CfgAttr) -> Option<ContradictionKind>
     None
 }
 
-fn node_location(file: &ParsedFile, node: tree_sitter::Node) -> Location {
+fn node_location(file: &IrFile, node: tree_sitter::Node) -> Location {
     let start = node.start_position();
     let end = node.end_position();
     Location {
@@ -394,7 +386,7 @@ fn node_location(file: &ParsedFile, node: tree_sitter::Node) -> Location {
     }
 }
 
-fn location_from_tuple(file: &ParsedFile, t: (u32, u32, u32, u32)) -> Location {
+fn location_from_tuple(file: &IrFile, t: (u32, u32, u32, u32)) -> Location {
     Location {
         file: file.path.clone(),
         start_line: t.0,

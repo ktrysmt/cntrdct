@@ -1,0 +1,387 @@
+{
+  "path": "nested_if_match.py",
+  "language": "python",
+  "fns": [
+    {
+      "name": "classify",
+      "params": [
+        {
+          "name": "x",
+          "kind": "Plain",
+          "location": {
+            "file": "nested_if_match.py",
+            "start_line": 1,
+            "start_col": 14,
+            "end_line": 1,
+            "end_col": 15,
+            "start_byte": 13,
+            "end_byte": 14
+          }
+        }
+      ],
+      "body": {
+        "statements": [
+          {
+            "kind": {
+              "If": {
+                "condition": {
+                  "Other": {
+                    "node_kind": "comparison_operator",
+                    "node_ref": {
+                      "start_byte": 24,
+                      "end_byte": 29,
+                      "start_row": 1,
+                      "start_col": 7,
+                      "end_row": 1,
+                      "end_col": 12
+                    }
+                  }
+                },
+                "consequence": {
+                  "statements": [
+                    {
+                      "kind": {
+                        "If": {
+                          "condition": {
+                            "Other": {
+                              "node_kind": "comparison_operator",
+                              "node_ref": {
+                                "start_byte": 42,
+                                "end_byte": 49,
+                                "start_row": 2,
+                                "start_col": 11,
+                                "end_row": 2,
+                                "end_col": 18
+                              }
+                            }
+                          },
+                          "consequence": {
+                            "statements": [
+                              {
+                                "kind": {
+                                  "Return": {
+                                    "Literal": {
+                                      "String": {
+                                        "is_empty": false
+                                      }
+                                    }
+                                  }
+                                },
+                                "attributes": [],
+                                "location": {
+                                  "file": "nested_if_match.py",
+                                  "start_line": 4,
+                                  "start_col": 13,
+                                  "end_line": 4,
+                                  "end_col": 31,
+                                  "start_byte": 63,
+                                  "end_byte": 81
+                                }
+                              }
+                            ],
+                            "terminator": "Return",
+                            "normalised_tokens": [
+                              {
+                                "Kind": "block"
+                              },
+                              {
+                                "Kind": "return_statement"
+                              },
+                              "LitStr"
+                            ],
+                            "location": {
+                              "file": "nested_if_match.py",
+                              "start_line": 4,
+                              "start_col": 13,
+                              "end_line": 4,
+                              "end_col": 31,
+                              "start_byte": 63,
+                              "end_byte": 81
+                            }
+                          },
+                          "alternative": {
+                            "statements": [
+                              {
+                                "kind": {
+                                  "Return": {
+                                    "Literal": {
+                                      "String": {
+                                        "is_empty": false
+                                      }
+                                    }
+                                  }
+                                },
+                                "attributes": [],
+                                "location": {
+                                  "file": "nested_if_match.py",
+                                  "start_line": 6,
+                                  "start_col": 13,
+                                  "end_line": 6,
+                                  "end_col": 30,
+                                  "start_byte": 108,
+                                  "end_byte": 125
+                                }
+                              }
+                            ],
+                            "terminator": "Return",
+                            "normalised_tokens": [
+                              {
+                                "Kind": "block"
+                              },
+                              {
+                                "Kind": "return_statement"
+                              },
+                              "LitStr"
+                            ],
+                            "location": {
+                              "file": "nested_if_match.py",
+                              "start_line": 6,
+                              "start_col": 13,
+                              "end_line": 6,
+                              "end_col": 30,
+                              "start_byte": 108,
+                              "end_byte": 125
+                            }
+                          },
+                          "terminator": {
+                            "BranchMerge": {
+                              "kind": "IfBranchesDiverge"
+                            }
+                          },
+                          "location": {
+                            "file": "nested_if_match.py",
+                            "start_line": 3,
+                            "start_col": 9,
+                            "end_line": 6,
+                            "end_col": 30,
+                            "start_byte": 39,
+                            "end_byte": 125
+                          }
+                        }
+                      },
+                      "attributes": [],
+                      "location": {
+                        "file": "nested_if_match.py",
+                        "start_line": 3,
+                        "start_col": 9,
+                        "end_line": 6,
+                        "end_col": 30,
+                        "start_byte": 39,
+                        "end_byte": 125
+                      }
+                    }
+                  ],
+                  "terminator": {
+                    "BranchMerge": {
+                      "kind": "IfBranchesDiverge"
+                    }
+                  },
+                  "normalised_tokens": [
+                    {
+                      "Kind": "block"
+                    },
+                    {
+                      "Kind": "if_statement"
+                    },
+                    {
+                      "Kind": "comparison_operator"
+                    },
+                    "Ident",
+                    {
+                      "Kind": "unary_operator"
+                    },
+                    "LitInt",
+                    {
+                      "Kind": "block"
+                    },
+                    {
+                      "Kind": "return_statement"
+                    },
+                    "LitStr",
+                    {
+                      "Kind": "else_clause"
+                    },
+                    {
+                      "Kind": "block"
+                    },
+                    {
+                      "Kind": "return_statement"
+                    },
+                    "LitStr"
+                  ],
+                  "location": {
+                    "file": "nested_if_match.py",
+                    "start_line": 3,
+                    "start_col": 9,
+                    "end_line": 6,
+                    "end_col": 30,
+                    "start_byte": 39,
+                    "end_byte": 125
+                  }
+                },
+                "alternative": {
+                  "statements": [
+                    {
+                      "kind": {
+                        "Return": {
+                          "Literal": {
+                            "String": {
+                              "is_empty": false
+                            }
+                          }
+                        }
+                      },
+                      "attributes": [],
+                      "location": {
+                        "file": "nested_if_match.py",
+                        "start_line": 10,
+                        "start_col": 9,
+                        "end_line": 10,
+                        "end_col": 26,
+                        "start_byte": 183,
+                        "end_byte": 200
+                      }
+                    }
+                  ],
+                  "terminator": "Return",
+                  "normalised_tokens": [
+                    {
+                      "Kind": "block"
+                    },
+                    {
+                      "Kind": "return_statement"
+                    },
+                    "LitStr"
+                  ],
+                  "location": {
+                    "file": "nested_if_match.py",
+                    "start_line": 10,
+                    "start_col": 9,
+                    "end_line": 10,
+                    "end_col": 26,
+                    "start_byte": 183,
+                    "end_byte": 200
+                  }
+                },
+                "terminator": null,
+                "location": {
+                  "file": "nested_if_match.py",
+                  "start_line": 2,
+                  "start_col": 5,
+                  "end_line": 10,
+                  "end_col": 26,
+                  "start_byte": 21,
+                  "end_byte": 200
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "nested_if_match.py",
+              "start_line": 2,
+              "start_col": 5,
+              "end_line": 10,
+              "end_col": 26,
+              "start_byte": 21,
+              "end_byte": 200
+            }
+          }
+        ],
+        "terminator": null,
+        "normalised_tokens": [
+          {
+            "Kind": "block"
+          },
+          {
+            "Kind": "if_statement"
+          },
+          {
+            "Kind": "comparison_operator"
+          },
+          "Ident",
+          "LitInt",
+          {
+            "Kind": "block"
+          },
+          {
+            "Kind": "if_statement"
+          },
+          {
+            "Kind": "comparison_operator"
+          },
+          "Ident",
+          {
+            "Kind": "unary_operator"
+          },
+          "LitInt",
+          {
+            "Kind": "block"
+          },
+          {
+            "Kind": "return_statement"
+          },
+          "LitStr",
+          {
+            "Kind": "else_clause"
+          },
+          {
+            "Kind": "block"
+          },
+          {
+            "Kind": "return_statement"
+          },
+          "LitStr",
+          {
+            "Kind": "elif_clause"
+          },
+          {
+            "Kind": "comparison_operator"
+          },
+          "Ident",
+          "LitInt",
+          {
+            "Kind": "block"
+          },
+          {
+            "Kind": "return_statement"
+          },
+          "LitStr",
+          {
+            "Kind": "else_clause"
+          },
+          {
+            "Kind": "block"
+          },
+          {
+            "Kind": "return_statement"
+          },
+          "LitStr"
+        ],
+        "location": {
+          "file": "nested_if_match.py",
+          "start_line": 2,
+          "start_col": 5,
+          "end_line": 10,
+          "end_col": 26,
+          "start_byte": 21,
+          "end_byte": 200
+        }
+      },
+      "return_type_text": null,
+      "decorators": [],
+      "is_method": false,
+      "leading_doc": null,
+      "location": {
+        "file": "nested_if_match.py",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 10,
+        "end_col": 26,
+        "start_byte": 0,
+        "end_byte": 200
+      }
+    }
+  ],
+  "top_level_comments": [],
+  "parse_recovered": false
+}
