@@ -43,16 +43,19 @@ impl ParserProvider for RustParserProvider {
         source: Arc<str>,
         path: PathBuf,
     ) -> Result<IrFile, IrConvertError> {
-        let mut shell = build_ir_shell(self, tree, source, path)?;
+        let mut shell = build_ir_shell(self, &tree, source, path)?;
         let (fns, top_level_comments) = {
             let cv = Converter {
                 source: shell.source.as_ref(),
                 path: shell.path.as_path(),
             };
-            cv.convert_root(shell.raw_tree.root_node())?
+            cv.convert_root(tree.root_node())?
         };
         shell.fns = fns;
         shell.top_level_comments = top_level_comments;
+        // `tree` drops here — IrFile keeps no reference to it. R1
+        // mitigation: language-specific detectors reparse via
+        // IrFile::raw_tree on demand.
         Ok(shell)
     }
 }
@@ -146,7 +149,17 @@ impl<'a> Converter<'a> {
             .map(|n| self.text(n).to_string());
 
         let body = match node.child_by_field_name("body") {
-            Some(b) => self.convert_rust_block(b),
+            Some(b) => {
+                // R2 (ir-v0.md): clone-drift normalises every top-level
+                // function exactly once. `convert_rust_block` always
+                // returns an IrBlock with empty `normalised_tokens` —
+                // populate here so only `IrFn.body` carries tokens,
+                // avoiding the O(nodes × nesting_depth) duplication a
+                // per-block walk would produce.
+                let mut block = self.convert_rust_block(b);
+                walk_normalize_rust(b, &mut block.normalised_tokens);
+                block
+            }
             None => empty_block(self.path, node),
         };
 
@@ -240,13 +253,14 @@ impl<'a> Converter<'a> {
         }
 
         let terminator = compute_block_terminator(&statements);
-        let mut normalised_tokens: Vec<NormalisedToken> = Vec::new();
-        walk_normalize_rust(block, &mut normalised_tokens);
 
         IrBlock {
             statements,
             terminator,
-            normalised_tokens,
+            // Only `IrFn.body` carries tokens (populated by the caller).
+            // Nested blocks (if/else, loop, while, match arms,
+            // expression-position blocks) keep this empty per R2.
+            normalised_tokens: Vec::new(),
             location: node_location(self.path, block),
         }
     }

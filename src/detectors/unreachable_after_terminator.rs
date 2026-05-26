@@ -111,7 +111,8 @@ fn scan_rust(file: &IrFile, findings: &mut Vec<Finding>) {
     if file.parse_recovered {
         return;
     }
-    let root = file.raw_tree.root_node();
+    let raw_tree = file.raw_tree();
+    let root = raw_tree.root_node();
     walk_rust(root, file, findings);
 }
 
@@ -652,7 +653,8 @@ fn scan_python(file: &IrFile, findings: &mut Vec<Finding>) {
     if file.parse_recovered {
         return;
     }
-    let root = file.raw_tree.root_node();
+    let raw_tree = file.raw_tree();
+    let root = raw_tree.root_node();
     walk_python(root, file, findings);
 }
 

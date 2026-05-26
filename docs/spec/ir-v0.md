@@ -53,9 +53,9 @@ In:
   `unreachable-after-terminator-v0.md`, `pr-miner-v0.md`) and
   `lsp-v0.md` have their `ParsedFile` references overridden by this
   spec; the R-1 commit applies a textual sweep across those files.
-- The language-specific escape hatch: `IrFile` carries
-  `raw_tree: Arc<tree_sitter::Tree>` and `source: Arc<str>` so
-  detectors under `src/detectors/lang/` can drop into the raw AST.
+- The language-specific escape hatch: `IrFile::raw_tree()` (lazy
+  reparse method per R1) and `IrFile.source` so detectors under
+  `src/detectors/lang/` can drop into the raw AST.
 - The location preservation invariant: every IR `Location` line /
   column equals the source tree-sitter node's `start_position()` and
   `end_position()` plus 1, byte-identical to the v0.5.x mapping.
@@ -80,7 +80,7 @@ Out:
   shapes the existing detectors rely on). Anything outside that
   surface either parses to an `IrStmtKind::Other` / `IrExpr::Other`
   placeholder (carrying the source node kind for discrimination) or
-  is retrieved by language-specific detectors via `IrFile.raw_tree`.
+  is retrieved by language-specific detectors via `IrFile::raw_tree()`.
 - IR-to-source pretty-printing.
 - IR persistence or cross-run caching.
 - New `Language` variants beyond `Rust` / `Python` (R-2 / R-3 cover
@@ -99,7 +99,7 @@ Out:
 - Language-specific detector — a detector whose concept is bound to
   one language's syntax: `config-interaction` (Rust `#[cfg]`),
   the planned R-5 Python `except`-reachability detector. Reads
-  tree-sitter ASTs via `IrFile.raw_tree`.
+  tree-sitter ASTs via `IrFile::raw_tree()` (lazy reparse).
 - `ParsedFile` — the v0.5.x detector input type. Retired by this
   spec; `IrFile` replaces it.
 
@@ -131,29 +131,39 @@ pub struct IrFile {
     /// Detectors currently use `if root.has_error() { return None }`
     /// as a hard skip; the carry-through preserves that contract.
     pub parse_recovered: bool,
-    /// Raw tree-sitter tree retained for the F5 language-specific
-    /// escape hatch. Cross-cutting detectors must ignore this
-    /// field; the discipline is enforced by code review, not by the
-    /// type system.
-    pub raw_tree: Arc<tree_sitter::Tree>,
+    // No `raw_tree` field. Per R1 (lazy reparse mitigation), the
+    // tree-sitter tree is produced on demand via `IrFile::raw_tree()`
+    // below — not stored as a field — so peak RSS scales with the
+    // number of concurrent detector tasks rather than the corpus size.
 }
 
 impl IrFile {
-    /// Resolve a `NodeRef` produced during conversion back to a
-    /// live tree-sitter node against `self.raw_tree`. The lookup
-    /// walks `raw_tree.root_node()` for the descendant whose
-    /// `Range` matches `node_ref.range` exactly. Returns `None`
-    /// when the ref was produced against a different `IrFile`
-    /// (the caller misused the API) or when the tree was structurally
-    /// altered between conversion and resolution (impossible under
-    /// the current immutable-tree design but defensive).
-    pub fn resolve(&self, node_ref: &NodeRef) -> Option<tree_sitter::Node<'_>> {
-        let mut cursor = self.raw_tree.walk();
-        // Descend along the unique path whose range encloses
-        // `node_ref.range`, returning the node whose range equals it.
-        // Implementation detail; the spec only mandates the function's
-        // contract.
-        find_node_with_range(self.raw_tree.root_node(), node_ref.range, &mut cursor)
+    /// Parse `self.source` with the per-language tree-sitter grammar
+    /// and return a fresh `Arc<SyncTree>`. Each call produces an
+    /// independent tree that drops when the caller releases the Arc.
+    /// Cross-cutting detectors must not call this method; language-
+    /// specific detectors (F5 escape hatch) reparse on demand.
+    pub fn raw_tree(&self) -> Arc<SyncTree> {
+        // implementation: tree_sitter::Parser::new(),
+        // set_language(parser_for(self.language).ts_language()),
+        // parser.parse(&self.source[..], None), Arc::new(SyncTree::new(tree)).
+        // The reparse cannot fail under the IR contract: the same
+        // source already parsed successfully once at to_ir time.
+        unimplemented!("spec sketch — see src/ir.rs")
+    }
+
+    /// Resolve a `NodeRef` against a freshly-parsed tree and pass the
+    /// matching node to `f`. Returns `None` when the ref was produced
+    /// against a different `IrFile` (the caller misused the API). The
+    /// closure form lets the spec hide the lazy reparse: the tree
+    /// drops when `f` returns.
+    pub fn resolve_with<R>(
+        &self,
+        node_ref: &NodeRef,
+        f: impl FnOnce(tree_sitter::Node<'_>) -> R,
+    ) -> Option<R> {
+        let raw = self.raw_tree();
+        find_node_with_range(raw.root_node(), node_ref.range).map(f)
     }
 }
 
@@ -270,7 +280,7 @@ pub enum IrStmtKind {
     /// A nested item declaration that the compiler hoists out of
     /// statement order. The variant exists so
     /// `unreachable-after-terminator` F4c can skip these without
-    /// dropping to `raw_tree`. Variant covers Rust
+    /// dropping to `raw_tree()`. Variant covers Rust
     /// `function_item` / `mod_item` / `use_declaration` / etc.;
     /// Python has no direct analogue (function / class definitions
     /// in Python are statements with runtime effect and stay as
@@ -279,10 +289,11 @@ pub enum IrStmtKind {
     /// Any statement shape the converter does not model. The
     /// `node_kind` discriminator is the tree-sitter `Node::kind()`
     /// string so a cross-cutting detector can filter without going
-    /// through `raw_tree` (e.g. `unreachable-after-terminator` may
+    /// through `raw_tree()` (e.g. `unreachable-after-terminator` may
     /// want to skip `empty_statement` without recovering the raw
     /// node). The raw tree-sitter node remains recoverable via
-    /// `IrFile::resolve(&node_ref)` for language-specific detectors.
+    /// `IrFile::resolve_with(&node_ref, ..)` for language-specific
+    /// detectors.
     Other { node_kind: &'static str, node_ref: NodeRef },
 }
 
@@ -542,13 +553,13 @@ pub enum IrLabel {
     Unlabelled,
 }
 
-/// Opaque reference into `IrFile.raw_tree`. The `range` field is
-/// sufficient for `IrFile::resolve` to walk the tree and recover
-/// the matching node; tree identity is implicit (the `NodeRef` is
-/// only meaningful when paired with the `IrFile` it was created
-/// from). Crossing the two — using a `NodeRef` from one `IrFile`
-/// against another — is a programmer error and returns `None`
-/// from `IrFile::resolve`.
+/// Opaque reference into the tree returned by `IrFile::raw_tree()`.
+/// The `range` field is sufficient for `IrFile::resolve_with` to
+/// walk a freshly-parsed tree and recover the matching node; tree
+/// identity is implicit (the `NodeRef` is only meaningful when
+/// paired with the `IrFile` it was created from). Crossing the two
+/// — using a `NodeRef` from one `IrFile` against another — is a
+/// programmer error and returns `None` from `IrFile::resolve_with`.
 pub struct NodeRef {
     pub range: tree_sitter::Range,
 }
@@ -605,8 +616,10 @@ Calling convention:
 
 - The caller parses with `tree_sitter::Parser::set_language` +
   `parser.parse(source, None)` and hands the resulting `Tree` to
-  `to_ir`. The converter retains the tree by moving it into
-  `IrFile.raw_tree` via `Arc::new`.
+  `to_ir`. The converter walks the tree to build IR but does NOT
+  retain it on `IrFile` — the local tree drops when `to_ir`
+  returns. Language-specific detectors recover the tree on demand
+  via `IrFile::raw_tree()` (R1 lazy reparse).
 - `source` is shared as `Arc<str>` so it can be referenced from
   every IR node without cloning. `Arc<str>` (single allocation) is
   preferred over `Arc<String>` (double allocation) because the
@@ -618,8 +631,9 @@ Calling convention:
   statement shapes become `IrStmtKind::Other { node_kind, node_ref }`;
   unknown expression shapes become `IrExpr::Other { node_kind, node_ref }`.
   The `node_kind` discriminator lets cross-cutting detectors filter
-  by shape without dropping to `raw_tree`; the `NodeRef` lets a
-  language-specific detector recover the raw node when needed.
+  by shape without dropping to `raw_tree()`; the `NodeRef` lets a
+  language-specific detector recover the raw node when needed (via
+  `IrFile::resolve_with`, which itself reparses internally).
 - Comment nodes (Rust `line_comment` / `block_comment`,
   Python `comment`) are filtered out of `IrBlock.normalised_tokens`
   and `IrBlock.statements` to preserve the v0.5.x normalisation
@@ -813,8 +827,11 @@ fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
     for ir_file in ctx.files {
         if ir_file.language != Language::Rust { continue; }
         if ir_file.parse_recovered { continue; }
-        let root = ir_file.raw_tree.root_node();
-        // ... walk root directly using tree-sitter APIs
+        let raw_tree = ir_file.raw_tree();          // lazy reparse
+        let root = raw_tree.root_node();
+        // ... walk root directly using tree-sitter APIs.
+        // `raw_tree` drops at end of this iteration, bounding peak
+        // RSS by concurrent task count rather than corpus size.
     }
     Ok(findings)
 }
@@ -822,10 +839,10 @@ fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
 
 The IR types are not opaque to lang detectors — they can also walk
 `IrFile.fns` and so on — but the canonical pattern is to ignore IR
-and treat `IrFile` as `{path, language, source, raw_tree}` plus the
-`parse_recovered` skip-gate.
+and reparse via `IrFile::raw_tree()` plus the `parse_recovered`
+skip-gate.
 
-Cross-cutting detectors must not touch `raw_tree`. This is a
+Cross-cutting detectors must not call `raw_tree()`. This is a
 documentation-level discipline only; the type system does not
 enforce it. A `clippy` lint or a `tests/raw_tree_discipline.rs`
 check is a possible future hardening — out of scope for v0.
@@ -887,10 +904,11 @@ T4. IR golden fixtures. For a handful of canonical sources per
     language (one with a class / impl, one with nested calls, one
     with a deeply-nested if/match) under
     `tests/fixtures/ir/<language>/`, serialise the converted
-    `IrFile` to JSON and pin against a golden file. `tree_sitter::Tree`
-    is not `Serialize`; the test serialises a `SerializableIrFile`
-    projection that omits `raw_tree` and `source` (both reproducible
-    from the fixture path) so the golden file stays diff-friendly.
+    `IrFile` to JSON and pin against a golden file. The test
+    serialises a `SerializableIrFile` projection that omits `source`
+    (reproducible from the fixture path) so the golden file stays
+    diff-friendly. `IrBlock.normalised_tokens` is populated only on
+    `IrFn.body` per R2; nested blocks serialise an empty array.
     Catches converter regressions independent of detector behaviour.
 
 T5. Location-equality unit tests per IR node kind, per F3. The
@@ -953,22 +971,24 @@ T7. Wall-clock and peak-RSS measurement. Captured before R-1.e
 
 ## Risks and open questions
 
-R1. `IrFile.raw_tree` keeps the full tree-sitter `Tree` alive for
-the duration of a scan. Memory cost scales with corpus size *
-average tree depth. The v0.5.x parsers also hold trees during
-detector runs but discard them between detectors; IR keeps one tree
-per file for the entire scan. Mitigation: `Arc<Tree>` so the cost
-is one tree per file, not one per detector × file. R-1 measures
-peak RSS via T7 on `benchmarks/wild-corpus-python` and reports in
-the PR description; if regression exceeds 25 %, R-0 revisits the
-retention decision (alternative: re-parse lazily on first
-`raw_tree` access, paying CPU for memory). `tree_sitter::Tree` is
-`Send` but not `Sync`; the `rayon::par_iter` paths in detectors
-keep their per-file borrow inside a single rayon task (each task
-owns its `&IrFile`), so the `Sync` gap does not block the
-parallel scan. R-1 adds a compile-time check
-(`fn assert_send<T: Send>() {}` invocation) in `tests/ir_send.rs`
-to lock the `Send`-ness.
+R1. Tree-sitter `Tree` lifetime. The first R-1.c landing held one
+`Arc<SyncTree>` per file alive for the entire scan; T7 on
+`benchmarks/wild-corpus` (270 Rust files) measured a 5.4× peak-RSS
+regression (71 → 380 MiB), exceeding the 25 % gate. Revised
+mitigation: `IrFile` does not store the tree at all. `IrFile::
+raw_tree()` is a method that reparses the source on every call and
+returns a fresh `Arc<SyncTree>` that drops when the caller releases
+it. Peak RSS now scales with concurrent detector tasks (rayon
+worker count) rather than corpus size. Trade-off: each detector
+that walks the raw tree pays one reparse per file; once the
+cross-cutting detector IR migration completes (the deferred R-1.c
+follow-up) the reparse cost goes away entirely. T7 confirms the
+refactor cuts the regression to 2.3× peak RSS on wild-corpus Rust;
+the residual is IR struct overhead and falls under a separate
+R-1.c'' compaction item rather than re-litigating R1. The Sync
+plumbing (`SyncTree` newtype + `unsafe impl Sync`) survives because
+detector code can still hold `Arc<SyncTree>` across rayon tasks
+while a single file is being processed.
 
 R2. `IrBlock.normalised_tokens` duplicates work the converter
 already does to materialise `IrBlock.statements`. Eager
@@ -1019,14 +1039,14 @@ substring of the source, not a parsed type expression. The current
 checks (`text.contains("Result")` / `text.contains("Option")`); the
 IR layer preserves that shape rather than introducing a type-system
 abstraction. The cost is that future detectors wanting structural
-type analysis must re-parse from `raw_tree`. Accepted.
+type analysis must re-parse from `raw_tree()`. Accepted.
 
 R6. `IrStmtKind::Other` and `IrExpr::Other` are correctness-critical
 escape hatches but provide no help for catch-all detection of new
 language constructs. The `node_kind: &'static str` discriminator
 mitigates the "fall back to raw_tree just to filter" cost: a
 detector can match on `node_kind` strings to skip or short-circuit
-without touching `raw_tree`. A future cross-cutting detector that
+without touching `raw_tree()`. A future cross-cutting detector that
 needs (say) Python `try` statements will require an IR extension.
 The process is: add the new variant to `IrStmtKind` / `IrExpr`,
 update the per-language converters, ship as a `cntrdct` minor

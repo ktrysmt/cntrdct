@@ -252,7 +252,8 @@ fn collect_rust_suppressions(file: &IrFile) -> Vec<AttributeSuppression> {
     if file.parse_recovered {
         return vec![];
     }
-    let root = file.raw_tree.root_node();
+    let raw_tree = file.raw_tree();
+    let root = raw_tree.root_node();
 
     let mut out = Vec::new();
     let mut cursor = root.walk();
@@ -296,7 +297,8 @@ fn collect_rust_suppressions(file: &IrFile) -> Vec<AttributeSuppression> {
 /// suppresses every detector on the suppression range, matching the
 /// Rust attribute's empty-form semantics.
 fn collect_python_suppressions(file: &IrFile) -> Vec<AttributeSuppression> {
-    let root = file.raw_tree.root_node();
+    let raw_tree = file.raw_tree();
+    let root = raw_tree.root_node();
     // Unlike Rust's hard `has_error` bail, Python source with a single
     // misindented stretch can still carry well-formed suppression
     // comments earlier in the file. tree-sitter recovers locally;
@@ -668,22 +670,26 @@ mod tests {
                 // intentionally blank. Construct a minimal IrFile
                 // directly so the test can drive `apply()` without
                 // tripping the EmptySource gate.
-                let provider = crate::parsers::parser_for(lang);
-                let mut p = tree_sitter::Parser::new();
-                p.set_language(&provider.ts_language()).unwrap();
+                // Lazy raw_tree: reparse-on-demand from `source` (R1
+                // mitigation). The empty-source fallback supplies a
+                // tiny placeholder body so the suppression test path
+                // does not pass blank input to the parser.
                 let placeholder = match lang {
                     Language::Rust => "fn _x() {}\n",
                     Language::Python => "def _x():\n    pass\n",
                 };
-                let tree = p.parse(placeholder, None).expect("parse placeholder");
+                let source_for_ir: Arc<str> = if body.trim().is_empty() {
+                    Arc::from(placeholder)
+                } else {
+                    Arc::from(body)
+                };
                 IrFile {
                     path: PathBuf::from(name),
                     language: lang,
-                    source: Arc::from(body),
+                    source: source_for_ir,
                     fns: Vec::new(),
                     top_level_comments: Vec::new(),
                     parse_recovered: false,
-                    raw_tree: Arc::new(crate::ir::SyncTree::new(tree)),
                 }
             }
         }

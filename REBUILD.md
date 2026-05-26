@@ -227,13 +227,13 @@ R-1.0. Capture T1 pinning fixtures (ir-v0.md F6 T1) at v0.5.2 HEAD
        {audit,wild}.json`.
        Status: `[x]` 2026-05-26 (commit b6c6540).
 R-1.a. Create `src/ir.rs` with the IR types per ir-v0.md F1.
-       Status: `[x]` 2026-05-26 (uncommitted in working tree;
-       `src/ir.rs` carries every F1 type + `IrConvertError`
-       variants + `IrFile::resolve` + hand-written `NodeRef`
-       `Serialize` impl, plus 7 inline unit tests).
+       Status: `[x]` 2026-05-26 (commit 704eb59; `src/ir.rs`
+       carries every F1 type + `IrConvertError` variants +
+       `IrFile::resolve` + hand-written `NodeRef` `Serialize` impl,
+       plus 7 inline unit tests).
 R-1.b. Promote `src/parsers.rs` to `src/parsers/{mod,rust,python}.rs`
        and implement `to_ir` per ParserProvider per ir-v0.md F2.
-       Status: `[x]` 2026-05-26 (uncommitted in working tree;
+       Status: `[x]` 2026-05-26 (commit 704eb59;
        `mod.rs` adds `to_ir` to the `ParserProvider` trait +
        `build_ir_shell` shared prelude, `rust.rs` / `python.rs`
        implement the full F1 surface — IrFn / IrParam / IrBlock /
@@ -251,7 +251,7 @@ R-1.c. Rewrite the five cross-cutting detectors against IR.
        unreachable-after-terminator → clone-drift → pr-miner.
        `cntrdct-lsp` LSP cache change (ir-v0.md F5 non-regression)
        lands in this commit.
-       Status: `[x]` 2026-05-26 (uncommitted in working tree;
+       Status: `[x]` 2026-05-26 (commit 704eb59;
        R-1.c0 deletes `ParsedFile` from `src/core.rs` and switches
        `DetectContext.files` to `&[IrFile]`; `src/lib.rs` now parses
        each file once via `parser_for(lang).to_ir(...)` and the
@@ -294,9 +294,52 @@ R-1.c. Rewrite the five cross-cutting detectors against IR.
        `cargo test --features lsp` variant likewise green
        (includes two new F5 cache unit tests).
 R-1.c'. T7 measurement (ir-v0.md F6 T7): capture wall-clock +
-       peak-RSS on `benchmarks/wild-corpus-python` (~600 files)
-       via the still-present `tests/baselines.rs` harness. MUST
-       run before R-1.e retires that harness.
+       peak-RSS on `benchmarks/wild-corpus-python` (the real corpus
+       is 11 files, not the spec's ~600) and supplementally on
+       `benchmarks/wild-corpus` (270 Rust files) via
+       `/usr/bin/time -l`. MUST run before R-1.e retires the
+       baseline harness so the comparison shape remains available.
+       Status: `[x]` 2026-05-26 (this commit). The first measurement
+       pass against the eager `IrFile.raw_tree` design (commit
+       704eb59) showed a 5.4× peak-RSS regression on wild-corpus
+       Rust (71 → 380 MiB), exceeding the R-1 release gate's 25 %
+       threshold and triggering ir-v0.md R1's "R-0 revisits the
+       retention decision" clause. The R1 mitigation landed in this
+       commit: `IrFile.raw_tree` becomes a method (`raw_tree()`)
+       that reparses the source on demand instead of a stored
+       `Arc<SyncTree>` field; `IrBlock.normalised_tokens` is
+       populated only on `IrFn.body` per ir-v0.md R2 (nested blocks
+       carry an empty vector); `IrFile::resolve` becomes
+       `resolve_with(node_ref, FnOnce(Node) -> R)` so a freshly-
+       parsed tree drops when the closure returns. T4 golden
+       fixtures re-blessed (nested-block `normalised_tokens` arrays
+       are now empty). T1 byte-identical pinning held across all
+       five detectors × three corpora. Re-measurement: Rust peak
+       RSS 380 → 156 MiB (still +118 % over v0.5.2, but well under
+       the eager-IR result); Rust wall-clock 0.41 → 1.62 s
+       (within the 25 % gate vs v0.5.2's 1.33 s); Python within
+       noise on both axes. The residual Rust RSS regression is
+       dominated by IR struct overhead held across all 270 files
+       for the scan duration — see R-1.c'' below for the follow-up.
+       Full report: `benchmarks/self-replication/v0.6.0/t7-performance.md`.
+R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
+       Rust wild-corpus RSS regression from 5.4× to 2.3× but did
+       not close it to within the 25 % gate. Two paths to closing
+       it, neither blocking R-1.h: (a) string-form IR compaction —
+       `String` → `Box<str>` across `IrFn.name` / `IrParam.name` /
+       `IrPath.{receiver, segments, raw}` / `IrLiteral` /
+       `IrComment.text` / `IrDecorator.{name_path, raw}` and
+       packed `NodeRef` (Range → 4 × u32, drop tree-sitter
+       `Point`); (b) cross-cutting detector IR migration (the
+       deferred R-1.c follow-up) — once detectors stop calling
+       `IrFile::raw_tree()` and instead read `IrFn` / `IrBlock` /
+       `IrStmt` / `IrCallSite` semantically, the reparse cost
+       disappears and the wall-clock recovers the 3× win the
+       eager design demonstrated. Both items may be sequenced
+       independently. R-1.h's release gate can either be amended
+       (per ir-v0.md R1 "R-0 revisits the retention decision") or
+       wait on R-1.c''; do not tag v0.6.0 against the current
+       Rust-corpus RSS without one of those resolutions.
        Status: `[ ]`.
 R-1.d. `git mv src/detectors/config_interaction.rs
        src/detectors/lang/rust_config_interaction.rs` + module

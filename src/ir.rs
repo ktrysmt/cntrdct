@@ -10,15 +10,21 @@
 //!
 //! Cross-cutting detectors (under `src/detectors/`) consume IR; they
 //! must not touch [`IrFile::raw_tree`]. Language-specific detectors
-//! (`src/detectors/lang/`) may walk [`IrFile::raw_tree`] directly via
-//! the escape hatch described in §F5.
+//! (`src/detectors/lang/`) may walk the tree via the escape hatch
+//! described in §F5.
+//!
+//! Lazy reparse (ir-v0.md R1 mitigation): [`IrFile`] does NOT store
+//! the tree-sitter `Tree` across the scan. Calling
+//! [`IrFile::raw_tree`] reparses the source on demand and returns a
+//! fresh [`SyncTree`] that drops when the caller releases the
+//! returned `Arc`. This trades reparse CPU per detector access for
+//! memory (no all-files tree retention).
 //!
 //! Serialization. Every IR node except [`IrFile`] derives
 //! [`serde::Serialize`] so the §F6 T4 golden fixtures can pin
-//! converter output. [`IrFile`] retains a non-`Serialize`
-//! `Arc<tree_sitter::Tree>`; the test suite serializes a
-//! `SerializableIrFile` projection that strips `raw_tree` and `source`
-//! (both reproducible from the fixture path). [`NodeRef`] supplies a
+//! converter output. The test suite serializes a
+//! `SerializableIrFile` projection that strips `source` (reproducible
+//! from the fixture path). [`NodeRef`] supplies a
 //! hand-written `Serialize` impl because `tree_sitter::Range` does not
 //! itself implement `Serialize` in the pinned tree-sitter version.
 
@@ -60,12 +66,12 @@ pub struct Location {
 
 // ---------- NodeRef ----------
 
-/// Opaque reference into [`IrFile::raw_tree`].
+/// Opaque reference into the tree returned by [`IrFile::raw_tree`].
 ///
 /// Only meaningful when paired with the [`IrFile`] it was created
 /// from. Crossing the two — using a `NodeRef` from one [`IrFile`]
 /// against another — is a programmer error and returns `None`
-/// from [`IrFile::resolve`].
+/// from [`IrFile::resolve_with`].
 #[derive(Debug, Clone)]
 pub struct NodeRef {
     /// Raw tree-sitter range used as the lookup key.
@@ -101,7 +107,7 @@ impl Serialize for NodeRef {
 ///
 /// The wrapper is `#[repr(transparent)]` and derefs to
 /// `tree_sitter::Tree` so callers continue to write
-/// `ir_file.raw_tree.root_node()` unchanged.
+/// `raw_tree.root_node()` unchanged.
 #[derive(Debug)]
 #[repr(transparent)]
 pub struct SyncTree(tree_sitter::Tree);
@@ -135,10 +141,12 @@ unsafe impl Sync for SyncTree {}
 
 /// One source file converted into IR.
 ///
-/// `raw_tree` is retained so the §F5 language-specific escape hatch
-/// (and [`IrFile::resolve`]) can recover tree-sitter nodes; cross-
-/// cutting detectors must ignore it. `Serialize` is intentionally
-/// not derived because `tree_sitter::Tree` is not serializable; T4
+/// The tree-sitter `Tree` is NOT stored as a field. Call
+/// [`IrFile::raw_tree`] for a fresh reparse — the returned `Arc`
+/// drops when the caller releases it, bounding peak memory at the
+/// number of concurrent detector tasks rather than the corpus size
+/// (ir-v0.md R1 mitigation). `Serialize` is intentionally not
+/// derived because `tree_sitter::Tree` is not serializable; T4
 /// fixtures project to a stripped struct (see module docs).
 #[derive(Debug, Clone)]
 pub struct IrFile {
@@ -157,23 +165,48 @@ pub struct IrFile {
     /// Cross-cutting detectors gate on this to preserve the v0.5.x
     /// "skip files with parse errors" behaviour.
     pub parse_recovered: bool,
-    /// Raw tree-sitter tree retained for the §F5 escape hatch.
-    /// Wrapped in [`SyncTree`] so `Arc<SyncTree>` is `Sync` and
-    /// `&[IrFile]` can drive `rayon::par_iter()`.
-    pub raw_tree: Arc<SyncTree>,
 }
 
 impl IrFile {
-    /// Resolve a [`NodeRef`] produced during conversion back to a
-    /// live tree-sitter node against `self.raw_tree`.
+    /// Parse [`Self::source`] with the per-language tree-sitter
+    /// grammar and return a fresh [`SyncTree`] wrapped in `Arc`.
+    ///
+    /// Each call produces an independent tree. Callers bind it to a
+    /// local variable so the tree drops at end of scope; this is the
+    /// R1 mitigation (no all-files tree retention across the scan).
+    /// Cross-cutting detectors that still walk the raw tree pay one
+    /// reparse per file per detector; once their IR migration lands
+    /// the reparse goes away.
+    ///
+    /// Reparse cannot fail: the same source already parsed once at
+    /// `to_ir` time. A panic here would indicate a tree-sitter
+    /// version mismatch or an external `source` mutation, both
+    /// outside the IR contract.
+    pub fn raw_tree(&self) -> Arc<SyncTree> {
+        let provider = crate::parsers::parser_for(self.language);
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&provider.ts_language())
+            .expect("tree-sitter language constructor is infallible");
+        let tree = parser
+            .parse(self.source.as_ref(), None)
+            .expect("source already parsed successfully once at to_ir time");
+        Arc::new(SyncTree::new(tree))
+    }
+
+    /// Resolve a [`NodeRef`] against a freshly-parsed tree and pass
+    /// the matching node to `f`. The tree is dropped when `f`
+    /// returns.
     ///
     /// Returns `None` when the ref was produced against a different
-    /// [`IrFile`] (the caller misused the API) or when the tree was
-    /// structurally altered between conversion and resolution
-    /// (impossible under the current immutable-tree design but
-    /// defensive).
-    pub fn resolve(&self, node_ref: &NodeRef) -> Option<tree_sitter::Node<'_>> {
-        find_node_with_range(self.raw_tree.root_node(), node_ref.range)
+    /// [`IrFile`] (the caller misused the API).
+    pub fn resolve_with<R>(
+        &self,
+        node_ref: &NodeRef,
+        f: impl FnOnce(tree_sitter::Node<'_>) -> R,
+    ) -> Option<R> {
+        let raw = self.raw_tree();
+        find_node_with_range(raw.root_node(), node_ref.range).map(f)
     }
 }
 
@@ -265,6 +298,13 @@ pub struct IrBlock {
     pub terminator: Option<IrTerminator>,
     /// Normalised token sequence covering named children in
     /// pre-order, used by `clone-drift`.
+    ///
+    /// Populated only on [`IrFn::body`]; nested blocks (if/else,
+    /// loop, while, match arms, expression-position blocks) carry an
+    /// empty vector. clone-drift normalises every top-level function
+    /// exactly once (ir-v0.md R2), so storing tokens on inner blocks
+    /// would be O(total AST nodes × nesting depth) work and memory
+    /// for no consumer.
     pub normalised_tokens: Vec<NormalisedToken>,
     /// Source location of the block.
     pub location: Location,
@@ -715,10 +755,9 @@ pub enum IrLabel {
 // ---------- SerializableIrFile (test-only projection) ----------
 
 /// `Serialize`-friendly projection of [`IrFile`] used by ir-v0.md §F6
-/// T4 golden fixtures. Strips [`IrFile::raw_tree`] and [`IrFile::source`]
-/// (the former is not `Serialize`; the latter is reproducible from the
-/// fixture path) so the JSON wire shape stays diff-friendly. Field
-/// declaration order matches the spec §R7 list.
+/// T4 golden fixtures. Strips [`IrFile::source`] (reproducible from
+/// the fixture path) so the JSON wire shape stays diff-friendly.
+/// Field declaration order matches the spec §R7 list.
 #[derive(Debug, Clone, Serialize)]
 pub struct SerializableIrFile {
     /// Filesystem path of the source file (mirrors [`IrFile::path`]).
@@ -854,26 +893,21 @@ mod tests {
             fns: Vec::new(),
             top_level_comments: Vec::new(),
             parse_recovered: false,
-            raw_tree: Arc::new(SyncTree::new(tree)),
         };
-        let resolved = ir_file
-            .resolve(&NodeRef {
-                range: target_range,
-            })
+        let resolved_range = ir_file
+            .resolve_with(
+                &NodeRef {
+                    range: target_range,
+                },
+                |n| n.range(),
+            )
             .expect("range present in tree");
-        assert_eq!(resolved.range(), target_range);
+        assert_eq!(resolved_range, target_range);
     }
 
     #[test]
     fn ir_file_resolve_returns_none_for_foreign_range() {
         let source: Arc<str> = Arc::from("fn a() {}\n");
-        let mut parser = tree_sitter::Parser::new();
-        parser
-            .set_language(&tree_sitter_rust::language())
-            .expect("set rust language");
-        let tree = parser
-            .parse(source.as_ref(), None)
-            .expect("parse rust source");
         let ir_file = IrFile {
             path: PathBuf::from("demo.rs"),
             language: Language::Rust,
@@ -881,7 +915,6 @@ mod tests {
             fns: Vec::new(),
             top_level_comments: Vec::new(),
             parse_recovered: false,
-            raw_tree: Arc::new(SyncTree::new(tree)),
         };
         // A range past the end of the file does not match any node.
         let bogus = NodeRef {
@@ -898,7 +931,7 @@ mod tests {
                 },
             },
         };
-        assert!(ir_file.resolve(&bogus).is_none());
+        assert!(ir_file.resolve_with(&bogus, |n| n.range()).is_none());
     }
 
     #[test]

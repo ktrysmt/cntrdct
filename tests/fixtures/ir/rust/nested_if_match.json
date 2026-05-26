@@ -108,39 +108,7 @@
                     }
                   ],
                   "terminator": null,
-                  "normalised_tokens": [
-                    {
-                      "Kind": "block"
-                    },
-                    {
-                      "Kind": "expression_statement"
-                    },
-                    {
-                      "Kind": "match_expression"
-                    },
-                    "Ident",
-                    {
-                      "Kind": "match_block"
-                    },
-                    {
-                      "Kind": "match_arm"
-                    },
-                    {
-                      "Kind": "match_pattern"
-                    },
-                    {
-                      "Kind": "negative_literal"
-                    },
-                    "LitInt",
-                    "LitStr",
-                    {
-                      "Kind": "match_arm"
-                    },
-                    {
-                      "Kind": "match_pattern"
-                    },
-                    "LitStr"
-                  ],
+                  "normalised_tokens": [],
                   "location": {
                     "file": "nested_if_match.rs",
                     "start_line": 2,

@@ -524,7 +524,8 @@ fn extract_rust_fns(file: &IrFile) -> Option<Vec<FnInfo>> {
     if file.parse_recovered {
         return None;
     }
-    let root = file.raw_tree.root_node();
+    let raw_tree = file.raw_tree();
+    let root = raw_tree.root_node();
 
     let mut fns = Vec::new();
     let mut cursor = root.walk();
@@ -625,7 +626,8 @@ fn extract_python_fns(file: &IrFile) -> Option<Vec<FnInfo>> {
     if file.parse_recovered {
         return None;
     }
-    let root = file.raw_tree.root_node();
+    let raw_tree = file.raw_tree();
+    let root = raw_tree.root_node();
 
     let mut fns = Vec::new();
     let mut cursor = root.walk();
@@ -777,7 +779,8 @@ fn scan_rust_for_if_branch_clones(file: &IrFile, findings: &mut Vec<Finding>) {
     if file.parse_recovered {
         return;
     }
-    let root = file.raw_tree.root_node();
+    let raw_tree = file.raw_tree();
+    let root = raw_tree.root_node();
     walk_rust_for_if_branches(root, file, findings);
 }
 

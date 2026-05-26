@@ -278,7 +278,8 @@ fn extract_rust_fn_defs(file: &IrFile) -> Option<Vec<(String, FnDef)>> {
     if file.parse_recovered {
         return None;
     }
-    let root = file.raw_tree.root_node();
+    let raw_tree = file.raw_tree();
+    let root = raw_tree.root_node();
     let mut defs = Vec::new();
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
@@ -339,7 +340,8 @@ fn extract_rust_call_sites(file: &IrFile) -> Option<Vec<CallSite>> {
     if file.parse_recovered {
         return None;
     }
-    let root = file.raw_tree.root_node();
+    let raw_tree = file.raw_tree();
+    let root = raw_tree.root_node();
     let mut calls = Vec::new();
     walk_rust_for_calls(root, file, &mut calls);
     Some(calls)
@@ -406,7 +408,8 @@ fn extract_python_fn_defs(file: &IrFile) -> Option<Vec<(String, FnDef)>> {
     if file.parse_recovered {
         return None;
     }
-    let root = file.raw_tree.root_node();
+    let raw_tree = file.raw_tree();
+    let root = raw_tree.root_node();
     let mut defs = Vec::new();
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
@@ -530,7 +533,8 @@ fn extract_python_call_sites(file: &IrFile) -> Option<Vec<CallSite>> {
     if file.parse_recovered {
         return None;
     }
-    let root = file.raw_tree.root_node();
+    let raw_tree = file.raw_tree();
+    let root = raw_tree.root_node();
     let mut calls = Vec::new();
     walk_python_for_calls(root, file, &mut calls);
     Some(calls)

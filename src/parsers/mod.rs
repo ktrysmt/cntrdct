@@ -32,7 +32,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 pub use crate::core::Language;
-use crate::ir::{IrConvertError, IrFile, SyncTree};
+use crate::ir::{IrConvertError, IrFile};
 
 pub mod python;
 pub mod rust;
@@ -70,9 +70,12 @@ pub trait ParserProvider: Send + Sync {
     /// Per ir-v0.md §F2: the caller parses with
     /// `tree_sitter::Parser::set_language` followed by
     /// `parser.parse(source, None)` and hands the resulting `Tree` to
-    /// `to_ir`. The converter retains the tree by moving it into
-    /// [`IrFile::raw_tree`] via [`Arc::new`]. `source` is shared as
-    /// `Arc<str>` so IR nodes can reference it without cloning.
+    /// `to_ir`. The converter walks the tree to build IR but does not
+    /// retain it — language-specific detectors recover the tree via
+    /// [`IrFile::raw_tree`], which reparses from
+    /// [`IrFile::source`] on demand (R1 mitigation). `source` is
+    /// shared as `Arc<str>` so IR nodes can reference it without
+    /// cloning.
     ///
     /// `to_ir` is total over the supplied tree's recognised shapes;
     /// unknown nodes become [`crate::ir::IrStmtKind::Other`] or
@@ -98,7 +101,7 @@ pub trait ParserProvider: Send + Sync {
 /// place.
 pub(crate) fn build_ir_shell<P: ParserProvider + ?Sized>(
     provider: &P,
-    tree: tree_sitter::Tree,
+    tree: &tree_sitter::Tree,
     source: Arc<str>,
     path: PathBuf,
 ) -> Result<IrFile, IrConvertError> {
@@ -128,7 +131,6 @@ pub(crate) fn build_ir_shell<P: ParserProvider + ?Sized>(
         fns: Vec::new(),
         top_level_comments: Vec::new(),
         parse_recovered,
-        raw_tree: Arc::new(SyncTree::new(tree)),
     })
 }
 

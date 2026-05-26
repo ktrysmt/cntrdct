@@ -131,7 +131,8 @@ fn collect_rust_findings(file: &IrFile, out: &mut Vec<Finding>) {
     if file.parse_recovered {
         return;
     }
-    let root = file.raw_tree.root_node();
+    let raw_tree = file.raw_tree();
+    let root = raw_tree.root_node();
 
     let mut cursor = root.walk();
     let children: Vec<tree_sitter::Node> = root.children(&mut cursor).collect();
@@ -339,7 +340,8 @@ fn collect_python_findings(file: &IrFile, out: &mut Vec<Finding>) {
     if file.parse_recovered {
         return;
     }
-    let root = file.raw_tree.root_node();
+    let raw_tree = file.raw_tree();
+    let root = raw_tree.root_node();
 
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {

@@ -103,8 +103,8 @@ fn scan_file(file: &IrFile, findings: &mut Vec<Finding>) {
     if file.parse_recovered {
         return;
     }
-    let root = file.raw_tree.root_node();
-    walk(root, file, findings);
+    let raw_tree = file.raw_tree();
+    walk(raw_tree.root_node(), file, findings);
 }
 
 fn walk(node: tree_sitter::Node, file: &IrFile, findings: &mut Vec<Finding>) {

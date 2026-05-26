@@ -199,8 +199,10 @@ fn rust_expr_other_location_matches_tree_sitter() {
     assert_eq!(node_kind, "binary_expression");
     // Confirm via raw_tree resolve that the ref points at the same node.
     if let IrExpr::Other { node_ref, .. } = expr {
-        let resolved = ir.resolve(node_ref).expect("ref resolves");
-        assert_eq!(resolved.range(), ts_bin.range());
+        let resolved_range = ir
+            .resolve_with(node_ref, |n| n.range())
+            .expect("ref resolves");
+        assert_eq!(resolved_range, ts_bin.range());
     }
 }
 
@@ -319,8 +321,10 @@ fn python_stmt_kind_other_location_matches_tree_sitter() {
     let stmts = &ir.fns[0].body.statements;
     match &stmts[0].kind {
         IrStmtKind::Other { node_ref, .. } => {
-            let resolved = ir.resolve(node_ref).expect("ref resolves");
-            assert_eq!(resolved.range(), ts_expr.range());
+            let resolved_range = ir
+                .resolve_with(node_ref, |n| n.range())
+                .expect("ref resolves");
+            assert_eq!(resolved_range, ts_expr.range());
         }
         other => panic!("expected Other, got {other:?}"),
     }
@@ -338,8 +342,10 @@ fn python_expr_other_location_matches_tree_sitter() {
         other => panic!("expected Return, got {other:?}"),
     };
     if let IrExpr::Other { node_ref, .. } = expr {
-        let resolved = ir.resolve(node_ref).expect("ref resolves");
-        assert_eq!(resolved.range(), ts_bin.range());
+        let resolved_range = ir
+            .resolve_with(node_ref, |n| n.range())
+            .expect("ref resolves");
+        assert_eq!(resolved_range, ts_bin.range());
     } else {
         panic!("expected IrExpr::Other, got {expr:?}");
     }

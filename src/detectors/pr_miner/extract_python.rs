@@ -30,7 +30,8 @@ pub fn extract(file: &IrFile) -> Vec<Transaction> {
     if file.parse_recovered {
         return Vec::new();
     }
-    let root = file.raw_tree.root_node();
+    let raw_tree = file.raw_tree();
+    let root = raw_tree.root_node();
 
     let mut out = Vec::new();
     let mut cursor = root.walk();
