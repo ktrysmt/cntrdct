@@ -340,7 +340,51 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
        (per ir-v0.md R1 "R-0 revisits the retention decision") or
        wait on R-1.c''; do not tag v0.6.0 against the current
        Rust-corpus RSS without one of those resolutions.
-       Status: `[ ]`.
+       Status: `[~]` 2026-05-27 (commit 2d90b3c).
+       Path (b) partially landed: `comment-code` now reads
+       `IrFn.{leading_doc, return_type_text, decorators, body}` +
+       `IrBlock.statements` + `IrStmtKind::{Raise, Return, If,
+       While, With, Match, Loop}` + `IrFile.source` byte slice
+       semantically; the per-detector `raw_tree()` call is gone.
+       T1 byte-identical across audit / wild-rust / wild-python.
+       The remaining four cross-cutting detectors are blocked on
+       IR-coverage extensions before a clean migration can land:
+       - `arg-swap` and `pr-miner` enumerate call sites across
+         the full function body. IR currently classifies Python
+         `for_statement` / `try_statement` / `assignment` and
+         Rust `let_declaration` / `for_expression` as
+         `IrStmtKind::Other` (opaque `NodeRef`), so calls hiding
+         inside those shapes are invisible to an IR-only walk.
+         Audit-corpus T1 fixtures place calls inside both shapes
+         (`rarfile_set_attrs.py`'s swap is inside `for dst, inf
+         in dirs:`; integration tests use `_ = copy(src, dst)`
+         assignment-wrapped form).
+       - `unreachable-after-terminator` hits the same gap.
+         `rustc_ui_expr_return.rs` audit fixture's nested
+         `let x: () = {return {return {return;}}};` is a single
+         `let_declaration` → `Other` and the inner terminators
+         are not reachable from IR.
+       - `clone-drift` needs `normalised_tokens` lifted from
+         `IrBlock` (body-only) to `IrFn` (function-item-rooted)
+         to match v0.5.x's `walk_normalize_rust(function_item)`
+         token sequence byte-for-byte; otherwise the n-gram set
+         drops the signature prefix and pairwise Jaccard shifts
+         non-trivially. F2b (intra-fn `if`-same-then-else) can
+         walk IR for `IrStmtKind::If` directly since all audit
+         findings are at statement position; the move is gated
+         on the IR change above plus T4 golden re-blessing.
+       Follow-up sequence (each its own commit on the IR side
+       before each detector migration):
+       1. Move `IrBlock.normalised_tokens` → `IrFn.normalised_tokens`,
+          rebleas T4 goldens, update ir-v0.md §F1 / R2 / §F4,
+          migrate `clone-drift`.
+       2. Add `IrStmtKind::{For, Try, Assign}` (Python) and
+          `IrStmtKind::{Let, For}` (Rust) — minimum body + RHS
+          coverage so call walking lands, rebleas T4 goldens,
+          update ir-v0.md §F1 / §F4, migrate `arg-swap` +
+          `unreachable-after-terminator` + `pr-miner`.
+       Either follow-up can be sequenced with Path (a) (string-
+       form IR compaction) in any order.
 R-1.d. `git mv src/detectors/config_interaction.rs
        src/detectors/lang/rust_config_interaction.rs` + module
        path updates + test path rewrite
