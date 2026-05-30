@@ -172,12 +172,17 @@ fn rust_comment_location_matches_tree_sitter() {
 
 #[test]
 fn rust_stmt_kind_other_location_matches_tree_sitter() {
-    let src = "fn foo() {\n    let x = 1;\n}\n";
+    // A bare `1 + 2;` parses as an `expression_statement` wrapping a
+    // `binary_expression`; the converter maps the unmodelled inner
+    // expression to IrStmtKind::Other (no binary modelling in v0).
+    // `let` / `for` now have dedicated variants, so a binary statement
+    // is the canonical remaining Other shape.
+    let src = "fn foo() {\n    1 + 2;\n}\n";
     let (tree, ir) = to_ir(Language::Rust, src, "a.rs");
-    let ts_let = first_descendant(tree.root_node(), "let_declaration").unwrap();
+    let ts_stmt = first_descendant(tree.root_node(), "expression_statement").unwrap();
     let stmts = &ir.fns[0].body.statements;
     assert!(matches!(stmts[0].kind, IrStmtKind::Other { .. }));
-    assert_location_matches(&stmts[0].location, ts_let, "a.rs");
+    assert_location_matches(&stmts[0].location, ts_stmt, "a.rs");
 }
 
 #[test]
@@ -312,12 +317,14 @@ fn python_comment_location_matches_tree_sitter() {
 
 #[test]
 fn python_stmt_kind_other_location_matches_tree_sitter() {
-    // `x = 1` parses as an `assignment` inside `expression_statement`;
-    // the outer statement maps to IrStmtKind::Other (no Assign variant
-    // in the spec).
-    let src = "def foo():\n    x = 1\n";
+    // A bare `a + b` statement parses as an `expression_statement`
+    // wrapping a `binary_operator`; the converter maps the unmodelled
+    // inner expression to IrStmtKind::Other. (`assignment` now has its
+    // own Assign variant, so a binary statement is the canonical
+    // remaining Other shape.)
+    let src = "def foo(a, b):\n    a + b\n";
     let (tree, ir) = to_ir(Language::Python, src, "a.py");
-    let ts_expr = first_descendant(tree.root_node(), "assignment").unwrap();
+    let ts_expr = first_descendant(tree.root_node(), "binary_operator").unwrap();
     let stmts = &ir.fns[0].body.statements;
     match &stmts[0].kind {
         IrStmtKind::Other { node_ref, .. } => {

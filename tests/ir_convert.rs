@@ -92,6 +92,11 @@ fn t4_rust_nested_if_match() {
 }
 
 #[test]
+fn t4_rust_let_for() {
+    run_case(Language::Rust, "let_for", "rs");
+}
+
+#[test]
 fn t4_python_class_methods() {
     run_case(Language::Python, "class_methods", "py");
 }
@@ -104,4 +109,9 @@ fn t4_python_nested_calls() {
 #[test]
 fn t4_python_nested_if_match() {
     run_case(Language::Python, "nested_if_match", "py");
+}
+
+#[test]
+fn t4_python_for_try_assign() {
+    run_case(Language::Python, "for_try_assign", "py");
 }

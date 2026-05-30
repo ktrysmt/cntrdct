@@ -268,6 +268,19 @@ pub enum IrStmtKind {
     /// `expression_statement` wrapping a `call_expression`, Python
     /// `expression_statement` wrapping a `call`).
     Call(IrCallSite),
+    /// Rust `let <pat> = <value>;`. `value` is the initialiser
+    /// expression (`None` for `let x;`). The RHS is materialised so a
+    /// cross-cutting detector reaches call sites and nested terminators
+    /// inside it (`let x = { return ...; };`, the
+    /// `rustc_ui_expr_return.rs` audit shape) without dropping to
+    /// `raw_tree()`. The binding pattern is not modelled.
+    Let { value: Option<IrExpr> },
+    /// Python `<lhs> = <value>` (plain `assignment`). `value` is the
+    /// RHS expression (`None` for an annotation-only `x: int`). Mirrors
+    /// `Let` for the Python assignment-wrapped statement shape
+    /// (`_ = copy(src, dst)`) so the call is visible to an IR walk.
+    /// Augmented assignments (`x += 1`) stay `Other`.
+    Assign { value: Option<IrExpr> },
     Return(Option<IrExpr>),
     Raise(Option<IrExpr>),
     Break(Option<IrLabel>),
@@ -283,12 +296,24 @@ pub enum IrStmtKind {
     If(IrIfStmt),
     While(IrWhileStmt),
     Loop(IrLoopStmt),
+    /// `for <pat> in <iterable>` (Rust `for_expression`, Python
+    /// `for_statement`). The iterable expression and the loop body are
+    /// both materialised so calls in either position are reachable
+    /// from an IR walk (the `rarfile_set_attrs.py` audit shape places
+    /// the arg-swap call inside a `for` body). The loop variable
+    /// pattern is not modelled.
+    For(IrForStmt),
     Match(IrMatchStmt),
     /// `with <ctx> as <name>: <body>` (Python). `pr-miner` F4e-i
     /// uses the surrounding `With` to suppress a synthesised
     /// `close` rule when the call's owner is already managed by a
     /// context manager.
     With(IrWithStmt),
+    /// Python `try: <body> except ...: <handler> [else] [finally]`.
+    /// Every sub-block is materialised so calls under any clause are
+    /// reachable from an IR walk. The exception-type / binding shapes
+    /// in the `except` clauses are not modelled.
+    Try(IrTryStmt),
     /// A nested item declaration that the compiler hoists out of
     /// statement order. The variant exists so
     /// `unreachable-after-terminator` F4c can skip these without
@@ -358,6 +383,28 @@ pub struct IrWithStmt {
     /// (`with a as x, b as y:`) appear in source order.
     pub context_managers: Vec<IrExpr>,
     pub body: IrBlock,
+    pub location: Location,
+}
+
+pub struct IrForStmt {
+    /// Iterable expression (Rust `for_expression.value`, Python
+    /// `for_statement.right`).
+    pub iterable: IrExpr,
+    pub body: IrBlock,
+    pub location: Location,
+}
+
+pub struct IrTryStmt {
+    /// `try:` body block.
+    pub body: IrBlock,
+    /// `except ...:` handler bodies in source order. The
+    /// exception-type expression and the bound name are not modelled;
+    /// only the handler block is retained for call walking.
+    pub handlers: Vec<IrBlock>,
+    /// `else:` body, if present.
+    pub orelse: Option<IrBlock>,
+    /// `finally:` body, if present.
+    pub finalbody: Option<IrBlock>,
     pub location: Location,
 }
 
@@ -601,11 +648,11 @@ mapping; conversely, no IR field is added in R-0 without a consumer.
 
 | Detector | IR fields consumed |
 |---|---|
-| `arg-swap` | `IrFn.{name, params, is_method, location}`, `IrParam.{name, kind}` (`Receiver` drop, `Unsupported` whole-fn reject), `IrCallSite.{callee, args, location}`, `IrPath.{receiver, segments}`, `IrExpr::Ident` |
+| `arg-swap` | `IrFn.{name, params, is_method, location}`, `IrParam.{name, kind}` (`Receiver` drop, `Unsupported` whole-fn reject), `IrCallSite.{callee, args, location}`, `IrPath.{receiver, segments}`, `IrExpr::Ident`, `IrStmtKind::{For, Try, With, Let, Assign}` + `IrForStmt.{iterable, body}` / `IrTryStmt.{body, handlers, orelse, finalbody}` / `IrWithStmt.body` / `Let`+`Assign` `.value` (recursing through nested statement bodies and assignment RHS for full-body call-site enumeration — the `rarfile_set_attrs.py` for-body and `_ = copy(src, dst)` audit shapes) |
 | `clone-drift` | `IrFn.{normalised_tokens, is_method, location}` (function-level clustering, top-level `!is_method` only), `IrStmtKind::If` + `IrExpr::If` walk, `IrIfStmt.{consequence, alternative, location}`, `IrBlock.{normalised_token_count, location}` (F2b consequence size gate) and `Location.{start_byte, end_byte}` for F2b intra-fn if-branch source-text equality against `IrFile.source` |
 | `comment-code` | `IrFn.{return_type_text, decorators, leading_doc, body, location}`, `IrBlock.statements`, `IrStmtKind::{Raise, Return, Call}`, `IrDecorator.{name_path, raw}`, `IrComment.{kind, text, target}`, `Location.{start_byte, end_byte}` for Pattern B body-marker substring against `IrFile.source` |
-| `unreachable-after-terminator` | `IrBlock.{statements, terminator, location}`, `IrStmt.{kind, attributes, location}`, `IrStmtKind::{Return, Raise, Break, Continue, Assert, DivergentCall, If, While, Loop, Match, HoistedItem}`, `IrTerminator`, `IrIfStmt.{condition, consequence, alternative, terminator}`, `IrMatchStmt.terminator`, `IrWhileStmt.{condition, body}`, `IrLoopStmt.{has_break_to_self, body}`, `IrExpr::Literal` (F4e), `IrStmt.attributes` (F4b per-statement cfg-gated suppression) |
-| `pr-miner` | `IrFn.{name, body, location}`, `IrBlock.statements`, `IrStmtKind::{Call, With}`, `IrWithStmt.{context_managers, body}` (F4e-i), `IrCallSite.{callee, args, location}`, `IrPath.receiver` (F4e-ii attribute receiver chain) |
+| `unreachable-after-terminator` | `IrBlock.{statements, terminator, location}`, `IrStmt.{kind, attributes, location}`, `IrStmtKind::{Return, Raise, Break, Continue, Assert, DivergentCall, If, While, Loop, Match, HoistedItem}`, `IrTerminator`, `IrIfStmt.{condition, consequence, alternative, terminator}`, `IrMatchStmt.terminator`, `IrWhileStmt.{condition, body}`, `IrLoopStmt.{has_break_to_self, body}`, `IrExpr::Literal` (F4e), `IrStmt.attributes` (F4b per-statement cfg-gated suppression), `IrStmtKind::{For, Try, Let, Assign}` + `IrForStmt.body` / `IrTryStmt.{body, handlers, orelse, finalbody}` (post-terminator analysis inside nested for/try blocks) + `Let`+`Assign` `.value` (Rust nested `let x = { return ...; }` terminator reachability — the `rustc_ui_expr_return.rs` audit shape) |
+| `pr-miner` | `IrFn.{name, body, location}`, `IrBlock.statements`, `IrStmtKind::{Call, With, For, Try, Let, Assign}`, `IrWithStmt.{context_managers, body}` (F4e-i), `IrForStmt.{iterable, body}` / `IrTryStmt.{body, handlers, orelse, finalbody}` / `Let`+`Assign` `.value` (full-body call enumeration through nested statement bodies + RHS), `IrCallSite.{callee, args, location}`, `IrPath.receiver` (F4e-ii attribute receiver chain) |
 
 ### F2 — Conversion contract
 
@@ -914,7 +961,10 @@ T3. `IrFile.parse_recovered` carry-through. A fixture file with a
 
 T4. IR golden fixtures. For a handful of canonical sources per
     language (one with a class / impl, one with nested calls, one
-    with a deeply-nested if/match) under
+    with a deeply-nested if/match, and — once R-1.c'' step 2 lands the
+    `For` / `Try` / `Assign` / `Let` variants — one exercising those
+    nested statement bodies: `rust/let_for.rs` and
+    `python/for_try_assign.py`) under
     `tests/fixtures/ir/<language>/`, serialise the converted
     `IrFile` to JSON and pin against a golden file. The test
     serialises a `SerializableIrFile` projection that omits `source`

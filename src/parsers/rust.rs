@@ -20,9 +20,9 @@ use std::sync::Arc;
 use super::{build_ir_shell, Language, ParserProvider};
 use crate::ir::{
     BranchMergeKind, DivergentKind, HoistedItemKind, IrBlock, IrCallSite, IrComment, IrCommentKind,
-    IrConvertError, IrDecorator, IrExpr, IrFile, IrFn, IrIfStmt, IrLabel, IrLiteral, IrLoopStmt,
-    IrMatchArm, IrMatchStmt, IrParam, IrPath, IrStmt, IrStmtKind, IrTerminator, IrWhileStmt,
-    Location, NodeRef, NormalisedToken, ParamKind,
+    IrConvertError, IrDecorator, IrExpr, IrFile, IrFn, IrForStmt, IrIfStmt, IrLabel, IrLiteral,
+    IrLoopStmt, IrMatchArm, IrMatchStmt, IrParam, IrPath, IrStmt, IrStmtKind, IrTerminator,
+    IrWhileStmt, Location, NodeRef, NormalisedToken, ParamKind,
 };
 
 /// Provider for Rust source (`*.rs`).
@@ -276,10 +276,12 @@ impl<'a> Converter<'a> {
         }
 
         match node.kind() {
-            "let_declaration" => IrStmtKind::Other {
-                node_kind: "let_declaration",
-                node_ref: node_ref(node),
+            "let_declaration" => IrStmtKind::Let {
+                value: node
+                    .child_by_field_name("value")
+                    .map(|v| self.convert_rust_expr(v)),
             },
+            "for_expression" => IrStmtKind::For(self.convert_rust_for(node)),
             "expression_statement" => {
                 let mut cursor = node.walk();
                 let inner = node.children(&mut cursor).find(|c| c.is_named());
@@ -335,6 +337,7 @@ impl<'a> Converter<'a> {
             "match_expression" => IrStmtKind::Match(self.convert_rust_match(inner)),
             "while_expression" => IrStmtKind::While(self.convert_rust_while(inner)),
             "loop_expression" => IrStmtKind::Loop(self.convert_rust_loop(inner)),
+            "for_expression" => IrStmtKind::For(self.convert_rust_for(inner)),
             "macro_invocation" => {
                 if is_rust_assert_macro(inner, self.source) {
                     let cond = self.first_macro_token_argument(inner);
@@ -469,6 +472,25 @@ impl<'a> Converter<'a> {
             .unwrap_or_else(|| empty_block(self.path, node));
         IrWhileStmt {
             condition,
+            body,
+            location: node_location(self.path, node),
+        }
+    }
+
+    fn convert_rust_for(&self, node: tree_sitter::Node<'a>) -> IrForStmt {
+        let iterable = node
+            .child_by_field_name("value")
+            .map(|v| self.convert_rust_expr(v))
+            .unwrap_or_else(|| IrExpr::Other {
+                node_kind: "missing_iterable",
+                node_ref: node_ref(node),
+            });
+        let body = node
+            .child_by_field_name("body")
+            .map(|b| self.convert_rust_block(b))
+            .unwrap_or_else(|| empty_block(self.path, node));
+        IrForStmt {
+            iterable,
             body,
             location: node_location(self.path, node),
         }

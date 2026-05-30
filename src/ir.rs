@@ -343,6 +343,27 @@ pub struct IrStmt {
 pub enum IrStmtKind {
     /// A function call sitting as a statement.
     Call(IrCallSite),
+    /// Rust `let <pat> = <value>;`. `value` is the initialiser
+    /// expression (`None` for an uninitialised `let x;`). The
+    /// converter materialises the RHS so a cross-cutting detector can
+    /// reach call sites and nested terminators hiding inside it
+    /// (e.g. `let x = { return ...; };`) without dropping to
+    /// `raw_tree()`. The binding pattern is not modelled — no
+    /// cross-cutting detector reasons about the LHS name.
+    Let {
+        /// Initialiser expression, if present.
+        value: Option<IrExpr>,
+    },
+    /// Python `<lhs> = <value>` (plain `assignment`). `value` is the
+    /// RHS expression (`None` for an annotation-only `x: int` with no
+    /// initialiser). Like [`IrStmtKind::Let`], the RHS is materialised
+    /// so calls inside an assignment-wrapped statement
+    /// (`_ = copy(src, dst)`) are visible to an IR-only walk.
+    /// Augmented assignments (`x += 1`) keep the `Other` shape.
+    Assign {
+        /// RHS expression, if present.
+        value: Option<IrExpr>,
+    },
     /// `return <expr>` (or valueless `return`).
     Return(Option<IrExpr>),
     /// `raise <expr>` (Python) including the bare re-raise form.
@@ -367,10 +388,20 @@ pub enum IrStmtKind {
     While(IrWhileStmt),
     /// Rust `loop { ... }`.
     Loop(IrLoopStmt),
+    /// `for <pat> in <iterable>` loop (Rust `for_expression`, Python
+    /// `for_statement`). The iterable expression and the loop body are
+    /// both materialised so call sites in either position are visible
+    /// to an IR-only walk. The loop variable pattern is not modelled.
+    For(IrForStmt),
     /// `match` (Rust) or pattern-matched statement form.
     Match(IrMatchStmt),
     /// Python `with <ctx> as <name>: <body>`.
     With(IrWithStmt),
+    /// Python `try: <body> except ...: <handler> [else] [finally]`.
+    /// Every sub-block is materialised so calls under any clause are
+    /// reachable from an IR walk. The exception-type / binding shapes
+    /// in the `except` clauses are not modelled.
+    Try(IrTryStmt),
     /// A nested item declaration the compiler hoists out of
     /// statement order. Lets `unreachable-after-terminator` skip
     /// hoisted items without recovering the raw node.
@@ -465,6 +496,35 @@ pub struct IrWithStmt {
     /// Body block.
     pub body: IrBlock,
     /// Source location of the `with`.
+    pub location: Location,
+}
+
+/// `for` loop (Rust `for_expression`, Python `for_statement`).
+#[derive(Debug, Clone, Serialize)]
+pub struct IrForStmt {
+    /// Iterable expression (Rust `for_expression.value`, Python
+    /// `for_statement.right`).
+    pub iterable: IrExpr,
+    /// Loop body.
+    pub body: IrBlock,
+    /// Source location of the `for`.
+    pub location: Location,
+}
+
+/// Python `try` statement.
+#[derive(Debug, Clone, Serialize)]
+pub struct IrTryStmt {
+    /// `try:` body block.
+    pub body: IrBlock,
+    /// `except ...:` handler bodies in source order. The
+    /// exception-type expression and the bound name are not modelled;
+    /// only the handler block is retained for call walking.
+    pub handlers: Vec<IrBlock>,
+    /// `else:` body, if present.
+    pub orelse: Option<IrBlock>,
+    /// `finally:` body, if present.
+    pub finalbody: Option<IrBlock>,
+    /// Source location of the `try`.
     pub location: Location,
 }
 

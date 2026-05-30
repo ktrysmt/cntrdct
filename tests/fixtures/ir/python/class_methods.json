@@ -61,15 +61,9 @@
           },
           {
             "kind": {
-              "Other": {
-                "node_kind": "assignment",
-                "node_ref": {
-                  "start_byte": 136,
-                  "end_byte": 154,
-                  "start_row": 5,
-                  "start_col": 8,
-                  "end_row": 5,
-                  "end_col": 26
+              "Assign": {
+                "value": {
+                  "Ident": "start"
                 }
               }
             },
@@ -175,15 +169,19 @@
         "statements": [
           {
             "kind": {
-              "Other": {
-                "node_kind": "assignment",
-                "node_ref": {
-                  "start_byte": 190,
-                  "end_byte": 221,
-                  "start_row": 8,
-                  "start_col": 8,
-                  "end_row": 8,
-                  "end_col": 39
+              "Assign": {
+                "value": {
+                  "Other": {
+                    "node_kind": "binary_operator",
+                    "node_ref": {
+                      "start_byte": 203,
+                      "end_byte": 221,
+                      "start_row": 8,
+                      "start_col": 21,
+                      "end_row": 8,
+                      "end_col": 39
+                    }
+                  }
                 }
               }
             },

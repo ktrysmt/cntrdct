@@ -1,0 +1,611 @@
+{
+  "path": "for_try_assign.py",
+  "language": "python",
+  "fns": [
+    {
+      "name": "run",
+      "params": [
+        {
+          "name": "items",
+          "kind": "Plain",
+          "location": {
+            "file": "for_try_assign.py",
+            "start_line": 1,
+            "start_col": 9,
+            "end_line": 1,
+            "end_col": 14,
+            "start_byte": 8,
+            "end_byte": 13
+          }
+        }
+      ],
+      "body": {
+        "statements": [
+          {
+            "kind": {
+              "Assign": {
+                "value": {
+                  "Call": {
+                    "callee": {
+                      "receiver": [],
+                      "segments": [
+                        "init"
+                      ],
+                      "raw": "init"
+                    },
+                    "args": [],
+                    "location": {
+                      "file": "for_try_assign.py",
+                      "start_line": 2,
+                      "start_col": 13,
+                      "end_line": 2,
+                      "end_col": 19,
+                      "start_byte": 28,
+                      "end_byte": 34
+                    }
+                  }
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "for_try_assign.py",
+              "start_line": 2,
+              "start_col": 5,
+              "end_line": 2,
+              "end_col": 19,
+              "start_byte": 20,
+              "end_byte": 34
+            }
+          },
+          {
+            "kind": {
+              "For": {
+                "iterable": {
+                  "Call": {
+                    "callee": {
+                      "receiver": [],
+                      "segments": [
+                        "fetch"
+                      ],
+                      "raw": "fetch"
+                    },
+                    "args": [
+                      {
+                        "Ident": "items"
+                      }
+                    ],
+                    "location": {
+                      "file": "for_try_assign.py",
+                      "start_line": 3,
+                      "start_col": 15,
+                      "end_line": 3,
+                      "end_col": 27,
+                      "start_byte": 49,
+                      "end_byte": 61
+                    }
+                  }
+                },
+                "body": {
+                  "statements": [
+                    {
+                      "kind": {
+                        "Call": {
+                          "callee": {
+                            "receiver": [],
+                            "segments": [
+                              "record"
+                            ],
+                            "raw": "record"
+                          },
+                          "args": [
+                            {
+                              "Ident": "it"
+                            }
+                          ],
+                          "location": {
+                            "file": "for_try_assign.py",
+                            "start_line": 4,
+                            "start_col": 9,
+                            "end_line": 4,
+                            "end_col": 19,
+                            "start_byte": 71,
+                            "end_byte": 81
+                          }
+                        }
+                      },
+                      "attributes": [],
+                      "location": {
+                        "file": "for_try_assign.py",
+                        "start_line": 4,
+                        "start_col": 9,
+                        "end_line": 4,
+                        "end_col": 19,
+                        "start_byte": 71,
+                        "end_byte": 81
+                      }
+                    }
+                  ],
+                  "terminator": null,
+                  "normalised_token_count": 6,
+                  "location": {
+                    "file": "for_try_assign.py",
+                    "start_line": 4,
+                    "start_col": 9,
+                    "end_line": 4,
+                    "end_col": 19,
+                    "start_byte": 71,
+                    "end_byte": 81
+                  }
+                },
+                "location": {
+                  "file": "for_try_assign.py",
+                  "start_line": 3,
+                  "start_col": 5,
+                  "end_line": 4,
+                  "end_col": 19,
+                  "start_byte": 39,
+                  "end_byte": 81
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "for_try_assign.py",
+              "start_line": 3,
+              "start_col": 5,
+              "end_line": 4,
+              "end_col": 19,
+              "start_byte": 39,
+              "end_byte": 81
+            }
+          },
+          {
+            "kind": {
+              "Try": {
+                "body": {
+                  "statements": [
+                    {
+                      "kind": {
+                        "Call": {
+                          "callee": {
+                            "receiver": [],
+                            "segments": [
+                              "risky"
+                            ],
+                            "raw": "risky"
+                          },
+                          "args": [],
+                          "location": {
+                            "file": "for_try_assign.py",
+                            "start_line": 6,
+                            "start_col": 9,
+                            "end_line": 6,
+                            "end_col": 16,
+                            "start_byte": 99,
+                            "end_byte": 106
+                          }
+                        }
+                      },
+                      "attributes": [],
+                      "location": {
+                        "file": "for_try_assign.py",
+                        "start_line": 6,
+                        "start_col": 9,
+                        "end_line": 6,
+                        "end_col": 16,
+                        "start_byte": 99,
+                        "end_byte": 106
+                      }
+                    }
+                  ],
+                  "terminator": null,
+                  "normalised_token_count": 5,
+                  "location": {
+                    "file": "for_try_assign.py",
+                    "start_line": 6,
+                    "start_col": 9,
+                    "end_line": 6,
+                    "end_col": 16,
+                    "start_byte": 99,
+                    "end_byte": 106
+                  }
+                },
+                "handlers": [
+                  {
+                    "statements": [
+                      {
+                        "kind": {
+                          "Call": {
+                            "callee": {
+                              "receiver": [],
+                              "segments": [
+                                "handle"
+                              ],
+                              "raw": "handle"
+                            },
+                            "args": [],
+                            "location": {
+                              "file": "for_try_assign.py",
+                              "start_line": 8,
+                              "start_col": 9,
+                              "end_line": 8,
+                              "end_col": 17,
+                              "start_byte": 138,
+                              "end_byte": 146
+                            }
+                          }
+                        },
+                        "attributes": [],
+                        "location": {
+                          "file": "for_try_assign.py",
+                          "start_line": 8,
+                          "start_col": 9,
+                          "end_line": 8,
+                          "end_col": 17,
+                          "start_byte": 138,
+                          "end_byte": 146
+                        }
+                      }
+                    ],
+                    "terminator": null,
+                    "normalised_token_count": 5,
+                    "location": {
+                      "file": "for_try_assign.py",
+                      "start_line": 8,
+                      "start_col": 9,
+                      "end_line": 8,
+                      "end_col": 17,
+                      "start_byte": 138,
+                      "end_byte": 146
+                    }
+                  }
+                ],
+                "orelse": {
+                  "statements": [
+                    {
+                      "kind": {
+                        "Call": {
+                          "callee": {
+                            "receiver": [],
+                            "segments": [
+                              "cleanup"
+                            ],
+                            "raw": "cleanup"
+                          },
+                          "args": [],
+                          "location": {
+                            "file": "for_try_assign.py",
+                            "start_line": 10,
+                            "start_col": 9,
+                            "end_line": 10,
+                            "end_col": 18,
+                            "start_byte": 165,
+                            "end_byte": 174
+                          }
+                        }
+                      },
+                      "attributes": [],
+                      "location": {
+                        "file": "for_try_assign.py",
+                        "start_line": 10,
+                        "start_col": 9,
+                        "end_line": 10,
+                        "end_col": 18,
+                        "start_byte": 165,
+                        "end_byte": 174
+                      }
+                    }
+                  ],
+                  "terminator": null,
+                  "normalised_token_count": 5,
+                  "location": {
+                    "file": "for_try_assign.py",
+                    "start_line": 10,
+                    "start_col": 9,
+                    "end_line": 10,
+                    "end_col": 18,
+                    "start_byte": 165,
+                    "end_byte": 174
+                  }
+                },
+                "finalbody": {
+                  "statements": [
+                    {
+                      "kind": {
+                        "Call": {
+                          "callee": {
+                            "receiver": [],
+                            "segments": [
+                              "teardown"
+                            ],
+                            "raw": "teardown"
+                          },
+                          "args": [],
+                          "location": {
+                            "file": "for_try_assign.py",
+                            "start_line": 12,
+                            "start_col": 9,
+                            "end_line": 12,
+                            "end_col": 19,
+                            "start_byte": 196,
+                            "end_byte": 206
+                          }
+                        }
+                      },
+                      "attributes": [],
+                      "location": {
+                        "file": "for_try_assign.py",
+                        "start_line": 12,
+                        "start_col": 9,
+                        "end_line": 12,
+                        "end_col": 19,
+                        "start_byte": 196,
+                        "end_byte": 206
+                      }
+                    }
+                  ],
+                  "terminator": null,
+                  "normalised_token_count": 5,
+                  "location": {
+                    "file": "for_try_assign.py",
+                    "start_line": 12,
+                    "start_col": 9,
+                    "end_line": 12,
+                    "end_col": 19,
+                    "start_byte": 196,
+                    "end_byte": 206
+                  }
+                },
+                "location": {
+                  "file": "for_try_assign.py",
+                  "start_line": 5,
+                  "start_col": 5,
+                  "end_line": 12,
+                  "end_col": 19,
+                  "start_byte": 86,
+                  "end_byte": 206
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "for_try_assign.py",
+              "start_line": 5,
+              "start_col": 5,
+              "end_line": 12,
+              "end_col": 19,
+              "start_byte": 86,
+              "end_byte": 206
+            }
+          },
+          {
+            "kind": {
+              "Assign": {
+                "value": {
+                  "Call": {
+                    "callee": {
+                      "receiver": [],
+                      "segments": [
+                        "copy"
+                      ],
+                      "raw": "copy"
+                    },
+                    "args": [
+                      {
+                        "Ident": "total"
+                      },
+                      {
+                        "Ident": "items"
+                      }
+                    ],
+                    "location": {
+                      "file": "for_try_assign.py",
+                      "start_line": 13,
+                      "start_col": 9,
+                      "end_line": 13,
+                      "end_col": 27,
+                      "start_byte": 215,
+                      "end_byte": 233
+                    }
+                  }
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "for_try_assign.py",
+              "start_line": 13,
+              "start_col": 5,
+              "end_line": 13,
+              "end_col": 27,
+              "start_byte": 211,
+              "end_byte": 233
+            }
+          },
+          {
+            "kind": {
+              "Return": {
+                "Ident": "total"
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "for_try_assign.py",
+              "start_line": 14,
+              "start_col": 5,
+              "end_line": 14,
+              "end_col": 17,
+              "start_byte": 238,
+              "end_byte": 250
+            }
+          }
+        ],
+        "terminator": "Return",
+        "normalised_token_count": 54,
+        "location": {
+          "file": "for_try_assign.py",
+          "start_line": 2,
+          "start_col": 5,
+          "end_line": 14,
+          "end_col": 17,
+          "start_byte": 20,
+          "end_byte": 250
+        }
+      },
+      "return_type_text": null,
+      "decorators": [],
+      "is_method": false,
+      "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "function_definition"
+        },
+        "Ident",
+        {
+          "Kind": "parameters"
+        },
+        "Ident",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "assignment"
+        },
+        "Ident",
+        {
+          "Kind": "call"
+        },
+        "Ident",
+        {
+          "Kind": "argument_list"
+        },
+        {
+          "Kind": "for_statement"
+        },
+        "Ident",
+        {
+          "Kind": "call"
+        },
+        "Ident",
+        {
+          "Kind": "argument_list"
+        },
+        "Ident",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "call"
+        },
+        "Ident",
+        {
+          "Kind": "argument_list"
+        },
+        "Ident",
+        {
+          "Kind": "try_statement"
+        },
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "call"
+        },
+        "Ident",
+        {
+          "Kind": "argument_list"
+        },
+        {
+          "Kind": "except_clause"
+        },
+        "Ident",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "call"
+        },
+        "Ident",
+        {
+          "Kind": "argument_list"
+        },
+        {
+          "Kind": "else_clause"
+        },
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "call"
+        },
+        "Ident",
+        {
+          "Kind": "argument_list"
+        },
+        {
+          "Kind": "finally_clause"
+        },
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "call"
+        },
+        "Ident",
+        {
+          "Kind": "argument_list"
+        },
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "assignment"
+        },
+        "Ident",
+        {
+          "Kind": "call"
+        },
+        "Ident",
+        {
+          "Kind": "argument_list"
+        },
+        "Ident",
+        "Ident",
+        {
+          "Kind": "return_statement"
+        },
+        "Ident"
+      ],
+      "location": {
+        "file": "for_try_assign.py",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 14,
+        "end_col": 17,
+        "start_byte": 0,
+        "end_byte": 250
+      }
+    }
+  ],
+  "top_level_comments": [],
+  "parse_recovered": false
+}

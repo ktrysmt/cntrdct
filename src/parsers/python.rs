@@ -20,9 +20,9 @@ use std::sync::Arc;
 use super::{build_ir_shell, Language, ParserProvider};
 use crate::ir::{
     BranchMergeKind, ConstantBranchKind, DivergentKind, IrBlock, IrCallSite, IrComment,
-    IrCommentKind, IrConvertError, IrDecorator, IrExpr, IrFile, IrFn, IrIfStmt, IrLiteral, IrParam,
-    IrPath, IrStmt, IrStmtKind, IrTerminator, IrWhileStmt, IrWithStmt, Location, NodeRef,
-    NormalisedToken, ParamKind,
+    IrCommentKind, IrConvertError, IrDecorator, IrExpr, IrFile, IrFn, IrForStmt, IrIfStmt,
+    IrLiteral, IrParam, IrPath, IrStmt, IrStmtKind, IrTerminator, IrTryStmt, IrWhileStmt,
+    IrWithStmt, Location, NodeRef, NormalisedToken, ParamKind,
 };
 
 /// Provider for Python source (`*.py`, `*.pyi`).
@@ -321,11 +321,18 @@ impl<'a> Converter<'a> {
             }
             "if_statement" => IrStmtKind::If(self.convert_python_if(node)),
             "while_statement" => IrStmtKind::While(self.convert_python_while(node)),
+            "for_statement" => IrStmtKind::For(self.convert_python_for(node)),
+            "try_statement" => IrStmtKind::Try(self.convert_python_try(node)),
             "with_statement" => IrStmtKind::With(self.convert_python_with(node)),
             "expression_statement" => {
                 let mut cursor = node.walk();
                 let inner = node.children(&mut cursor).find(|c| c.is_named());
                 match inner {
+                    Some(inner) if inner.kind() == "assignment" => IrStmtKind::Assign {
+                        value: inner
+                            .child_by_field_name("right")
+                            .map(|r| self.convert_python_expr(r)),
+                    },
                     Some(inner) if inner.kind() == "call" => {
                         if let Some(kind) = self.python_exit_kind_for_call(inner) {
                             IrStmtKind::DivergentCall {
@@ -466,6 +473,59 @@ impl<'a> Converter<'a> {
         IrWithStmt {
             context_managers,
             body,
+            location: node_location(self.path, node),
+        }
+    }
+
+    fn convert_python_for(&self, node: tree_sitter::Node<'a>) -> IrForStmt {
+        let iterable = match node.child_by_field_name("right") {
+            Some(r) => self.convert_python_expr(r),
+            None => IrExpr::Other {
+                node_kind: "missing_iterable",
+                node_ref: node_ref(node),
+            },
+        };
+        let body = match node.child_by_field_name("body") {
+            Some(b) => self.convert_python_block(b),
+            None => empty_block(self.path, node),
+        };
+        IrForStmt {
+            iterable,
+            body,
+            location: node_location(self.path, node),
+        }
+    }
+
+    fn convert_python_try(&self, node: tree_sitter::Node<'a>) -> IrTryStmt {
+        let body = match node.child_by_field_name("body") {
+            Some(b) => self.convert_python_block(b),
+            None => empty_block(self.path, node),
+        };
+        let mut handlers: Vec<IrBlock> = Vec::new();
+        let mut orelse: Option<IrBlock> = None;
+        let mut finalbody: Option<IrBlock> = None;
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            match child.kind() {
+                "except_clause" | "except_group_clause" => {
+                    if let Some(b) = python_clause_block(child) {
+                        handlers.push(self.convert_python_block(b));
+                    }
+                }
+                "else_clause" => {
+                    orelse = python_clause_block(child).map(|b| self.convert_python_block(b));
+                }
+                "finally_clause" => {
+                    finalbody = python_clause_block(child).map(|b| self.convert_python_block(b));
+                }
+                _ => {}
+            }
+        }
+        IrTryStmt {
+            body,
+            handlers,
+            orelse,
+            finalbody,
             location: node_location(self.path, node),
         }
     }
@@ -625,6 +685,15 @@ fn python_stmt_terminator(stmt: &IrStmt) -> Option<IrTerminator> {
 }
 
 // ---------- Python control-flow helpers ----------
+
+/// Return the `block` child of a clause node (`except_clause`,
+/// `else_clause`, `finally_clause`). tree-sitter-python nests the
+/// clause body as a direct `block` child without a field name.
+fn python_clause_block(clause: tree_sitter::Node<'_>) -> Option<tree_sitter::Node<'_>> {
+    let mut cursor = clause.walk();
+    let found = clause.children(&mut cursor).find(|c| c.kind() == "block");
+    found
+}
 
 fn python_find_else_block(node: tree_sitter::Node<'_>) -> Option<tree_sitter::Node<'_>> {
     let mut cursor = node.walk();

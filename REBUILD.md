@@ -340,9 +340,9 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
        (per ir-v0.md R1 "R-0 revisits the retention decision") or
        wait on R-1.c''; do not tag v0.6.0 against the current
        Rust-corpus RSS without one of those resolutions.
-       Status: `[~]` 2026-05-29 (follow-up step 1 uncommitted in
-       working tree; follow-up step 1 done, step 2 + path (a)
-       pending).
+       Status: `[~]` 2026-05-30 (follow-up step 1 committed 0038e81;
+       step 2 IR-side extension done — `IrStmtKind::{For, Try, Assign,
+       Let}` landed, the three detector migrations + path (a) pending).
        Path (b) progress:
        - `comment-code` (2026-05-27, commit 2d90b3c) reads
          `IrFn.{leading_doc, return_type_text, decorators, body}` +
@@ -372,8 +372,9 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
        ~159 MiB, essentially unchanged (RSS is dominated by IR struct
        retention, which path (a) / full step-2 migration addresses,
        not clone-drift's transient reparse).
-       The remaining three cross-cutting detectors are blocked on
-       IR-coverage extensions before a clean migration can land:
+       The remaining three cross-cutting detectors were blocked on
+       the IR-coverage extension below; step 2 (2026-05-30) closes it,
+       so they are now ready to migrate:
        - `arg-swap` and `pr-miner` enumerate call sites across
          the full function body. IR currently classifies Python
          `for_statement` / `try_statement` / `assignment` and
@@ -395,11 +396,31 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
           `IrFn.normalised_tokens` (+ `IrBlock.normalised_token_count`),
           re-blessed T4 goldens, updated ir-v0.md §F1 / R2 / §F4,
           migrated `clone-drift`.
-       2. Add `IrStmtKind::{For, Try, Assign}` (Python) and
-          `IrStmtKind::{Let, For}` (Rust) — minimum body + RHS
-          coverage so call walking lands, rebleas T4 goldens,
-          update ir-v0.md §F1 / §F4, migrate `arg-swap` +
-          `unreachable-after-terminator` + `pr-miner`.
+       2. IR-side extension [done] 2026-05-30: added
+          `IrStmtKind::{For(IrForStmt), Try(IrTryStmt), Assign{value},
+          Let{value}}` covering Python `for_statement` /
+          `try_statement` / `assignment` and Rust `let_declaration` /
+          `for_expression`. Each carries the iterable / body / RHS as
+          materialised `IrExpr` / `IrBlock` so call sites and nested
+          terminators inside those statement shapes are reachable from
+          an IR-only walk (verified in the new T4 goldens:
+          `rust/let_for.rs`, `python/for_try_assign.py`). New variants
+          contribute no block terminator (parity with the prior
+          `Other` → `None`), so T1 stays byte-identical across all five
+          detectors × three corpora (detectors still read `raw_tree()`
+          until they migrate). Re-blessed `python/class_methods.json`
+          (assignment → Assign); updated the two T5 `*_stmt_kind_other`
+          location tests to a binary-expression statement (the
+          canonical remaining `Other` shape). Updated ir-v0.md §F1
+          (enum + the two new structs + the arg-swap / unreachable /
+          pr-miner traceability rows) and §F6 T4. Scope boundary: this
+          commit closes the *statement-shape* gap only; calls nested
+          inside still-`Other` expressions (e.g. `x = a + foo()`'s
+          `binary_operator` RHS) remain opaque and are the detector
+          migrations' concern (NodeRef recovery or further IrExpr
+          coverage). Pending: migrate `arg-swap` +
+          `unreachable-after-terminator` + `pr-miner` (each its own
+          commit).
        Either follow-up can be sequenced with Path (a) (string-
        form IR compaction) in any order.
 R-1.d. `git mv src/detectors/config_interaction.rs

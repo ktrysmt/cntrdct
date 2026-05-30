@@ -1,0 +1,479 @@
+{
+  "path": "let_for.rs",
+  "language": "rust",
+  "fns": [
+    {
+      "name": "run",
+      "params": [
+        {
+          "name": "items",
+          "kind": "Plain",
+          "location": {
+            "file": "let_for.rs",
+            "start_line": 1,
+            "start_col": 8,
+            "end_line": 1,
+            "end_col": 21,
+            "start_byte": 7,
+            "end_byte": 20
+          }
+        }
+      ],
+      "body": {
+        "statements": [
+          {
+            "kind": {
+              "Let": {
+                "value": {
+                  "Call": {
+                    "callee": {
+                      "receiver": [],
+                      "segments": [
+                        "sum"
+                      ],
+                      "raw": "sum"
+                    },
+                    "args": [
+                      {
+                        "Ident": "items"
+                      }
+                    ],
+                    "location": {
+                      "file": "let_for.rs",
+                      "start_line": 2,
+                      "start_col": 17,
+                      "end_line": 2,
+                      "end_col": 27,
+                      "start_byte": 47,
+                      "end_byte": 57
+                    }
+                  }
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "let_for.rs",
+              "start_line": 2,
+              "start_col": 5,
+              "end_line": 2,
+              "end_col": 28,
+              "start_byte": 35,
+              "end_byte": 58
+            }
+          },
+          {
+            "kind": {
+              "For": {
+                "iterable": {
+                  "Call": {
+                    "callee": {
+                      "receiver": [],
+                      "segments": [
+                        "iter"
+                      ],
+                      "raw": "iter"
+                    },
+                    "args": [
+                      {
+                        "Ident": "items"
+                      }
+                    ],
+                    "location": {
+                      "file": "let_for.rs",
+                      "start_line": 3,
+                      "start_col": 15,
+                      "end_line": 3,
+                      "end_col": 26,
+                      "start_byte": 73,
+                      "end_byte": 84
+                    }
+                  }
+                },
+                "body": {
+                  "statements": [
+                    {
+                      "kind": {
+                        "Call": {
+                          "callee": {
+                            "receiver": [],
+                            "segments": [
+                              "accumulate"
+                            ],
+                            "raw": "accumulate"
+                          },
+                          "args": [
+                            {
+                              "Ident": "it"
+                            }
+                          ],
+                          "location": {
+                            "file": "let_for.rs",
+                            "start_line": 4,
+                            "start_col": 9,
+                            "end_line": 4,
+                            "end_col": 23,
+                            "start_byte": 95,
+                            "end_byte": 109
+                          }
+                        }
+                      },
+                      "attributes": [],
+                      "location": {
+                        "file": "let_for.rs",
+                        "start_line": 4,
+                        "start_col": 9,
+                        "end_line": 4,
+                        "end_col": 24,
+                        "start_byte": 95,
+                        "end_byte": 110
+                      }
+                    }
+                  ],
+                  "terminator": null,
+                  "normalised_token_count": 6,
+                  "location": {
+                    "file": "let_for.rs",
+                    "start_line": 3,
+                    "start_col": 27,
+                    "end_line": 5,
+                    "end_col": 6,
+                    "start_byte": 85,
+                    "end_byte": 116
+                  }
+                },
+                "location": {
+                  "file": "let_for.rs",
+                  "start_line": 3,
+                  "start_col": 5,
+                  "end_line": 5,
+                  "end_col": 6,
+                  "start_byte": 63,
+                  "end_byte": 116
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "let_for.rs",
+              "start_line": 3,
+              "start_col": 5,
+              "end_line": 5,
+              "end_col": 6,
+              "start_byte": 63,
+              "end_byte": 116
+            }
+          },
+          {
+            "kind": {
+              "Other": {
+                "node_kind": "identifier",
+                "node_ref": {
+                  "start_byte": 121,
+                  "end_byte": 126,
+                  "start_row": 5,
+                  "start_col": 4,
+                  "end_row": 5,
+                  "end_col": 9
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "let_for.rs",
+              "start_line": 6,
+              "start_col": 5,
+              "end_line": 6,
+              "end_col": 10,
+              "start_byte": 121,
+              "end_byte": 126
+            }
+          }
+        ],
+        "terminator": null,
+        "normalised_token_count": 21,
+        "location": {
+          "file": "let_for.rs",
+          "start_line": 1,
+          "start_col": 30,
+          "end_line": 7,
+          "end_col": 2,
+          "start_byte": 29,
+          "end_byte": 128
+        }
+      },
+      "return_type_text": "i32",
+      "decorators": [],
+      "is_method": false,
+      "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "function_item"
+        },
+        "Ident",
+        {
+          "Kind": "parameters"
+        },
+        {
+          "Kind": "parameter"
+        },
+        "Ident",
+        {
+          "Kind": "reference_type"
+        },
+        {
+          "Kind": "array_type"
+        },
+        {
+          "Kind": "primitive_type"
+        },
+        {
+          "Kind": "primitive_type"
+        },
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "let_declaration"
+        },
+        "Ident",
+        {
+          "Kind": "call_expression"
+        },
+        "Ident",
+        {
+          "Kind": "arguments"
+        },
+        "Ident",
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "for_expression"
+        },
+        "Ident",
+        {
+          "Kind": "call_expression"
+        },
+        "Ident",
+        {
+          "Kind": "arguments"
+        },
+        "Ident",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "call_expression"
+        },
+        "Ident",
+        {
+          "Kind": "arguments"
+        },
+        "Ident",
+        "Ident"
+      ],
+      "location": {
+        "file": "let_for.rs",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 7,
+        "end_col": 2,
+        "start_byte": 0,
+        "end_byte": 128
+      }
+    },
+    {
+      "name": "pick",
+      "params": [
+        {
+          "name": "flag",
+          "kind": "Plain",
+          "location": {
+            "file": "let_for.rs",
+            "start_line": 9,
+            "start_col": 9,
+            "end_line": 9,
+            "end_col": 19,
+            "start_byte": 138,
+            "end_byte": 148
+          }
+        }
+      ],
+      "body": {
+        "statements": [
+          {
+            "kind": {
+              "Let": {
+                "value": {
+                  "Block": {
+                    "statements": [
+                      {
+                        "kind": {
+                          "Return": {
+                            "Call": {
+                              "callee": {
+                                "receiver": [],
+                                "segments": [
+                                  "early"
+                                ],
+                                "raw": "early"
+                              },
+                              "args": [
+                                {
+                                  "Ident": "flag"
+                                }
+                              ],
+                              "location": {
+                                "file": "let_for.rs",
+                                "start_line": 10,
+                                "start_col": 22,
+                                "end_line": 10,
+                                "end_col": 33,
+                                "start_byte": 180,
+                                "end_byte": 191
+                              }
+                            }
+                          }
+                        },
+                        "attributes": [],
+                        "location": {
+                          "file": "let_for.rs",
+                          "start_line": 10,
+                          "start_col": 15,
+                          "end_line": 10,
+                          "end_col": 34,
+                          "start_byte": 173,
+                          "end_byte": 192
+                        }
+                      }
+                    ],
+                    "terminator": "Return",
+                    "normalised_token_count": 7,
+                    "location": {
+                      "file": "let_for.rs",
+                      "start_line": 10,
+                      "start_col": 13,
+                      "end_line": 10,
+                      "end_col": 36,
+                      "start_byte": 171,
+                      "end_byte": 194
+                    }
+                  }
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "let_for.rs",
+              "start_line": 10,
+              "start_col": 5,
+              "end_line": 10,
+              "end_col": 37,
+              "start_byte": 163,
+              "end_byte": 195
+            }
+          },
+          {
+            "kind": {
+              "Other": {
+                "node_kind": "identifier",
+                "node_ref": {
+                  "start_byte": 200,
+                  "end_byte": 201,
+                  "start_row": 10,
+                  "start_col": 4,
+                  "end_row": 10,
+                  "end_col": 5
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "let_for.rs",
+              "start_line": 11,
+              "start_col": 5,
+              "end_line": 11,
+              "end_col": 6,
+              "start_byte": 200,
+              "end_byte": 201
+            }
+          }
+        ],
+        "terminator": null,
+        "normalised_token_count": 11,
+        "location": {
+          "file": "let_for.rs",
+          "start_line": 9,
+          "start_col": 28,
+          "end_line": 12,
+          "end_col": 2,
+          "start_byte": 157,
+          "end_byte": 203
+        }
+      },
+      "return_type_text": "i32",
+      "decorators": [],
+      "is_method": false,
+      "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "function_item"
+        },
+        "Ident",
+        {
+          "Kind": "parameters"
+        },
+        {
+          "Kind": "parameter"
+        },
+        "Ident",
+        {
+          "Kind": "primitive_type"
+        },
+        {
+          "Kind": "primitive_type"
+        },
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "let_declaration"
+        },
+        "Ident",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "return_expression"
+        },
+        {
+          "Kind": "call_expression"
+        },
+        "Ident",
+        {
+          "Kind": "arguments"
+        },
+        "Ident",
+        "Ident"
+      ],
+      "location": {
+        "file": "let_for.rs",
+        "start_line": 9,
+        "start_col": 1,
+        "end_line": 12,
+        "end_col": 2,
+        "start_byte": 130,
+        "end_byte": 203
+      }
+    }
+  ],
+  "top_level_comments": [],
+  "parse_recovered": false
+}
