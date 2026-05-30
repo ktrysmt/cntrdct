@@ -20,7 +20,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use cntrdct::ir::{IrBlock, IrExpr, IrFile, IrStmtKind};
+use cntrdct::ir::{IrExpr, IrFile, IrStmtKind};
 use cntrdct::parsers::{parser_for, Language};
 
 fn to_ir(lang: Language, source: &str, path: &str) -> (tree_sitter::Tree, IrFile) {
@@ -354,17 +354,13 @@ fn python_expr_other_location_matches_tree_sitter() {
 // ---------- Sanity: block normalised tokens still byte-identical ----------
 
 #[test]
-fn block_normalised_tokens_capture_function_body() {
+fn function_normalised_tokens_capture_signature_and_body() {
     // T5 is location-focused but we cross-check that the F1
     // normalised_tokens field exists and is non-empty for both
-    // languages so detectors that consume it (clone-drift) see
-    // structural tokens.
+    // languages so the detector that consumes it (clone-drift) sees
+    // the function-item-rooted token sequence.
     let (_t, rs_ir) = to_ir(Language::Rust, "fn foo() { let x = 1; x }\n", "a.rs");
-    assert!(!body_tokens(&rs_ir.fns[0].body).is_empty());
+    assert!(!rs_ir.fns[0].normalised_tokens.is_empty());
     let (_t, py_ir) = to_ir(Language::Python, "def foo():\n    return 1\n", "a.py");
-    assert!(!body_tokens(&py_ir.fns[0].body).is_empty());
-}
-
-fn body_tokens(b: &IrBlock) -> &[cntrdct::ir::NormalisedToken] {
-    &b.normalised_tokens
+    assert!(!py_ir.fns[0].normalised_tokens.is_empty());
 }

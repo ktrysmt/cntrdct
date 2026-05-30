@@ -196,6 +196,15 @@ pub struct IrFn {
     /// while `IrComment` is the structural node retained for
     /// detectors that need delimiter / kind information.
     pub leading_doc: Option<String>,
+    /// Normalised token sequence rooted at the whole function item
+    /// (Rust `function_item`, Python `function_definition`), the leaf
+    /// kinds enumerated in `NormalisedToken`; comment nodes excluded.
+    /// Consumed by `clone-drift`'s function-level clustering. Rooting
+    /// at the function item — not the body block — preserves the
+    /// v0.5.x `walk_normalize_*(function_item)` sequence byte-for-byte
+    /// so the signature prefix participates in the n-gram set.
+    /// Populated once per function (R2).
+    pub normalised_tokens: Vec<NormalisedToken>,
     pub location: Location,
 }
 
@@ -228,12 +237,15 @@ pub struct IrBlock {
     /// divergent expression. `unreachable-after-terminator` consumes
     /// this when classifying a block-shaped tail expression.
     pub terminator: Option<IrTerminator>,
-    /// Normalised token sequence covering the block's named children
-    /// in pre-order (clone-drift's `walk_normalize_*`). Leaf tokens
-    /// for identifiers and literals are folded to the placeholder
-    /// kinds enumerated in `NormalisedToken`; comment nodes are
-    /// excluded.
-    pub normalised_tokens: Vec<NormalisedToken>,
+    /// Count of normalised tokens this block would produce when walked
+    /// in isolation (block-rooted `walk_normalize_*`). `clone-drift`'s
+    /// F2b intra-fn `if`-same-then-else gate reads the consequence
+    /// block's count for its size threshold and finding message. Only
+    /// the count is stored — not the vector — so per-block memory stays
+    /// O(1) rather than the O(tokens × nesting-depth) a per-block
+    /// vector would incur (R2). The function-level token sequence lives
+    /// on `IrFn.normalised_tokens`.
+    pub normalised_token_count: usize,
     pub location: Location,
 }
 
@@ -590,7 +602,7 @@ mapping; conversely, no IR field is added in R-0 without a consumer.
 | Detector | IR fields consumed |
 |---|---|
 | `arg-swap` | `IrFn.{name, params, is_method, location}`, `IrParam.{name, kind}` (`Receiver` drop, `Unsupported` whole-fn reject), `IrCallSite.{callee, args, location}`, `IrPath.{receiver, segments}`, `IrExpr::Ident` |
-| `clone-drift` | `IrFn.{body, location}`, `IrBlock.{normalised_tokens, location}`, `IrIfStmt.{consequence, alternative, location}` and `Location.{start_byte, end_byte}` for F2b intra-fn if-branch source-text equality |
+| `clone-drift` | `IrFn.{normalised_tokens, is_method, location}` (function-level clustering, top-level `!is_method` only), `IrStmtKind::If` + `IrExpr::If` walk, `IrIfStmt.{consequence, alternative, location}`, `IrBlock.{normalised_token_count, location}` (F2b consequence size gate) and `Location.{start_byte, end_byte}` for F2b intra-fn if-branch source-text equality against `IrFile.source` |
 | `comment-code` | `IrFn.{return_type_text, decorators, leading_doc, body, location}`, `IrBlock.statements`, `IrStmtKind::{Raise, Return, Call}`, `IrDecorator.{name_path, raw}`, `IrComment.{kind, text, target}`, `Location.{start_byte, end_byte}` for Pattern B body-marker substring against `IrFile.source` |
 | `unreachable-after-terminator` | `IrBlock.{statements, terminator, location}`, `IrStmt.{kind, attributes, location}`, `IrStmtKind::{Return, Raise, Break, Continue, Assert, DivergentCall, If, While, Loop, Match, HoistedItem}`, `IrTerminator`, `IrIfStmt.{condition, consequence, alternative, terminator}`, `IrMatchStmt.terminator`, `IrWhileStmt.{condition, body}`, `IrLoopStmt.{has_break_to_self, body}`, `IrExpr::Literal` (F4e), `IrStmt.attributes` (F4b per-statement cfg-gated suppression) |
 | `pr-miner` | `IrFn.{name, body, location}`, `IrBlock.statements`, `IrStmtKind::{Call, With}`, `IrWithStmt.{context_managers, body}` (F4e-i), `IrCallSite.{callee, args, location}`, `IrPath.receiver` (F4e-ii attribute receiver chain) |
@@ -635,9 +647,9 @@ Calling convention:
   language-specific detector recover the raw node when needed (via
   `IrFile::resolve_with`, which itself reparses internally).
 - Comment nodes (Rust `line_comment` / `block_comment`,
-  Python `comment`) are filtered out of `IrBlock.normalised_tokens`
-  and `IrBlock.statements` to preserve the v0.5.x normalisation
-  output byte-identically.
+  Python `comment`) are filtered out of `IrFn.normalised_tokens`,
+  the `IrBlock.normalised_token_count` walk, and `IrBlock.statements`
+  to preserve the v0.5.x normalisation output byte-identically.
 - `parse_recovered` is set from `tree.root_node().has_error()` and
   preserved on `IrFile`. The five cross-cutting detectors currently
   skip files where `has_error()` is true; in R-1 they continue to
@@ -907,9 +919,10 @@ T4. IR golden fixtures. For a handful of canonical sources per
     `IrFile` to JSON and pin against a golden file. The test
     serialises a `SerializableIrFile` projection that omits `source`
     (reproducible from the fixture path) so the golden file stays
-    diff-friendly. `IrBlock.normalised_tokens` is populated only on
-    `IrFn.body` per R2; nested blocks serialise an empty array.
-    Catches converter regressions independent of detector behaviour.
+    diff-friendly. `IrFn.normalised_tokens` carries the function-item-
+    rooted sequence per R2; each `IrBlock` serialises a
+    `normalised_token_count` scalar. Catches converter regressions
+    independent of detector behaviour.
 
 T5. Location-equality unit tests per IR node kind, per F3. The
     suite spans both Rust and Python source and covers (per F3)
@@ -990,15 +1003,24 @@ plumbing (`SyncTree` newtype + `unsafe impl Sync`) survives because
 detector code can still hold `Arc<SyncTree>` across rayon tasks
 while a single file is being processed.
 
-R2. `IrBlock.normalised_tokens` duplicates work the converter
-already does to materialise `IrBlock.statements`. Eager
-pre-computation is the conservative choice: the existing
-`clone-drift` pipeline normalises every top-level function exactly
-once, and the IR layer does the same. Cost is O(total AST nodes) per
-file, same complexity class as the v0.5.x scan. R-1 measures wall-
-clock via T7 (which runs before R-1.e retires `tests/baselines.rs`
-and stands up the criterion benchmark seam) on
-`benchmarks/wild-corpus-python` and reports in the PR description.
+R2. Normalised-token storage duplicates work the converter already
+does to materialise `IrBlock.statements`. Eager pre-computation is the
+conservative choice: the existing `clone-drift` pipeline normalises
+every top-level function exactly once, and the IR layer does the same.
+
+Placement (revised in R-1.c''): the full token sequence lives on
+`IrFn.normalised_tokens`, rooted at the whole function item so the
+signature prefix participates in `clone-drift`'s n-gram set (the
+first R-1.c' landing rooted it at `IrFn.body`, dropping the prefix
+and shifting pairwise Jaccard — see REBUILD.md R-1.c''). Per-block,
+only a `normalised_token_count: usize` is stored (for F2b's
+consequence size gate), not a per-block token vector: that keeps
+block storage O(1) instead of O(tokens × nesting-depth). Cost is
+O(total AST nodes) per file for the function walk plus the per-block
+counts, the same complexity class as the v0.5.x scan. R-1 measures
+wall-clock via T7; the cross-cutting detector IR migration (clone-drift
+landed in R-1.c'') removes the per-detector `raw_tree()` reparse,
+recovering the wall-clock the lazy-reparse design traded away.
 
 R3. `IrTerminator::ConstantBranchUnreachable` exposes F4e Python
 constant-condition classification in the IR layer. The classifier

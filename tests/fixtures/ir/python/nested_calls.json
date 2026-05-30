@@ -105,31 +105,7 @@
           }
         ],
         "terminator": "Return",
-        "normalised_tokens": [
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "return_statement"
-          },
-          {
-            "Kind": "call"
-          },
-          "Ident",
-          {
-            "Kind": "argument_list"
-          },
-          "Ident",
-          {
-            "Kind": "call"
-          },
-          "Ident",
-          {
-            "Kind": "argument_list"
-          },
-          "Ident",
-          "LitInt"
-        ],
+        "normalised_token_count": 11,
         "location": {
           "file": "nested_calls.py",
           "start_line": 2,
@@ -144,6 +120,40 @@
       "decorators": [],
       "is_method": false,
       "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "function_definition"
+        },
+        "Ident",
+        {
+          "Kind": "parameters"
+        },
+        "Ident",
+        "Ident",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "return_statement"
+        },
+        {
+          "Kind": "call"
+        },
+        "Ident",
+        {
+          "Kind": "argument_list"
+        },
+        "Ident",
+        {
+          "Kind": "call"
+        },
+        "Ident",
+        {
+          "Kind": "argument_list"
+        },
+        "Ident",
+        "LitInt"
+      ],
       "location": {
         "file": "nested_calls.py",
         "start_line": 1,
@@ -215,19 +225,7 @@
           }
         ],
         "terminator": "Return",
-        "normalised_tokens": [
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "return_statement"
-          },
-          {
-            "Kind": "binary_operator"
-          },
-          "Ident",
-          "Ident"
-        ],
+        "normalised_token_count": 5,
         "location": {
           "file": "nested_calls.py",
           "start_line": 6,
@@ -242,6 +240,28 @@
       "decorators": [],
       "is_method": false,
       "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "function_definition"
+        },
+        "Ident",
+        {
+          "Kind": "parameters"
+        },
+        "Ident",
+        "Ident",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "return_statement"
+        },
+        {
+          "Kind": "binary_operator"
+        },
+        "Ident",
+        "Ident"
+      ],
       "location": {
         "file": "nested_calls.py",
         "start_line": 5,
@@ -313,19 +333,7 @@
           }
         ],
         "terminator": "Return",
-        "normalised_tokens": [
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "return_statement"
-          },
-          {
-            "Kind": "binary_operator"
-          },
-          "Ident",
-          "Ident"
-        ],
+        "normalised_token_count": 5,
         "location": {
           "file": "nested_calls.py",
           "start_line": 10,
@@ -340,6 +348,28 @@
       "decorators": [],
       "is_method": false,
       "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "function_definition"
+        },
+        "Ident",
+        {
+          "Kind": "parameters"
+        },
+        "Ident",
+        "Ident",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "return_statement"
+        },
+        {
+          "Kind": "binary_operator"
+        },
+        "Ident",
+        "Ident"
+      ],
       "location": {
         "file": "nested_calls.py",
         "start_line": 9,

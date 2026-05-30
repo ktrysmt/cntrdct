@@ -340,14 +340,39 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
        (per ir-v0.md R1 "R-0 revisits the retention decision") or
        wait on R-1.c''; do not tag v0.6.0 against the current
        Rust-corpus RSS without one of those resolutions.
-       Status: `[~]` 2026-05-27 (commit 2d90b3c).
-       Path (b) partially landed: `comment-code` now reads
-       `IrFn.{leading_doc, return_type_text, decorators, body}` +
-       `IrBlock.statements` + `IrStmtKind::{Raise, Return, If,
-       While, With, Match, Loop}` + `IrFile.source` byte slice
-       semantically; the per-detector `raw_tree()` call is gone.
-       T1 byte-identical across audit / wild-rust / wild-python.
-       The remaining four cross-cutting detectors are blocked on
+       Status: `[~]` 2026-05-29 (follow-up step 1 uncommitted in
+       working tree; follow-up step 1 done, step 2 + path (a)
+       pending).
+       Path (b) progress:
+       - `comment-code` (2026-05-27, commit 2d90b3c) reads
+         `IrFn.{leading_doc, return_type_text, decorators, body}` +
+         `IrBlock.statements` + `IrStmtKind::{Raise, Return, If,
+         While, With, Match, Loop}` + `IrFile.source` byte slice
+         semantically; the per-detector `raw_tree()` call is gone.
+       - `clone-drift` (2026-05-29, follow-up step 1) now reads
+         `IrFn.normalised_tokens` (function-item-rooted) for the
+         function-level clustering pipeline (top-level `!is_method`)
+         and walks `IrStmtKind::If` / `IrExpr::If` +
+         `IrBlock.normalised_token_count` + `IrFile.source` byte
+         slices for F2b; both `raw_tree()` calls are gone. The
+         IR-side prerequisite landed in the same change: the
+         normalised token sequence moved from `IrBlock.normalised_tokens`
+         (body-rooted) to `IrFn.normalised_tokens` (function-item-
+         rooted) so the signature prefix participates in the n-gram
+         set, and `IrBlock` carries a per-block
+         `normalised_token_count: usize` (not the vector — O(1)
+         per block) for F2b's consequence size gate.
+         `NormalisedToken` derives `Hash`. T4 goldens re-blessed;
+         ir-v0.md §F1 / R2 / §F4 / F6 T4 + clone-drift-v0.md
+         §F2 / F2b / F4 updated.
+       T1 byte-identical across audit / wild-rust / wild-python for
+       both migrated detectors. T7 spot-check (3 trials, wild-corpus
+       Rust): wall-clock 1.62 → ~1.29 s (now ≈ v0.5.2's 1.33 s — the
+       reparse removal recovered the lazy-reparse penalty); peak RSS
+       ~159 MiB, essentially unchanged (RSS is dominated by IR struct
+       retention, which path (a) / full step-2 migration addresses,
+       not clone-drift's transient reparse).
+       The remaining three cross-cutting detectors are blocked on
        IR-coverage extensions before a clean migration can land:
        - `arg-swap` and `pr-miner` enumerate call sites across
          the full function body. IR currently classifies Python
@@ -364,20 +389,12 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
          `let x: () = {return {return {return;}}};` is a single
          `let_declaration` → `Other` and the inner terminators
          are not reachable from IR.
-       - `clone-drift` needs `normalised_tokens` lifted from
-         `IrBlock` (body-only) to `IrFn` (function-item-rooted)
-         to match v0.5.x's `walk_normalize_rust(function_item)`
-         token sequence byte-for-byte; otherwise the n-gram set
-         drops the signature prefix and pairwise Jaccard shifts
-         non-trivially. F2b (intra-fn `if`-same-then-else) can
-         walk IR for `IrStmtKind::If` directly since all audit
-         findings are at statement position; the move is gated
-         on the IR change above plus T4 golden re-blessing.
        Follow-up sequence (each its own commit on the IR side
        before each detector migration):
-       1. Move `IrBlock.normalised_tokens` → `IrFn.normalised_tokens`,
-          rebleas T4 goldens, update ir-v0.md §F1 / R2 / §F4,
-          migrate `clone-drift`.
+       1. [done] Moved `IrBlock.normalised_tokens` →
+          `IrFn.normalised_tokens` (+ `IrBlock.normalised_token_count`),
+          re-blessed T4 goldens, updated ir-v0.md §F1 / R2 / §F4,
+          migrated `clone-drift`.
        2. Add `IrStmtKind::{For, Try, Assign}` (Python) and
           `IrStmtKind::{Let, For}` (Rust) — minimum body + RHS
           coverage so call walking lands, rebleas T4 goldens,

@@ -80,7 +80,7 @@
                               }
                             ],
                             "terminator": "Return",
-                            "normalised_tokens": [],
+                            "normalised_token_count": 3,
                             "location": {
                               "file": "nested_if_match.py",
                               "start_line": 4,
@@ -116,7 +116,7 @@
                               }
                             ],
                             "terminator": "Return",
-                            "normalised_tokens": [],
+                            "normalised_token_count": 3,
                             "location": {
                               "file": "nested_if_match.py",
                               "start_line": 6,
@@ -160,7 +160,7 @@
                       "kind": "IfBranchesDiverge"
                     }
                   },
-                  "normalised_tokens": [],
+                  "normalised_token_count": 13,
                   "location": {
                     "file": "nested_if_match.py",
                     "start_line": 3,
@@ -196,7 +196,7 @@
                     }
                   ],
                   "terminator": "Return",
-                  "normalised_tokens": [],
+                  "normalised_token_count": 3,
                   "location": {
                     "file": "nested_if_match.py",
                     "start_line": 10,
@@ -232,75 +232,7 @@
           }
         ],
         "terminator": null,
-        "normalised_tokens": [
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "if_statement"
-          },
-          {
-            "Kind": "comparison_operator"
-          },
-          "Ident",
-          "LitInt",
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "if_statement"
-          },
-          {
-            "Kind": "comparison_operator"
-          },
-          "Ident",
-          {
-            "Kind": "unary_operator"
-          },
-          "LitInt",
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "return_statement"
-          },
-          "LitStr",
-          {
-            "Kind": "else_clause"
-          },
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "return_statement"
-          },
-          "LitStr",
-          {
-            "Kind": "elif_clause"
-          },
-          {
-            "Kind": "comparison_operator"
-          },
-          "Ident",
-          "LitInt",
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "return_statement"
-          },
-          "LitStr",
-          {
-            "Kind": "else_clause"
-          },
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "return_statement"
-          },
-          "LitStr"
-        ],
+        "normalised_token_count": 29,
         "location": {
           "file": "nested_if_match.py",
           "start_line": 2,
@@ -315,6 +247,83 @@
       "decorators": [],
       "is_method": false,
       "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "function_definition"
+        },
+        "Ident",
+        {
+          "Kind": "parameters"
+        },
+        "Ident",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "if_statement"
+        },
+        {
+          "Kind": "comparison_operator"
+        },
+        "Ident",
+        "LitInt",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "if_statement"
+        },
+        {
+          "Kind": "comparison_operator"
+        },
+        "Ident",
+        {
+          "Kind": "unary_operator"
+        },
+        "LitInt",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "return_statement"
+        },
+        "LitStr",
+        {
+          "Kind": "else_clause"
+        },
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "return_statement"
+        },
+        "LitStr",
+        {
+          "Kind": "elif_clause"
+        },
+        {
+          "Kind": "comparison_operator"
+        },
+        "Ident",
+        "LitInt",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "return_statement"
+        },
+        "LitStr",
+        {
+          "Kind": "else_clause"
+        },
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "return_statement"
+        },
+        "LitStr"
+      ],
       "location": {
         "file": "nested_if_match.py",
         "start_line": 1,

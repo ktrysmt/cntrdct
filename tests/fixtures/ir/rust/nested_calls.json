@@ -103,28 +103,7 @@
           }
         ],
         "terminator": null,
-        "normalised_tokens": [
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "call_expression"
-          },
-          "Ident",
-          {
-            "Kind": "arguments"
-          },
-          "Ident",
-          {
-            "Kind": "call_expression"
-          },
-          "Ident",
-          {
-            "Kind": "arguments"
-          },
-          "Ident",
-          "LitInt"
-        ],
+        "normalised_token_count": 10,
         "location": {
           "file": "nested_calls.rs",
           "start_line": 1,
@@ -139,6 +118,52 @@
       "decorators": [],
       "is_method": false,
       "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "function_item"
+        },
+        "Ident",
+        {
+          "Kind": "parameters"
+        },
+        {
+          "Kind": "parameter"
+        },
+        "Ident",
+        {
+          "Kind": "primitive_type"
+        },
+        {
+          "Kind": "parameter"
+        },
+        "Ident",
+        {
+          "Kind": "primitive_type"
+        },
+        {
+          "Kind": "primitive_type"
+        },
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "call_expression"
+        },
+        "Ident",
+        {
+          "Kind": "arguments"
+        },
+        "Ident",
+        {
+          "Kind": "call_expression"
+        },
+        "Ident",
+        {
+          "Kind": "arguments"
+        },
+        "Ident",
+        "LitInt"
+      ],
       "location": {
         "file": "nested_calls.rs",
         "start_line": 1,
@@ -208,16 +233,7 @@
           }
         ],
         "terminator": null,
-        "normalised_tokens": [
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "binary_expression"
-          },
-          "Ident",
-          "Ident"
-        ],
+        "normalised_token_count": 4,
         "location": {
           "file": "nested_calls.rs",
           "start_line": 5,
@@ -232,6 +248,40 @@
       "decorators": [],
       "is_method": false,
       "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "function_item"
+        },
+        "Ident",
+        {
+          "Kind": "parameters"
+        },
+        {
+          "Kind": "parameter"
+        },
+        "Ident",
+        {
+          "Kind": "primitive_type"
+        },
+        {
+          "Kind": "parameter"
+        },
+        "Ident",
+        {
+          "Kind": "primitive_type"
+        },
+        {
+          "Kind": "primitive_type"
+        },
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "binary_expression"
+        },
+        "Ident",
+        "Ident"
+      ],
       "location": {
         "file": "nested_calls.rs",
         "start_line": 5,
@@ -301,16 +351,7 @@
           }
         ],
         "terminator": null,
-        "normalised_tokens": [
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "binary_expression"
-          },
-          "Ident",
-          "Ident"
-        ],
+        "normalised_token_count": 4,
         "location": {
           "file": "nested_calls.rs",
           "start_line": 9,
@@ -325,6 +366,40 @@
       "decorators": [],
       "is_method": false,
       "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "function_item"
+        },
+        "Ident",
+        {
+          "Kind": "parameters"
+        },
+        {
+          "Kind": "parameter"
+        },
+        "Ident",
+        {
+          "Kind": "primitive_type"
+        },
+        {
+          "Kind": "parameter"
+        },
+        "Ident",
+        {
+          "Kind": "primitive_type"
+        },
+        {
+          "Kind": "primitive_type"
+        },
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "binary_expression"
+        },
+        "Ident",
+        "Ident"
+      ],
       "location": {
         "file": "nested_calls.rs",
         "start_line": 9,

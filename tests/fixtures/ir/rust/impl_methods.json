@@ -48,23 +48,7 @@
           }
         ],
         "terminator": null,
-        "normalised_tokens": [
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "struct_expression"
-          },
-          "Ident",
-          {
-            "Kind": "field_initializer_list"
-          },
-          {
-            "Kind": "field_initializer"
-          },
-          "Ident",
-          "Ident"
-        ],
+        "normalised_token_count": 7,
         "location": {
           "file": "impl_methods.rs",
           "start_line": 8,
@@ -79,6 +63,41 @@
       "decorators": [],
       "is_method": true,
       "leading_doc": "Build a new counter.",
+      "normalised_tokens": [
+        {
+          "Kind": "function_item"
+        },
+        {
+          "Kind": "visibility_modifier"
+        },
+        "Ident",
+        {
+          "Kind": "parameters"
+        },
+        {
+          "Kind": "parameter"
+        },
+        "Ident",
+        {
+          "Kind": "primitive_type"
+        },
+        "Ident",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "struct_expression"
+        },
+        "Ident",
+        {
+          "Kind": "field_initializer_list"
+        },
+        {
+          "Kind": "field_initializer"
+        },
+        "Ident",
+        "Ident"
+      ],
       "location": {
         "file": "impl_methods.rs",
         "start_line": 8,
@@ -148,35 +167,7 @@
           }
         ],
         "terminator": null,
-        "normalised_tokens": [
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "expression_statement"
-          },
-          {
-            "Kind": "assignment_expression"
-          },
-          {
-            "Kind": "field_expression"
-          },
-          {
-            "Kind": "self"
-          },
-          "Ident",
-          {
-            "Kind": "binary_expression"
-          },
-          {
-            "Kind": "field_expression"
-          },
-          {
-            "Kind": "self"
-          },
-          "Ident",
-          "Ident"
-        ],
+        "normalised_token_count": 11,
         "location": {
           "file": "impl_methods.rs",
           "start_line": 12,
@@ -191,6 +182,61 @@
       "decorators": [],
       "is_method": true,
       "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "function_item"
+        },
+        {
+          "Kind": "visibility_modifier"
+        },
+        "Ident",
+        {
+          "Kind": "parameters"
+        },
+        {
+          "Kind": "self_parameter"
+        },
+        {
+          "Kind": "mutable_specifier"
+        },
+        {
+          "Kind": "self"
+        },
+        {
+          "Kind": "parameter"
+        },
+        "Ident",
+        {
+          "Kind": "primitive_type"
+        },
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "assignment_expression"
+        },
+        {
+          "Kind": "field_expression"
+        },
+        {
+          "Kind": "self"
+        },
+        "Ident",
+        {
+          "Kind": "binary_expression"
+        },
+        {
+          "Kind": "field_expression"
+        },
+        {
+          "Kind": "self"
+        },
+        "Ident",
+        "Ident"
+      ],
       "location": {
         "file": "impl_methods.rs",
         "start_line": 12,

@@ -20,12 +20,18 @@ Empty input returns `Ok(vec![])`.
 
 ### F2 — Function extraction
 
-Extracts every top-level `fn` definition from each IrFile. Functions inside
-`impl`, `trait`, or `mod` blocks are out of scope for v0. Functions whose
-normalized AST token sequence is shorter than `MIN_FN_TOKENS` are dropped
-before clustering; their drift signal is too noisy to act on. This guard
-mirrors the minimum-size filters in industrial NiCad and SourcererCC
-pipelines.
+Reads every top-level `fn` from each `IrFile.fns` filtered to
+`!is_method`. The converter already captures impl / class methods
+(`is_method == true`); the function-level pipeline excludes those to
+preserve the v0.5.x root-children-only set. Functions inside `trait`
+or `mod` blocks are not represented in `IrFile.fns` and so are out of
+scope for v0. The normalised token sequence is read directly from
+`IrFn.normalised_tokens` (converter-precomputed, function-item-rooted
+per ir-v0.md F4 / R2) — the detector no longer reparses. Functions
+whose token sequence is shorter than `MIN_FN_TOKENS` are dropped
+before clustering; their drift signal is too noisy to act on. This
+guard mirrors the minimum-size filters in industrial NiCad and
+SourcererCC pipelines.
 
 ### F2b — Intra-fn if-branch clone (added 2026-05-21)
 
@@ -33,21 +39,24 @@ The function-level pipeline (F2 + F3 + F5) operates at top-level `fn`
 granularity. F2b adds a parallel sub-function pass that flags `if`/
 `else` expressions whose consequence and alternative blocks are
 byte-for-byte identical Rust source modulo whitespace and comments.
-The pass walks every `if_expression` in every Rust file independently
-of the F3 clone-grouping pipeline.
+The pass walks IR `IrStmtKind::If` (and `IrExpr::If`) reachable from
+each `IrFile.fns` body — statement-position `if`s at any depth plus
+`if`s nested in `while` / `loop` / `with` / `match`-arm blocks.
+Expression-position `if`s hidden inside an opaque `IrStmtKind::Other`
+(e.g. a `let` RHS) are out of v0 IR-F2b scope; no audit / wild F2b
+finding occupies such a position.
 
 Acceptance criterion:
 
-- consequence node kind = `block`
-- alternative is an `else_clause` wrapping a `block` (NOT another
-  `if_expression` — `else if ...` chains are out of scope; the
-  walker still recurses into the nested if so a flat else inside
-  the chain still fires)
-- normalised-token count of the consequence ≥ `INTRA_FN_IF_MIN_TOKENS`
+- `IrIfStmt.alternative` is `Some` (the converter sets it for a flat
+  `else { block }` and `None` for an `else if ...` chain, so the
+  flat-else requirement is structural)
+- `IrIfStmt.consequence.normalised_token_count ≥ INTRA_FN_IF_MIN_TOKENS`
   (defaults to `MIN_FN_TOKENS = 22` — the function-level floor)
 - after stripping line and block comments and collapsing internal
-  whitespace runs, the consequence's source text is byte-identical
-  to the alternative's
+  whitespace runs, the consequence's source text (sliced from
+  `IrFile.source` by the block's byte span) is byte-identical to the
+  alternative's
 
 Equality uses source-text comparison, NOT normalised-token equality.
 Type-2 clones (same AST shape, different identifiers) are the
@@ -79,17 +88,24 @@ via connected components. Group size must be ≥ `MIN_GROUP_SIZE` to be consider
 
 ### F4 — Normalization
 
-- Identifiers (variable, function, type, method names) → "IDENT"
-- Integer literal → "LIT_INT"
-- Float literal → "LIT_FLOAT"
-- String literal → "LIT_STR"
-- Char literal → "LIT_CHAR"
-- Bool literal → "LIT_BOOL"
+Performed by the per-language converter (`walk_normalize_*`), exposed
+as `IrFn.normalised_tokens` (a `Vec<NormalisedToken>`):
+
+- Identifiers (variable, function, type, method names) → `Ident`
+- Integer literal → `LitInt`
+- Float literal → `LitFloat`
+- String literal → `LitStr`
+- Char literal → `LitChar`
+- Bool literal → `LitBool`
 - Comments stripped
 - Whitespace normalized
 
-The normalized form is the sequence of AST node kinds (tree-sitter `kind()`) walking
-pre-order, with leaves replaced per the rules above.
+The normalized form is the sequence of AST node kinds (tree-sitter
+`kind()`, carried as `NormalisedToken::Kind`) walking pre-order, with
+leaves replaced per the rules above. The detector consumes the
+converter's output verbatim — the `NormalisedToken` enum is the
+byte-identical successor of the v0.5.x string tokens (`Kind("…")`
+for `"…"`, `Ident` for `"IDENT"`, etc.).
 
 ### F5 — Type-2 partitioning and drift signal
 

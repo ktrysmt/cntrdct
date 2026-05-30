@@ -108,7 +108,7 @@
                     }
                   ],
                   "terminator": null,
-                  "normalised_tokens": [],
+                  "normalised_token_count": 13,
                   "location": {
                     "file": "nested_if_match.rs",
                     "start_line": 2,
@@ -145,75 +145,7 @@
           }
         ],
         "terminator": null,
-        "normalised_tokens": [
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "expression_statement"
-          },
-          {
-            "Kind": "if_expression"
-          },
-          {
-            "Kind": "binary_expression"
-          },
-          "Ident",
-          "LitInt",
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "expression_statement"
-          },
-          {
-            "Kind": "match_expression"
-          },
-          "Ident",
-          {
-            "Kind": "match_block"
-          },
-          {
-            "Kind": "match_arm"
-          },
-          {
-            "Kind": "match_pattern"
-          },
-          {
-            "Kind": "negative_literal"
-          },
-          "LitInt",
-          "LitStr",
-          {
-            "Kind": "match_arm"
-          },
-          {
-            "Kind": "match_pattern"
-          },
-          "LitStr",
-          {
-            "Kind": "else_clause"
-          },
-          {
-            "Kind": "if_expression"
-          },
-          {
-            "Kind": "binary_expression"
-          },
-          "Ident",
-          "LitInt",
-          {
-            "Kind": "block"
-          },
-          "LitStr",
-          {
-            "Kind": "else_clause"
-          },
-          {
-            "Kind": "block"
-          },
-          "LitStr"
-        ],
+        "normalised_token_count": 29,
         "location": {
           "file": "nested_if_match.rs",
           "start_line": 1,
@@ -228,6 +160,99 @@
       "decorators": [],
       "is_method": false,
       "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "function_item"
+        },
+        "Ident",
+        {
+          "Kind": "parameters"
+        },
+        {
+          "Kind": "parameter"
+        },
+        "Ident",
+        {
+          "Kind": "primitive_type"
+        },
+        {
+          "Kind": "reference_type"
+        },
+        {
+          "Kind": "lifetime"
+        },
+        "Ident",
+        {
+          "Kind": "primitive_type"
+        },
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "if_expression"
+        },
+        {
+          "Kind": "binary_expression"
+        },
+        "Ident",
+        "LitInt",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "match_expression"
+        },
+        "Ident",
+        {
+          "Kind": "match_block"
+        },
+        {
+          "Kind": "match_arm"
+        },
+        {
+          "Kind": "match_pattern"
+        },
+        {
+          "Kind": "negative_literal"
+        },
+        "LitInt",
+        "LitStr",
+        {
+          "Kind": "match_arm"
+        },
+        {
+          "Kind": "match_pattern"
+        },
+        "LitStr",
+        {
+          "Kind": "else_clause"
+        },
+        {
+          "Kind": "if_expression"
+        },
+        {
+          "Kind": "binary_expression"
+        },
+        "Ident",
+        "LitInt",
+        {
+          "Kind": "block"
+        },
+        "LitStr",
+        {
+          "Kind": "else_clause"
+        },
+        {
+          "Kind": "block"
+        },
+        "LitStr"
+      ],
       "location": {
         "file": "nested_if_match.rs",
         "start_line": 1,

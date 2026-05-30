@@ -253,6 +253,16 @@ pub struct IrFn {
     /// Leading doc text in canonical, prefix-stripped form. `None`
     /// when no leading doc is present.
     pub leading_doc: Option<String>,
+    /// Normalised token sequence rooted at the whole function item
+    /// (Rust `function_item`, Python `function_definition`), used by
+    /// `clone-drift`'s function-level clustering. Rooting at the
+    /// function item — rather than the body block — preserves the
+    /// v0.5.x `walk_normalize_*(function_item)` sequence byte-for-byte
+    /// so the signature prefix participates in the n-gram set. Leaf
+    /// tokens for identifiers and literals are folded to the
+    /// placeholder kinds in `NormalisedToken`; comment nodes are
+    /// excluded. Populated once per function (ir-v0.md R2).
+    pub normalised_tokens: Vec<NormalisedToken>,
     /// Source location of the function definition.
     pub location: Location,
 }
@@ -296,16 +306,17 @@ pub struct IrBlock {
     /// iff every reachable path through the block ends in a
     /// divergent expression.
     pub terminator: Option<IrTerminator>,
-    /// Normalised token sequence covering named children in
-    /// pre-order, used by `clone-drift`.
+    /// Count of normalised tokens this block would produce when walked
+    /// in isolation (block-rooted `walk_normalize_*`).
     ///
-    /// Populated only on [`IrFn::body`]; nested blocks (if/else,
-    /// loop, while, match arms, expression-position blocks) carry an
-    /// empty vector. clone-drift normalises every top-level function
-    /// exactly once (ir-v0.md R2), so storing tokens on inner blocks
-    /// would be O(total AST nodes × nesting depth) work and memory
-    /// for no consumer.
-    pub normalised_tokens: Vec<NormalisedToken>,
+    /// `clone-drift`'s F2b intra-fn `if`-same-then-else gate reads the
+    /// consequence block's count for its size threshold and finding
+    /// message. Only the count is stored — not the token vector — so
+    /// the per-block memory cost stays O(1) rather than the
+    /// O(tokens × nesting-depth) a per-block vector would incur
+    /// (ir-v0.md R2). The function-level token sequence lives on
+    /// [`IrFn::normalised_tokens`].
+    pub normalised_token_count: usize,
     /// Source location of the block.
     pub location: Location,
 }
@@ -562,7 +573,7 @@ pub enum IrLiteral {
 // ---------- NormalisedToken ----------
 
 /// Token kinds emitted by the `clone-drift` normaliser.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub enum NormalisedToken {
     /// Structural AST node kind (e.g. `"block"`, `"if_expression"`).
     Kind(&'static str),

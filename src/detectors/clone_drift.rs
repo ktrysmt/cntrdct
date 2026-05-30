@@ -3,19 +3,21 @@
 //! Spec: `cntrdct/docs/spec/clone-drift-v0.md`; Python via `multilang-v0.md` Pattern A.
 //!
 //! Algorithm (shared):
-//! 1. Parse each IrFile for the target language with tree-sitter, collect top-level fns.
-//! 2. Normalize each fn to a sequence of AST node kinds with identifiers and
-//!    literals replaced by placeholder tokens.
-//! 3. Build n-gram sets and compute pairwise Jaccard similarity.
-//! 4. Cluster fns with similarity >= SIMILARITY_THRESHOLD via union-find.
-//! 5. Within each cluster of size >= MIN_GROUP_SIZE, partition by exact normalized
+//! 1. Read each [`IrFile`]'s top-level functions (`!is_method`); the
+//!    converter has already normalised every function once into
+//!    [`crate::ir::IrFn::normalised_tokens`] (function-item-rooted).
+//! 2. Build n-gram sets and compute pairwise Jaccard similarity.
+//! 3. Cluster fns with similarity >= SIMILARITY_THRESHOLD via union-find.
+//! 4. Within each cluster of size >= MIN_GROUP_SIZE, partition by exact normalized
 //!    form. Emit Finding for any size-1 partition coexisting with a size>=2
 //!    partition. Each language runs in isolation; Rust fns never mix with Python.
 //!
-//! Language-specific details:
-//! - Rust: `function_item` only; normalization handles Rust token kinds.
-//! - Python: `function_definition` (including `decorated_definition` wrappers);
-//!   top-level only. Normalization handles Python token kinds.
+//! Both languages share one IR path: [`crate::ir::IrFn::normalised_tokens`]
+//! is populated by the per-language converter (Rust `function_item`,
+//! Python `function_definition`, top-level only), so the detector no
+//! longer reparses or branches on language for the function-level
+//! pipeline. F2b (intra-fn `if`-same-then-else) walks IR
+//! [`IrStmtKind::If`] and is Rust-only.
 
 use std::collections::{HashMap, HashSet};
 
@@ -23,7 +25,7 @@ use crate::core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
     LanguageCitationStatus, Location, Severity,
 };
-use crate::ir::IrFile;
+use crate::ir::{IrBlock, IrExpr, IrFile, IrIfStmt, IrStmtKind, NormalisedToken};
 use rayon::prelude::*;
 
 pub const SIMILARITY_THRESHOLD: f64 = 0.5;
@@ -152,8 +154,8 @@ impl CloneDrift {
 #[derive(Debug, Clone)]
 struct FnInfo {
     location: Location,
-    normalized: Vec<String>,
-    ngrams: HashSet<Vec<String>>,
+    normalized: Vec<NormalisedToken>,
+    ngrams: HashSet<Vec<NormalisedToken>>,
 }
 
 impl Detector for CloneDrift {
@@ -178,7 +180,6 @@ impl Detector for CloneDrift {
         findings.extend(run_detect_for_language(
             ctx,
             Language::Rust,
-            extract_rust_fns,
             LanguageCitationStatus::Confirmed,
             &[
                 "cordy-roy-icpc-2008",
@@ -189,7 +190,6 @@ impl Detector for CloneDrift {
         findings.extend(run_detect_for_language(
             ctx,
             Language::Python,
-            extract_python_fns,
             LanguageCitationStatus::Confirmed,
             &[
                 "cordy-roy-icpc-2008",
@@ -223,21 +223,19 @@ impl Detector for CloneDrift {
 fn run_detect_for_language(
     ctx: &DetectContext,
     lang: Language,
-    extract_fns_fn: fn(&IrFile) -> Option<Vec<FnInfo>>,
     citation_status: LanguageCitationStatus,
     citation_keys: &'static [&'static str],
 ) -> Vec<Finding> {
     // F5b: extract FnInfos paired with their per-file scope key so
-    // clustering can run independently per scope. Per-file parsing
-    // dominates runtime; the parallel collect preserves source order
-    // because rayon's collect from an indexed parallel iterator is
-    // deterministic.
+    // clustering can run independently per scope. The parallel collect
+    // preserves source order because rayon's collect from an indexed
+    // parallel iterator is deterministic.
     let per_file: Vec<(String, Vec<FnInfo>)> = ctx
         .files
         .par_iter()
         .filter(|f| f.language == lang)
         .filter_map(|file| {
-            extract_fns_fn(file).map(|fns| {
+            extract_top_level_fns(file).map(|fns| {
                 let filtered: Vec<FnInfo> = fns
                     .into_iter()
                     .filter(|info| info.normalized.len() >= MIN_FN_TOKENS)
@@ -520,157 +518,53 @@ fn scope_from_underscore_basename(path: &std::path::Path) -> Option<String> {
     Some(format!("underscore::{prefix}"))
 }
 
-fn extract_rust_fns(file: &IrFile) -> Option<Vec<FnInfo>> {
+/// Collect top-level functions as `FnInfo`, reading the converter's
+/// function-item-rooted [`crate::ir::IrFn::normalised_tokens`] directly.
+///
+/// The v0.5.x raw walk processed only root-level `function_item`
+/// (Rust) / `function_definition` + top-level `decorated_definition`
+/// (Python). [`IrFile::fns`] additionally captures impl / class methods
+/// (`is_method == true`); the function-level pipeline excludes those
+/// here (`!is_method`) to reproduce the v0.5.x function set byte-for-byte.
+fn extract_top_level_fns(file: &IrFile) -> Option<Vec<FnInfo>> {
     if file.parse_recovered {
         return None;
     }
-    let raw_tree = file.raw_tree();
-    let root = raw_tree.root_node();
-
-    let mut fns = Vec::new();
-    let mut cursor = root.walk();
-    for child in root.children(&mut cursor) {
-        if child.kind() == "function_item" {
-            let normalized = normalize_rust(child);
+    let fns = file
+        .fns
+        .iter()
+        .filter(|f| !f.is_method)
+        .map(|f| {
+            let normalized = f.normalised_tokens.clone();
             let ngrams = build_ngrams(&normalized, NGRAM_SIZE);
-            let location = node_location(file, child);
-            fns.push(FnInfo {
-                location,
+            FnInfo {
+                location: ir_loc_to_core(&f.location),
                 normalized,
                 ngrams,
-            });
-        }
-    }
+            }
+        })
+        .collect();
     Some(fns)
 }
 
-fn normalize_rust(node: tree_sitter::Node) -> Vec<String> {
-    let mut out = Vec::new();
-    walk_normalize_rust(node, &mut out);
-    out
-}
-
-fn walk_normalize_rust(node: tree_sitter::Node, out: &mut Vec<String>) {
-    if !node.is_named() {
-        return;
-    }
-    let kind = node.kind();
-    if kind == "line_comment" || kind == "block_comment" {
-        return;
-    }
-
-    let leaf_token = match kind {
-        "identifier"
-        | "type_identifier"
-        | "field_identifier"
-        | "shorthand_field_identifier"
-        | "scoped_identifier"
-        | "scoped_type_identifier" => Some("IDENT"),
-        "integer_literal" => Some("LIT_INT"),
-        "float_literal" => Some("LIT_FLOAT"),
-        "string_literal" | "raw_string_literal" => Some("LIT_STR"),
-        "char_literal" => Some("LIT_CHAR"),
-        "boolean_literal" => Some("LIT_BOOL"),
-        _ => None,
-    };
-
-    if let Some(rep) = leaf_token {
-        out.push(rep.to_string());
-        return;
-    }
-
-    out.push(kind.to_string());
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        walk_normalize_rust(child, out);
+fn ir_loc_to_core(loc: &crate::ir::Location) -> Location {
+    Location {
+        file: loc.file.clone(),
+        start_line: loc.start_line,
+        start_col: loc.start_col,
+        end_line: loc.end_line,
+        end_col: loc.end_col,
     }
 }
 
-fn normalize_python(node: tree_sitter::Node) -> Vec<String> {
-    let mut out = Vec::new();
-    walk_normalize_python(node, &mut out);
-    out
-}
-
-fn walk_normalize_python(node: tree_sitter::Node, out: &mut Vec<String>) {
-    if !node.is_named() {
-        return;
-    }
-    let kind = node.kind();
-    if kind == "comment" {
-        return;
-    }
-
-    let leaf_token = match kind {
-        "identifier" => Some("IDENT"),
-        "integer" => Some("LIT_INT"),
-        "float" => Some("LIT_FLOAT"),
-        "string" => Some("LIT_STR"),
-        "true" | "false" => Some("LIT_BOOL"),
-        _ => None,
-    };
-
-    if let Some(rep) = leaf_token {
-        out.push(rep.to_string());
-        return;
-    }
-
-    out.push(kind.to_string());
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        walk_normalize_python(child, out);
-    }
-}
-
-fn extract_python_fns(file: &IrFile) -> Option<Vec<FnInfo>> {
-    if file.parse_recovered {
-        return None;
-    }
-    let raw_tree = file.raw_tree();
-    let root = raw_tree.root_node();
-
-    let mut fns = Vec::new();
-    let mut cursor = root.walk();
-    for child in root.children(&mut cursor) {
-        match child.kind() {
-            "function_definition" => {
-                let normalized = normalize_python(child);
-                let ngrams = build_ngrams(&normalized, NGRAM_SIZE);
-                let location = node_location(file, child);
-                fns.push(FnInfo {
-                    location,
-                    normalized,
-                    ngrams,
-                });
-            }
-            "decorated_definition" => {
-                let mut dcursor = child.walk();
-                let kids: Vec<tree_sitter::Node> = child.children(&mut dcursor).collect();
-                if let Some(fn_def) = kids.iter().find(|c| c.kind() == "function_definition") {
-                    let normalized = normalize_python(*fn_def);
-                    let ngrams = build_ngrams(&normalized, NGRAM_SIZE);
-                    let location = node_location(file, *fn_def);
-                    fns.push(FnInfo {
-                        location,
-                        normalized,
-                        ngrams,
-                    });
-                }
-            }
-            _ => {}
-        }
-    }
-    Some(fns)
-}
-
-fn build_ngrams(seq: &[String], n: usize) -> HashSet<Vec<String>> {
+fn build_ngrams(seq: &[NormalisedToken], n: usize) -> HashSet<Vec<NormalisedToken>> {
     if seq.len() < n {
         return HashSet::new();
     }
     seq.windows(n).map(|w| w.to_vec()).collect()
 }
 
-fn jaccard(a: &HashSet<Vec<String>>, b: &HashSet<Vec<String>>) -> f64 {
+fn jaccard(a: &HashSet<Vec<NormalisedToken>>, b: &HashSet<Vec<NormalisedToken>>) -> f64 {
     if a.is_empty() && b.is_empty() {
         return 1.0;
     }
@@ -680,18 +574,6 @@ fn jaccard(a: &HashSet<Vec<String>>, b: &HashSet<Vec<String>>) -> f64 {
         return 0.0;
     }
     inter as f64 / union as f64
-}
-
-fn node_location(file: &IrFile, node: tree_sitter::Node) -> Location {
-    let start = node.start_position();
-    let end = node.end_position();
-    Location {
-        file: file.path.clone(),
-        start_line: start.row as u32 + 1,
-        start_col: start.column as u32 + 1,
-        end_line: end.row as u32 + 1,
-        end_col: end.column as u32 + 1,
-    }
 }
 
 /// Path-compressing root lookup. Used during the union-find merge phase so a
@@ -769,49 +651,83 @@ fn run_intra_fn_if_clones_rust(ctx: &DetectContext) -> Vec<Finding> {
         .filter(|f| f.language == Language::Rust)
         .flat_map_iter(|file| {
             let mut local = Vec::new();
-            scan_rust_for_if_branch_clones(file, &mut local);
+            if !file.parse_recovered {
+                for ir_fn in &file.fns {
+                    walk_if_branches_block(file, &ir_fn.body, &mut local);
+                }
+            }
             local
         })
         .collect()
 }
 
-fn scan_rust_for_if_branch_clones(file: &IrFile, findings: &mut Vec<Finding>) {
-    if file.parse_recovered {
-        return;
-    }
-    let raw_tree = file.raw_tree();
-    let root = raw_tree.root_node();
-    walk_rust_for_if_branches(root, file, findings);
-}
-
-fn walk_rust_for_if_branches(node: tree_sitter::Node, file: &IrFile, findings: &mut Vec<Finding>) {
-    if node.kind() == "if_expression" {
-        if let Some(f) = analyze_if_branches_rust(node, file) {
-            findings.push(f);
+/// Walk an [`IrBlock`] for `if`-same-then-else clone pairs (F2b),
+/// recursing through every nested statement-bearing block.
+///
+/// The v0.5.x raw walk visited every `if_expression` node; the IR walk
+/// reaches the same statement-position `if`s — the only positions any
+/// audit / wild F2b finding occupies — plus those nested in
+/// `while` / `loop` / `with` / `match`-arm blocks. Expression-position
+/// `if`s hidden inside an opaque `IrStmtKind::Other` (e.g. a `let` RHS)
+/// are out of v0 IR-F2b scope.
+fn walk_if_branches_block(file: &IrFile, block: &IrBlock, out: &mut Vec<Finding>) {
+    for stmt in &block.statements {
+        match &stmt.kind {
+            IrStmtKind::If(if_stmt) => {
+                if let Some(f) = analyze_if_branches(file, if_stmt) {
+                    out.push(f);
+                }
+                walk_if_branches_block(file, &if_stmt.consequence, out);
+                if let Some(alt) = &if_stmt.alternative {
+                    walk_if_branches_block(file, alt, out);
+                }
+            }
+            IrStmtKind::While(w) => walk_if_branches_block(file, &w.body, out),
+            IrStmtKind::Loop(l) => walk_if_branches_block(file, &l.body, out),
+            IrStmtKind::With(wi) => walk_if_branches_block(file, &wi.body, out),
+            IrStmtKind::Match(m) => {
+                for arm in &m.arms {
+                    walk_if_branches_expr(file, &arm.body, out);
+                }
+            }
+            _ => {}
         }
     }
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        walk_rust_for_if_branches(child, file, findings);
+}
+
+fn walk_if_branches_expr(file: &IrFile, expr: &IrExpr, out: &mut Vec<Finding>) {
+    match expr {
+        IrExpr::If(if_stmt) => {
+            if let Some(f) = analyze_if_branches(file, if_stmt) {
+                out.push(f);
+            }
+            walk_if_branches_block(file, &if_stmt.consequence, out);
+            if let Some(alt) = &if_stmt.alternative {
+                walk_if_branches_block(file, alt, out);
+            }
+        }
+        IrExpr::Block(b) => walk_if_branches_block(file, b, out),
+        IrExpr::Loop(l) => walk_if_branches_block(file, &l.body, out),
+        IrExpr::Match(m) => {
+            for arm in &m.arms {
+                walk_if_branches_expr(file, &arm.body, out);
+            }
+        }
+        _ => {}
     }
 }
 
-fn analyze_if_branches_rust(if_expr: tree_sitter::Node, file: &IrFile) -> Option<Finding> {
-    let consequence = if_expr.child_by_field_name("consequence")?;
-    let alternative = if_expr.child_by_field_name("alternative")?;
-    // F2b only fires on a flat if / else — chained `else if` (where
-    // alternative is another `if_expression`) is out of scope for v0.
-    // The walker recurses into the inner if so a clone-pair within
-    // that nested branch still surfaces.
-    let alt_block = find_else_block_rust(alternative)?;
-    if consequence.kind() != "block" || alt_block.kind() != "block" {
-        return None;
-    }
+fn analyze_if_branches(file: &IrFile, if_stmt: &IrIfStmt) -> Option<Finding> {
+    // F2b fires only on a flat `if { } else { }`. The converter sets
+    // `alternative` to `Some` exactly for a flat else block (else-if
+    // chains yield `None`), mirroring v0.5.x `find_else_block_rust`.
+    let consequence = &if_stmt.consequence;
+    let alternative = if_stmt.alternative.as_ref()?;
 
-    // Size gate uses the function-level normalised-token count so the
-    // floor lines up with `MIN_FN_TOKENS` / `INTRA_FN_IF_MIN_TOKENS`.
-    let conseq_normalized = normalize_rust(consequence);
-    if conseq_normalized.len() < INTRA_FN_IF_MIN_TOKENS {
+    // Size gate on the consequence block's block-rooted normalised
+    // token count (equals v0.5.x `normalize_rust(consequence).len()`).
+    let branch_token_count = consequence.normalised_token_count;
+    if branch_token_count < INTRA_FN_IF_MIN_TOKENS {
         return None;
     }
 
@@ -827,16 +743,16 @@ fn analyze_if_branches_rust(if_expr: tree_sitter::Node, file: &IrFile) -> Option
     // collapses those FPs to zero while still flagging the clippy
     // ui-test trigger sites (audit-corpus
     // clippy_ui_if_same_then_else.rs#L25 = line 29).
-    let conseq_src = normalize_block_source(consequence, &file.source)?;
-    let alt_src = normalize_block_source(alt_block, &file.source)?;
+    let conseq_src = normalize_block_source(block_source(file, consequence)?);
+    let alt_src = normalize_block_source(block_source(file, alternative)?);
     if conseq_src != alt_src {
         return None;
     }
 
-    let primary = node_location(file, if_expr);
+    let primary = ir_loc_to_core(&if_stmt.location);
     let related = vec![
-        node_location(file, consequence),
-        node_location(file, alt_block),
+        ir_loc_to_core(&consequence.location),
+        ir_loc_to_core(&alternative.location),
     ];
 
     Some(Finding {
@@ -844,8 +760,7 @@ fn analyze_if_branches_rust(if_expr: tree_sitter::Node, file: &IrFile) -> Option
         primary,
         related,
         message: format!(
-            "if-then-else branches contain identical source ({} tokens) — likely a copy-paste duplicate",
-            conseq_normalized.len()
+            "if-then-else branches contain identical source ({branch_token_count} tokens) — likely a copy-paste duplicate"
         ),
         raw_severity: Severity::Warning,
         anomaly_class: AnomalyClass::Logic,
@@ -857,7 +772,7 @@ fn analyze_if_branches_rust(if_expr: tree_sitter::Node, file: &IrFile) -> Option
             ],
             raw: serde_json::json!({
                 "kind": "intra-fn-if-same-then-else",
-                "branch_token_count": conseq_normalized.len(),
+                "branch_token_count": branch_token_count,
                 "intra_fn_if_min_tokens": INTRA_FN_IF_MIN_TOKENS,
             }),
             language_citation_status: LanguageCitationStatus::Confirmed,
@@ -865,13 +780,20 @@ fn analyze_if_branches_rust(if_expr: tree_sitter::Node, file: &IrFile) -> Option
     })
 }
 
+/// Source slice for a block, recovered from [`IrFile::source`] via the
+/// block's byte span. Equals the v0.5.x `block.utf8_text(source)`.
+fn block_source<'a>(file: &'a IrFile, block: &IrBlock) -> Option<&'a str> {
+    let start = block.location.start_byte as usize;
+    let end = block.location.end_byte as usize;
+    file.source.get(start..end)
+}
+
 /// Source-text normalisation used by F2b: strip line and block
 /// comments, collapse internal whitespace runs to a single space,
 /// trim leading and trailing whitespace. Two blocks normalising to
 /// the same string are byte-for-byte identical Rust source modulo
 /// formatting and commentary.
-fn normalize_block_source(block: tree_sitter::Node, source: &str) -> Option<String> {
-    let text = block.utf8_text(source.as_bytes()).ok()?;
+fn normalize_block_source(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut prev_space = true;
     let mut iter = text.chars().peekable();
@@ -909,32 +831,11 @@ fn normalize_block_source(block: tree_sitter::Node, source: &str) -> Option<Stri
             prev_space = false;
         }
     }
-    let trimmed = out.trim().to_string();
-    Some(trimmed)
-}
-
-fn find_else_block_rust(alternative: tree_sitter::Node) -> Option<tree_sitter::Node> {
-    // `alternative` is an `else_clause` wrapping either a `block` (the
-    // `else { ... }` shape) or an `if_expression` (`else if ...`).
-    let mut cursor = alternative.walk();
-    for child in alternative.children(&mut cursor) {
-        if !child.is_named() {
-            continue;
-        }
-        if child.kind() == "block" {
-            return Some(child);
-        }
-        // else-if recurses through the outer walker; do NOT treat the
-        // nested if as the alt body for the surrounding pair.
-        if child.kind() == "if_expression" {
-            return None;
-        }
-    }
-    None
+    out.trim().to_string()
 }
 
 fn partition(group: &[usize], fns: &[FnInfo]) -> Vec<Vec<usize>> {
-    let mut by_form: HashMap<&Vec<String>, Vec<usize>> = HashMap::new();
+    let mut by_form: HashMap<&Vec<NormalisedToken>, Vec<usize>> = HashMap::new();
     for &idx in group {
         by_form.entry(&fns[idx].normalized).or_default().push(idx);
     }

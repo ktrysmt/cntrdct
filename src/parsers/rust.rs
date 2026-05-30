@@ -149,19 +149,17 @@ impl<'a> Converter<'a> {
             .map(|n| self.text(n).to_string());
 
         let body = match node.child_by_field_name("body") {
-            Some(b) => {
-                // R2 (ir-v0.md): clone-drift normalises every top-level
-                // function exactly once. `convert_rust_block` always
-                // returns an IrBlock with empty `normalised_tokens` —
-                // populate here so only `IrFn.body` carries tokens,
-                // avoiding the O(nodes × nesting_depth) duplication a
-                // per-block walk would produce.
-                let mut block = self.convert_rust_block(b);
-                walk_normalize_rust(b, &mut block.normalised_tokens);
-                block
-            }
+            Some(b) => self.convert_rust_block(b),
             None => empty_block(self.path, node),
         };
+
+        // R2 (ir-v0.md): clone-drift normalises every top-level function
+        // exactly once. Root the token sequence at the whole
+        // `function_item` so the signature prefix participates in the
+        // n-gram set, matching v0.5.x `walk_normalize_rust(function_item)`
+        // byte-for-byte.
+        let mut normalised_tokens = Vec::new();
+        walk_normalize_rust(node, &mut normalised_tokens);
 
         Ok(IrFn {
             name,
@@ -171,6 +169,7 @@ impl<'a> Converter<'a> {
             decorators,
             is_method,
             leading_doc,
+            normalised_tokens,
             location: node_location(self.path, node),
         })
     }
@@ -254,13 +253,15 @@ impl<'a> Converter<'a> {
 
         let terminator = compute_block_terminator(&statements);
 
+        // Block-rooted token count for F2b's intra-fn if-branch size
+        // gate (ir-v0.md R2: count only, not the vector).
+        let mut block_tokens = Vec::new();
+        walk_normalize_rust(block, &mut block_tokens);
+
         IrBlock {
             statements,
             terminator,
-            // Only `IrFn.body` carries tokens (populated by the caller).
-            // Nested blocks (if/else, loop, while, match arms,
-            // expression-position blocks) keep this empty per R2.
-            normalised_tokens: Vec::new(),
+            normalised_token_count: block_tokens.len(),
             location: node_location(self.path, block),
         }
     }
@@ -1239,7 +1240,7 @@ fn empty_block(path: &Path, parent: tree_sitter::Node<'_>) -> IrBlock {
     IrBlock {
         statements: Vec::new(),
         terminator: None,
-        normalised_tokens: Vec::new(),
+        normalised_token_count: 0,
         location: node_location(path, parent),
     }
 }
@@ -1334,12 +1335,12 @@ mod tests {
     fn normalised_tokens_are_byte_identical_with_v0_walk() {
         // The IR walk must produce the same NormalisedToken sequence
         // (modulo NormalisedToken::Kind vs string-form) as v0.5.x's
-        // walk_normalize_rust. Spot-check via a small body.
+        // walk_normalize_rust(function_item). Spot-check via a small fn.
         let ir = to_ir("fn foo(a: i32) -> i32 { let x = 1; x + 2 }\n");
-        let toks = &ir.fns[0].body.normalised_tokens;
-        // Must start with a `Kind("block")` and contain the two int
-        // literal placeholders.
-        assert!(matches!(toks[0], NormalisedToken::Kind("block")));
+        let toks = &ir.fns[0].normalised_tokens;
+        // Function-item-rooted: starts with `Kind("function_item")` and
+        // contains the two int literal placeholders.
+        assert!(matches!(toks[0], NormalisedToken::Kind("function_item")));
         assert!(toks.iter().any(|t| matches!(t, NormalisedToken::LitInt)));
     }
 

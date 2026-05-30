@@ -183,18 +183,17 @@ impl<'a> Converter<'a> {
             .map(|n| self.text(n).to_string());
 
         let body = match node.child_by_field_name("body") {
-            Some(b) => {
-                // R2 (ir-v0.md): clone-drift normalises every top-level
-                // function exactly once. Populate `normalised_tokens`
-                // only on `IrFn.body` here; `convert_python_block`
-                // leaves nested-block tokens empty to keep token
-                // storage O(total AST nodes), not O(nodes × nesting).
-                let mut block = self.convert_python_block(b);
-                walk_normalize_python(b, &mut block.normalised_tokens);
-                block
-            }
+            Some(b) => self.convert_python_block(b),
             None => empty_block(self.path, node),
         };
+
+        // R2 (ir-v0.md): clone-drift normalises every top-level function
+        // exactly once. Root the token sequence at the whole
+        // `function_definition` (not the body block, not the
+        // `decorated_definition` wrapper) so the sequence matches v0.5.x
+        // `walk_normalize_python(function_definition)` byte-for-byte.
+        let mut normalised_tokens = Vec::new();
+        walk_normalize_python(node, &mut normalised_tokens);
 
         let leading_doc = extract_python_docstring(&body, self.source, node);
 
@@ -211,6 +210,7 @@ impl<'a> Converter<'a> {
             decorators,
             is_method,
             leading_doc,
+            normalised_tokens,
             location: node_location(self.path, node),
         })
     }
@@ -290,13 +290,16 @@ impl<'a> Converter<'a> {
 
         let terminator = compute_python_block_terminator(&statements);
 
+        // Block-rooted token count for F2b parity (Rust-only consumer
+        // today; populated uniformly across languages — ir-v0.md R2:
+        // count only, not the vector).
+        let mut block_tokens = Vec::new();
+        walk_normalize_python(block, &mut block_tokens);
+
         IrBlock {
             statements,
             terminator,
-            // Only `IrFn.body` carries tokens (populated by the caller).
-            // Nested blocks (if/else, loop, while, match arms,
-            // expression-position blocks) keep this empty per R2.
-            normalised_tokens: Vec::new(),
+            normalised_token_count: block_tokens.len(),
             location: node_location(self.path, block),
         }
     }
@@ -946,7 +949,7 @@ fn empty_block(path: &Path, parent: tree_sitter::Node<'_>) -> IrBlock {
     IrBlock {
         statements: Vec::new(),
         terminator: None,
-        normalised_tokens: Vec::new(),
+        normalised_token_count: 0,
         location: node_location(path, parent),
     }
 }

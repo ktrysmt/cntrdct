@@ -86,27 +86,7 @@
           }
         ],
         "terminator": null,
-        "normalised_tokens": [
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "expression_statement"
-          },
-          "LitStr",
-          {
-            "Kind": "expression_statement"
-          },
-          {
-            "Kind": "assignment"
-          },
-          {
-            "Kind": "attribute"
-          },
-          "Ident",
-          "Ident",
-          "Ident"
-        ],
+        "normalised_token_count": 9,
         "location": {
           "file": "class_methods.py",
           "start_line": 5,
@@ -121,6 +101,36 @@
       "decorators": [],
       "is_method": true,
       "leading_doc": "Construct a new counter.",
+      "normalised_tokens": [
+        {
+          "Kind": "function_definition"
+        },
+        "Ident",
+        {
+          "Kind": "parameters"
+        },
+        "Ident",
+        "Ident",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "expression_statement"
+        },
+        "LitStr",
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "assignment"
+        },
+        {
+          "Kind": "attribute"
+        },
+        "Ident",
+        "Ident",
+        "Ident"
+      ],
       "location": {
         "file": "class_methods.py",
         "start_line": 4,
@@ -190,31 +200,7 @@
           }
         ],
         "terminator": null,
-        "normalised_tokens": [
-          {
-            "Kind": "block"
-          },
-          {
-            "Kind": "expression_statement"
-          },
-          {
-            "Kind": "assignment"
-          },
-          {
-            "Kind": "attribute"
-          },
-          "Ident",
-          "Ident",
-          {
-            "Kind": "binary_operator"
-          },
-          {
-            "Kind": "attribute"
-          },
-          "Ident",
-          "Ident",
-          "Ident"
-        ],
+        "normalised_token_count": 11,
         "location": {
           "file": "class_methods.py",
           "start_line": 9,
@@ -229,6 +215,40 @@
       "decorators": [],
       "is_method": true,
       "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "function_definition"
+        },
+        "Ident",
+        {
+          "Kind": "parameters"
+        },
+        "Ident",
+        "Ident",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "assignment"
+        },
+        {
+          "Kind": "attribute"
+        },
+        "Ident",
+        "Ident",
+        {
+          "Kind": "binary_operator"
+        },
+        {
+          "Kind": "attribute"
+        },
+        "Ident",
+        "Ident",
+        "Ident"
+      ],
       "location": {
         "file": "class_methods.py",
         "start_line": 8,
