@@ -438,8 +438,24 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
           `binary_operator` RHS) remain opaque and are the detector
           migrations' concern (NodeRef recovery or further IrExpr
           coverage). `arg-swap` migrated 2026-06-01 (pure IR walk +
-          `await` unwrap). Pending: migrate
-          `unreachable-after-terminator` + `pr-miner` (each its own
+          `await` unwrap).
+       3. IR-side extension [done] 2026-06-02: `IrExpr` became
+          `struct IrExpr { kind: IrExprKind, location: Location }`
+          (was a bare enum). Every expression now carries its source
+          span so `unreachable-after-terminator` can report the
+          F4d-ii / F4d-iii / F4d-iv (divergent call arg / divergent
+          return-or-break value / divergent `if` condition) and F4e
+          (Python constant condition) finding endpoints at the v0.5.x
+          raw-node spans without `raw_tree()`. The enum variants moved
+          verbatim onto `IrExprKind`; all converter / detector match
+          sites updated to `&expr.kind`; the converter wraps each
+          `convert_*_expr` result with `node_location(node)` (transparent
+          `parenthesized_expression` / `await` wrappers keep the inner
+          node's location). All 7 expr-bearing T4 goldens re-blessed
+          (additive: each expr gains a `location`); T1 stays
+          byte-identical (findings do not serialise `IrExpr`). ir-v0.md
+          §F1 updated. Pending: migrate `unreachable-after-terminator`
+          (consumes the new locations) + `pr-miner` (each its own
           commit).
        Either follow-up can be sequenced with Path (a) (string-
        form IR compaction) in any order.

@@ -25,7 +25,7 @@ use crate::core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
     LanguageCitationStatus, Location, Severity,
 };
-use crate::ir::{IrBlock, IrExpr, IrFile, IrIfStmt, IrStmtKind, NormalisedToken};
+use crate::ir::{IrBlock, IrExpr, IrExprKind, IrFile, IrIfStmt, IrStmtKind, NormalisedToken};
 use rayon::prelude::*;
 
 pub const SIMILARITY_THRESHOLD: f64 = 0.5;
@@ -696,8 +696,8 @@ fn walk_if_branches_block(file: &IrFile, block: &IrBlock, out: &mut Vec<Finding>
 }
 
 fn walk_if_branches_expr(file: &IrFile, expr: &IrExpr, out: &mut Vec<Finding>) {
-    match expr {
-        IrExpr::If(if_stmt) => {
+    match &expr.kind {
+        IrExprKind::If(if_stmt) => {
             if let Some(f) = analyze_if_branches(file, if_stmt) {
                 out.push(f);
             }
@@ -706,9 +706,9 @@ fn walk_if_branches_expr(file: &IrFile, expr: &IrExpr, out: &mut Vec<Finding>) {
                 walk_if_branches_block(file, alt, out);
             }
         }
-        IrExpr::Block(b) => walk_if_branches_block(file, b, out),
-        IrExpr::Loop(l) => walk_if_branches_block(file, &l.body, out),
-        IrExpr::Match(m) => {
+        IrExprKind::Block(b) => walk_if_branches_block(file, b, out),
+        IrExprKind::Loop(l) => walk_if_branches_block(file, &l.body, out),
+        IrExprKind::Match(m) => {
             for arm in &m.arms {
                 walk_if_branches_expr(file, &arm.body, out);
             }

@@ -482,7 +482,7 @@ pub struct IrMatchStmt {
 /// One arm of a `match`.
 #[derive(Debug, Clone, Serialize)]
 pub struct IrMatchArm {
-    /// Arm body expression (typically an [`IrExpr::Block`]).
+    /// Arm body expression (typically an [`IrExprKind::Block`]).
     pub body: IrExpr,
     /// Source location of the arm.
     pub location: Location,
@@ -561,9 +561,29 @@ pub struct IrPath {
 
 // ---------- IrExpr ----------
 
+/// An expression with its source location.
+///
+/// Carries [`Location`] on every expression (not just `Other`) so
+/// `unreachable-after-terminator` can report F4d-ii / F4d-iii / F4d-iv
+/// (divergent call argument / divergent return-or-break value /
+/// divergent `if` condition) and F4e (Python constant condition)
+/// finding endpoints at the exact source span the v0.5.x raw-tree walk
+/// used, without dropping to `raw_tree()` (R-1.c'' Path b). The
+/// `location` of a [`IrExprKind::Call`] / `Block` / `If` / `Match` /
+/// `Loop` expression equals the location stored on the boxed inner node
+/// (same tree-sitter node); the duplication keeps every `IrExpr`
+/// uniformly self-describing.
+#[derive(Debug, Clone, Serialize)]
+pub struct IrExpr {
+    /// Expression kind.
+    pub kind: IrExprKind,
+    /// Source location of the expression.
+    pub location: Location,
+}
+
 /// Expression kinds modelled by IR.
 #[derive(Debug, Clone, Serialize)]
-pub enum IrExpr {
+pub enum IrExprKind {
     /// Bare identifier.
     Ident(String),
     /// Dotted / scoped path.

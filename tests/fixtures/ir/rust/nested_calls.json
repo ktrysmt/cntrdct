@@ -46,36 +46,80 @@
                 },
                 "args": [
                   {
-                    "Ident": "a"
+                    "kind": {
+                      "Ident": "a"
+                    },
+                    "location": {
+                      "file": "nested_calls.rs",
+                      "start_line": 2,
+                      "start_col": 11,
+                      "end_line": 2,
+                      "end_col": 12,
+                      "start_byte": 44,
+                      "end_byte": 45
+                    }
                   },
                   {
-                    "Call": {
-                      "callee": {
-                        "receiver": [],
-                        "segments": [
-                          "plus"
-                        ],
-                        "raw": "plus"
-                      },
-                      "args": [
-                        {
-                          "Ident": "b"
+                    "kind": {
+                      "Call": {
+                        "callee": {
+                          "receiver": [],
+                          "segments": [
+                            "plus"
+                          ],
+                          "raw": "plus"
                         },
-                        {
-                          "Literal": {
-                            "Int": 1
+                        "args": [
+                          {
+                            "kind": {
+                              "Ident": "b"
+                            },
+                            "location": {
+                              "file": "nested_calls.rs",
+                              "start_line": 2,
+                              "start_col": 19,
+                              "end_line": 2,
+                              "end_col": 20,
+                              "start_byte": 52,
+                              "end_byte": 53
+                            }
+                          },
+                          {
+                            "kind": {
+                              "Literal": {
+                                "Int": 1
+                              }
+                            },
+                            "location": {
+                              "file": "nested_calls.rs",
+                              "start_line": 2,
+                              "start_col": 22,
+                              "end_line": 2,
+                              "end_col": 23,
+                              "start_byte": 55,
+                              "end_byte": 56
+                            }
                           }
+                        ],
+                        "location": {
+                          "file": "nested_calls.rs",
+                          "start_line": 2,
+                          "start_col": 14,
+                          "end_line": 2,
+                          "end_col": 24,
+                          "start_byte": 47,
+                          "end_byte": 57
                         }
-                      ],
-                      "location": {
-                        "file": "nested_calls.rs",
-                        "start_line": 2,
-                        "start_col": 14,
-                        "end_line": 2,
-                        "end_col": 24,
-                        "start_byte": 47,
-                        "end_byte": 57
                       }
+                    },
+                    "location": {
+                      "file": "nested_calls.rs",
+                      "start_line": 2,
+                      "start_col": 14,
+                      "end_line": 2,
+                      "end_col": 24,
+                      "start_byte": 47,
+                      "end_byte": 57
                     }
                   }
                 ],

@@ -436,7 +436,22 @@ pub struct IrPath {
     pub raw: String,
 }
 
-pub enum IrExpr {
+/// An expression with its source location. Every expression — not
+/// just `Other` — carries a `Location` so
+/// `unreachable-after-terminator` can report F4d-ii / F4d-iii / F4d-iv
+/// and F4e finding endpoints (divergent call argument, divergent
+/// return-or-break value, divergent / constant `if`-`while` condition)
+/// at the exact span the v0.5.x raw-tree walk used, without dropping
+/// to `raw_tree()` (R-1.c'' Path b). For `Call` / `Block` / `If` /
+/// `Match` / `Loop` the `location` equals the boxed inner node's
+/// location (same tree-sitter node); the duplication keeps every
+/// `IrExpr` uniformly self-describing.
+pub struct IrExpr {
+    pub kind: IrExprKind,
+    pub location: Location,
+}
+
+pub enum IrExprKind {
     Ident(String),
     Path(IrPath),
     Literal(IrLiteral),

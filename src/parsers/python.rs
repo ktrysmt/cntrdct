@@ -20,8 +20,8 @@ use std::sync::Arc;
 use super::{build_ir_shell, Language, ParserProvider};
 use crate::ir::{
     BranchMergeKind, ConstantBranchKind, DivergentKind, IrBlock, IrCallSite, IrComment,
-    IrCommentKind, IrConvertError, IrDecorator, IrExpr, IrFile, IrFn, IrForStmt, IrIfStmt,
-    IrLiteral, IrParam, IrPath, IrStmt, IrStmtKind, IrTerminator, IrTryStmt, IrWhileStmt,
+    IrCommentKind, IrConvertError, IrDecorator, IrExpr, IrExprKind, IrFile, IrFn, IrForStmt,
+    IrIfStmt, IrLiteral, IrParam, IrPath, IrStmt, IrStmtKind, IrTerminator, IrTryStmt, IrWhileStmt,
     IrWithStmt, Location, NodeRef, NormalisedToken, ParamKind,
 };
 
@@ -313,10 +313,7 @@ impl<'a> Converter<'a> {
             "assert_statement" => {
                 let cond = self
                     .first_named_child_as_expr(node)
-                    .unwrap_or(IrExpr::Other {
-                        node_kind: "assert_statement",
-                        node_ref: node_ref(node),
-                    });
+                    .unwrap_or_else(|| other_expr(self.path, node, "assert_statement"));
                 IrStmtKind::Assert(cond)
             }
             "if_statement" => IrStmtKind::If(self.convert_python_if(node)),
@@ -375,10 +372,7 @@ impl<'a> Converter<'a> {
     fn convert_python_if(&self, node: tree_sitter::Node<'a>) -> IrIfStmt {
         let condition = match node.child_by_field_name("condition") {
             Some(c) => self.convert_python_expr(c),
-            None => IrExpr::Other {
-                node_kind: "missing_condition",
-                node_ref: node_ref(node),
-            },
+            None => other_expr(self.path, node, "missing_condition"),
         };
         let consequence = match node.child_by_field_name("consequence") {
             Some(b) => self.convert_python_block(b),
@@ -415,10 +409,7 @@ impl<'a> Converter<'a> {
     fn convert_python_while(&self, node: tree_sitter::Node<'a>) -> IrWhileStmt {
         let condition = match node.child_by_field_name("condition") {
             Some(c) => self.convert_python_expr(c),
-            None => IrExpr::Other {
-                node_kind: "missing_condition",
-                node_ref: node_ref(node),
-            },
+            None => other_expr(self.path, node, "missing_condition"),
         };
         let body = match node.child_by_field_name("body") {
             Some(b) => self.convert_python_block(b),
@@ -480,10 +471,7 @@ impl<'a> Converter<'a> {
     fn convert_python_for(&self, node: tree_sitter::Node<'a>) -> IrForStmt {
         let iterable = match node.child_by_field_name("right") {
             Some(r) => self.convert_python_expr(r),
-            None => IrExpr::Other {
-                node_kind: "missing_iterable",
-                node_ref: node_ref(node),
-            },
+            None => other_expr(self.path, node, "missing_iterable"),
         };
         let body = match node.child_by_field_name("body") {
             Some(b) => self.convert_python_block(b),
@@ -531,15 +519,16 @@ impl<'a> Converter<'a> {
     }
 
     fn convert_python_expr(&self, node: tree_sitter::Node<'a>) -> IrExpr {
-        match node.kind() {
-            "identifier" => IrExpr::Ident(self.text(node).to_string()),
-            "attribute" => IrExpr::Path(self.convert_python_path(node)),
-            "true" => IrExpr::Literal(IrLiteral::Bool(true)),
-            "false" => IrExpr::Literal(IrLiteral::Bool(false)),
-            "none" => IrExpr::Literal(IrLiteral::None),
-            "integer" => IrExpr::Literal(IrLiteral::Int(parse_python_int(self.text(node)))),
-            "float" => IrExpr::Literal(IrLiteral::Float),
-            "string" => IrExpr::Literal(IrLiteral::String {
+        let location = node_location(self.path, node);
+        let kind = match node.kind() {
+            "identifier" => IrExprKind::Ident(self.text(node).to_string()),
+            "attribute" => IrExprKind::Path(self.convert_python_path(node)),
+            "true" => IrExprKind::Literal(IrLiteral::Bool(true)),
+            "false" => IrExprKind::Literal(IrLiteral::Bool(false)),
+            "none" => IrExprKind::Literal(IrLiteral::None),
+            "integer" => IrExprKind::Literal(IrLiteral::Int(parse_python_int(self.text(node)))),
+            "float" => IrExprKind::Literal(IrLiteral::Float),
+            "string" => IrExprKind::Literal(IrLiteral::String {
                 is_empty: python_string_is_empty(node),
             }),
             "call" => match self.convert_python_call_site(node) {
@@ -547,15 +536,15 @@ impl<'a> Converter<'a> {
                     // Treat exit-family calls as DivergentCall expressions
                     // so detectors can pattern-match them uniformly.
                     if let Some(kind) = self.python_exit_kind_for_call(node) {
-                        IrExpr::DivergentCall {
+                        IrExprKind::DivergentCall {
                             kind,
                             args: self.convert_python_call_args(node),
                         }
                     } else {
-                        IrExpr::Call(Box::new(call))
+                        IrExprKind::Call(Box::new(call))
                     }
                 }
-                None => IrExpr::Other {
+                None => IrExprKind::Other {
                     node_kind: "call",
                     node_ref: node_ref(node),
                 },
@@ -563,12 +552,13 @@ impl<'a> Converter<'a> {
             "parenthesized_expression" => {
                 let mut cursor = node.walk();
                 let inner = node.children(&mut cursor).find(|c| c.is_named());
-                inner
-                    .map(|c| self.convert_python_expr(c))
-                    .unwrap_or_else(|| IrExpr::Other {
+                match inner {
+                    Some(c) => return self.convert_python_expr(c),
+                    None => IrExprKind::Other {
                         node_kind: "parenthesized_expression",
                         node_ref: node_ref(node),
-                    })
+                    },
+                }
             }
             // `await <expr>` is a transparent wrapper for call-site
             // discovery: IR does not model async specially, so unwrap to
@@ -579,18 +569,20 @@ impl<'a> Converter<'a> {
             "await" => {
                 let mut cursor = node.walk();
                 let inner = node.children(&mut cursor).find(|c| c.is_named());
-                inner
-                    .map(|c| self.convert_python_expr(c))
-                    .unwrap_or_else(|| IrExpr::Other {
+                match inner {
+                    Some(c) => return self.convert_python_expr(c),
+                    None => IrExprKind::Other {
                         node_kind: "await",
                         node_ref: node_ref(node),
-                    })
+                    },
+                }
             }
-            other => IrExpr::Other {
+            other => IrExprKind::Other {
                 node_kind: static_kind_str(other),
                 node_ref: node_ref(node),
             },
-        }
+        };
+        IrExpr { kind, location }
     }
 
     fn convert_python_path(&self, node: tree_sitter::Node<'a>) -> IrPath {
@@ -690,9 +682,10 @@ fn python_stmt_terminator(stmt: &IrStmt) -> Option<IrTerminator> {
         IrStmtKind::Break(_) => Some(IrTerminator::Break),
         IrStmtKind::Continue(_) => Some(IrTerminator::Continue),
         IrStmtKind::DivergentCall { kind, .. } => Some(IrTerminator::DivergentCall { kind: *kind }),
-        IrStmtKind::Assert(IrExpr::Literal(IrLiteral::Bool(false))) => {
-            Some(IrTerminator::AssertFalse)
-        }
+        IrStmtKind::Assert(IrExpr {
+            kind: IrExprKind::Literal(IrLiteral::Bool(false)),
+            ..
+        }) => Some(IrTerminator::AssertFalse),
         IrStmtKind::Assert(_) => None,
         IrStmtKind::If(if_stmt) => if_stmt.terminator,
         IrStmtKind::Match(stmt) => stmt.terminator,
@@ -1039,6 +1032,19 @@ fn empty_block(path: &Path, parent: tree_sitter::Node<'_>) -> IrBlock {
     }
 }
 
+/// Build an [`IrExprKind::Other`] expression carrying `node`'s location.
+/// Shared fallback for the converter's unrecognised / missing-child
+/// expression slots.
+fn other_expr(path: &Path, node: tree_sitter::Node<'_>, node_kind: &'static str) -> IrExpr {
+    IrExpr {
+        kind: IrExprKind::Other {
+            node_kind,
+            node_ref: node_ref(node),
+        },
+        location: node_location(path, node),
+    }
+}
+
 fn static_kind_str(s: &'static str) -> &'static str {
     s
 }
@@ -1238,7 +1244,10 @@ class C:
         let ir = to_ir(src);
         let stmts = &ir.fns[0].body.statements;
         match &stmts[0].kind {
-            IrStmtKind::Return(Some(IrExpr::Literal(IrLiteral::Int(Some(42))))) => {}
+            IrStmtKind::Return(Some(IrExpr {
+                kind: IrExprKind::Literal(IrLiteral::Int(Some(42))),
+                ..
+            })) => {}
             other => panic!("unexpected: {other:?}"),
         }
 
@@ -1246,7 +1255,10 @@ class C:
         let ir = to_ir(src);
         let stmts = &ir.fns[0].body.statements;
         match &stmts[0].kind {
-            IrStmtKind::Return(Some(IrExpr::Literal(IrLiteral::Int(None)))) => {}
+            IrStmtKind::Return(Some(IrExpr {
+                kind: IrExprKind::Literal(IrLiteral::Int(None)),
+                ..
+            })) => {}
             other => panic!("hex literal must produce Int(None), got {other:?}"),
         }
     }
@@ -1257,7 +1269,10 @@ class C:
         let ir = to_ir(src);
         let stmts = &ir.fns[0].body.statements;
         match &stmts[0].kind {
-            IrStmtKind::Return(Some(IrExpr::Literal(IrLiteral::String { is_empty }))) => {
+            IrStmtKind::Return(Some(IrExpr {
+                kind: IrExprKind::Literal(IrLiteral::String { is_empty }),
+                ..
+            })) => {
                 assert!(*is_empty);
             }
             other => panic!("unexpected: {other:?}"),

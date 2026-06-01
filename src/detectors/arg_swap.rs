@@ -45,7 +45,7 @@ use crate::core::{
     LanguageCitationStatus, Location, Severity,
 };
 use crate::ir::{
-    IrBlock, IrCallSite, IrExpr, IrFile, IrFn, IrIfStmt, IrPath, IrStmtKind, ParamKind,
+    IrBlock, IrCallSite, IrExpr, IrExprKind, IrFile, IrFn, IrIfStmt, IrPath, IrStmtKind, ParamKind,
 };
 use rayon::prelude::*;
 
@@ -433,32 +433,32 @@ fn walk_block_calls(block: &IrBlock, lang: Language, out: &mut Vec<CallSite>) {
 }
 
 fn walk_expr_calls(expr: &IrExpr, lang: Language, out: &mut Vec<CallSite>) {
-    match expr {
-        IrExpr::Call(call) => {
+    match &expr.kind {
+        IrExprKind::Call(call) => {
             consider_call(call, lang, out);
             walk_args(&call.args, lang, out);
         }
-        IrExpr::Return(inner) | IrExpr::Raise(inner) => {
+        IrExprKind::Return(inner) | IrExprKind::Raise(inner) => {
             if let Some(e) = inner {
                 walk_expr_calls(e, lang, out);
             }
         }
-        IrExpr::Block(b) => walk_block_calls(b, lang, out),
-        IrExpr::If(if_stmt) => walk_if_calls(if_stmt, lang, out),
-        IrExpr::Match(m) => {
+        IrExprKind::Block(b) => walk_block_calls(b, lang, out),
+        IrExprKind::If(if_stmt) => walk_if_calls(if_stmt, lang, out),
+        IrExprKind::Match(m) => {
             walk_expr_calls(&m.scrutinee, lang, out);
             for arm in &m.arms {
                 walk_expr_calls(&arm.body, lang, out);
             }
         }
-        IrExpr::Loop(l) => walk_block_calls(&l.body, lang, out),
-        IrExpr::DivergentCall { args, .. } => walk_args(args, lang, out),
-        IrExpr::Ident(_)
-        | IrExpr::Path(_)
-        | IrExpr::Literal(_)
-        | IrExpr::Break(_)
-        | IrExpr::Continue(_)
-        | IrExpr::Other { .. } => {}
+        IrExprKind::Loop(l) => walk_block_calls(&l.body, lang, out),
+        IrExprKind::DivergentCall { args, .. } => walk_args(args, lang, out),
+        IrExprKind::Ident(_)
+        | IrExprKind::Path(_)
+        | IrExprKind::Literal(_)
+        | IrExprKind::Break(_)
+        | IrExprKind::Continue(_)
+        | IrExprKind::Other { .. } => {}
     }
 }
 
@@ -489,8 +489,8 @@ fn consider_call(call: &IrCallSite, lang: Language, out: &mut Vec<CallSite>) {
 
     let mut args: Vec<String> = Vec::with_capacity(call.args.len());
     for a in &call.args {
-        match a {
-            IrExpr::Ident(name) => args.push(name.clone()),
+        match &a.kind {
+            IrExprKind::Ident(name) => args.push(name.clone()),
             // keyword arguments, splats, literals, attribute access,
             // nested calls — anything other than a bare identifier
             // disqualifies the call from v0 swap analysis.

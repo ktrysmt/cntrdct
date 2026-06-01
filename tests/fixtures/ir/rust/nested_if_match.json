@@ -25,16 +25,27 @@
             "kind": {
               "If": {
                 "condition": {
-                  "Other": {
-                    "node_kind": "binary_expression",
-                    "node_ref": {
-                      "start_byte": 45,
-                      "end_byte": 50,
-                      "start_row": 1,
-                      "start_col": 7,
-                      "end_row": 1,
-                      "end_col": 12
+                  "kind": {
+                    "Other": {
+                      "node_kind": "binary_expression",
+                      "node_ref": {
+                        "start_byte": 45,
+                        "end_byte": 50,
+                        "start_row": 1,
+                        "start_col": 7,
+                        "end_row": 1,
+                        "end_col": 12
+                      }
                     }
+                  },
+                  "location": {
+                    "file": "nested_if_match.rs",
+                    "start_line": 2,
+                    "start_col": 8,
+                    "end_line": 2,
+                    "end_col": 13,
+                    "start_byte": 45,
+                    "end_byte": 50
                   }
                 },
                 "consequence": {
@@ -43,15 +54,37 @@
                       "kind": {
                         "Match": {
                           "scrutinee": {
-                            "Ident": "x"
+                            "kind": {
+                              "Ident": "x"
+                            },
+                            "location": {
+                              "file": "nested_if_match.rs",
+                              "start_line": 3,
+                              "start_col": 15,
+                              "end_line": 3,
+                              "end_col": 16,
+                              "start_byte": 67,
+                              "end_byte": 68
+                            }
                           },
                           "arms": [
                             {
                               "body": {
-                                "Literal": {
-                                  "String": {
-                                    "is_empty": false
+                                "kind": {
+                                  "Literal": {
+                                    "String": {
+                                      "is_empty": false
+                                    }
                                   }
+                                },
+                                "location": {
+                                  "file": "nested_if_match.rs",
+                                  "start_line": 4,
+                                  "start_col": 19,
+                                  "end_line": 4,
+                                  "end_col": 30,
+                                  "start_byte": 89,
+                                  "end_byte": 100
                                 }
                               },
                               "location": {
@@ -66,10 +99,21 @@
                             },
                             {
                               "body": {
-                                "Literal": {
-                                  "String": {
-                                    "is_empty": false
+                                "kind": {
+                                  "Literal": {
+                                    "String": {
+                                      "is_empty": false
+                                    }
                                   }
+                                },
+                                "location": {
+                                  "file": "nested_if_match.rs",
+                                  "start_line": 5,
+                                  "start_col": 18,
+                                  "end_line": 5,
+                                  "end_col": 28,
+                                  "start_byte": 119,
+                                  "end_byte": 129
                                 }
                               },
                               "location": {

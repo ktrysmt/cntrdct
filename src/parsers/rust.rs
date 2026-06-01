@@ -20,9 +20,9 @@ use std::sync::Arc;
 use super::{build_ir_shell, Language, ParserProvider};
 use crate::ir::{
     BranchMergeKind, DivergentKind, HoistedItemKind, IrBlock, IrCallSite, IrComment, IrCommentKind,
-    IrConvertError, IrDecorator, IrExpr, IrFile, IrFn, IrForStmt, IrIfStmt, IrLabel, IrLiteral,
-    IrLoopStmt, IrMatchArm, IrMatchStmt, IrParam, IrPath, IrStmt, IrStmtKind, IrTerminator,
-    IrWhileStmt, Location, NodeRef, NormalisedToken, ParamKind,
+    IrConvertError, IrDecorator, IrExpr, IrExprKind, IrFile, IrFn, IrForStmt, IrIfStmt, IrLabel,
+    IrLiteral, IrLoopStmt, IrMatchArm, IrMatchStmt, IrParam, IrPath, IrStmt, IrStmtKind,
+    IrTerminator, IrWhileStmt, Location, NodeRef, NormalisedToken, ParamKind,
 };
 
 /// Provider for Rust source (`*.rs`).
@@ -399,10 +399,7 @@ impl<'a> Converter<'a> {
         let condition = node
             .child_by_field_name("condition")
             .map(|c| self.convert_rust_expr(c))
-            .unwrap_or_else(|| IrExpr::Other {
-                node_kind: "missing_condition",
-                node_ref: node_ref(node),
-            });
+            .unwrap_or_else(|| other_expr(self.path, node, "missing_condition"));
         let consequence_node = node.child_by_field_name("consequence");
         let consequence = consequence_node
             .map(|c| self.convert_rust_block(c))
@@ -425,10 +422,7 @@ impl<'a> Converter<'a> {
         let scrutinee = node
             .child_by_field_name("value")
             .map(|v| self.convert_rust_expr(v))
-            .unwrap_or_else(|| IrExpr::Other {
-                node_kind: "missing_scrutinee",
-                node_ref: node_ref(node),
-            });
+            .unwrap_or_else(|| other_expr(self.path, node, "missing_scrutinee"));
         let mut arms: Vec<IrMatchArm> = Vec::new();
         if let Some(body) = node.child_by_field_name("body") {
             let mut cursor = body.walk();
@@ -439,10 +433,7 @@ impl<'a> Converter<'a> {
                 let body_expr = child
                     .child_by_field_name("value")
                     .map(|v| self.convert_rust_expr(v))
-                    .unwrap_or_else(|| IrExpr::Other {
-                        node_kind: "missing_arm_value",
-                        node_ref: node_ref(child),
-                    });
+                    .unwrap_or_else(|| other_expr(self.path, child, "missing_arm_value"));
                 arms.push(IrMatchArm {
                     body: body_expr,
                     location: node_location(self.path, child),
@@ -462,10 +453,7 @@ impl<'a> Converter<'a> {
         let condition = node
             .child_by_field_name("condition")
             .map(|c| self.convert_rust_expr(c))
-            .unwrap_or_else(|| IrExpr::Other {
-                node_kind: "missing_condition",
-                node_ref: node_ref(node),
-            });
+            .unwrap_or_else(|| other_expr(self.path, node, "missing_condition"));
         let body = node
             .child_by_field_name("body")
             .map(|b| self.convert_rust_block(b))
@@ -481,10 +469,7 @@ impl<'a> Converter<'a> {
         let iterable = node
             .child_by_field_name("value")
             .map(|v| self.convert_rust_expr(v))
-            .unwrap_or_else(|| IrExpr::Other {
-                node_kind: "missing_iterable",
-                node_ref: node_ref(node),
-            });
+            .unwrap_or_else(|| other_expr(self.path, node, "missing_iterable"));
         let body = node
             .child_by_field_name("body")
             .map(|b| self.convert_rust_block(b))
@@ -515,68 +500,74 @@ impl<'a> Converter<'a> {
     }
 
     fn convert_rust_expr(&self, node: tree_sitter::Node<'a>) -> IrExpr {
-        match node.kind() {
+        let location = node_location(self.path, node);
+        let kind = match node.kind() {
             "identifier" | "type_identifier" | "field_identifier" => {
-                IrExpr::Ident(self.text(node).to_string())
+                IrExprKind::Ident(self.text(node).to_string())
             }
-            "scoped_identifier" => IrExpr::Path(self.convert_rust_path(node)),
-            "field_expression" => IrExpr::Path(self.convert_rust_path(node)),
-            "integer_literal" => IrExpr::Literal(IrLiteral::Int(parse_rust_int(self.text(node)))),
-            "float_literal" => IrExpr::Literal(IrLiteral::Float),
+            "scoped_identifier" => IrExprKind::Path(self.convert_rust_path(node)),
+            "field_expression" => IrExprKind::Path(self.convert_rust_path(node)),
+            "integer_literal" => {
+                IrExprKind::Literal(IrLiteral::Int(parse_rust_int(self.text(node))))
+            }
+            "float_literal" => IrExprKind::Literal(IrLiteral::Float),
             "string_literal" | "raw_string_literal" => {
                 let raw = self.text(node);
-                IrExpr::Literal(IrLiteral::String {
+                IrExprKind::Literal(IrLiteral::String {
                     is_empty: rust_string_is_empty(raw),
                 })
             }
-            "char_literal" => IrExpr::Literal(IrLiteral::Char),
+            "char_literal" => IrExprKind::Literal(IrLiteral::Char),
             "boolean_literal" => {
                 let text = self.text(node);
-                IrExpr::Literal(IrLiteral::Bool(text == "true"))
+                IrExprKind::Literal(IrLiteral::Bool(text == "true"))
             }
             "call_expression" => match self.convert_rust_call_site(node) {
-                Some(call) => IrExpr::Call(Box::new(call)),
-                None => IrExpr::Other {
+                Some(call) => IrExprKind::Call(Box::new(call)),
+                None => IrExprKind::Other {
                     node_kind: "call_expression",
                     node_ref: node_ref(node),
                 },
             },
             "macro_invocation" => match rust_macro_terminator_kind(node, self.source) {
-                Some(kind) => IrExpr::DivergentCall {
+                Some(kind) => IrExprKind::DivergentCall {
                     kind,
                     args: Vec::new(),
                 },
-                None => IrExpr::Other {
+                None => IrExprKind::Other {
                     node_kind: "macro_invocation",
                     node_ref: node_ref(node),
                 },
             },
-            "block" => IrExpr::Block(Box::new(self.convert_rust_block(node))),
-            "if_expression" => IrExpr::If(Box::new(self.convert_rust_if(node))),
-            "match_expression" => IrExpr::Match(Box::new(self.convert_rust_match(node))),
-            "loop_expression" => IrExpr::Loop(Box::new(self.convert_rust_loop(node))),
-            "return_expression" => IrExpr::Return(
+            "block" => IrExprKind::Block(Box::new(self.convert_rust_block(node))),
+            "if_expression" => IrExprKind::If(Box::new(self.convert_rust_if(node))),
+            "match_expression" => IrExprKind::Match(Box::new(self.convert_rust_match(node))),
+            "loop_expression" => IrExprKind::Loop(Box::new(self.convert_rust_loop(node))),
+            "return_expression" => IrExprKind::Return(
                 self.convert_rust_optional_value(node, &["loop_label"])
                     .map(Box::new),
             ),
-            "break_expression" => IrExpr::Break(self.rust_label(node)),
-            "continue_expression" => IrExpr::Continue(self.rust_label(node)),
+            "break_expression" => IrExprKind::Break(self.rust_label(node)),
+            "continue_expression" => IrExprKind::Continue(self.rust_label(node)),
             "parenthesized_expression" => {
+                // Transparent wrapper: return the inner expression with
+                // its own location (ir-v0.md §F2).
                 let mut cursor = node.walk();
                 let inner = node.children(&mut cursor).find(|c| c.is_named());
                 match inner {
-                    Some(inner) => self.convert_rust_expr(inner),
-                    None => IrExpr::Other {
+                    Some(inner) => return self.convert_rust_expr(inner),
+                    None => IrExprKind::Other {
                         node_kind: "parenthesized_expression",
                         node_ref: node_ref(node),
                     },
                 }
             }
-            other => IrExpr::Other {
+            other => IrExprKind::Other {
                 node_kind: static_kind_str(other),
                 node_ref: node_ref(node),
             },
-        }
+        };
+        IrExpr { kind, location }
     }
 
     fn convert_rust_path(&self, node: tree_sitter::Node<'a>) -> IrPath {
@@ -624,10 +615,7 @@ impl<'a> Converter<'a> {
         // search for the first contained primitive literal /
         // identifier and treat it as the condition expression.
         let Some(args) = macro_node.child_by_field_name("arguments") else {
-            return IrExpr::Other {
-                node_kind: "macro_invocation",
-                node_ref: node_ref(macro_node),
-            };
+            return other_expr(self.path, macro_node, "macro_invocation");
         };
         let mut cursor = args.walk();
         for child in args.children(&mut cursor) {
@@ -636,10 +624,7 @@ impl<'a> Converter<'a> {
             }
             return self.convert_rust_expr(child);
         }
-        IrExpr::Other {
-            node_kind: "token_tree",
-            node_ref: node_ref(args),
-        }
+        other_expr(self.path, args, "token_tree")
     }
 
     fn compute_rust_if_branch_merge(&self, if_expr: tree_sitter::Node<'a>) -> Option<IrTerminator> {
@@ -705,9 +690,10 @@ fn stmt_terminator(stmt: &IrStmt) -> Option<IrTerminator> {
         IrStmtKind::Break(_) => Some(IrTerminator::Break),
         IrStmtKind::Continue(_) => Some(IrTerminator::Continue),
         IrStmtKind::DivergentCall { kind, .. } => Some(IrTerminator::DivergentCall { kind: *kind }),
-        IrStmtKind::Assert(IrExpr::Literal(IrLiteral::Bool(false))) => {
-            Some(IrTerminator::AssertFalse)
-        }
+        IrStmtKind::Assert(IrExpr {
+            kind: IrExprKind::Literal(IrLiteral::Bool(false)),
+            ..
+        }) => Some(IrTerminator::AssertFalse),
         IrStmtKind::Assert(_) => None,
         IrStmtKind::If(if_stmt) => if_stmt.terminator,
         IrStmtKind::Match(match_stmt) => match_stmt.terminator,
@@ -1264,6 +1250,19 @@ fn empty_block(path: &Path, parent: tree_sitter::Node<'_>) -> IrBlock {
         terminator: None,
         normalised_token_count: 0,
         location: node_location(path, parent),
+    }
+}
+
+/// Build an [`IrExprKind::Other`] expression carrying `node`'s location.
+/// Shared fallback for the converter's unrecognised / missing-child
+/// expression slots.
+fn other_expr(path: &Path, node: tree_sitter::Node<'_>, node_kind: &'static str) -> IrExpr {
+    IrExpr {
+        kind: IrExprKind::Other {
+            node_kind,
+            node_ref: node_ref(node),
+        },
+        location: node_location(path, node),
     }
 }
 

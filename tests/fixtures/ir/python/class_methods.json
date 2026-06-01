@@ -63,7 +63,18 @@
             "kind": {
               "Assign": {
                 "value": {
-                  "Ident": "start"
+                  "kind": {
+                    "Ident": "start"
+                  },
+                  "location": {
+                    "file": "class_methods.py",
+                    "start_line": 6,
+                    "start_col": 22,
+                    "end_line": 6,
+                    "end_col": 27,
+                    "start_byte": 149,
+                    "end_byte": 154
+                  }
                 }
               }
             },
@@ -171,16 +182,27 @@
             "kind": {
               "Assign": {
                 "value": {
-                  "Other": {
-                    "node_kind": "binary_operator",
-                    "node_ref": {
-                      "start_byte": 203,
-                      "end_byte": 221,
-                      "start_row": 8,
-                      "start_col": 21,
-                      "end_row": 8,
-                      "end_col": 39
+                  "kind": {
+                    "Other": {
+                      "node_kind": "binary_operator",
+                      "node_ref": {
+                        "start_byte": 203,
+                        "end_byte": 221,
+                        "start_row": 8,
+                        "start_col": 21,
+                        "end_row": 8,
+                        "end_col": 39
+                      }
                     }
+                  },
+                  "location": {
+                    "file": "class_methods.py",
+                    "start_line": 9,
+                    "start_col": 22,
+                    "end_line": 9,
+                    "end_col": 40,
+                    "start_byte": 203,
+                    "end_byte": 221
                   }
                 }
               }

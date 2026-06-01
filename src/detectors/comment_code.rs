@@ -35,7 +35,7 @@ use crate::core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
     LanguageCitationStatus, Location, Severity,
 };
-use crate::ir::{IrBlock, IrDecorator, IrExpr, IrFile, IrFn, IrStmt, IrStmtKind};
+use crate::ir::{IrBlock, IrDecorator, IrExpr, IrExprKind, IrFile, IrFn, IrStmt, IrStmtKind};
 use rayon::prelude::*;
 
 static CITATIONS: &[Citation] = &[
@@ -373,10 +373,10 @@ fn stmt_contains_raise(stmt: &IrStmt) -> bool {
 }
 
 fn expr_contains_raise(expr: &IrExpr) -> bool {
-    match expr {
-        IrExpr::Raise(_) => true,
-        IrExpr::Block(b) => body_contains_raise(b),
-        IrExpr::If(if_stmt) => {
+    match &expr.kind {
+        IrExprKind::Raise(_) => true,
+        IrExprKind::Block(b) => body_contains_raise(b),
+        IrExprKind::If(if_stmt) => {
             body_contains_raise(&if_stmt.consequence)
                 || if_stmt
                     .alternative
@@ -384,8 +384,8 @@ fn expr_contains_raise(expr: &IrExpr) -> bool {
                     .map(body_contains_raise)
                     .unwrap_or(false)
         }
-        IrExpr::Match(m) => m.arms.iter().any(|arm| expr_contains_raise(&arm.body)),
-        IrExpr::Loop(l) => body_contains_raise(&l.body),
+        IrExprKind::Match(m) => m.arms.iter().any(|arm| expr_contains_raise(&arm.body)),
+        IrExprKind::Loop(l) => body_contains_raise(&l.body),
         _ => false,
     }
 }
@@ -403,7 +403,13 @@ fn body_returns_call_expression(block: &IrBlock) -> bool {
 
 fn stmt_returns_call_expression(stmt: &IrStmt) -> bool {
     match &stmt.kind {
-        IrStmtKind::Return(value) => matches!(value, Some(IrExpr::Call(_))),
+        IrStmtKind::Return(value) => matches!(
+            value,
+            Some(IrExpr {
+                kind: IrExprKind::Call(_),
+                ..
+            })
+        ),
         IrStmtKind::If(if_stmt) => {
             body_returns_call_expression(&if_stmt.consequence)
                 || if_stmt
@@ -424,10 +430,16 @@ fn stmt_returns_call_expression(stmt: &IrStmt) -> bool {
 }
 
 fn expr_returns_call_expression(expr: &IrExpr) -> bool {
-    match expr {
-        IrExpr::Return(value) => matches!(value.as_deref(), Some(IrExpr::Call(_))),
-        IrExpr::Block(b) => body_returns_call_expression(b),
-        IrExpr::If(if_stmt) => {
+    match &expr.kind {
+        IrExprKind::Return(value) => matches!(
+            value.as_deref(),
+            Some(IrExpr {
+                kind: IrExprKind::Call(_),
+                ..
+            })
+        ),
+        IrExprKind::Block(b) => body_returns_call_expression(b),
+        IrExprKind::If(if_stmt) => {
             body_returns_call_expression(&if_stmt.consequence)
                 || if_stmt
                     .alternative
@@ -435,11 +447,11 @@ fn expr_returns_call_expression(expr: &IrExpr) -> bool {
                     .map(body_returns_call_expression)
                     .unwrap_or(false)
         }
-        IrExpr::Match(m) => m
+        IrExprKind::Match(m) => m
             .arms
             .iter()
             .any(|arm| expr_returns_call_expression(&arm.body)),
-        IrExpr::Loop(l) => body_returns_call_expression(&l.body),
+        IrExprKind::Loop(l) => body_returns_call_expression(&l.body),
         _ => false,
     }
 }

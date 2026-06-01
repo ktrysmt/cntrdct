@@ -37,37 +37,83 @@
           {
             "kind": {
               "Return": {
-                "Call": {
-                  "callee": {
-                    "receiver": [],
-                    "segments": [
-                      "inner"
-                    ],
-                    "raw": "inner"
-                  },
-                  "args": [
-                    {
-                      "Ident": "a"
+                "kind": {
+                  "Call": {
+                    "callee": {
+                      "receiver": [],
+                      "segments": [
+                        "inner"
+                      ],
+                      "raw": "inner"
                     },
-                    {
-                      "Call": {
-                        "callee": {
-                          "receiver": [],
-                          "segments": [
-                            "plus"
-                          ],
-                          "raw": "plus"
+                    "args": [
+                      {
+                        "kind": {
+                          "Ident": "a"
                         },
-                        "args": [
-                          {
-                            "Ident": "b"
-                          },
-                          {
-                            "Literal": {
-                              "Int": 1
+                        "location": {
+                          "file": "nested_calls.py",
+                          "start_line": 2,
+                          "start_col": 18,
+                          "end_line": 2,
+                          "end_col": 19,
+                          "start_byte": 34,
+                          "end_byte": 35
+                        }
+                      },
+                      {
+                        "kind": {
+                          "Call": {
+                            "callee": {
+                              "receiver": [],
+                              "segments": [
+                                "plus"
+                              ],
+                              "raw": "plus"
+                            },
+                            "args": [
+                              {
+                                "kind": {
+                                  "Ident": "b"
+                                },
+                                "location": {
+                                  "file": "nested_calls.py",
+                                  "start_line": 2,
+                                  "start_col": 26,
+                                  "end_line": 2,
+                                  "end_col": 27,
+                                  "start_byte": 42,
+                                  "end_byte": 43
+                                }
+                              },
+                              {
+                                "kind": {
+                                  "Literal": {
+                                    "Int": 1
+                                  }
+                                },
+                                "location": {
+                                  "file": "nested_calls.py",
+                                  "start_line": 2,
+                                  "start_col": 29,
+                                  "end_line": 2,
+                                  "end_col": 30,
+                                  "start_byte": 45,
+                                  "end_byte": 46
+                                }
+                              }
+                            ],
+                            "location": {
+                              "file": "nested_calls.py",
+                              "start_line": 2,
+                              "start_col": 21,
+                              "end_line": 2,
+                              "end_col": 31,
+                              "start_byte": 37,
+                              "end_byte": 47
                             }
                           }
-                        ],
+                        },
                         "location": {
                           "file": "nested_calls.py",
                           "start_line": 2,
@@ -78,17 +124,26 @@
                           "end_byte": 47
                         }
                       }
+                    ],
+                    "location": {
+                      "file": "nested_calls.py",
+                      "start_line": 2,
+                      "start_col": 12,
+                      "end_line": 2,
+                      "end_col": 32,
+                      "start_byte": 28,
+                      "end_byte": 48
                     }
-                  ],
-                  "location": {
-                    "file": "nested_calls.py",
-                    "start_line": 2,
-                    "start_col": 12,
-                    "end_line": 2,
-                    "end_col": 32,
-                    "start_byte": 28,
-                    "end_byte": 48
                   }
+                },
+                "location": {
+                  "file": "nested_calls.py",
+                  "start_line": 2,
+                  "start_col": 12,
+                  "end_line": 2,
+                  "end_col": 32,
+                  "start_byte": 28,
+                  "end_byte": 48
                 }
               }
             },
@@ -199,16 +254,27 @@
           {
             "kind": {
               "Return": {
-                "Other": {
-                  "node_kind": "binary_operator",
-                  "node_ref": {
-                    "start_byte": 79,
-                    "end_byte": 84,
-                    "start_row": 5,
-                    "start_col": 11,
-                    "end_row": 5,
-                    "end_col": 16
+                "kind": {
+                  "Other": {
+                    "node_kind": "binary_operator",
+                    "node_ref": {
+                      "start_byte": 79,
+                      "end_byte": 84,
+                      "start_row": 5,
+                      "start_col": 11,
+                      "end_row": 5,
+                      "end_col": 16
+                    }
                   }
+                },
+                "location": {
+                  "file": "nested_calls.py",
+                  "start_line": 6,
+                  "start_col": 12,
+                  "end_line": 6,
+                  "end_col": 17,
+                  "start_byte": 79,
+                  "end_byte": 84
                 }
               }
             },
@@ -307,16 +373,27 @@
           {
             "kind": {
               "Return": {
-                "Other": {
-                  "node_kind": "binary_operator",
-                  "node_ref": {
-                    "start_byte": 114,
-                    "end_byte": 119,
-                    "start_row": 9,
-                    "start_col": 11,
-                    "end_row": 9,
-                    "end_col": 16
+                "kind": {
+                  "Other": {
+                    "node_kind": "binary_operator",
+                    "node_ref": {
+                      "start_byte": 114,
+                      "end_byte": 119,
+                      "start_row": 9,
+                      "start_col": 11,
+                      "end_row": 9,
+                      "end_col": 16
+                    }
                   }
+                },
+                "location": {
+                  "file": "nested_calls.py",
+                  "start_line": 10,
+                  "start_col": 12,
+                  "end_line": 10,
+                  "end_col": 17,
+                  "start_byte": 114,
+                  "end_byte": 119
                 }
               }
             },

@@ -20,7 +20,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use cntrdct::ir::{IrExpr, IrFile, IrStmtKind};
+use cntrdct::ir::{IrExprKind, IrFile, IrStmtKind};
 use cntrdct::parsers::{parser_for, Language};
 
 fn to_ir(lang: Language, source: &str, path: &str) -> (tree_sitter::Tree, IrFile) {
@@ -197,13 +197,13 @@ fn rust_expr_other_location_matches_tree_sitter() {
         IrStmtKind::Return(Some(e)) => e,
         other => panic!("expected Return, got {other:?}"),
     };
-    let node_kind = match expr {
-        IrExpr::Other { node_kind, .. } => *node_kind,
+    let node_kind = match &expr.kind {
+        IrExprKind::Other { node_kind, .. } => *node_kind,
         other => panic!("expected Other, got {other:?}"),
     };
     assert_eq!(node_kind, "binary_expression");
     // Confirm via raw_tree resolve that the ref points at the same node.
-    if let IrExpr::Other { node_ref, .. } = expr {
+    if let IrExprKind::Other { node_ref, .. } = &expr.kind {
         let resolved_range = ir
             .resolve_with(node_ref, |n| n.range())
             .expect("ref resolves");
@@ -348,7 +348,7 @@ fn python_expr_other_location_matches_tree_sitter() {
         IrStmtKind::Return(Some(e)) => e,
         other => panic!("expected Return, got {other:?}"),
     };
-    if let IrExpr::Other { node_ref, .. } = expr {
+    if let IrExprKind::Other { node_ref, .. } = &expr.kind {
         let resolved_range = ir
             .resolve_with(node_ref, |n| n.range())
             .expect("ref resolves");
