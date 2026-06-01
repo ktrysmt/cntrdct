@@ -693,6 +693,17 @@ Calling convention:
   by shape without dropping to `raw_tree()`; the `NodeRef` lets a
   language-specific detector recover the raw node when needed (via
   `IrFile::resolve_with`, which itself reparses internally).
+- Transparent expression wrappers are unwrapped to their inner
+  expression rather than materialised as a distinct node so the
+  calls / terminators they carry stay reachable from an IR-only walk:
+  Rust / Python `parenthesized_expression` and Python `await`. (No
+  cross-cutting detector reasons about parenthesisation or `await`
+  itself; both only matter as carriers of an inner call site, so the
+  wrapper is dropped.) Wrappers IR does not yet unwrap — Python
+  `await`-free shapes such as `binary_operator`, `boolean_operator`,
+  `subscript`, `unary_operator`, and the Rust equivalents — still land
+  in `IrExpr::Other`; calls nested inside those remain the migrating
+  detector's concern per R-1.c''.
 - Comment nodes (Rust `line_comment` / `block_comment`,
   Python `comment`) are filtered out of `IrFn.normalised_tokens`,
   the `IrBlock.normalised_token_count` walk, and `IrBlock.statements`

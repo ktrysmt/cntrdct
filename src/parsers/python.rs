@@ -570,6 +570,22 @@ impl<'a> Converter<'a> {
                         node_ref: node_ref(node),
                     })
             }
+            // `await <expr>` is a transparent wrapper for call-site
+            // discovery: IR does not model async specially, so unwrap to
+            // the awaited expression (mirrors `parenthesized_expression`).
+            // Without this, a call hidden in `_ = await copy(src, dst)`
+            // lands in `IrExpr::Other` and is invisible to an IR-only
+            // walk (ir-v0.md §F2 transparent-wrapper rule).
+            "await" => {
+                let mut cursor = node.walk();
+                let inner = node.children(&mut cursor).find(|c| c.is_named());
+                inner
+                    .map(|c| self.convert_python_expr(c))
+                    .unwrap_or_else(|| IrExpr::Other {
+                        node_kind: "await",
+                        node_ref: node_ref(node),
+                    })
+            }
             other => IrExpr::Other {
                 node_kind: static_kind_str(other),
                 node_ref: node_ref(node),

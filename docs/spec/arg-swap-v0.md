@@ -32,28 +32,47 @@ Accepts `&[IrFile]` (R-1 / ir-v0.md F4 override). Files where
 
 ### F2 — Definition extraction
 
-For each IrFile, walk top-level `fn` items. Record:
-- function name
-- parameter count
-- parameter names (in declaration order)
+Read each IrFile's `IrFn` entries directly (the converter parsed every
+file once; the detector never reparses via `raw_tree()` — R-1.c'' Path
+b). Rust registers only top-level functions (`!is_method`, matching the
+v0.5.x root-level `function_item` walk); Python additionally registers
+class methods (F4b). For each registered function record:
+- function name (`IrFn.name`)
+- parameter names from `IrFn.params`, in declaration order
 
-Skip definitions that:
-- have parameter count != 2
-- have any `_`-prefixed parameter name
-- have duplicate parameter names (Rust forbids this anyway)
+Build the parameter list from `IrParam.kind`:
+- drop `ParamKind::Receiver` (Python `self` / `cls`)
+- reject the whole definition on any `ParamKind::Unsupported`
+  (`*args`, `**kwargs`, tuple patterns, `/` and `*` separators, …)
+- reject the whole definition on any `_`-prefixed `Plain` parameter
+
+The arity-2 filter (and the duplicate-name no-op for Rust) is applied
+later at resolution (F4), not at registration.
 
 ### F3 — Call-site extraction
 
-Walk all `call_expression` (Rust) and `call` (Python) nodes whose
-function operand is a single `identifier` and whose argument list
-contains only bare identifier arguments. Record:
-- callee name
-- argument list as a vector of identifier names (in declaration order)
-- argument count
-- location
+Recursively walk every registered function body's IR
+(`IrBlock.statements`, descending through `IrStmtKind::{If, While, Loop,
+For, Match, With, Try}` sub-blocks, `Let` / `Assign` RHS, `Return` /
+`Raise` / `Assert` payloads, `DivergentCall` args, and `IrExpr::Call`
+argument nesting). Collect each `IrCallSite` whose:
+- callee `IrPath` is a single bare identifier (Rust), or a bare
+  identifier / single-segment `self.` / `cls.` method (Python, F3b),
+  and whose
+- arguments are all `IrExpr::Ident`.
 
-Skip calls where any argument is non-identifier (keyword args,
-splats, literals, nested calls).
+Record callee name, the identifier-name argument vector, argument
+count, and location. Skip calls where any argument is non-identifier
+(keyword args, splats, literals, nested calls).
+
+The IR walk reaches a strict subset of the v0.5.x raw-tree traversal:
+calls buried in still-`IrExpr::Other` shapes (`binary_operator`,
+`subscript`, …) are not visited. Because the walk can only ever see
+*fewer* call sites than the v0.5.x full-tree walk, it cannot
+manufacture a finding v0.5.x did not also produce — the T1 pinning
+(ir-v0.md §F6 T1) stays byte-identical. The transparent `await` wrapper
+is unwrapped by the converter (ir-v0.md §F2) so `await foo(args)` call
+sites remain reachable.
 
 ### F3b — Method calls on `self` / `cls` (added 2026-05-21)
 

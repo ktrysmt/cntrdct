@@ -340,9 +340,10 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
        (per ir-v0.md R1 "R-0 revisits the retention decision") or
        wait on R-1.c''; do not tag v0.6.0 against the current
        Rust-corpus RSS without one of those resolutions.
-       Status: `[~]` 2026-05-30 (follow-up step 1 committed 0038e81;
+       Status: `[~]` 2026-06-01 (follow-up step 1 committed 0038e81;
        step 2 IR-side extension done — `IrStmtKind::{For, Try, Assign,
-       Let}` landed, the three detector migrations + path (a) pending).
+       Let}` landed; `arg-swap` migrated 2026-06-01;
+       `unreachable-after-terminator` + `pr-miner` + path (a) pending).
        Path (b) progress:
        - `comment-code` (2026-05-27, commit 2d90b3c) reads
          `IrFn.{leading_doc, return_type_text, decorators, body}` +
@@ -365,6 +366,24 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
          `NormalisedToken` derives `Hash`. T4 goldens re-blessed;
          ir-v0.md §F1 / R2 / §F4 / F6 T4 + clone-drift-v0.md
          §F2 / F2b / F4 updated.
+       - `arg-swap` (2026-06-01) now reads `IrFn.{name, params,
+         is_method}` for definition extraction (Rust top-level
+         `!is_method`; Python incl. class methods, `Receiver` dropped,
+         `Unsupported` whole-fn reject) and recursively walks every
+         function body's IR (`IrBlock.statements` descending through
+         `IrStmtKind::{If, While, Loop, For, Match, With, Try}` +
+         `Let` / `Assign` RHS + `Return` / `Raise` / `Assert` / `DivergentCall`
+         payloads + `IrExpr::Call` arg nesting) to enumerate
+         `IrCallSite`s; both `raw_tree()` calls are gone. The IR walk is
+         a strict subset of the v0.5.x full-tree traversal — calls in
+         still-`IrExpr::Other` shapes are unvisited but cannot
+         manufacture a finding v0.5.x lacked, so T1 stays byte-identical.
+         IR-side prerequisite landed in the same change: the converter
+         now unwraps the transparent Python `await` wrapper (ir-v0.md
+         §F2) so `_ = await copy(src, dst)` (arg-swap t20) stays
+         reachable. ir-v0.md §F2 transparent-wrapper note +
+         arg-swap-v0.md §F2 / F3 updated. No T4 re-bless (no `await`
+         fixture).
        T1 byte-identical across audit / wild-rust / wild-python for
        both migrated detectors. T7 spot-check (3 trials, wild-corpus
        Rust): wall-clock 1.62 → ~1.29 s (now ≈ v0.5.2's 1.33 s — the
@@ -418,7 +437,8 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
           inside still-`Other` expressions (e.g. `x = a + foo()`'s
           `binary_operator` RHS) remain opaque and are the detector
           migrations' concern (NodeRef recovery or further IrExpr
-          coverage). Pending: migrate `arg-swap` +
+          coverage). `arg-swap` migrated 2026-06-01 (pure IR walk +
+          `await` unwrap). Pending: migrate
           `unreachable-after-terminator` + `pr-miner` (each its own
           commit).
        Either follow-up can be sequenced with Path (a) (string-
