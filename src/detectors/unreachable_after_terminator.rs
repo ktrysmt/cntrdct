@@ -3,12 +3,28 @@
 //!
 //! Spec: `cntrdct/docs/spec/unreachable-after-terminator-v0.md`.
 //! Multi-language: `cntrdct/docs/spec/multilang-v0.md` (Pattern A).
+//!
+//! IR migration note (R-1.c'' Path b): the detector consumes
+//! [`crate::ir`] nodes semantically — block statements
+//! ([`IrBlock::statements`]), per-statement / per-expression terminator
+//! classification, pre-computed branch-merge terminators
+//! ([`IrIfStmt::terminator`] / [`IrMatchStmt::terminator`]), loop
+//! break-targeting ([`IrLoopStmt::has_break_to_self`]), and the
+//! source spans now carried on every [`IrExpr`] (R-1.c'' step 3) for the
+//! F4d-ii / F4d-iii / F4d-iv and F4e finding endpoints. No `raw_tree()`
+//! reparse. The walk visits the same positions the v0.5.x raw-tree walk
+//! did — every block, call site, return / break carrier, and `if`
+//! condition the converter materialises — so the T1 pinning stays
+//! byte-identical.
 
 use crate::core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
     LanguageCitationStatus, Location, Severity,
 };
-use crate::ir::IrFile;
+use crate::ir::{
+    BranchMergeKind, DivergentKind, IrBlock, IrCallSite, IrExpr, IrExprKind, IrFile, IrIfStmt,
+    IrLiteral, IrStmt, IrStmtKind, IrTerminator, IrWhileStmt,
+};
 use rayon::prelude::*;
 
 pub const TERMINATOR_MACROS: &[&str] = &[
@@ -87,9 +103,11 @@ impl Detector for UnreachableAfterTerminator {
             .filter(|f| matches!(f.language, Language::Rust | Language::Python))
             .flat_map_iter(|file| {
                 let mut local = Vec::new();
-                match file.language {
-                    Language::Rust => scan_rust(file, &mut local),
-                    Language::Python => scan_python(file, &mut local),
+                if !file.parse_recovered {
+                    match file.language {
+                        Language::Rust => scan_rust(file, &mut local),
+                        Language::Python => scan_python(file, &mut local),
+                    }
                 }
                 local
             })
@@ -105,75 +123,89 @@ impl Detector for UnreachableAfterTerminator {
     }
 }
 
+// ---------- Shared terminator-kind strings ----------
+
+/// Canonical message string for a divergent macro / exit call. Matches
+/// the v0.5.x `rust_macro_terminator_name` / `python_exit_call_kind`
+/// strings byte-for-byte.
+fn divergent_kind_str(kind: DivergentKind) -> &'static str {
+    match kind {
+        DivergentKind::Panic => "panic",
+        DivergentKind::Unreachable => "unreachable",
+        DivergentKind::Todo => "todo",
+        DivergentKind::Unimplemented => "unimplemented",
+        DivergentKind::Abort => "abort",
+        DivergentKind::Exit => "exit",
+        DivergentKind::SysExit => "sys.exit",
+        DivergentKind::SysAbort => "sys.abort",
+        DivergentKind::OsExit => "os._exit",
+        DivergentKind::ExitBuiltin => "exit",
+        DivergentKind::QuitBuiltin => "quit",
+    }
+}
+
 // ---------- Rust scan ----------
 
 fn scan_rust(file: &IrFile, findings: &mut Vec<Finding>) {
-    if file.parse_recovered {
-        return;
-    }
-    let raw_tree = file.raw_tree();
-    let root = raw_tree.root_node();
-    walk_rust(root, file, findings);
-}
-
-fn walk_rust(node: tree_sitter::Node, file: &IrFile, findings: &mut Vec<Finding>) {
-    if node.kind() == "block" {
-        analyze_rust_block(node, file, findings);
-    }
-    // F4d-ii: call_expression whose argument list contains a divergent
-    // expression. The arguments are evaluated left-to-right, so any
-    // following argument (or the call itself, when the divergent
-    // expression is the last argument) is unreachable. macro_invocation
-    // is excluded — tree-sitter-rust does not re-parse macro token
-    // trees as Rust expressions, so `panic!(return)`-style cases are
-    // not visible.
-    if node.kind() == "call_expression" {
-        analyze_rust_call_args(node, file, findings);
-    }
-    // F4d-iii: return / break with a divergent return value. The
-    // value is evaluated before the surrounding control transfer
-    // takes effect, so the outer return / break is itself unreachable.
-    if matches!(node.kind(), "return_expression" | "break_expression") {
-        analyze_rust_divergent_carrier(node, file, findings);
-    }
-    // F4d-iv: if-expression whose condition is a divergent
-    // expression. The consequence block is unreachable from the
-    // outside since the condition never produces a value.
-    if node.kind() == "if_expression" {
-        analyze_rust_if_condition(node, file, findings);
-    }
-    // Closure bodies and async blocks introduce a hard break-target
-    // boundary (Rust forbids `break` from escaping them). Descend for
-    // the other rules — F4d-i / ii / iii / iv still apply inside —
-    // but stop recursion here so the outer `walk_rust` continues with
-    // unchanged scope; the break-target search inside F4d-v handles
-    // the boundary itself via `rust_has_break_targeting_self`.
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        walk_rust(child, file, findings);
+    for f in &file.fns {
+        // F4 suppression: `#[allow(unreachable_code)]` on the function
+        // suppresses block-level findings throughout its body
+        // (mirrors v0.5.x `is_rust_suppressed` ancestor walk; the F4d
+        // rules are not gated by suppression).
+        let fn_suppressed = f
+            .decorators
+            .iter()
+            .any(|d| d.raw.contains(SUPPRESSION_TOKEN));
+        walk_rust_block(file, &f.body, fn_suppressed, findings);
     }
 }
 
-fn analyze_rust_block(block: tree_sitter::Node, file: &IrFile, findings: &mut Vec<Finding>) {
-    if is_rust_suppressed(block, &file.source) {
-        return;
+fn walk_rust_block(
+    file: &IrFile,
+    block: &IrBlock,
+    inherited_suppressed: bool,
+    findings: &mut Vec<Finding>,
+) {
+    // A block is suppressed when an enclosing function / block carried
+    // `#[allow(unreachable_code)]`, or when an attribute on any of its
+    // own statements (the IR home for the block's direct
+    // `attribute_item` / inner `#![...]` children) contains the token.
+    let suppressed = inherited_suppressed || block_has_unreachable_allow(block);
+    if !suppressed {
+        analyze_rust_block(block, findings);
     }
+    for stmt in &block.statements {
+        walk_rust_stmt(file, stmt, suppressed, findings);
+    }
+}
 
-    let stmts: Vec<tree_sitter::Node> = {
-        let mut cursor = block.walk();
-        block
-            .children(&mut cursor)
-            .filter(|c| is_rust_block_statement(*c))
-            .collect()
-    };
+fn block_has_unreachable_allow(block: &IrBlock) -> bool {
+    block.statements.iter().any(|s| {
+        s.attributes
+            .iter()
+            .any(|a| a.raw.contains(SUPPRESSION_TOKEN))
+    })
+}
+
+/// F4a block-level rule: the first divergent statement in the block (that
+/// is not `#[cfg(...)]`-gated) renders the following statement
+/// unreachable.
+fn analyze_rust_block(block: &IrBlock, findings: &mut Vec<Finding>) {
+    // F4c: item declarations are hoisted by the compiler — they do not
+    // execute in source order, so exclude them from the statement
+    // stream (mirrors v0.5.x `is_rust_block_statement`).
+    let stmts: Vec<&IrStmt> = block
+        .statements
+        .iter()
+        .filter(|s| !matches!(s.kind, IrStmtKind::HoistedItem { .. }))
+        .collect();
 
     for (i, stmt) in stmts.iter().enumerate() {
-        if let Some(kind) = rust_terminator_kind(*stmt, &file.source) {
-            // F4b: a cfg-gated statement is conditional and does NOT
-            // qualify as a terminator. Skip and keep scanning so the
-            // canonical complementary-cfg-pair idiom (each branch is
-            // its own cfg-gated return) produces no finding.
-            if is_cfg_gated_statement(*stmt, &file.source) {
+        if let Some(kind) = rust_stmt_terminator_kind(stmt) {
+            // F4b: a `#[cfg(...)]`-gated statement is conditional and
+            // does NOT qualify as a terminator; skip and keep scanning
+            // so the complementary-cfg-pair idiom produces no finding.
+            if is_cfg_gated(stmt) {
                 continue;
             }
             let following = stmts.len() - i - 1;
@@ -182,9 +214,8 @@ fn analyze_rust_block(block: tree_sitter::Node, file: &IrFile, findings: &mut Ve
             }
             let follower = stmts[i + 1];
             findings.push(build_finding(
-                file,
-                follower,
-                *stmt,
+                ir_loc_to_core(&follower.location),
+                ir_loc_to_core(&stmt.location),
                 kind,
                 following,
                 LanguageCitationStatus::Confirmed,
@@ -194,346 +225,189 @@ fn analyze_rust_block(block: tree_sitter::Node, file: &IrFile, findings: &mut Ve
     }
 }
 
-/// True when `stmt` is preceded (within its block) by one or more
-/// `#[cfg(...)]` attribute_items. `cfg_attr(...)` does NOT count: that
-/// form conditionally applies an inner attribute while the statement
-/// itself runs unconditionally.
-fn is_cfg_gated_statement(stmt: tree_sitter::Node, source: &str) -> bool {
-    let mut sib = stmt.prev_named_sibling();
-    while let Some(s) = sib {
-        if s.kind() != "attribute_item" {
-            break;
-        }
-        if attribute_item_is_cfg(s, source) {
-            return true;
-        }
-        sib = s.prev_named_sibling();
-    }
-    false
+/// True when any attribute attached to `stmt` is `#[cfg(...)]` (NOT
+/// `#[cfg_attr(...)]`, whose first path segment is `cfg_attr`).
+fn is_cfg_gated(stmt: &IrStmt) -> bool {
+    stmt.attributes
+        .iter()
+        .any(|a| a.name_path.first().map(|s| s == "cfg").unwrap_or(false))
 }
 
-/// True when an `attribute_item`'s first identifier (after `#[` or `#![`)
-/// is exactly `cfg`. Distinguishes `#[cfg(...)]` from the unrelated
-/// `#[cfg_attr(...)]` form.
-fn attribute_item_is_cfg(attr: tree_sitter::Node, source: &str) -> bool {
-    let raw = match attr.utf8_text(source.as_bytes()) {
-        Ok(s) => s,
-        Err(_) => return false,
-    };
-    let after_open = raw
-        .trim_start()
-        .strip_prefix("#![")
-        .or_else(|| raw.trim_start().strip_prefix("#["));
-    let Some(after_open) = after_open else {
-        return false;
-    };
-    let trimmed = after_open.trim_start();
-    let first_ident: String = trimmed
-        .chars()
-        .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-        .collect();
-    first_ident == "cfg"
-}
-
-fn is_rust_block_statement(node: tree_sitter::Node) -> bool {
-    if !node.is_named() {
-        return false;
-    }
-    // F4c: item declarations inside a block are hoisted by the
-    // compiler — they do not execute in source order, so a `fn`
-    // (or any other item) appearing after a `return` is NOT
-    // unreachable code. Filter all item kinds plus the existing
-    // attribute/comment exclusions and the no-op empty statement.
-    !matches!(
-        node.kind(),
-        "inner_attribute_item"
-            | "attribute_item"
-            | "line_comment"
-            | "block_comment"
-            | "empty_statement"
-            | "function_item"
-            | "function_signature_item"
-            | "mod_item"
-            | "foreign_mod_item"
-            | "struct_item"
-            | "union_item"
-            | "enum_item"
-            | "type_item"
-            | "const_item"
-            | "static_item"
-            | "trait_item"
-            | "impl_item"
-            | "use_declaration"
-            | "extern_crate_declaration"
-            | "associated_type"
-            | "macro_definition"
-    )
-}
-
-fn rust_terminator_kind(stmt: tree_sitter::Node, source: &str) -> Option<&'static str> {
-    // F4d-i: a bare if_expression / match_expression that sits as a
-    // block statement is itself the candidate (no expression_statement
-    // wrapper because no trailing `;` is required for brace-bound
-    // expressions). Treat both forms uniformly.
-    let inner = match stmt.kind() {
-        "expression_statement" => {
-            let mut cursor = stmt.walk();
-            let child = stmt.children(&mut cursor).find(|c| c.is_named());
-            child?
-        }
-        "if_expression" | "match_expression" => stmt,
-        _ => return None,
-    };
-    match inner.kind() {
-        "return_expression" => Some("return"),
-        "break_expression" => Some("break"),
-        "continue_expression" => Some("continue"),
-        "macro_invocation" => rust_macro_terminator_name(inner, source),
-        // F4d-i: branch-merge. An if / match whose every branch ends
-        // in a divergent expression is itself divergent — any
-        // statement that follows in the enclosing block is
-        // unreachable.
-        "if_expression" => rust_if_all_branches_diverge(inner, source),
-        "match_expression" => rust_match_all_arms_diverge(inner, source),
-        // F4d-v: a bare `loop { ... }` whose body never `break`s out
-        // of it diverges — the loop never terminates, so any statement
-        // following the loop in the enclosing block is unreachable.
-        // The targeting analysis lives in `rust_loop_diverges`.
-        "loop_expression" => rust_loop_diverges(inner, source),
-        _ => None,
-    }
-}
-
-// ---------- F4d divergent expression classifier ----------
-
-/// True iff evaluating `expr` always diverges (never produces a value).
-/// Returns the canonical terminator-kind string for the divergence so
-/// the surrounding emission carries a useful `terminator_kind`.
-///
-/// Recursion follows the AST hierarchy; tree-sitter trees are finite
-/// so termination is guaranteed.
-fn rust_expression_diverges(expr: tree_sitter::Node, source: &str) -> Option<&'static str> {
-    match expr.kind() {
-        "return_expression" => Some("return"),
-        "break_expression" => Some("break"),
-        "continue_expression" => Some("continue"),
-        "macro_invocation" => rust_macro_terminator_name(expr, source),
-        "block" => rust_block_diverges(expr, source),
-        "if_expression" => rust_if_all_branches_diverge(expr, source),
-        "match_expression" => rust_match_all_arms_diverge(expr, source),
-        "loop_expression" => rust_loop_diverges(expr, source),
-        _ => None,
-    }
-}
-
-fn rust_block_diverges(block: tree_sitter::Node, source: &str) -> Option<&'static str> {
-    let stmts: Vec<tree_sitter::Node> = {
-        let mut cursor = block.walk();
-        block
-            .children(&mut cursor)
-            .filter(|c| is_rust_block_statement(*c))
-            .collect()
-    };
-    if stmts.is_empty() {
-        return None;
-    }
-    for stmt in &stmts {
-        if let Some(k) = rust_terminator_kind(*stmt, source) {
-            return Some(k);
-        }
-    }
-    // Tail position: the last named child may be an expression rather
-    // than a statement. Its divergence determines the block's.
-    let last = *stmts.last().expect("checked non-empty above");
-    rust_expression_diverges(last, source)
-}
-
-fn rust_if_all_branches_diverge(if_expr: tree_sitter::Node, source: &str) -> Option<&'static str> {
-    let consequence = if_expr.child_by_field_name("consequence")?;
-    let alternative = if_expr.child_by_field_name("alternative")?;
-    rust_expression_diverges(consequence, source)?;
-    rust_alternative_diverges(alternative, source)?;
-    Some("if-branches-diverge")
-}
-
-fn rust_alternative_diverges(alt: tree_sitter::Node, source: &str) -> Option<&'static str> {
-    // else_clause wraps either a `block` (else { ... }) or another
-    // `if_expression` (else if ...). Find the first named child that
-    // is one of these and delegate.
-    let mut cursor = alt.walk();
-    for child in alt.children(&mut cursor) {
-        if !child.is_named() {
-            continue;
-        }
-        if matches!(child.kind(), "block" | "if_expression") {
-            return rust_expression_diverges(child, source);
-        }
-    }
-    None
-}
-
-fn rust_match_all_arms_diverge(
-    match_expr: tree_sitter::Node,
-    source: &str,
-) -> Option<&'static str> {
-    let body = match_expr.child_by_field_name("body")?;
-    let mut cursor = body.walk();
-    let arms: Vec<tree_sitter::Node> = body
-        .children(&mut cursor)
-        .filter(|c| c.kind() == "match_arm")
-        .collect();
-    if arms.is_empty() {
-        return None;
-    }
-    for arm in &arms {
-        let value = arm.child_by_field_name("value")?;
-        rust_expression_diverges(value, source)?;
-    }
-    Some("match-arms-diverge")
-}
-
-/// F4d-v: a `loop_expression` diverges iff no `break_expression`
-/// inside its body targets this same loop. The targeting analysis
-/// resolves labelled `break 'name` against the loop's own label and
-/// unlabelled `break` against the innermost enclosing loop-like
-/// construct (`loop_expression` / `while_expression` / `for_expression`).
-fn rust_loop_diverges(loop_node: tree_sitter::Node, source: &str) -> Option<&'static str> {
-    let body = rust_loop_body(loop_node)?;
-    let self_label = rust_loop_label(loop_node, source);
-    if rust_has_break_targeting_self(body, self_label.as_deref(), 0, source) {
-        None
-    } else {
-        Some("loop-no-break")
-    }
-}
-
-/// Locate a `loop_expression`'s body block. tree-sitter-rust does not
-/// expose a `body` field for `loop_expression`, so iterate children
-/// and pick the first `block`.
-fn rust_loop_body(loop_node: tree_sitter::Node) -> Option<tree_sitter::Node> {
-    let mut cursor = loop_node.walk();
-    let found = loop_node
-        .children(&mut cursor)
-        .find(|c| c.kind() == "block");
-    found
-}
-
-/// Return the bare identifier name of a `loop_expression`'s label
-/// (e.g. `'outer` -> `"outer"`), or `None` for an unlabelled loop.
-/// The `label` child node has the shape `label { identifier }`.
-fn rust_loop_label(loop_node: tree_sitter::Node, source: &str) -> Option<String> {
-    rust_label_identifier(loop_node, source)
-}
-
-/// Return the target identifier of a `break_expression`'s label
-/// (e.g. `break 'outer` -> `"outer"`), or `None` for an unlabelled
-/// break.
-fn rust_break_label(break_node: tree_sitter::Node, source: &str) -> Option<String> {
-    rust_label_identifier(break_node, source)
-}
-
-fn rust_label_identifier(parent: tree_sitter::Node, source: &str) -> Option<String> {
-    let mut cursor = parent.walk();
-    for child in parent.children(&mut cursor) {
-        if child.kind() != "label" {
-            continue;
-        }
-        let mut inner = child.walk();
-        for inner_child in child.children(&mut inner) {
-            if inner_child.kind() == "identifier" {
-                return inner_child
-                    .utf8_text(source.as_bytes())
-                    .ok()
-                    .map(str::to_owned);
-            }
-        }
-    }
-    None
-}
-
-/// True iff a `break_expression` exists inside `node` whose target is
-/// the loop that owns `self_label`. `nesting_depth` counts the number
-/// of loop-like ancestors between `node` and the candidate loop:
-/// an unlabelled `break` only targets the candidate when `nesting_depth
-/// == 0`. `closure_expression` and `async_block` are not descended
-/// into — Rust forbids `break` from escaping either, so any break
-/// inside them cannot target an outer loop.
-fn rust_has_break_targeting_self(
-    node: tree_sitter::Node,
-    self_label: Option<&str>,
-    nesting_depth: u32,
-    source: &str,
-) -> bool {
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        let kind = child.kind();
-        if matches!(kind, "closure_expression" | "async_block") {
-            continue;
-        }
-        if kind == "break_expression" {
-            match rust_break_label(child, source) {
-                Some(target) => {
-                    if Some(target.as_str()) == self_label {
-                        return true;
-                    }
-                }
-                None => {
-                    if nesting_depth == 0 {
-                        return true;
-                    }
-                }
-            }
-        }
-        let new_depth = if matches!(
-            kind,
-            "loop_expression" | "while_expression" | "for_expression"
-        ) {
-            nesting_depth + 1
-        } else {
-            nesting_depth
-        };
-        if rust_has_break_targeting_self(child, self_label, new_depth, source) {
-            return true;
-        }
-    }
-    false
-}
-
-// ---------- F4d-ii / F4d-iii / F4d-iv emission helpers ----------
-
-fn analyze_rust_call_args(call: tree_sitter::Node, file: &IrFile, findings: &mut Vec<Finding>) {
-    let Some(args_node) = call.child_by_field_name("arguments") else {
-        return;
-    };
-    let mut cursor = args_node.walk();
-    let args: Vec<tree_sitter::Node> = args_node
-        .children(&mut cursor)
-        .filter(|c| {
-            c.is_named()
-                && !matches!(
-                    c.kind(),
-                    "attribute_item" | "line_comment" | "block_comment"
-                )
-        })
-        .collect();
-    for (i, arg) in args.iter().enumerate() {
-        if let Some(kind) = rust_expression_diverges(*arg, &file.source) {
-            // Subsequent argument is unreachable iff one exists;
-            // otherwise the call as a whole is unreachable (the
-            // function is never invoked because the argument
-            // evaluation diverges first).
-            let follower = if i + 1 < args.len() {
-                args[i + 1]
+/// Statement-level terminator classification for Rust. Mirrors v0.5.x
+/// `rust_terminator_kind`: `assert!` is intentionally NOT a terminator
+/// (only the [`TERMINATOR_MACROS`] set diverges).
+fn rust_stmt_terminator_kind(stmt: &IrStmt) -> Option<&'static str> {
+    match &stmt.kind {
+        IrStmtKind::Return(_) => Some("return"),
+        IrStmtKind::Break(_) => Some("break"),
+        IrStmtKind::Continue(_) => Some("continue"),
+        IrStmtKind::DivergentCall { kind, .. } => Some(divergent_kind_str(*kind)),
+        IrStmtKind::If(if_stmt) => match if_stmt.terminator {
+            Some(IrTerminator::BranchMerge {
+                kind: BranchMergeKind::IfBranchesDiverge,
+            }) => Some("if-branches-diverge"),
+            _ => None,
+        },
+        IrStmtKind::Match(match_stmt) => match match_stmt.terminator {
+            Some(IrTerminator::BranchMerge {
+                kind: BranchMergeKind::MatchArmsDiverge,
+            }) => Some("match-arms-diverge"),
+            _ => None,
+        },
+        IrStmtKind::Loop(loop_stmt) => {
+            if loop_stmt.has_break_to_self {
+                None
             } else {
-                call
+                Some("loop-no-break")
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Recurse through a statement, applying the F4d-ii / F4d-iii / F4d-iv
+/// rules to the call sites / return carriers / `if` conditions it
+/// contains and descending into every nested block / expression.
+fn walk_rust_stmt(file: &IrFile, stmt: &IrStmt, suppressed: bool, findings: &mut Vec<Finding>) {
+    match &stmt.kind {
+        IrStmtKind::Call(call) => walk_rust_expr_call(file, call, findings),
+        IrStmtKind::Return(value) => {
+            if let Some(v) = value {
+                analyze_rust_divergent_carrier(&stmt.location, v, findings);
+                walk_rust_expr(file, v, suppressed, findings);
+            }
+        }
+        IrStmtKind::Raise(value) => {
+            if let Some(v) = value {
+                walk_rust_expr(file, v, suppressed, findings);
+            }
+        }
+        IrStmtKind::Assert(v) => walk_rust_expr(file, v, suppressed, findings),
+        IrStmtKind::Let { value } | IrStmtKind::Assign { value } => {
+            if let Some(v) = value {
+                walk_rust_expr(file, v, suppressed, findings);
+            }
+        }
+        IrStmtKind::DivergentCall { args, .. } => {
+            for a in args {
+                walk_rust_expr(file, a, suppressed, findings);
+            }
+        }
+        IrStmtKind::If(if_stmt) => walk_rust_if(file, if_stmt, suppressed, findings),
+        IrStmtKind::While(w) => {
+            walk_rust_expr(file, &w.condition, suppressed, findings);
+            walk_rust_block(file, &w.body, suppressed, findings);
+        }
+        IrStmtKind::Loop(l) => walk_rust_block(file, &l.body, suppressed, findings),
+        IrStmtKind::For(f) => {
+            walk_rust_expr(file, &f.iterable, suppressed, findings);
+            walk_rust_block(file, &f.body, suppressed, findings);
+        }
+        IrStmtKind::Match(m) => {
+            walk_rust_expr(file, &m.scrutinee, suppressed, findings);
+            for arm in &m.arms {
+                walk_rust_expr(file, &arm.body, suppressed, findings);
+            }
+        }
+        IrStmtKind::With(wi) => {
+            for cm in &wi.context_managers {
+                walk_rust_expr(file, cm, suppressed, findings);
+            }
+            walk_rust_block(file, &wi.body, suppressed, findings);
+        }
+        IrStmtKind::Try(t) => {
+            walk_rust_block(file, &t.body, suppressed, findings);
+            for h in &t.handlers {
+                walk_rust_block(file, h, suppressed, findings);
+            }
+            if let Some(o) = &t.orelse {
+                walk_rust_block(file, o, suppressed, findings);
+            }
+            if let Some(fb) = &t.finalbody {
+                walk_rust_block(file, fb, suppressed, findings);
+            }
+        }
+        IrStmtKind::Break(_)
+        | IrStmtKind::Continue(_)
+        | IrStmtKind::HoistedItem { .. }
+        | IrStmtKind::Other { .. } => {}
+    }
+}
+
+fn walk_rust_if(file: &IrFile, if_stmt: &IrIfStmt, suppressed: bool, findings: &mut Vec<Finding>) {
+    analyze_rust_if_condition(if_stmt, findings);
+    walk_rust_expr(file, &if_stmt.condition, suppressed, findings);
+    walk_rust_block(file, &if_stmt.consequence, suppressed, findings);
+    if let Some(alt) = &if_stmt.alternative {
+        walk_rust_block(file, alt, suppressed, findings);
+    }
+}
+
+fn walk_rust_expr(file: &IrFile, expr: &IrExpr, suppressed: bool, findings: &mut Vec<Finding>) {
+    match &expr.kind {
+        IrExprKind::Call(call) => walk_rust_expr_call(file, call, findings),
+        IrExprKind::Return(value) => {
+            if let Some(v) = value {
+                analyze_rust_divergent_carrier(&expr.location, v, findings);
+                walk_rust_expr(file, v, suppressed, findings);
+            }
+        }
+        IrExprKind::Raise(value) => {
+            if let Some(v) = value {
+                walk_rust_expr(file, v, suppressed, findings);
+            }
+        }
+        IrExprKind::Block(b) => walk_rust_block(file, b, suppressed, findings),
+        IrExprKind::If(if_stmt) => walk_rust_if(file, if_stmt, suppressed, findings),
+        IrExprKind::Match(m) => {
+            walk_rust_expr(file, &m.scrutinee, suppressed, findings);
+            for arm in &m.arms {
+                walk_rust_expr(file, &arm.body, suppressed, findings);
+            }
+        }
+        IrExprKind::Loop(l) => walk_rust_block(file, &l.body, suppressed, findings),
+        IrExprKind::DivergentCall { args, .. } => {
+            for a in args {
+                walk_rust_expr(file, a, suppressed, findings);
+            }
+        }
+        IrExprKind::Ident(_)
+        | IrExprKind::Path(_)
+        | IrExprKind::Literal(_)
+        | IrExprKind::Break(_)
+        | IrExprKind::Continue(_)
+        | IrExprKind::Other { .. } => {}
+    }
+}
+
+/// Recurse into a call site, applying F4d-ii to its arguments and
+/// descending into each argument for further nested call sites.
+fn walk_rust_expr_call(file: &IrFile, call: &IrCallSite, findings: &mut Vec<Finding>) {
+    analyze_rust_call_args(call, findings);
+    for a in &call.args {
+        walk_rust_expr(file, a, false, findings);
+    }
+}
+
+/// F4d-ii: arguments evaluate left-to-right, so a divergent argument
+/// renders the following argument (or, if it is the last, the call
+/// itself) unreachable.
+fn analyze_rust_call_args(call: &IrCallSite, findings: &mut Vec<Finding>) {
+    for (i, arg) in call.args.iter().enumerate() {
+        if let Some(kind) = rust_expr_diverges(arg) {
+            let (follower_loc, following_count) = if i + 1 < call.args.len() {
+                (
+                    ir_loc_to_core(&call.args[i + 1].location),
+                    call.args.len() - (i + 1),
+                )
+            } else {
+                (ir_loc_to_core(&call.location), 1)
             };
-            let following_count = args.len().saturating_sub(i + 1).max(1) as u32;
             findings.push(build_finding(
-                file,
-                follower,
-                *arg,
+                follower_loc,
+                ir_loc_to_core(&arg.location),
                 kind,
-                following_count as usize,
+                following_count,
                 LanguageCitationStatus::Confirmed,
             ));
             return;
@@ -541,166 +415,114 @@ fn analyze_rust_call_args(call: tree_sitter::Node, file: &IrFile, findings: &mut
     }
 }
 
+/// F4d-iii: `return EXPR` (or `break EXPR`) where EXPR evaluation
+/// diverges — the surrounding control transfer is itself unreachable.
+/// `carrier_loc` is the location of the `return` / `break` expression
+/// (its inner value's divergence is what fires).
 fn analyze_rust_divergent_carrier(
-    expr: tree_sitter::Node,
-    file: &IrFile,
+    carrier_loc: &crate::ir::Location,
+    value: &IrExpr,
     findings: &mut Vec<Finding>,
 ) {
-    // For `return EXPR` or `break EXPR`, the inner value is evaluated
-    // before the surrounding control transfer takes effect. If the
-    // value itself diverges, the outer return / break never runs.
-    let mut cursor = expr.walk();
-    let value = expr
-        .children(&mut cursor)
-        .find(|c| c.is_named() && c.kind() != "loop_label");
-    let Some(value) = value else { return };
-    let Some(kind) = rust_expression_diverges(value, &file.source) else {
-        return;
-    };
-    findings.push(build_finding(
-        file,
-        expr,
-        value,
-        kind,
-        1,
-        LanguageCitationStatus::Confirmed,
-    ));
-}
-
-fn analyze_rust_if_condition(
-    if_expr: tree_sitter::Node,
-    file: &IrFile,
-    findings: &mut Vec<Finding>,
-) {
-    let Some(condition) = if_expr.child_by_field_name("condition") else {
-        return;
-    };
-    let Some(kind) = rust_expression_diverges(condition, &file.source) else {
-        return;
-    };
-    let Some(consequence) = if_expr.child_by_field_name("consequence") else {
-        return;
-    };
-    findings.push(build_finding(
-        file,
-        consequence,
-        condition,
-        kind,
-        1,
-        LanguageCitationStatus::Confirmed,
-    ));
-}
-
-fn rust_macro_terminator_name(call: tree_sitter::Node, source: &str) -> Option<&'static str> {
-    let macro_node = call.child_by_field_name("macro")?;
-    let text = macro_node.utf8_text(source.as_bytes()).ok()?;
-    let last = text.rsplit("::").next().unwrap_or(text);
-    TERMINATOR_MACROS.iter().copied().find(|&m| m == last)
-}
-
-fn is_rust_suppressed(node: tree_sitter::Node, source: &str) -> bool {
-    let mut current = Some(node);
-    while let Some(n) = current {
-        let mut cursor = n.walk();
-        for child in n.children(&mut cursor) {
-            if matches!(child.kind(), "attribute_item" | "inner_attribute_item")
-                && rust_attribute_contains(child, source, SUPPRESSION_TOKEN)
-            {
-                return true;
-            }
-        }
-        let mut sib = n.prev_named_sibling();
-        while let Some(s) = sib {
-            if s.kind() == "attribute_item" {
-                if rust_attribute_contains(s, source, SUPPRESSION_TOKEN) {
-                    return true;
-                }
-                sib = s.prev_named_sibling();
-            } else {
-                break;
-            }
-        }
-        current = n.parent();
+    if let Some(kind) = rust_expr_diverges(value) {
+        findings.push(build_finding(
+            ir_loc_to_core(carrier_loc),
+            ir_loc_to_core(&value.location),
+            kind,
+            1,
+            LanguageCitationStatus::Confirmed,
+        ));
     }
-    false
 }
 
-fn rust_attribute_contains(attr: tree_sitter::Node, source: &str, token: &str) -> bool {
-    attr.utf8_text(source.as_bytes())
-        .map(|t| t.contains(token))
-        .unwrap_or(false)
+/// F4d-iv: an `if` whose condition expression diverges — the condition
+/// never produces a value, so the consequence block is unreachable.
+fn analyze_rust_if_condition(if_stmt: &IrIfStmt, findings: &mut Vec<Finding>) {
+    if let Some(kind) = rust_expr_diverges(&if_stmt.condition) {
+        findings.push(build_finding(
+            ir_loc_to_core(&if_stmt.consequence.location),
+            ir_loc_to_core(&if_stmt.condition.location),
+            kind,
+            1,
+            LanguageCitationStatus::Confirmed,
+        ));
+    }
+}
+
+/// True (with the divergence kind string) iff evaluating `expr` always
+/// diverges. Mirrors v0.5.x `rust_expression_diverges`.
+fn rust_expr_diverges(expr: &IrExpr) -> Option<&'static str> {
+    match &expr.kind {
+        IrExprKind::Return(_) => Some("return"),
+        IrExprKind::Break(_) => Some("break"),
+        IrExprKind::Continue(_) => Some("continue"),
+        IrExprKind::DivergentCall { kind, .. } => Some(divergent_kind_str(*kind)),
+        IrExprKind::Block(b) => rust_block_diverges(b),
+        IrExprKind::If(if_stmt) => match if_stmt.terminator {
+            Some(IrTerminator::BranchMerge {
+                kind: BranchMergeKind::IfBranchesDiverge,
+            }) => Some("if-branches-diverge"),
+            _ => None,
+        },
+        IrExprKind::Match(m) => match m.terminator {
+            Some(IrTerminator::BranchMerge {
+                kind: BranchMergeKind::MatchArmsDiverge,
+            }) => Some("match-arms-diverge"),
+            _ => None,
+        },
+        IrExprKind::Loop(l) => {
+            if l.has_break_to_self {
+                None
+            } else {
+                Some("loop-no-break")
+            }
+        }
+        _ => None,
+    }
+}
+
+/// A block diverges iff its first (non-hoisted) divergent statement is a
+/// terminator. Mirrors v0.5.x `rust_block_diverges` for the
+/// materialised statement shapes (`assert!` is not a terminator, so it
+/// is excluded by `rust_stmt_terminator_kind`).
+fn rust_block_diverges(block: &IrBlock) -> Option<&'static str> {
+    block.statements.iter().find_map(rust_stmt_terminator_kind)
 }
 
 // ---------- Python scan ----------
 //
-// Pattern A: the walk + post-terminator-statement detection is shared
-// with Rust at the algorithmic level; what differs is the AST node-kind
-// vocabulary and the terminator set. tree-sitter-python uses `block`
-// for indented bodies (function, class, if/for/while/with/try) the same
-// way tree-sitter-rust uses `block` for braced bodies, so the same
-// outer recursion structure applies.
-//
-// Suppression: Q-9 introduced `# cntrdct: allow(<id>)` line-comment
-// suppression for Python (mirrors the Rust attribute form at line
-// granularity; trailing form covers a single line, standalone form
-// covers the next named sibling's span). This detector emits findings
-// at AST nodes; the suppression filter in `crate::config::apply` walks
-// `# cntrdct: allow(...)` comments via tree-sitter-python and drops
-// matches before SARIF emission. Project-level suppression via
-// `cntrdct.toml` (T2-7 / M-5) continues to apply.
+// Pattern A: the block-level walk is shared with Rust at the
+// algorithmic level; the terminator set differs (return / raise / break
+// / continue / `assert False` / exit-call) and Python has no
+// branch-merge or F4d-ii/iii/iv rules. F4e (constant-condition `if` /
+// `while`) is Python-only and reads the literal condition off
+// [`IrExpr`]. Python carries no detector-internal suppression — the
+// `# cntrdct: allow(...)` form is handled by `crate::config::apply`.
 
 fn scan_python(file: &IrFile, findings: &mut Vec<Finding>) {
-    if file.parse_recovered {
-        return;
-    }
-    let raw_tree = file.raw_tree();
-    let root = raw_tree.root_node();
-    walk_python(root, file, findings);
-}
-
-fn walk_python(node: tree_sitter::Node, file: &IrFile, findings: &mut Vec<Finding>) {
-    if node.kind() == "block" {
-        analyze_python_block(node, file, findings);
-    }
-    // F4e: constant-condition `if` / `while` branch reachability.
-    // CodeQL's `UnreachableCode` query flags the body of
-    // `while False:` / `while 0:` and the unreachable arm of
-    // `if False: ... else: ...` / `if True: ... else: ...`. The
-    // classifier `python_constant_condition` recognises only the
-    // four literal forms named in F4e (bool / integer / None /
-    // empty string); other shapes fall back to indeterminate.
-    if node.kind() == "while_statement" {
-        analyze_python_while_constant(node, file, findings);
-    }
-    if node.kind() == "if_statement" {
-        analyze_python_if_constant(node, file, findings);
-    }
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        walk_python(child, file, findings);
+    for f in &file.fns {
+        walk_python_block(file, &f.body, findings);
     }
 }
 
-fn analyze_python_block(block: tree_sitter::Node, file: &IrFile, findings: &mut Vec<Finding>) {
-    let stmts: Vec<tree_sitter::Node> = {
-        let mut cursor = block.walk();
-        block
-            .children(&mut cursor)
-            .filter(|c| is_python_block_statement(*c))
-            .collect()
-    };
+fn walk_python_block(file: &IrFile, block: &IrBlock, findings: &mut Vec<Finding>) {
+    analyze_python_block(block, findings);
+    for stmt in &block.statements {
+        walk_python_stmt(file, stmt, findings);
+    }
+}
 
+fn analyze_python_block(block: &IrBlock, findings: &mut Vec<Finding>) {
+    let stmts = &block.statements;
     for (i, stmt) in stmts.iter().enumerate() {
-        if let Some(kind) = python_terminator_kind(*stmt, &file.source) {
+        if let Some(kind) = python_stmt_terminator_kind(stmt) {
             let following = stmts.len() - i - 1;
             if following == 0 {
                 return;
             }
-            let follower = stmts[i + 1];
             findings.push(build_finding(
-                file,
-                follower,
-                *stmt,
+                ir_loc_to_core(&stmts[i + 1].location),
+                ir_loc_to_core(&stmt.location),
                 kind,
                 following,
                 LanguageCitationStatus::Unconfirmed,
@@ -710,138 +532,76 @@ fn analyze_python_block(block: tree_sitter::Node, file: &IrFile, findings: &mut 
     }
 }
 
-fn is_python_block_statement(node: tree_sitter::Node) -> bool {
-    if !node.is_named() {
-        return false;
-    }
-    // Module-level docstrings parse as `expression_statement` containing
-    // a `string`; we still treat them as statements. Comments are
-    // skipped because they cannot be reached by control flow.
-    !matches!(node.kind(), "comment")
-}
-
-fn python_terminator_kind(stmt: tree_sitter::Node, source: &str) -> Option<&'static str> {
-    match stmt.kind() {
-        "return_statement" => Some("return"),
-        "raise_statement" => Some("raise"),
-        "break_statement" => Some("break"),
-        "continue_statement" => Some("continue"),
-        "assert_statement" => python_assert_terminator(stmt),
-        "expression_statement" => python_expression_statement_terminator(stmt, source),
+fn python_stmt_terminator_kind(stmt: &IrStmt) -> Option<&'static str> {
+    match &stmt.kind {
+        IrStmtKind::Return(_) => Some("return"),
+        IrStmtKind::Raise(_) => Some("raise"),
+        IrStmtKind::Break(_) => Some("break"),
+        IrStmtKind::Continue(_) => Some("continue"),
+        IrStmtKind::DivergentCall { kind, .. } => Some(divergent_kind_str(*kind)),
+        // Only the literal `assert False` form is a terminator in v0
+        // (constant-folding `0` / `None` is out of scope).
+        IrStmtKind::Assert(IrExpr {
+            kind: IrExprKind::Literal(IrLiteral::Bool(false)),
+            ..
+        }) => Some("assert"),
         _ => None,
     }
 }
 
-/// `assert False` (or `assert 0` / `assert None`) raises `AssertionError`
-/// unconditionally. Only the literal `False` form is treated as a
-/// terminator in v0; constant-folding `0` / `None` is out of scope.
-fn python_assert_terminator(stmt: tree_sitter::Node) -> Option<&'static str> {
-    let mut cursor = stmt.walk();
-    let cond = stmt.children(&mut cursor).find(|c| c.is_named())?;
-    if cond.kind() == "false" {
-        Some("assert")
-    } else {
-        None
-    }
-}
-
-fn python_expression_statement_terminator(
-    stmt: tree_sitter::Node,
-    source: &str,
-) -> Option<&'static str> {
-    let mut cursor = stmt.walk();
-    let inner = stmt.children(&mut cursor).find(|c| c.is_named())?;
-    if inner.kind() != "call" {
-        return None;
-    }
-    python_exit_call_kind(inner, source)
-}
-
-fn python_exit_call_kind(call: tree_sitter::Node, source: &str) -> Option<&'static str> {
-    let func = call.child_by_field_name("function")?;
-    let text = func.utf8_text(source.as_bytes()).ok()?;
-    let normalized = text.trim();
-    PYTHON_EXIT_FUNCTIONS
-        .iter()
-        .copied()
-        .find(|&name| name == normalized)
-}
-
-/// F4e classifier — evaluate the truthiness of a Python condition
-/// expression at parse time. Returns `Some(true)` for truthy
-/// constants, `Some(false)` for falsy constants, and `None` for any
-/// expression that is not a recognised literal (identifier, call,
-/// boolean operator, parenthesised expression, etc. all return
-/// `None`). v0 recognises four literal forms:
-///
-/// - `false` / `true` keyword tokens.
-/// - `integer` literal whose text parses to exactly `0` (falsy) or
-///   any other integer (truthy). Hex, binary, octal forms are NOT
-///   accepted in v0; only base-10 `0` is recognised as falsy.
-/// - `none` keyword token (falsy).
-/// - `string` whose surface text contains no characters between its
-///   delimiters (falsy). Triple-quoted and prefixed strings (`b""`,
-///   `r""`, `f""`) are also accepted at the kind level; the inner
-///   emptiness check is identical.
-fn python_constant_condition(node: tree_sitter::Node, source: &str) -> Option<bool> {
-    match node.kind() {
-        "false" => Some(false),
-        "true" => Some(true),
-        "none" => Some(false),
-        "integer" => {
-            let text = node.utf8_text(source.as_bytes()).ok()?;
-            // Base-10 only: `0`, `00`, etc. produce falsy; non-zero
-            // integers produce truthy. Hex / binary / octal literals
-            // (`0x0`, `0b0`, `0o0`) are explicitly excluded in v0.
-            let trimmed = text.trim();
-            if trimmed.starts_with("0x")
-                || trimmed.starts_with("0X")
-                || trimmed.starts_with("0b")
-                || trimmed.starts_with("0B")
-                || trimmed.starts_with("0o")
-                || trimmed.starts_with("0O")
-            {
-                return None;
+fn walk_python_stmt(file: &IrFile, stmt: &IrStmt, findings: &mut Vec<Finding>) {
+    match &stmt.kind {
+        IrStmtKind::If(if_stmt) => {
+            analyze_python_if_constant(if_stmt, findings);
+            walk_python_block(file, &if_stmt.consequence, findings);
+            if let Some(alt) = &if_stmt.alternative {
+                walk_python_block(file, alt, findings);
             }
-            let value: i128 = trimmed.replace('_', "").parse().ok()?;
-            Some(value != 0)
         }
-        "string" => {
-            // tree-sitter-python `string` wraps `string_start`,
-            // optional `string_content`, and `string_end`. Empty iff
-            // the only named children are start/end (no content).
-            let mut cursor = node.walk();
-            let has_content = node
-                .children(&mut cursor)
-                .any(|c| c.kind() == "string_content");
-            Some(has_content)
+        IrStmtKind::While(w) => {
+            analyze_python_while_constant(w, findings);
+            walk_python_block(file, &w.body, findings);
         }
+        IrStmtKind::For(f) => walk_python_block(file, &f.body, findings),
+        IrStmtKind::With(wi) => walk_python_block(file, &wi.body, findings),
+        IrStmtKind::Try(t) => {
+            walk_python_block(file, &t.body, findings);
+            for h in &t.handlers {
+                walk_python_block(file, h, findings);
+            }
+            if let Some(o) = &t.orelse {
+                walk_python_block(file, o, findings);
+            }
+            if let Some(fb) = &t.finalbody {
+                walk_python_block(file, fb, findings);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// F4e classifier — truthiness of a Python condition at parse time.
+/// `Some(true)` truthy constant, `Some(false)` falsy constant, `None`
+/// for any non-literal (or hex / non-decimal integer). Mirrors v0.5.x
+/// `python_constant_condition`.
+fn python_constant_condition(expr: &IrExpr) -> Option<bool> {
+    match &expr.kind {
+        IrExprKind::Literal(IrLiteral::Bool(b)) => Some(*b),
+        IrExprKind::Literal(IrLiteral::None) => Some(false),
+        IrExprKind::Literal(IrLiteral::Int(Some(v))) => Some(*v != 0),
+        // Hex / binary / octal integers stay `Int(None)` → indeterminate.
+        IrExprKind::Literal(IrLiteral::Int(None)) => None,
+        IrExprKind::Literal(IrLiteral::String { is_empty }) => Some(!*is_empty),
         _ => None,
     }
 }
 
-fn analyze_python_while_constant(
-    while_node: tree_sitter::Node,
-    file: &IrFile,
-    findings: &mut Vec<Finding>,
-) {
-    let mut cursor = while_node.walk();
-    let mut named = while_node.children(&mut cursor).filter(|c| c.is_named());
-    let condition = match named.next() {
-        Some(n) => n,
-        None => return,
-    };
-    if let Some(false) = python_constant_condition(condition, &file.source) {
-        let body = match while_node.child_by_field_name("body") {
-            Some(b) => b,
-            None => return,
-        };
-        let first_stmt = first_named_stmt_in_python_block(body);
-        if let Some(stmt) = first_stmt {
+fn analyze_python_while_constant(w: &IrWhileStmt, findings: &mut Vec<Finding>) {
+    if let Some(false) = python_constant_condition(&w.condition) {
+        if let Some(first) = w.body.statements.first() {
             findings.push(build_finding(
-                file,
-                stmt,
-                condition,
+                ir_loc_to_core(&first.location),
+                ir_loc_to_core(&w.condition.location),
                 "constant-false-while",
                 1,
                 LanguageCitationStatus::Unconfirmed,
@@ -850,151 +610,86 @@ fn analyze_python_while_constant(
     }
 }
 
-fn analyze_python_if_constant(
-    if_node: tree_sitter::Node,
-    file: &IrFile,
-    findings: &mut Vec<Finding>,
-) {
-    let if_children: Vec<tree_sitter::Node> = {
-        let mut cursor = if_node.walk();
-        if_node.children(&mut cursor).collect()
-    };
-    let condition = if_children.iter().find(|c| c.is_named()).copied();
-    let Some(condition) = condition else {
+fn analyze_python_if_constant(if_stmt: &IrIfStmt, findings: &mut Vec<Finding>) {
+    let Some(cond_value) = python_constant_condition(&if_stmt.condition) else {
         return;
     };
-    let cond_value = python_constant_condition(condition, &file.source);
-    let Some(cond_value) = cond_value else {
-        return;
-    };
-
-    let consequence = match if_node.child_by_field_name("consequence") {
-        Some(b) => b,
-        None => return,
-    };
-    let else_clause = if_children
-        .iter()
-        .find(|c| c.kind() == "else_clause")
-        .copied();
 
     if !cond_value {
-        // F4e-ii: `if False:` consequence is unreachable. Two carve-
-        // outs match CodeQL's UnreachableCode fixture explicit non-
-        // findings: (a) type-checking import guards
-        // (`if False: from X import Y`) and (b) the generator-marker
-        // idiom (`if False: yield ...`). Both produce no runtime code
-        // and are deliberate by-design rather than bugs.
-        if python_if_false_body_is_carveout(consequence) {
+        // F4e-ii: `if False:` consequence is unreachable. Carve-outs:
+        // type-checking import guards and the generator-marker idiom.
+        if python_if_false_body_is_carveout(&if_stmt.consequence) {
             return;
         }
-        if let Some(stmt) = first_named_stmt_in_python_block(consequence) {
+        if let Some(first) = if_stmt.consequence.statements.first() {
             findings.push(build_finding(
-                file,
-                stmt,
-                condition,
+                ir_loc_to_core(&first.location),
+                ir_loc_to_core(&if_stmt.condition.location),
                 "constant-false-if",
                 1,
                 LanguageCitationStatus::Unconfirmed,
             ));
         }
-    } else if let Some(else_clause) = else_clause {
-        // F4e-iii: `if True: ... else: <unreachable>`. The else_clause
-        // wraps a block child whose first statement is the unreachable
-        // entry. `elif` branches under a truthy `if` are also
-        // unreachable but they parse as `elif_clause` siblings of the
-        // else; v0 reports only the immediate `else_clause` body to
-        // keep the FP surface narrow. Multi-branch widening is a v1
-        // non-goal.
-        let else_children: Vec<tree_sitter::Node> = {
-            let mut inner = else_clause.walk();
-            else_clause.children(&mut inner).collect()
-        };
-        let block = else_children.iter().find(|c| c.kind() == "block").copied();
-        if let Some(block) = block {
-            if let Some(stmt) = first_named_stmt_in_python_block(block) {
-                findings.push(build_finding(
-                    file,
-                    stmt,
-                    condition,
-                    "constant-true-if-else",
-                    1,
-                    LanguageCitationStatus::Unconfirmed,
-                ));
-            }
+    } else if let Some(alt) = &if_stmt.alternative {
+        // F4e-iii: `if True: ... else: <unreachable>`. v0 reports only
+        // the immediate else body (elif widening is a v1 non-goal).
+        if let Some(first) = alt.statements.first() {
+            findings.push(build_finding(
+                ir_loc_to_core(&first.location),
+                ir_loc_to_core(&if_stmt.condition.location),
+                "constant-true-if-else",
+                1,
+                LanguageCitationStatus::Unconfirmed,
+            ));
         }
     }
 }
 
-fn first_named_stmt_in_python_block(block: tree_sitter::Node) -> Option<tree_sitter::Node> {
-    let mut cursor = block.walk();
-    let found = block
-        .children(&mut cursor)
-        .find(|c| c.is_named() && c.kind() != "comment");
-    found
-}
-
-/// F4e-ii carve-outs. True when every non-comment statement in the
-/// `if False:` body is one of the recognised idiomatic shapes:
-///
-/// - `import_statement` / `import_from_statement` /
-///   `future_import_statement` — type-checking import guards
-///   (pre-`typing.TYPE_CHECKING` fallback). All statements must be
-///   imports; a mixed body (e.g. `if False: import x; print(1)`)
-///   does NOT match.
-/// - A single statement whose inner expression is `yield_expression`
-///   — the generator-marker idiom (CodeQL ODASA-6783). Multiple
-///   yield statements still match as long as every statement in the
-///   body is a yield expression statement.
-///
-/// Returns false if the body is empty.
-fn python_if_false_body_is_carveout(block: tree_sitter::Node) -> bool {
-    let stmts: Vec<tree_sitter::Node> = {
-        let mut cursor = block.walk();
-        block
-            .children(&mut cursor)
-            .filter(|c| c.is_named() && c.kind() != "comment")
-            .collect()
-    };
+/// F4e-ii carve-outs. True when every statement in the `if False:` body
+/// is an import (type-checking guard) or a `yield` expression statement
+/// (generator marker). Empty bodies are not carve-outs.
+fn python_if_false_body_is_carveout(block: &IrBlock) -> bool {
+    let stmts = &block.statements;
     if stmts.is_empty() {
         return false;
     }
     let all_imports = stmts.iter().all(|s| {
         matches!(
-            s.kind(),
-            "import_statement" | "import_from_statement" | "future_import_statement"
+            &s.kind,
+            IrStmtKind::Other {
+                node_kind: "import_statement" | "import_from_statement" | "future_import_statement",
+                ..
+            }
         )
     });
     if all_imports {
         return true;
     }
-    let all_yields = stmts.iter().all(|s| {
-        if s.kind() != "expression_statement" {
-            return false;
-        }
-        let mut inner_cursor = s.walk();
-        let inner = s.children(&mut inner_cursor).find(|c| c.is_named());
-        matches!(inner.map(|n| n.kind()), Some("yield"))
-    });
-    all_yields
+    stmts.iter().all(|s| {
+        matches!(
+            &s.kind,
+            IrStmtKind::Other {
+                node_kind: "yield",
+                ..
+            }
+        )
+    })
 }
 
 // ---------- Shared finding construction ----------
 
 fn build_finding(
-    file: &IrFile,
-    follower: tree_sitter::Node,
-    terminator: tree_sitter::Node,
+    primary: Location,
+    terminator: Location,
     kind: &'static str,
     following_count: usize,
     citation_status: LanguageCitationStatus,
 ) -> Finding {
-    let primary = node_location(file, follower);
-    let related = vec![node_location(file, terminator)];
-    let terminator_line = related[0].start_line;
+    let terminator_line = terminator.start_line;
     Finding {
         detector_id: "unreachable-after-terminator".to_string(),
         primary,
-        related,
+        related: vec![terminator],
         message: format!(
             "statement is unreachable; preceded by {} on line {}",
             kind, terminator_line
@@ -1013,14 +708,14 @@ fn build_finding(
     }
 }
 
-fn node_location(file: &IrFile, node: tree_sitter::Node) -> Location {
-    let start = node.start_position();
-    let end = node.end_position();
+/// Project an [`crate::ir::Location`] (byte offsets included) onto the
+/// 4-field [`crate::core::Location`] the [`Finding`] surface uses.
+fn ir_loc_to_core(loc: &crate::ir::Location) -> Location {
     Location {
-        file: file.path.clone(),
-        start_line: start.row as u32 + 1,
-        start_col: start.column as u32 + 1,
-        end_line: end.row as u32 + 1,
-        end_col: end.column as u32 + 1,
+        file: loc.file.clone(),
+        start_line: loc.start_line,
+        start_col: loc.start_col,
+        end_line: loc.end_line,
+        end_col: loc.end_col,
     }
 }

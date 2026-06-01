@@ -340,10 +340,11 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
        (per ir-v0.md R1 "R-0 revisits the retention decision") or
        wait on R-1.c''; do not tag v0.6.0 against the current
        Rust-corpus RSS without one of those resolutions.
-       Status: `[~]` 2026-06-01 (follow-up step 1 committed 0038e81;
+       Status: `[~]` 2026-06-02 (follow-up step 1 committed 0038e81;
        step 2 IR-side extension done — `IrStmtKind::{For, Try, Assign,
-       Let}` landed; `arg-swap` migrated 2026-06-01;
-       `unreachable-after-terminator` + `pr-miner` + path (a) pending).
+       Let}` landed; step 3 IR-side `IrExpr -> {kind, location}` done;
+       `arg-swap` migrated 2026-06-01; `unreachable-after-terminator`
+       migrated 2026-06-02; `pr-miner` + path (a) pending).
        Path (b) progress:
        - `comment-code` (2026-05-27, commit 2d90b3c) reads
          `IrFn.{leading_doc, return_type_text, decorators, body}` +
@@ -366,6 +367,25 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
          `NormalisedToken` derives `Hash`. T4 goldens re-blessed;
          ir-v0.md §F1 / R2 / §F4 / F6 T4 + clone-drift-v0.md
          §F2 / F2b / F4 updated.
+       - `unreachable-after-terminator` (2026-06-02) consumes IR
+         semantically: block-level terminator classification from
+         `IrStmtKind` + `IrIfStmt.terminator` / `IrMatchStmt.terminator`
+         (branch-merge) + `IrLoopStmt.has_break_to_self`; F4d-ii/iii/iv
+         from `IrCallSite.args` / `IrStmtKind::Return` value /
+         `IrIfStmt.condition` reading the per-`IrExpr` `location` (step 3
+         below); F4e from the literal `IrExprKind::Literal` condition.
+         Suppression modelled via `IrFn.decorators` + `IrStmt.attributes`
+         (the corpus carries no real `#[allow(unreachable_code)]`, so
+         this only affects the t6/t14 integration tests). Both
+         `raw_tree()` calls gone. Bundled IR fix: the converter looked
+         for the loop / break label node under the wrong kind
+         (`loop_label`); tree-sitter-rust names it `label`, so
+         `IrLoopStmt.has_break_to_self` and `IrLabel` were wrong for
+         labelled loops (`'outer: loop { loop { break 'outer; } }`) —
+         corrected, which the IR-reading detector requires for T1
+         (audit `rustc_ui_expr_loop.rs:28` no longer over-reports
+         loop-no-break). unreachable-after-terminator-v0.md §F2 / F3
+         updated. No T4 re-bless (no labelled-loop golden fixture).
        - `arg-swap` (2026-06-01) now reads `IrFn.{name, params,
          is_method}` for definition extraction (Rust top-level
          `!is_method`; Python incl. class methods, `Receiver` dropped,
@@ -454,9 +474,9 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
           node's location). All 7 expr-bearing T4 goldens re-blessed
           (additive: each expr gains a `location`); T1 stays
           byte-identical (findings do not serialise `IrExpr`). ir-v0.md
-          §F1 updated. Pending: migrate `unreachable-after-terminator`
-          (consumes the new locations) + `pr-miner` (each its own
-          commit).
+          §F1 updated. `unreachable-after-terminator` migrated
+          2026-06-02 (consumes the new locations). Pending: migrate
+          `pr-miner` (its own commit).
        Either follow-up can be sequenced with Path (a) (string-
        form IR compaction) in any order.
 R-1.d. `git mv src/detectors/config_interaction.rs

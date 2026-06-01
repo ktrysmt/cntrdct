@@ -45,29 +45,45 @@ mirroring the other detectors. Empty input returns `Ok(vec![])`.
 
 ### F2 — Block discovery
 
-Walk every `block` node in the file (including bodies of `function_item`,
-`if_expression`, `else_clause`, `loop_expression`, `while_expression`,
-`for_expression`, `match_arm`, and inline `block` expressions). The walker
-recurses into inner blocks; each block is analysed independently.
+The detector consumes IR semantically (R-1.c'' Path b; no `raw_tree()`
+reparse). Starting from each `IrFn.body`, recurse through every
+[`IrBlock`] the converter materialises — `IrIfStmt.{consequence,
+alternative}`, `IrWhileStmt.body`, `IrLoopStmt.body`, `IrForStmt.body`,
+`IrMatchStmt` arm bodies, `IrWithStmt.body`, `IrTryStmt.{body, handlers,
+orelse, finalbody}`, and `IrExprKind::Block` (e.g. a `let` RHS block) —
+analysing each block independently. This reaches the same block set the
+v0.5.x raw walk visited, so the T1 pinning stays byte-identical.
 
 ### F3 — Terminator classification
 
-A statement S inside a block is a terminator iff one of:
+A statement S inside a block is a terminator classified directly from
+its [`IrStmtKind`]:
 
-- S is an `expression_statement` whose first named child is one of
-  `return_expression`, `break_expression`, `continue_expression`, or
-- S is an `expression_statement` whose first named child is a
-  `macro_invocation` whose macro name (the text of its `identifier` /
-  `scoped_identifier` child) is in the terminator-macro set, or
-- S is itself a bare diverging expression (`return_expression` etc.) when
-  it appears as the last expression in a block — in that case there is
-  nothing after it, so no Finding is produced.
+- Rust: `Return` → `return`, `Break` → `break`, `Continue` → `continue`,
+  `DivergentCall { kind }` → the macro name (`panic` / `unreachable` /
+  `todo` / `unimplemented` / `abort` / `exit`), `If` / `Match` whose
+  pre-computed `terminator` is `BranchMerge { .. }` → `if-branches-diverge`
+  / `match-arms-diverge`, and `Loop` with `has_break_to_self == false` →
+  `loop-no-break`. `assert!` is intentionally NOT a terminator.
+- Python: `Return` → `return`, `Raise` → `raise`, `Break` → `break`,
+  `Continue` → `continue`, `DivergentCall { kind }` → the exit-call name
+  (`sys.exit` / `sys.abort` / `os._exit` / `exit` / `quit`), and `Assert`
+  of the literal `false` → `assert`. Python has no branch-merge.
 
-`#[allow(unreachable_code)]` attached to any ancestor `function_item` or
-`block` (inner attribute `#![allow(unreachable_code)]`) suppresses Findings
-inside that scope. Detection is by textual substring match on the attribute
-source (`unreachable_code` appears inside `allow(...)`); robust attribute
-parsing is out of scope for v0.
+`IrStmtKind::HoistedItem` is excluded from the Rust statement stream
+(F4c). The block-level rule reports the statement immediately following
+the first non-cfg-gated terminator (`IrStmt.location` for both the
+follower and the terminator).
+
+Suppression (Rust only): `#[allow(unreachable_code)]` on the enclosing
+function ([`IrFn.decorators`]) or on any statement of the block
+([`IrStmt.attributes`], the IR home for the block's direct
+`attribute_item` / inner `#![...]` children) suppresses the block-level
+findings in that scope (threaded down to nested blocks). Detection is a
+textual substring match on the attribute source (`unreachable_code`); the
+F4d rules are not gated by suppression, matching v0.5.x. Python carries
+no detector-internal suppression — the `# cntrdct: allow(...)` form is
+handled by `crate::config::apply`.
 
 ### F4 — Following-statement detection
 

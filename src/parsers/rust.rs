@@ -371,7 +371,9 @@ impl<'a> Converter<'a> {
     fn rust_label(&self, node: tree_sitter::Node<'a>) -> Option<IrLabel> {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            if child.kind() == "loop_label" {
+            // tree-sitter-rust names the loop / break label node `label`
+            // (not `loop_label`); its child is the bare `identifier`.
+            if child.kind() == "label" {
                 let mut inner = child.walk();
                 for c in child.children(&mut inner) {
                     if c.kind() == "identifier" {
@@ -945,7 +947,7 @@ fn rust_first_block_child(node: tree_sitter::Node<'_>) -> Option<tree_sitter::No
 fn rust_loop_self_label_from_node(node: tree_sitter::Node<'_>, source: &str) -> Option<String> {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        if child.kind() != "loop_label" {
+        if child.kind() != "label" {
             continue;
         }
         let mut inner = child.walk();
@@ -961,7 +963,7 @@ fn rust_loop_self_label_from_node(node: tree_sitter::Node<'_>, source: &str) -> 
 fn rust_break_label_text(node: tree_sitter::Node<'_>, source: &str) -> Option<String> {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        if child.kind() != "loop_label" {
+        if child.kind() != "label" {
             continue;
         }
         let mut inner = child.walk();
