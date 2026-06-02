@@ -34,6 +34,7 @@ pub mod parsers;
 pub mod ranker;
 pub mod recall_audit;
 pub mod sarif;
+pub mod self_replication;
 
 /// Canonical set of `Detector::id()` values registered by
 /// [`scan_full_with_config`] and emitted as SARIF `tool.driver.rules`

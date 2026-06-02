@@ -15,6 +15,7 @@ cntrdct eval benchmarks/audit-corpus                    # JSON to stdout
 | Flag | Default | Effect |
 |---|---|---|
 | `--manifest <PATH>` | `<corpus>/manifest.jsonl` | Override the labelled manifest. |
+| `--against <PATH>` | unset | Self-replication delta: read a previous release's snapshot (JSONL of `EvalReport` lines) and print the F1 / P / R delta of this corpus against the matching `corpus` line instead of the plain report. |
 
 ## Manifest shape
 
@@ -42,17 +43,37 @@ installable form, so a reproducible external comparison was
 unrealisable.
 
 The replacement is a per-release eval snapshot committed under
-`benchmarks/self-replication/v<release>/`:
+`benchmarks/self-replication/v<release>/cntrdct.jsonl` — one
+`EvalReport` per tracked corpus, one per line (JSONL). Each line
+carries a `corpus` field so the lines self-identify across releases.
+
+Build the snapshot by running `eval` over each tracked corpus and
+compacting each report to a single line:
 
 ```sh
-cntrdct eval benchmarks/audit-corpus > \
-    benchmarks/self-replication/v<release>/cntrdct.jsonl
+mkdir -p benchmarks/self-replication/v<release>
+for c in audit-corpus wild-corpus wild-corpus-python; do
+    cntrdct eval "benchmarks/$c" | jq -c .
+done > benchmarks/self-replication/v<release>/cntrdct.jsonl
 ```
 
-The ledger is refreshed manually per release and carries no CI gate.
-A release reviewer reads the per-detector F1 / precision / recall
-delta against the previous tag's snapshot to confirm a change did not
-regress detection quality.
+The wild corpora are unlabelled (no `expected` findings), so their
+precision / recall land at zero; their useful signal is `actual_total`
+drift, visible in the raw snapshot line.
+
+At release time, read the delta against the previous tag's snapshot:
+
+```sh
+cntrdct eval benchmarks/audit-corpus \
+    --against benchmarks/self-replication/v<prev>/cntrdct.jsonl
+```
+
+`--against` prints a `SelfReplicationDelta`: per-detector and overall
+`current` / `previous` / `delta` (`current - previous`) for F1, P, and
+R, matched to the previous snapshot's line by `corpus`. When no line
+matches (a new corpus, or the first snapshot), the run is reported as a
+baseline with `has_baseline: false` and no `delta`. The ledger is
+refreshed manually per release and carries no CI gate.
 
 ## Exit codes
 

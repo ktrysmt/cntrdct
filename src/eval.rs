@@ -53,7 +53,7 @@ pub struct Manifest {
     pub entries: Vec<ManifestEntry>,
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DetectorMetrics {
     pub tp: u32,
     pub fp: u32,
@@ -64,8 +64,16 @@ pub struct DetectorMetrics {
     pub f1: f64,
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct EvalReport {
+    /// Name of the evaluated corpus (the corpus directory's file name,
+    /// e.g. `audit-corpus`). Self-identifies a snapshot line so the
+    /// self-replication ledger (`benchmarks/self-replication/v<release>/
+    /// cntrdct.jsonl`) can match corpora across releases when computing
+    /// deltas. Defaults to empty for older snapshots that predate the
+    /// field. Spec: `REBUILD.md` R-1.f.
+    #[serde(default)]
+    pub corpus: String,
     pub per_detector: BTreeMap<String, DetectorMetrics>,
     pub overall: DetectorMetrics,
     pub corpus_size: u32,
@@ -141,7 +149,13 @@ pub fn evaluate(
     let total_fn: u32 = per_detector.values().map(|m| m.fn_).sum();
     let overall = metrics(total_tp, total_fp, total_fn);
 
+    let corpus = corpus_dir
+        .file_name()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| corpus_dir.to_string_lossy().into_owned());
+
     EvalReport {
+        corpus,
         per_detector,
         overall,
         corpus_size: manifest.entries.len() as u32,

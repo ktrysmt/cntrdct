@@ -556,7 +556,29 @@ R-1.f. Introduce `benchmarks/self-replication/v0.6.0/cntrdct.jsonl`
        as the eval snapshot. Add an `assemble_report` helper
        computing the delta against the previous tag's snapshot
        (F1 / P / R deltas). Manual refresh per release; no CI gate.
-       Status: `[ ]`.
+       Status: `[x]` 2026-06-02 (uncommitted in working tree). Landed
+       under `v0.8.0/` (not the spec's `v0.6.0/` — the version moved on
+       to 0.8.0 across the R-1.c'' path(b) migrations; the ledger
+       tracks the current release line). `benchmarks/self-replication/
+       v0.8.0/cntrdct.jsonl` holds three `EvalReport` lines (audit /
+       wild-rust / wild-python), one per line; `EvalReport` gained a
+       `corpus` field (+`Deserialize`) so the lines self-identify and
+       match across releases. `assemble_report(current, previous)` +
+       `SelfReplicationDelta` / `CellDelta` / `Prf` + `load_eval_snapshot`
+       live in the new `src/self_replication.rs`; it computes the
+       per-detector + overall F1/P/R `current`/`previous`/`delta`,
+       matched by corpus, with a baseline fallback (`has_baseline =
+       false`) when no prior line matches. Wired into the `eval`
+       subcommand via `--against <prev.jsonl>` (per the chosen
+       integration — eval is an existing allowed subcommand, no new
+       CLI surface). v0.8.0 is the first snapshot, so the delta path is
+       exercised by `tests/self_replication.rs` (self-comparison →
+       zero deltas) + the module unit tests rather than against a real
+       prior; the machinery is ready for v0.9.0. Wild corpora are
+       unlabelled (P/R = 0); their signal is `actual_total` drift in
+       the raw line. README + `book/src/workflows/eval.md` updated.
+       Full gate green (`cargo test --all-targets`, `cargo clippy
+       --all-targets -- -D warnings`, `cargo fmt --all -- --check`).
 R-1.g. Recalibrate priors:
 
        ```sh

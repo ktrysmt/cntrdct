@@ -113,6 +113,15 @@ enum Commands {
         /// `<corpus_dir>/manifest.jsonl`.
         #[arg(long)]
         manifest: Option<PathBuf>,
+        /// Self-replication delta: read a previous release's snapshot
+        /// (a JSONL of `EvalReport` lines, e.g.
+        /// `benchmarks/self-replication/v<prev>/cntrdct.jsonl`) and print
+        /// the precision/recall/F1 delta of this corpus against the
+        /// matching line instead of the plain `EvalReport`. When no line
+        /// matches the corpus, the delta is reported as a baseline.
+        /// `REBUILD.md` R-1.f.
+        #[arg(long)]
+        against: Option<PathBuf>,
     },
     /// Q-13: cross-model κ audit. Routes the same finding set through
     /// `claude --print` and `gemini -p`, then reports pairwise Cohen's
@@ -262,18 +271,43 @@ fn main() -> ExitCode {
         Commands::Eval {
             corpus_dir,
             manifest,
+            against,
         } => {
             let manifest_path = manifest.unwrap_or_else(|| corpus_dir.join("manifest.jsonl"));
-            match cntrdct::run_eval(&corpus_dir, &manifest_path) {
-                Ok(report) => {
+            let report = match cntrdct::run_eval(&corpus_dir, &manifest_path) {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("error: {}", e);
+                    return ExitCode::from(1);
+                }
+            };
+            match against {
+                None => {
                     let body = serde_json::to_string_pretty(&report)
                         .expect("EvalReport serializes cleanly");
                     println!("{}", body);
                     ExitCode::SUCCESS
                 }
-                Err(e) => {
-                    eprintln!("error: {}", e);
-                    ExitCode::from(1)
+                Some(prev_path) => {
+                    let previous = match cntrdct::self_replication::load_eval_snapshot(&prev_path) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            eprintln!("error: {}", e);
+                            return ExitCode::from(1);
+                        }
+                    };
+                    let delta = cntrdct::self_replication::assemble_report(&report, &previous);
+                    let body = serde_json::to_string_pretty(&delta)
+                        .expect("SelfReplicationDelta serializes cleanly");
+                    println!("{}", body);
+                    if !delta.has_baseline {
+                        eprintln!(
+                            "note: no snapshot line for corpus `{}` in {}; reported as baseline",
+                            delta.corpus,
+                            prev_path.display()
+                        );
+                    }
+                    ExitCode::SUCCESS
                 }
             }
         }

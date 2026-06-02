@@ -106,18 +106,34 @@ depend on are not distributed in an installable form, so a reproducible
 external comparison was unrealisable.
 
 Each release commits an eval snapshot under
-`benchmarks/self-replication/v<release>/`, regenerated from the same
-`cntrdct eval` JSON the CLI emits:
+`benchmarks/self-replication/v<release>/cntrdct.jsonl` — one
+`cntrdct eval` JSON object per tracked corpus, one per line (JSONL):
 
 ```sh
-cntrdct eval benchmarks/audit-corpus > \
-    benchmarks/self-replication/v<release>/cntrdct.jsonl
+mkdir -p benchmarks/self-replication/v<release>
+for c in audit-corpus wild-corpus wild-corpus-python; do
+    cntrdct eval "benchmarks/$c" | jq -c .
+done > benchmarks/self-replication/v<release>/cntrdct.jsonl
 ```
 
-The ledger is refreshed manually per release and carries no CI gate.
-A release reviewer reads the per-detector F1 / precision / recall
-delta against the previous tag's snapshot to confirm a change did not
-regress detection quality.
+(`jq -c` compacts each report to a single line; any JSON minifier works.)
+Each line carries a `corpus` field so the lines self-identify across
+releases. The wild corpora are unlabelled, so their precision / recall
+land at zero — their useful signal is `actual_total` drift (did a change
+make more or fewer findings fire?).
+
+At release time, a reviewer reads the per-detector F1 / precision /
+recall delta against the previous tag's snapshot with `--against`:
+
+```sh
+cntrdct eval benchmarks/audit-corpus \
+    --against benchmarks/self-replication/v<prev>/cntrdct.jsonl
+```
+
+This prints the delta of the current run against the matching `corpus`
+line in the previous snapshot (a baseline, with no delta, when no line
+matches). The ledger is refreshed manually per release and carries no
+CI gate.
 
 ## Claude Code skill
 
