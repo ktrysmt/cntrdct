@@ -927,9 +927,26 @@ The IR types are not opaque to lang detectors — they can also walk
 and reparse via `IrFile::raw_tree()` plus the `parse_recovered`
 skip-gate.
 
-Cross-cutting detectors must not call `raw_tree()`. This is a
-documentation-level discipline only; the type system does not
-enforce it. A `clippy` lint or a `tests/raw_tree_discipline.rs`
+Cross-cutting detectors must not call `raw_tree()`, with ONE
+documented exception: `pr-miner`. Its concept is cross-cutting
+(implicit programming-rule mining transfers across languages), but
+its algorithm mines association rules over the SET of every
+call-head last-segment in each function body — a full recursive AST
+enumeration the structured IR does not losslessly preserve.
+`IrCallSite.callee` flattens a method-chain receiver to name
+segments and drops the receiver call itself (`a.b().c()` exposes
+`c`, not `b`), and calls nested in `IrExpr::Other` shapes (`?`-try,
+binary, index, …) are invisible to an IR-only walk. An empirical
+probe over `benchmarks/wild-corpus` (270 files) found 65 % of
+top-level functions yield a different call-head set under a pure-IR
+walk (1750 missed heads), which would shift pr-miner's global
+Apriori support / confidence and break the T1 pinning. pr-miner
+therefore keeps the F5 escape hatch (a single per-file
+`raw_tree()` reparse) rather than migrating; closing the gap would
+require materialising call sites in receiver position and every
+Other expression shape, i.e. reconstructing the full AST in IR.
+This is a documentation-level discipline only; the type system does
+not enforce it. A `clippy` lint or a `tests/raw_tree_discipline.rs`
 check is a possible future hardening — out of scope for v0.
 
 LSP non-regression. `cntrdct-lsp`'s `didChange` handler produces an

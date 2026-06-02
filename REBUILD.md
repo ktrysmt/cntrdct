@@ -343,8 +343,11 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
        Status: `[~]` 2026-06-02 (follow-up step 1 committed 0038e81;
        step 2 IR-side extension done — `IrStmtKind::{For, Try, Assign,
        Let}` landed; step 3 IR-side `IrExpr -> {kind, location}` done;
-       `arg-swap` migrated 2026-06-01; `unreachable-after-terminator`
-       migrated 2026-06-02; `pr-miner` + path (a) pending).
+       `comment-code` / `clone-drift` / `arg-swap` /
+       `unreachable-after-terminator` migrated; `pr-miner` retained on
+       `raw_tree()` by design (see step 4 below); path (a) still
+       pending. Path (b) cross-cutting migration is therefore COMPLETE
+       modulo the deliberate `pr-miner` exception).
        Path (b) progress:
        - `comment-code` (2026-05-27, commit 2d90b3c) reads
          `IrFn.{leading_doc, return_type_text, decorators, body}` +
@@ -475,8 +478,32 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
           (additive: each expr gains a `location`); T1 stays
           byte-identical (findings do not serialise `IrExpr`). ir-v0.md
           §F1 updated. `unreachable-after-terminator` migrated
-          2026-06-02 (consumes the new locations). Pending: migrate
-          `pr-miner` (its own commit).
+          2026-06-02 (consumes the new locations).
+       4. `pr-miner` retained on `raw_tree()` by design (decided
+          2026-06-02). Unlike the other cross-cutting detectors,
+          pr-miner mines association rules over the SET of every
+          call-head last-segment in each function body — a full
+          recursive AST enumeration. The structured IR does not
+          losslessly preserve that set: `IrCallSite.callee` (`IrPath`)
+          flattens a method-chain receiver to name segments and drops
+          the receiver CALL (`a.b().c()` exposes `c` but not `b`), and
+          calls nested in still-`IrExpr::Other` shapes (`?`-try,
+          binary, index, …) are invisible to an IR-only walk. An
+          empirical probe over `benchmarks/wild-corpus` (270 files)
+          showed 593 / 909 top-level functions (65 %) produce a
+          DIFFERENT call-head set under a pure-IR walk, missing 1750
+          call heads in total — pr-miner's global Apriori support /
+          confidence would shift and T1 (audit: 2 findings) would not
+          hold. Migrating it would require materialising call sites in
+          receiver position AND every Other expression shape (plus a
+          decorated-definition location fix), i.e. reconstructing the
+          full AST inside IR, which defeats the IR-simplicity goal and
+          carries high byte-identical risk. pr-miner therefore keeps a
+          single per-file `IrFile::raw_tree()` reparse — the same
+          Pattern-B escape hatch `src/detectors/lang/rust_config_interaction.rs`
+          uses (ir-v0.md §F5) — and is NOT a Path (b) target.
+          `extract_{rust,python}.rs` are unchanged. Path (b) cross-cutting
+          migration is complete modulo this exception.
        Either follow-up can be sequenced with Path (a) (string-
        form IR compaction) in any order.
 R-1.d. `git mv src/detectors/config_interaction.rs
