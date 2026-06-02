@@ -7,8 +7,8 @@ verification rules are absorbed into this file below).
 Current shipped version: v0.5.2 (Rust + Python, six detectors). This
 file replaces the old Q-series / T-series / M-series roadmap with a
 single forward-looking plan oriented around the v0.6.0 rebuild:
-a language-agnostic IR layer plus a community-friendly contribution
-path for new languages.
+a language-agnostic IR layer plus a low-cost, single-repo PR
+contribution path for new languages.
 
 For historical detector / corpus / quality-audit milestones (P-1
 through Q-16, T1-1 through T2-11, M-1 through M-6, T3-14 through
@@ -61,7 +61,7 @@ The rebuild keeps every shipping behaviour (P1-P5 constraints, the
 four-layer architecture, the SARIF / eval / calibrate / scan /
 cross-model-kappa CLI surface, the `network-isolation` CI gate) but
 replaces (1)-(3) with a single architectural pivot: language-agnostic
-IR + community-PR-driven plugin source under one repo.
+IR + PR-driven per-language source under one repo.
 
 ## 1. Architecture goals
 
@@ -698,35 +698,18 @@ R-6. VS Code extension (carry-over from T3-12 Phase 2) — `[ ]`
 - Independent of R-1 through R-5; can start any time after R-1
   ships v0.6.0 (the LSP binary tracks the same crate version).
 
-R-7. Community foundation (carry-over from T4-20 / T4-21) — `[ ]`
-
-- Code of Conduct: short pointer to Contributor Covenant URL at
-  `CODE_OF_CONDUCT.md`. Adopt when external contributor activity
-  warrants the triage path, but no later than R-2 cuts (because
-  R-2 onwards explicitly invites outside language contributions).
-- GitHub Discussions enabled; roadmap discussion pinned with a
-  link to this file.
-
-R-8. mdBook Pages re-enable (carry-over from T3-13 Phase 2) — `[ ]`
-
-- Blocked on `docs/site/essays/` external-blog migration. No
-  action needed at the v0.6.0 cut. Stays on the list as a
-  visible reminder.
-
 ## 5. Execution order
 
 1. R-0 — IR spec. (done 2026-05-25; see §4 R-0)
 2. R-1 — IR implementation, Rust + Python migration, Q-15 scaffolding retirement. Cuts v0.6.0.
-3. R-7 — Code of Conduct + Discussions before R-2 invites outside contributions.
-4. R-2 — TypeScript pilot. Cuts v0.7.0.
-5. R-3 — Go pilot.
-6. R-4 — P3 amendment spec (R-1 IR enables predicate-level framing).
-7. R-5 — Python F4f detector.
-8. R-6 — VS Code extension (independent of the rest after R-1).
-9. R-8 — mdBook Pages (blocked, fires when its prerequisite resolves).
+3. R-2 — TypeScript pilot. Cuts v0.7.0.
+4. R-3 — Go pilot.
+5. R-4 — P3 amendment spec (R-1 IR enables predicate-level framing).
+6. R-5 — Python F4f detector.
+7. R-6 — VS Code extension (independent of the rest after R-1).
 
-The order assumes R-1 is the bottleneck. R-2 / R-3 / R-5 / R-6 /
-R-8 can parallelise once R-1 lands.
+The order assumes R-1 is the bottleneck. R-2 / R-3 / R-5 / R-6 can
+parallelise once R-1 lands.
 
 ## 6. Out of scope
 
@@ -752,6 +735,17 @@ Explicitly not part of this rebuild:
   the R-4 amendment when that lands.
 - Translation of cntrdct output, docs, or surveys. English-only,
   as before.
+- Social / outreach / promotion scaffolding. The former R-7
+  (Code of Conduct, GitHub Discussions, pinned roadmap discussion)
+  and R-8 (public mdBook Pages re-enable) were removed 2026-06-03.
+  Community-foundation and dissemination work has no value until the
+  product itself is proven worth promoting; it is premature to invest
+  in it now. Priority is unambiguous product quality — detector
+  correctness, recall / precision, and the IR migration's
+  byte-identical guarantees — scrutinised hard enough to establish
+  that cntrdct is worth publicising. Only once that bar is met does
+  promotion / outreach earn a place back on the plan. Do not
+  re-add CoC / Discussions / Pages tasks before then.
 
 ## 7. Glossary
 
@@ -781,11 +775,10 @@ Explicitly not part of this rebuild:
   migrates from `ParsedFile` to `IrFile`; the `cntrdct` crate
   bumps from v0.5.x to v0.6.0). Conventional Commits prefix
   `feat(ir)!`. Self-replication ledger replaces baseline scaffolding.
-- v0.6.x — fast-follows: R-5 (Python F4f), R-7 (CoC + Discussions).
+- v0.6.x — fast-follow: R-5 (Python F4f).
 - v0.7.0 — R-2 (TypeScript pilot). First language added under the
-  community-PR model.
-- v0.7.x — R-3 (Go pilot), R-6 (VS Code extension), R-8 if
-  unblocked.
+  single-repo PR contribution model.
+- v0.7.x — R-3 (Go pilot), R-6 (VS Code extension).
 
 Version bumps follow `CLAUDE.md` "Release procedure" verbatim; the
 `tests/fixtures/baselines/baselines/v<release>/` rename step is
