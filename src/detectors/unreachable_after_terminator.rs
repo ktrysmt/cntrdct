@@ -712,7 +712,7 @@ fn build_finding(
 /// 4-field [`crate::core::Location`] the [`Finding`] surface uses.
 fn ir_loc_to_core(loc: &crate::ir::Location) -> Location {
     Location {
-        file: loc.file.clone(),
+        file: loc.file.to_path_buf(),
         start_line: loc.start_line,
         start_col: loc.start_col,
         end_line: loc.end_line,

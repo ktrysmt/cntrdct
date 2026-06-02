@@ -31,7 +31,7 @@
 #![deny(missing_docs)]
 
 use serde::Serialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -48,7 +48,18 @@ pub use crate::core::Language;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Location {
     /// Path of the source file; equals [`IrFile::path`].
-    pub file: PathBuf,
+    ///
+    /// Stored as `Arc<Path>` (not `PathBuf`) so the single per-file
+    /// path allocation is shared by reference across every IR node's
+    /// `Location` rather than deep-copied per node — the per-node
+    /// `path.to_path_buf()` clone was a measured ~16 MiB of the
+    /// Rust wild-corpus peak RSS (R-1.c'' path (a)). Serialised via
+    /// [`serialize_arc_path`] so the T4 golden wire shape (a bare path
+    /// string) is byte-identical to the former `PathBuf` field —
+    /// serde does not implement `Serialize` for `Arc<T>` without the
+    /// `rc` feature, which is intentionally not enabled.
+    #[serde(serialize_with = "serialize_arc_path")]
+    pub file: Arc<Path>,
     /// 1-based line of the first character of the span.
     pub start_line: u32,
     /// 1-based column of the first character of the span.
@@ -62,6 +73,17 @@ pub struct Location {
     pub start_byte: u32,
     /// Byte offset immediately after the span into [`IrFile::source`].
     pub end_byte: u32,
+}
+
+/// Serialize an `Arc<Path>` as the bare inner path (a JSON string),
+/// matching the wire shape the former `PathBuf` field produced. serde
+/// does not implement `Serialize` for `Arc<T>` unless the `rc` feature
+/// is enabled, so [`Location::file`] points here explicitly.
+fn serialize_arc_path<S>(value: &Arc<Path>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    value.as_ref().serialize(serializer)
 }
 
 // ---------- NodeRef ----------
@@ -918,7 +940,7 @@ mod tests {
 
     fn loc() -> Location {
         Location {
-            file: PathBuf::from("a.rs"),
+            file: Arc::from(Path::new("a.rs")),
             start_line: 1,
             start_col: 1,
             end_line: 1,
@@ -931,7 +953,7 @@ mod tests {
     #[test]
     fn location_round_trips_via_serde() {
         let original = Location {
-            file: PathBuf::from("src/foo.rs"),
+            file: Arc::from(Path::new("src/foo.rs")),
             start_line: 3,
             start_col: 5,
             end_line: 4,

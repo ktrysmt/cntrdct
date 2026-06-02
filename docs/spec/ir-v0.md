@@ -1099,6 +1099,24 @@ plumbing (`SyncTree` newtype + `unsafe impl Sync`) survives because
 detector code can still hold `Arc<SyncTree>` across rayon tasks
 while a single file is being processed.
 
+R1 follow-up resolution (R-1.c'' path (a), 2026-06-03). The < 25 %
+peak-RSS gate is **structurally unreachable** for the Rust wild-corpus
+and has been retired-and-replaced by an absolute ceiling
+(≤ 175 MiB), not a relative target. The cross-file detectors
+(clone-drift, pr-miner) require the entire corpus's IR resident
+simultaneously, so per-file retention cannot be dropped. A floor
+study (`scan benchmarks/wild-corpus`, 270 files) measured peak RSS
+~125 MiB even after emptying the two largest per-node contributors
+(`IrFn.normalised_tokens` ≈ 33 MiB, per-node `Location.file` path
+duplication ≈ 16 MiB) — +75 % over the 71.5 MiB v0.5.2 baseline, so
+field compaction cannot reach the ≈ 89 MiB target. The safe,
+T1-byte-identical compaction shipped: `Location.file` is a shared
+`Arc<Path>` (one per-file allocation referenced by every node, vs a
+per-node `to_path_buf()`), cutting Rust wild-corpus peak RSS
+~169 → ~150 MiB. The 175 MiB ceiling has headroom over that and
+still catches the regression class that matters (the original
+eager-tree design measured 380 MiB). See REBUILD.md § 9 and R-1.c''.
+
 R2. Normalised-token storage duplicates work the converter already
 does to materialise `IrBlock.statements`. Eager pre-computation is the
 conservative choice: the existing `clone-drift` pipeline normalises

@@ -44,10 +44,15 @@ impl ParserProvider for PythonParserProvider {
         path: PathBuf,
     ) -> Result<IrFile, IrConvertError> {
         let mut shell = build_ir_shell(self, &tree, source, path)?;
+        // One `Arc<Path>` per file, shared by reference into every
+        // node's `Location` (R-1.c'' path (a)): the converter clones
+        // the Arc (refcount bump) instead of deep-copying the path
+        // string per node.
+        let path_arc: Arc<Path> = Arc::from(shell.path.as_path());
         let (fns, top_level_comments) = {
             let cv = Converter {
                 source: shell.source.as_ref(),
-                path: shell.path.as_path(),
+                path: &path_arc,
             };
             cv.convert_root(tree.root_node())?
         };
@@ -77,7 +82,7 @@ fn python_exit_kind(text: &str) -> Option<DivergentKind> {
 
 struct Converter<'a> {
     source: &'a str,
-    path: &'a Path,
+    path: &'a Arc<Path>,
 }
 
 impl<'a> Converter<'a> {
@@ -865,7 +870,7 @@ fn parse_python_int(text: &str) -> Option<i128> {
 fn convert_python_decorator(
     node: tree_sitter::Node<'_>,
     source: &str,
-    path: &Path,
+    path: &Arc<Path>,
 ) -> Option<IrDecorator> {
     let raw = source[node.byte_range()].to_string();
     let stripped = raw
@@ -952,7 +957,7 @@ fn strip_python_string_quotes(raw: &str) -> String {
 fn convert_python_comment(
     node: tree_sitter::Node<'_>,
     source: &str,
-    path: &Path,
+    path: &Arc<Path>,
 ) -> Option<IrComment> {
     if node.kind() != "comment" {
         return None;
@@ -1003,11 +1008,11 @@ fn walk_normalize_python(node: tree_sitter::Node<'_>, out: &mut Vec<NormalisedTo
 
 // ---------- Generic helpers ----------
 
-fn node_location(path: &Path, node: tree_sitter::Node<'_>) -> Location {
+fn node_location(path: &Arc<Path>, node: tree_sitter::Node<'_>) -> Location {
     let start = node.start_position();
     let end = node.end_position();
     Location {
-        file: path.to_path_buf(),
+        file: Arc::clone(path),
         start_line: start.row as u32 + 1,
         start_col: start.column as u32 + 1,
         end_line: end.row as u32 + 1,
@@ -1023,7 +1028,7 @@ fn node_ref(node: tree_sitter::Node<'_>) -> NodeRef {
     }
 }
 
-fn empty_block(path: &Path, parent: tree_sitter::Node<'_>) -> IrBlock {
+fn empty_block(path: &Arc<Path>, parent: tree_sitter::Node<'_>) -> IrBlock {
     IrBlock {
         statements: Vec::new(),
         terminator: None,
@@ -1035,7 +1040,7 @@ fn empty_block(path: &Path, parent: tree_sitter::Node<'_>) -> IrBlock {
 /// Build an [`IrExprKind::Other`] expression carrying `node`'s location.
 /// Shared fallback for the converter's unrecognised / missing-child
 /// expression slots.
-fn other_expr(path: &Path, node: tree_sitter::Node<'_>, node_kind: &'static str) -> IrExpr {
+fn other_expr(path: &Arc<Path>, node: tree_sitter::Node<'_>, node_kind: &'static str) -> IrExpr {
     IrExpr {
         kind: IrExprKind::Other {
             node_kind,

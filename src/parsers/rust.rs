@@ -44,10 +44,15 @@ impl ParserProvider for RustParserProvider {
         path: PathBuf,
     ) -> Result<IrFile, IrConvertError> {
         let mut shell = build_ir_shell(self, &tree, source, path)?;
+        // One `Arc<Path>` per file, shared by reference into every
+        // node's `Location` (R-1.c'' path (a)): the converter clones
+        // the Arc (refcount bump) instead of deep-copying the path
+        // string per node.
+        let path_arc: Arc<Path> = Arc::from(shell.path.as_path());
         let (fns, top_level_comments) = {
             let cv = Converter {
                 source: shell.source.as_ref(),
-                path: shell.path.as_path(),
+                path: &path_arc,
             };
             cv.convert_root(tree.root_node())?
         };
@@ -64,7 +69,7 @@ impl ParserProvider for RustParserProvider {
 
 struct Converter<'a> {
     source: &'a str,
-    path: &'a Path,
+    path: &'a Arc<Path>,
 }
 
 impl<'a> Converter<'a> {
@@ -716,7 +721,7 @@ fn collect_rust_preceding_attributes(
     siblings: &[tree_sitter::Node],
     idx: usize,
     source: &str,
-    path: &Path,
+    path: &Arc<Path>,
 ) -> Vec<IrDecorator> {
     let mut out: Vec<IrDecorator> = Vec::new();
     let mut i = idx;
@@ -740,7 +745,7 @@ fn collect_rust_preceding_attributes(
 fn convert_rust_attribute(
     node: tree_sitter::Node<'_>,
     source: &str,
-    path: &Path,
+    path: &Arc<Path>,
 ) -> Option<IrDecorator> {
     let raw = source[node.byte_range()].to_string();
     let after_open = raw
@@ -807,7 +812,7 @@ fn collect_rust_leading_doc(
 fn convert_rust_comment(
     node: tree_sitter::Node<'_>,
     source: &str,
-    path: &Path,
+    path: &Arc<Path>,
     target: Option<NodeRef>,
 ) -> Option<IrComment> {
     let raw = &source[node.byte_range()];
@@ -1226,11 +1231,11 @@ fn rust_string_is_empty(raw: &str) -> bool {
 
 // ---------- Generic helpers ----------
 
-fn node_location(path: &Path, node: tree_sitter::Node<'_>) -> Location {
+fn node_location(path: &Arc<Path>, node: tree_sitter::Node<'_>) -> Location {
     let start = node.start_position();
     let end = node.end_position();
     Location {
-        file: path.to_path_buf(),
+        file: Arc::clone(path),
         start_line: start.row as u32 + 1,
         start_col: start.column as u32 + 1,
         end_line: end.row as u32 + 1,
@@ -1246,7 +1251,7 @@ fn node_ref(node: tree_sitter::Node<'_>) -> NodeRef {
     }
 }
 
-fn empty_block(path: &Path, parent: tree_sitter::Node<'_>) -> IrBlock {
+fn empty_block(path: &Arc<Path>, parent: tree_sitter::Node<'_>) -> IrBlock {
     IrBlock {
         statements: Vec::new(),
         terminator: None,
@@ -1258,7 +1263,7 @@ fn empty_block(path: &Path, parent: tree_sitter::Node<'_>) -> IrBlock {
 /// Build an [`IrExprKind::Other`] expression carrying `node`'s location.
 /// Shared fallback for the converter's unrecognised / missing-child
 /// expression slots.
-fn other_expr(path: &Path, node: tree_sitter::Node<'_>, node_kind: &'static str) -> IrExpr {
+fn other_expr(path: &Arc<Path>, node: tree_sitter::Node<'_>, node_kind: &'static str) -> IrExpr {
     IrExpr {
         kind: IrExprKind::Other {
             node_kind,

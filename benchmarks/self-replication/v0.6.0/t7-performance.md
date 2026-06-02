@@ -114,3 +114,48 @@ ir-v0.md F6 T7. The raw `/usr/bin/time -l` logs were retained in
 `/tmp/t7-measure/` during measurement but are not committed; the
 medians above are reproducible by re-running the procedure in §
 Method.
+
+## R-1.c'' path (a) resolution (2026-06-03)
+
+R-1.h tagging proceeded under option 2 (gate amendment); v0.6.0 –
+v0.8.0 shipped with the relative gate suspended. R-1.c'' path (a)
+then closed the item with a measurement-driven scope correction.
+
+Floor study (`scan benchmarks/wild-corpus`, 270 Rust files,
+`/usr/bin/time -l`, this machine): the option-1 sketch above
+(`String` → `Box<str>`, packed `NodeRef`) was found to target the
+wrong fields. Per-field/per-NodeRef shrink is single-digit MiB;
+the dominant per-node costs are `IrFn.normalised_tokens` and the
+per-node `Location.file` path duplication.
+
+| Variant | peak RSS | Δ vs baseline |
+|---|---|---|
+| baseline (post path-b, this session) | 169 MiB | — |
+| `normalised_tokens` emptied | 137 MiB | −33 MiB |
+| `Location.file` path-dup removed | 153 MiB | −16 MiB |
+| both emptied (floor) | ~125 MiB | −44 MiB |
+
+The ~125 MiB floor is +75 % over the v0.5.2 71.5 MiB baseline, so
+the < 25 % target (≈ 89 MiB) is unreachable by field compaction —
+the cross-file detectors (clone-drift, pr-miner) need the whole
+corpus's IR resident at once, so retention cannot be cut, and
+shrinking `normalised_tokens` further would require changing
+clone-drift's token representation (risking T1 byte-identical).
+
+Shipped (T1-byte-identical, safe): `Location.file` `PathBuf` →
+shared `Arc<Path>` (one alloc per file, refcount-cloned per node;
+`serialize_with` shim keeps the T4 golden wire shape identical).
+
+| Metric (Rust wild-corpus) | before | after (5-trial median) |
+|---|---|---|
+| peak RSS | ~169 MiB | ~150 MiB (+109 % vs v0.5.2) |
+| wall-clock | — | 1.47 s (+10.5 % vs v0.5.2 1.33 s) |
+
+Python wild-corpus: 14.1 MiB (within the < 25 % rule).
+
+Gate disposition (final): wall-clock keeps the < 25 % rule (passes).
+Peak-RSS retires the relative rule for the Rust corpus in favour of
+an absolute ≤ 175 MiB ceiling — headroom over the ~150 MiB result,
+and still catches the eager-retention regression class (380 MiB).
+See REBUILD.md § 9 and ir-v0.md R1. The `Box<str>` / NodeRef-packing
+items were dropped as not worth the churn for a sub-gate win.

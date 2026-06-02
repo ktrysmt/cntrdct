@@ -540,7 +540,7 @@ fn python_callee_name(path: &IrPath) -> Option<String> {
 /// byte-identical with the v0.5.x output.
 fn ir_loc_to_core(loc: &crate::ir::Location) -> Location {
     Location {
-        file: loc.file.clone(),
+        file: loc.file.to_path_buf(),
         start_line: loc.start_line,
         start_col: loc.start_col,
         end_line: loc.end_line,

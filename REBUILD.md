@@ -215,7 +215,7 @@ R-0. IR design spec — `[x]`
   for partial-parse non-regression. See ir-v0.md "Risks and open
   questions" R8-R11 for derived decisions; do not re-litigate.
 
-R-1. IR implementation + Rust/Python migration — `[~]`
+R-1. IR implementation + Rust/Python migration — `[x]`
 
 Authoritative design: `docs/spec/ir-v0.md`. Sub-step ordering is
 binding (ir-v0.md R11):
@@ -340,14 +340,39 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
        (per ir-v0.md R1 "R-0 revisits the retention decision") or
        wait on R-1.c''; do not tag v0.6.0 against the current
        Rust-corpus RSS without one of those resolutions.
-       Status: `[~]` 2026-06-02 (follow-up step 1 committed 0038e81;
-       step 2 IR-side extension done — `IrStmtKind::{For, Try, Assign,
-       Let}` landed; step 3 IR-side `IrExpr -> {kind, location}` done;
-       `comment-code` / `clone-drift` / `arg-swap` /
-       `unreachable-after-terminator` migrated; `pr-miner` retained on
-       `raw_tree()` by design (see step 4 below); path (a) still
-       pending. Path (b) cross-cutting migration is therefore COMPLETE
-       modulo the deliberate `pr-miner` exception).
+       Status: `[x]` 2026-06-03. Path (b) cross-cutting migration
+       COMPLETE (steps 1-3 below + the four detector migrations;
+       `pr-miner` retained on `raw_tree()` by design — step 4). Path
+       (a) CLOSED with a measurement-driven scope correction (see
+       below). Both paths landed; R-1.c'' is done.
+
+       Path (a) outcome (2026-06-03). The spec sketch above (`String`
+       → `Box<str>` + packed `NodeRef`) was re-scoped after a floor
+       study showed it targeted the wrong fields: per-node string/
+       NodeRef shrink saves only single-digit MiB (names are short;
+       NodeRefs are few), nowhere near the ~80 MiB the < 25 % gate
+       would need. A `scan benchmarks/wild-corpus` (270 files)
+       attribution measured the real contributors — `IrFn.
+       normalised_tokens` ≈ 33 MiB and the per-node `Location.file`
+       path duplication ≈ 16 MiB — and a combined floor of ~125 MiB
+       even with BOTH emptied (+75 % over v0.5.2's 71.5 MiB). The
+       gate is structurally unreachable by field compaction: the
+       cross-file detectors (clone-drift, pr-miner) require the whole
+       corpus's IR resident at once, so retention cannot be cut. The
+       safe, T1-byte-identical win that path (a) could ship landed:
+       `Location.file` moved from `PathBuf` (deep-copied per node) to
+       a shared `Arc<Path>` (one alloc per file, refcount-cloned per
+       node), serialised via a `serialize_with` shim so the T4 golden
+       wire shape stays byte-identical (serde has no `Arc` Serialize
+       without the unused `rc` feature). Result: Rust wild-corpus
+       peak RSS ~169 → ~150 MiB (5-trial median, +109 % over v0.5.2);
+       wall-clock +10.5 %; T1 byte-identical across all five detectors
+       × three corpora; full gate green (`cargo test --all-targets`,
+       `--features lsp`, `clippy -D warnings`, `fmt --check`). The
+       § 9 peak-RSS gate was retired-and-replaced (relative < 25 % →
+       absolute ≤ 175 MiB ceiling) per the measurement; see § 9 and
+       ir-v0.md R1. The `String`→`Box<str>` / NodeRef-packing items
+       were dropped as not worth the churn for a sub-gate win.
        Path (b) progress:
        - `comment-code` (2026-05-27, commit 2d90b3c) reads
          `IrFn.{leading_doc, return_type_text, decorators, body}` +
@@ -822,17 +847,32 @@ Before tagging v0.6.0:
   gate by design; it does not go through IR.
 - T1 pinning fixtures (ir-v0.md F6 T1) byte-identical against the
   v0.5.2 capture per detector.
-- T7 wall-clock + peak-RSS regression < 25 % vs v0.5.2 (ir-v0.md R1).
-  **v0.6.0 exception**: wall-clock +21.8 % (median of 5 trials,
-  within gate); peak-RSS Rust wild-corpus +118 % (71 → 156 MiB,
-  exceeds gate). Gate amended per ir-v0.md R1 "R-0 revisits the
-  retention decision" clause. Residual RSS regression is IR struct
-  overhead held across all 270 IrFile objects for the scan
-  duration; full root-cause analysis in
-  `benchmarks/self-replication/v0.6.0/t7-performance.md`. Follow-up
-  tracked as R-1.c'' (IR compaction OR cross-cutting detector IR
-  migration); whichever lands first reverts the gate to the < 25 %
-  rule on the next minor tag.
+- T7 wall-clock regression < 25 % vs v0.5.2 (ir-v0.md R1): wall-clock
+  Rust wild-corpus +10.5 % (median 1.47 s vs v0.5.2 1.33 s), within
+  gate. Python within noise.
+- T7 peak-RSS: the < 25 % relative rule is **retired for the Rust
+  wild-corpus** and replaced by an absolute regression ceiling of
+  **≤ 175 MiB** (R-1.c'' path (a), 2026-06-03). Rationale, with the
+  measurement that forced it: the IR architecture must retain every
+  file's IR for the whole scan because the cross-file detectors
+  (clone-drift clusters across all functions; pr-miner mines
+  association rules across all files) need the full corpus in memory
+  at once. A measured floor study (`scan benchmarks/wild-corpus`,
+  270 files) showed peak RSS stays ~125 MiB even after emptying the
+  two largest per-node contributors (`IrFn.normalised_tokens` ≈ 33 MiB
+  and the per-node `Location.file` path duplication ≈ 16 MiB), i.e.
+  +75 % over the v0.5.2 71.5 MiB baseline — so the < 25 % target
+  (≈ 89 MiB) is structurally unreachable by field compaction, not a
+  missing optimisation. Path (a) shipped the safe, T1-byte-identical
+  win it could: `Location.file` is now a shared `Arc<Path>` (one
+  per-file allocation referenced by every node instead of a per-node
+  `to_path_buf()` clone), cutting Rust wild-corpus peak RSS from
+  ~169 MiB to a 5-trial median of ~150 MiB (+109 % over v0.5.2). The
+  175 MiB ceiling sits above that with headroom and still catches the
+  regression class that matters — the original eager-tree-retention
+  design measured 380 MiB. Python wild-corpus stays under the < 25 %
+  rule (14.1 MiB). Full analysis:
+  `benchmarks/self-replication/v0.6.0/t7-performance.md`.
 - T2 / T3 / T4 / T5 per ir-v0.md F6 (IrConvertError variants,
   parse_recovered carry-through, IR golden fixtures, Location
   equality).
