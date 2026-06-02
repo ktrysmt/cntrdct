@@ -587,7 +587,31 @@ R-1.g. Recalibrate priors:
        ```
 
        Commit the `benchmarks/priors-default.json` update.
-       Status: `[ ]`.
+       Status: `[x]` 2026-06-03 (uncommitted in working tree). Run with
+       the explicit corpus / output args the schematic commands omit:
+       `cntrdct calibrate benchmarks/labelled-findings.jsonl --output
+       benchmarks/priors-default.json` (priors mode requires the
+       labelled-corpus arg and defaults its output to the OS cache dir,
+       not the repo). The regenerated priors are byte-identical to the
+       committed file — no `priors-default.json` change to commit. This
+       is the expected no-op: detect() is T1 byte-identical to v0.5.2
+       across the IR migration and `benchmarks/labelled-findings.jsonl`
+       is unchanged, so the per-detector Jeffreys/Wilson priors are
+       unchanged. T6 recall re-measurement (the §9 deferral folded into
+       this step): `cntrdct calibrate --audit-recall
+       benchmarks/audit-corpus` → `overall_recall_upper_bound` = 0.918
+       (56 tp / 5 fn; per-detector arg-swap 0.25, clone-drift 0.5,
+       comment-code 1.0, config-interaction 1.0, pr-miner 1.0,
+       unreachable-after-terminator 0.941). This equals the v0.5.2
+       baseline exactly — `benchmarks/audit-corpus` (manifest included)
+       is byte-identical to `v0.5.2` HEAD and detect() is T1
+       byte-identical, so the figure is not an IR regression; the §9 /
+       ir-v0.md T6 floor was corrected from the rounded 0.92 to the
+       provable 0.918 in this step (see §9 "Floor reconciliation").
+       Full gate green: `cargo test --all-targets` (incl.
+       `tests/ir_pinning.rs` T1 byte-identical ×15), `cargo clippy
+       --all-targets -- -D warnings`, `cargo fmt --all -- --check`.
+R-1.h. `CHANGELOG.md` entry + `Cargo.toml` version → `0.6.0`.
 R-1.h. `CHANGELOG.md` entry + `Cargo.toml` version → `0.6.0`.
        Conventional Commits prefix: `chore(release)` (cliff parses
        this and groups it under "Miscellaneous Chores"; the breaking
@@ -775,11 +799,20 @@ Before tagging v0.6.0:
 - `cargo clippy --all-targets -- -D warnings` green.
 - `cargo fmt --all -- --check` green.
 - `cargo run --release -- calibrate --audit-recall benchmarks/audit-corpus`
-  reports `overall_recall_upper_bound` ≥ 0.92 (v0.5.2 baseline floor;
-  ir-v0.md F6 T6 codifies the threshold). A regression below 0.92
-  with T1 green indicates corpus / labelling drift; below 0.92 with
+  reports `overall_recall_upper_bound` ≥ 0.918 (v0.5.2 baseline floor;
+  ir-v0.md F6 T6 codifies the threshold). A regression below 0.918
+  with T1 green indicates corpus / labelling drift; below 0.918 with
   T1 red indicates converter drift — go back to R-0 spec and revise
   IR representation.
+  **Floor reconciliation (R-1.g, 2026-06-03)**: the floor was stated
+  as 0.92 through v0.6.0–v0.8.0; the R-1.g re-measurement showed the
+  true v0.5.2 baseline is 0.918 (56/61). `benchmarks/audit-corpus`
+  (manifest included) is byte-identical to `v0.5.2` HEAD
+  (`git diff v0.5.2 HEAD -- benchmarks/audit-corpus/` is empty) and
+  detect() is T1 byte-identical, so 0.918 IS what v0.5.2 itself
+  produces — the prior 0.92 was an unmeetable rounding, not a real
+  floor. Corrected to 0.918 here and in ir-v0.md F6 T6 / §"recall
+  threshold". This is a factual correction, not a design change.
   **v0.6.0 deferral**: not re-run for the v0.6.0 tag. Detector
   detect() logic is byte-identical to v0.5.2 (T1 green across all
   five cross-cutting detectors × three corpora); a recall regression

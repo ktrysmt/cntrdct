@@ -1031,9 +1031,12 @@ T6. Recall regression check. After R-1 lands but before tagging
     ```
 
     and assert the resulting `overall_recall_upper_bound` is within
-    the noise floor of the v0.5.2 baseline (>= 0.92 absolute, the
+    the noise floor of the v0.5.2 baseline (>= 0.918 absolute, the
     same threshold codified in REBUILD-handoff.md's "エビデンス
-    検証ルール"). T6 and the per-PR T1 pinning tests are
+    検証ルール"; corrected from the rounded 0.92 by the R-1.g
+    re-measurement, which showed v0.5.2 itself produces 0.918 on the
+    byte-identical audit corpus — see REBUILD.md §9 "Floor
+    reconciliation"). T6 and the per-PR T1 pinning tests are
     complementary — T1 guards finding-set identity, T6 guards
     aggregate corpus recall. A T6 regression with T1 green
     indicates corpus / labelling drift, not converter drift.
@@ -1244,8 +1247,8 @@ The R-1 PR description records the sub-step order explicitly.
 
 - `REBUILD.md` §1 G1 — architecture goal this spec realises.
 - `REBUILD-handoff.md` — R-1 sub-step ordering, optional / required
-  sweeps, and the エビデンス検証ルール recall threshold (>= 0.92)
-  T6 inherits.
+  sweeps, and the エビデンス検証ルール recall threshold (>= 0.918,
+  corrected from the rounded 0.92 by R-1.g) T6 inherits.
 - `docs/spec/multilang-v0.md` — `ParserProvider` seam this spec
   extends. F3's `ParserProvider` trait gains a `to_ir` method per
   this spec's F2; the existing `language` and `ts_language` methods
