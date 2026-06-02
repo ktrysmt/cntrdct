@@ -612,7 +612,6 @@ R-1.g. Recalibrate priors:
        `tests/ir_pinning.rs` T1 byte-identical ×15), `cargo clippy
        --all-targets -- -D warnings`, `cargo fmt --all -- --check`.
 R-1.h. `CHANGELOG.md` entry + `Cargo.toml` version → `0.6.0`.
-R-1.h. `CHANGELOG.md` entry + `Cargo.toml` version → `0.6.0`.
        Conventional Commits prefix: `chore(release)` (cliff parses
        this and groups it under "Miscellaneous Chores"; the breaking
        IR commits 704eb59 / 92dafa3 already carry `feat(ir)!` /
