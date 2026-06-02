@@ -116,6 +116,3 @@ In-source: `#[cntrdct::allow(pr-miner)]` (Rust) or
 - [Statistical priors (P4)](../concepts/priors.md) — pr-miner is the
   only shipped detector at v0.4.3 carrying `prior_method = "wilson"`
   (n = 38, above the Q-11 `SMALL_SAMPLE_THRESHOLD = 30` switch).
-- [SOTA baselines](https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/sota-baselines-v0.md)
-  — PyBugLab pairs naturally with the arg-swap-style violations
-  pr-miner surfaces on Python.

@@ -9,17 +9,12 @@ detector and overall. It is the routine measurement workflow for
 
 ```sh
 cntrdct eval benchmarks/wild-corpus-python              # JSON to stdout
-cntrdct eval benchmarks/audit-corpus \
-    --baseline sourcerercc,pybuglab \
-    --baselines-out baseline-comparison.json
+cntrdct eval benchmarks/audit-corpus                    # JSON to stdout
 ```
 
 | Flag | Default | Effect |
 |---|---|---|
 | `--manifest <PATH>` | `<corpus>/manifest.jsonl` | Override the labelled manifest. |
-| `--baseline <NAMES>` | unset | Q-15: comma-separated baseline names (currently `sourcerercc`, `pybuglab`). Triggers side-by-side comparison. |
-| `--baselines-out <PATH>` | stdout | Write the `BaselineComparisonReport` JSON to disk. Without this flag the report follows the `EvalReport` on stdout. |
-| `--baselines-skip-run` | off | Read pre-cached baseline JSONL under `<corpus>/../baselines/v<release>/<name>.jsonl` instead of invoking Docker. |
 
 ## Manifest shape
 
@@ -36,42 +31,35 @@ findings expected from it:
 `ManifestEntry` carries optional `source`, `license`, and `sha256`
 fields (M-4) so wild-corpus rows can pin the upstream provenance.
 
-## Baseline comparison (Q-15)
+## Self-replication ledger
 
-The `--baseline` flag runs cntrdct alongside a pinned external
-comparator and reports side-by-side precision / recall / F1 on the
-same corpus. Baselines ship as digest-pinned Docker images invoked
-with `docker run --network=none --rm --read-only` so the comparison
-is reproducible from a clean environment.
+cntrdct tracks its own precision / recall / F1 across releases rather
+than comparing against external tools. The retired Q-15 "SOTA
+baseline comparator" (`--baseline` against pinned PyBugLab /
+SourcererCC Docker images) was removed in v0.6.0: those projects do
+not distribute pre-trained weights or comparison infrastructure in an
+installable form, so a reproducible external comparison was
+unrealisable.
 
-| Baseline | Detector | Image |
-|---|---|---|
-| `sourcerercc` | `clone-drift` | `baselines/sourcerercc/Dockerfile` |
-| `pybuglab` | `arg-swap` (Python) | `baselines/pybuglab/Dockerfile` |
+The replacement is a per-release eval snapshot committed under
+`benchmarks/self-replication/v<release>/`:
 
-The release-time path is:
+```sh
+cntrdct eval benchmarks/audit-corpus > \
+    benchmarks/self-replication/v<release>/cntrdct.jsonl
+```
 
-1. Run Docker locally on the maintainer's workstation against the
-   audit + wild corpora.
-2. Commit the resulting JSONL under
-   `benchmarks/baselines/v<release>/<name>.jsonl`.
-3. Re-run with `--baselines-skip-run` to regenerate the report from
-   the committed artefact in CI.
-
-`BaselineComparisonReport.priors_default_sha256` records the SHA-256
-of the priors file the comparison ran against so the numbers can be
-re-derived from a known-good binary state.
-
-Phase D — live Docker runs against real corpora and populated
-README numbers — is pending on the maintainer workstation as of
-v0.4.3.
+The ledger is refreshed manually per release and carries no CI gate.
+A release reviewer reads the per-detector F1 / precision / recall
+delta against the previous tag's snapshot to confirm a change did not
+regress detection quality.
 
 ## Exit codes
 
 | Code | Meaning |
 |---|---|
 | 0 | Eval completed; report written. |
-| 1 | Invalid arguments, missing corpus / manifest, baseline misconfig. |
+| 1 | Invalid arguments, missing corpus / manifest. |
 
 ## See also
 
@@ -81,5 +69,4 @@ v0.4.3.
 - [scan](./scan.md) — eval reuses the scan pipeline internally; any
   change that affects scan output reflects in eval numbers.
 - Spec:
-  [`docs/spec/eval-v0.md`](https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/eval-v0.md),
-  [`docs/spec/sota-baselines-v0.md`](https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/sota-baselines-v0.md).
+  [`docs/spec/eval-v0.md`](https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/eval-v0.md).

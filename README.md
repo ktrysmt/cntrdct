@@ -96,33 +96,28 @@ as a `skipped` provider in the audit JSON. Output goes to stdout by
 default, or to `--output PATH` when set. Spec:
 [`docs/spec/cross-model-kappa-v0.md`](docs/spec/cross-model-kappa-v0.md).
 
-## Baseline comparison
+## Self-replication ledger
 
-`cntrdct eval --baseline <name>` publishes cntrdct's precision /
-recall / F1 side by side with external state-of-the-art comparators
-on the same corpora. v0 ships two adapter scaffolds: the SourcererCC
-adapter
-([Sajnani et al. ICSE 2016](https://dl.acm.org/doi/10.1145/2884781.2884877))
-for `clone-drift`, and the PyBugLab adapter
-([Allamanis et al. NeurIPS 2021](https://proceedings.neurips.cc/paper/2021/hash/ea96efc03b9a050d895110db8c4af057-Abstract.html))
-for `arg-swap`. Both ship as wrapper Dockerfiles with placeholder
-image digests; live image digests are pinned in
-`baselines/<name>/UPSTREAM.md` at the time the live comparison
-numbers are run.
+cntrdct tracks its own precision / recall / F1 across releases instead
+of comparing against external state-of-the-art tools. The
+head-to-head-against-PyBugLab / SourcererCC framing was retired: the
+pre-trained weights and comparison infrastructure those projects
+depend on are not distributed in an installable form, so a reproducible
+external comparison was unrealisable.
 
-Run locally:
+Each release commits an eval snapshot under
+`benchmarks/self-replication/v<release>/`, regenerated from the same
+`cntrdct eval` JSON the CLI emits:
 
 ```sh
-cntrdct eval benchmarks/audit-corpus \
-    --baseline sourcerercc \
-    --baselines-out baseline-comparison.json
+cntrdct eval benchmarks/audit-corpus > \
+    benchmarks/self-replication/v<release>/cntrdct.jsonl
 ```
 
-Each baseline ships as a pinned Docker image so the comparison is
-reproducible from a clean environment. The wrapper Dockerfile,
-upstream-commit pin, and image-digest pin live under
-`baselines/<name>/`. Spec:
-[`docs/spec/sota-baselines-v0.md`](docs/spec/sota-baselines-v0.md).
+The ledger is refreshed manually per release and carries no CI gate.
+A release reviewer reads the per-detector F1 / precision / recall
+delta against the previous tag's snapshot to confirm a change did not
+regress detection quality.
 
 ## Claude Code skill
 

@@ -20,7 +20,6 @@
 //!   otherwise).
 
 pub mod adjudicator;
-pub mod baselines;
 pub mod calibration;
 pub mod config;
 pub mod core;
@@ -58,10 +57,6 @@ use std::path::{Path, PathBuf};
 
 use crate::adjudicator::{
     AnthropicAdjudicator, ClaudeCliAdjudicator, GeminiCliAdjudicator, ReqwestClient,
-};
-use crate::baselines::{
-    assemble_report, cached_jsonl_path, compare_one, find_baseline, load_baseline_jsonl,
-    run_baseline_docker, sha256_hex, BaselineComparisonReport, BaselineError, NormalisedFinding,
 };
 use crate::calibration::{compute_priors, load_corpus, CalibrationError, DetectorPrior};
 use crate::core::{
@@ -110,26 +105,6 @@ pub enum EvalRunError {
     Scan(#[from] ScanError),
     #[error("serialize error: {0}")]
     Serialize(#[from] serde_json::Error),
-}
-
-#[derive(Debug, Error)]
-pub enum BaselineRunError {
-    #[error("baseline error: {0}")]
-    Baseline(#[from] BaselineError),
-    #[error("eval error: {0}")]
-    Eval(#[from] EvalError),
-    #[error("scan error: {0}")]
-    Scan(#[from] ScanError),
-    #[error("io error writing {path}: {source}")]
-    Io {
-        path: PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
-    #[error("serialize error: {0}")]
-    Serialize(#[from] serde_json::Error),
-    #[error("temp directory error: {0}")]
-    TempDir(std::io::Error),
 }
 
 #[derive(Debug, Error)]
@@ -763,122 +738,6 @@ pub fn run_recall_audit(
     }
     let findings = scan(corpus_dir)?;
     Ok(audit_recall(&manifest, &findings, corpus_dir))
-}
-
-// ---------- Baseline-comparator subcommand (Q-15) ----------
-
-/// SHA-256 of `EMBEDDED_PRIORS_JSON` — surfaced on every
-/// [`BaselineComparisonReport`] so a release-time consumer can
-/// verify the shipped priors against a known good hash.
-pub fn embedded_priors_sha256() -> String {
-    sha256_hex(EMBEDDED_PRIORS_JSON)
-}
-
-/// Orchestrate a baseline-comparator run. Returns
-/// [`BaselineComparisonReport`] alongside the existing
-/// [`EvalReport`]. Spec: `docs/spec/sota-baselines-v0.md` §"CLI flag".
-///
-/// `baseline_names` is the parsed `--baseline <name>[,<name>...]`
-/// argument. `skip_run` mirrors `--baselines-skip-run`: when true,
-/// the per-baseline JSONL is read from
-/// `cached_jsonl_path(corpus_dir, release_tag, name)` instead of
-/// invoking Docker. CI exercises only the skip-run path.
-pub fn run_eval_with_baselines(
-    corpus_dir: &Path,
-    manifest_path: &Path,
-    baseline_names: &[String],
-    skip_run: bool,
-    release_tag: &str,
-) -> Result<(EvalReport, BaselineComparisonReport), BaselineRunError> {
-    let manifest = load_manifest(manifest_path)?;
-    for entry in &manifest.entries {
-        let abs = corpus_dir.join(&entry.file);
-        if !abs.exists() {
-            return Err(BaselineRunError::Eval(EvalError::MissingSource(abs)));
-        }
-    }
-    let cntrdct_findings = scan(corpus_dir)?;
-    let eval_report = evaluate(&manifest, &cntrdct_findings, corpus_dir);
-
-    // Build per-detector expected_lines maps once from the eval
-    // manifest; each comparison cell filters by detector_id.
-    let expected_by_detector = expected_by_detector(&manifest);
-
-    let mut comparisons = Vec::new();
-    for name in baseline_names {
-        let spec = find_baseline(name).ok_or_else(|| {
-            BaselineRunError::Baseline(BaselineError::UnknownBaseline(name.clone()))
-        })?;
-
-        let baseline_rows = load_or_run_baseline(spec, corpus_dir, release_tag, skip_run)?;
-
-        let expected_lines = expected_by_detector
-            .get(spec.detector_id)
-            .cloned()
-            .unwrap_or_default();
-
-        let corpus_name = corpus_dir
-            .file_name()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_else(|| corpus_dir.to_string_lossy().into_owned());
-
-        let tool_version = baseline_rows
-            .first()
-            .map(|r| r.tool_version.clone())
-            .unwrap_or_else(|| "unknown".to_string());
-
-        let cmp = compare_one(
-            spec,
-            &corpus_name,
-            manifest.entries.len() as u32,
-            &expected_lines,
-            &cntrdct_findings,
-            corpus_dir,
-            release_tag,
-            &baseline_rows,
-            &tool_version,
-        );
-        comparisons.push(cmp);
-    }
-
-    let report = assemble_report(release_tag, EMBEDDED_PRIORS_JSON, comparisons);
-    Ok((eval_report, report))
-}
-
-fn load_or_run_baseline(
-    spec: &crate::baselines::BaselineSpec,
-    corpus_dir: &Path,
-    release_tag: &str,
-    skip_run: bool,
-) -> Result<Vec<NormalisedFinding>, BaselineRunError> {
-    if skip_run {
-        let path = cached_jsonl_path(corpus_dir, release_tag, spec.name);
-        if !path.exists() {
-            return Err(BaselineRunError::Baseline(
-                BaselineError::CachedJsonlMissing { path },
-            ));
-        }
-        Ok(load_baseline_jsonl(&path, spec.name, spec.detector_id)?)
-    } else {
-        let scratch = tempfile::tempdir().map_err(BaselineRunError::TempDir)?;
-        let out = scratch.path().join("findings.jsonl");
-        run_baseline_docker(spec, corpus_dir, &out)?;
-        Ok(load_baseline_jsonl(&out, spec.name, spec.detector_id)?)
-    }
-}
-
-fn expected_by_detector(
-    manifest: &crate::eval::Manifest,
-) -> HashMap<String, std::collections::BTreeSet<(PathBuf, u32)>> {
-    let mut out: HashMap<String, std::collections::BTreeSet<(PathBuf, u32)>> = HashMap::new();
-    for entry in &manifest.entries {
-        for exp in &entry.expected {
-            out.entry(exp.detector_id.clone())
-                .or_default()
-                .insert((entry.file.clone(), exp.line));
-        }
-    }
-    out
 }
 
 // ---------- File discovery ----------

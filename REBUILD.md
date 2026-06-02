@@ -528,7 +528,30 @@ R-1.e. Retire Q-15 baseline scaffolding:
        flags from `cntrdct eval` (clap + match). Rewrite the
        README "Baseline comparison" section as "Self-replication
        ledger" documenting `benchmarks/self-replication/v<release>/`.
-       Status: `[ ]`.
+       Status: `[x]` 2026-06-02 (uncommitted in working tree). Code
+       side: `pub mod baselines` + the `use crate::baselines::*`
+       block + `BaselineRunError` + the entire Q-15 baseline-comparator
+       subcommand section (`embedded_priors_sha256`,
+       `run_eval_with_baselines`, `load_or_run_baseline`,
+       `expected_by_detector`) removed from `src/lib.rs`; the three
+       `--baseline*` flags + the comparator match arm removed from
+       `src/main.rs` (Eval now has only `--manifest`); the now-unused
+       `sha2` dependency dropped from `Cargo.toml` (gone from
+       `Cargo.lock`). README "Baseline comparison" → "Self-replication
+       ledger"; `book/src/workflows/eval.md` + `book/src/detectors/
+       pr-miner.md` baseline references rewritten. Deletions
+       (`git rm`, run by the maintainer per the no-self-delete rule):
+       `src/baselines.rs`, `tests/baselines.rs`,
+       `baselines/{sourcerercc,pybuglab}/`,
+       `tests/fixtures/baselines/`, `docs/spec/sota-baselines-v0.md`.
+       Sweep done (§10): the now-orphan `sajnani-icse-2016`
+       CITATIONS.md entry removed (its sole consumer
+       `src/baselines.rs` is deleted; `allamanis-neurips-2021` stays —
+       still cited by the live `arg-swap` detector); `prereg/
+       2026-05-19-osf-prereg.md` keeps its H6.1 prose as a frozen
+       historical record. Full gate green after deletions:
+       `cargo test --all-targets`, `cargo clippy --all-targets --
+       -D warnings`, `cargo fmt --all -- --check`.
 R-1.f. Introduce `benchmarks/self-replication/v0.6.0/cntrdct.jsonl`
        as the eval snapshot. Add an `assemble_report` helper
        computing the delta against the previous tag's snapshot

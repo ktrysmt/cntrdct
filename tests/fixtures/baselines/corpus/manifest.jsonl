@@ -1,6 +1,0 @@
-// Synthetic Q-15 corpus manifest. Two quiet files (one Rust, one
-// Python) with no expected findings; the comparison harness runs
-// end-to-end with all-zero cells for both `sourcerercc` (clone-drift,
-// Rust+Python) and `pybuglab` (arg-swap, Python only).
-{"file":"files/quiet_a.rs","expected":[]}
-{"file":"files/quiet_b.py","expected":[]}

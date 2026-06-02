@@ -104,8 +104,7 @@ enum Commands {
     /// Evaluate detectors against a labelled corpus and print the
     /// precision/recall/F1 report as JSON.
     ///
-    /// Spec: `docs/spec/eval-v0.md` (base subcommand);
-    /// `docs/spec/sota-baselines-v0.md` (Q-15 `--baseline` flag).
+    /// Spec: `docs/spec/eval-v0.md`.
     Eval {
         /// Corpus root directory. Must contain `manifest.jsonl` unless
         /// `--manifest` is given.
@@ -114,25 +113,6 @@ enum Commands {
         /// `<corpus_dir>/manifest.jsonl`.
         #[arg(long)]
         manifest: Option<PathBuf>,
-        /// Q-15: comma-separated list of registered baseline names
-        /// (e.g. `sourcerercc,pybuglab`). When set, produces a
-        /// `BaselineComparisonReport` alongside the existing
-        /// `EvalReport`. Spec: `docs/spec/sota-baselines-v0.md`.
-        #[arg(long, value_delimiter = ',')]
-        baseline: Vec<String>,
-        /// Q-15: write the comparison report JSON to disk. When
-        /// omitted, the report is printed to stdout after the
-        /// `EvalReport`.
-        #[arg(long)]
-        baselines_out: Option<PathBuf>,
-        /// Q-15: read cached per-baseline JSONL under
-        /// `<corpus>/../baselines/<release_tag>/<name>.jsonl`
-        /// instead of invoking Docker. The release-time path is to
-        /// run Docker locally on the maintainer's workstation, commit
-        /// the resulting JSONL, then re-run with this flag to
-        /// regenerate the report from the committed artefact.
-        #[arg(long, default_value_t = false)]
-        baselines_skip_run: bool,
     },
     /// Q-13: cross-model κ audit. Routes the same finding set through
     /// `claude --print` and `gemini -p`, then reports pairwise Cohen's
@@ -282,66 +262,18 @@ fn main() -> ExitCode {
         Commands::Eval {
             corpus_dir,
             manifest,
-            baseline,
-            baselines_out,
-            baselines_skip_run,
         } => {
             let manifest_path = manifest.unwrap_or_else(|| corpus_dir.join("manifest.jsonl"));
-            if baseline.is_empty() {
-                match cntrdct::run_eval(&corpus_dir, &manifest_path) {
-                    Ok(report) => {
-                        let body = serde_json::to_string_pretty(&report)
-                            .expect("EvalReport serializes cleanly");
-                        println!("{}", body);
-                        ExitCode::SUCCESS
-                    }
-                    Err(e) => {
-                        eprintln!("error: {}", e);
-                        ExitCode::from(1)
-                    }
+            match cntrdct::run_eval(&corpus_dir, &manifest_path) {
+                Ok(report) => {
+                    let body = serde_json::to_string_pretty(&report)
+                        .expect("EvalReport serializes cleanly");
+                    println!("{}", body);
+                    ExitCode::SUCCESS
                 }
-            } else {
-                // Q-15: baseline-comparator run. Produces both the
-                // existing EvalReport and a BaselineComparisonReport;
-                // the two are separable so an existing consumer of
-                // the EvalReport JSON is unaffected when no --baseline
-                // is passed (the branch above).
-                let release_tag = format!("v{}", env!("CARGO_PKG_VERSION"));
-                match cntrdct::run_eval_with_baselines(
-                    &corpus_dir,
-                    &manifest_path,
-                    &baseline,
-                    baselines_skip_run,
-                    &release_tag,
-                ) {
-                    Ok((eval_report, baseline_report)) => {
-                        let eval_body = serde_json::to_string_pretty(&eval_report)
-                            .expect("EvalReport serializes cleanly");
-                        let baseline_body = serde_json::to_string_pretty(&baseline_report)
-                            .expect("BaselineComparisonReport serializes cleanly");
-                        println!("{}", eval_body);
-                        match baselines_out {
-                            Some(path) => {
-                                if let Err(e) = std::fs::write(&path, &baseline_body) {
-                                    eprintln!("error: writing {}: {}", path.display(), e);
-                                    return ExitCode::from(1);
-                                }
-                                eprintln!(
-                                    "wrote baseline comparison ({} cells) to {}",
-                                    baseline_report.comparisons.len(),
-                                    path.display()
-                                );
-                            }
-                            None => {
-                                println!("{}", baseline_body);
-                            }
-                        }
-                        ExitCode::SUCCESS
-                    }
-                    Err(e) => {
-                        eprintln!("error: {}", e);
-                        ExitCode::from(1)
-                    }
+                Err(e) => {
+                    eprintln!("error: {}", e);
+                    ExitCode::from(1)
                 }
             }
         }
