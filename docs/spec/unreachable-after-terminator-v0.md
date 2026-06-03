@@ -314,6 +314,71 @@ Both carve-outs apply only to the F4e-ii (`constant-false-if`)
 sub-rule; the F4e-i (`constant-false-while`) and F4e-iii
 (`constant-true-if-else`) sub-rules never short-circuit.
 
+### F4f — Python unreachable `except` handler (added 2026-06-03, R-5)
+
+F4f extends the "unreachable code" anomaly class to Python exception
+handling: an `except` clause that can never execute because an earlier
+handler in the same `try` already catches the same exception class or one
+of its superclasses. Python tests `except` clauses top-to-bottom and runs
+the first whose type matches (or is a superclass of) the raised exception,
+so a later handler for a subclass — or a duplicate — is dead code.
+
+```python
+try:
+    risky()
+except Exception:      # catches everything under Exception
+    handle()
+except ValueError:     # F4f: unreachable — ValueError ⊆ Exception
+    never_runs()
+```
+
+Unlike F4d / F4e, F4f needs the exception CLASS HIERARCHY, which is
+language-specific. It therefore ships as a SEPARATE language-specific
+detector, `python-unreachable-except`, under
+`src/detectors/lang/python_unreachable_except.rs` (the first detector in the
+post-R-1 `src/detectors/lang/` tier; REBUILD.md R-5). It is documented here
+because it belongs to the same "unreachable code" anomaly class, but it is
+NOT part of the cross-cutting `unreachable-after-terminator` detector and
+reads the raw tree-sitter tree directly (Pattern B, ir-v0.md §F5).
+
+Rule (ordering / subsumption, v0): for each `try_statement`, examine its
+`except_clause` handlers in source order. A handler H is unreachable iff
+EVERY exception type it catches is provably a subclass-or-equal of a type
+caught by an earlier handler.
+
+- Caught types: `except E:` / `except E as e:` → `{E}`; `except (A, B):` →
+  `{A, B}` (unreachable only when ALL elements are covered — partial
+  coverage leaves the handler reachable for the uncovered element);
+  bare `except:` → `{BaseException}` (the universal root).
+- Subclass resolution chains the embedded CPython builtin hierarchy
+  (`data/python-builtin-exceptions.json`) with same-file user classes
+  (`class Foo(Bar): ...`). `BaseException` (or bare `except:`) covers
+  everything unconditionally; `Exception` covers everything that resolves
+  under `Exception`.
+- INDETERMINATE relationships (a name not resolvable from
+  builtins ∪ same-file classes — e.g. an imported exception type) are never
+  treated as a subclass, so an unknown type produces no false positive
+  (precision-first, matching the conservative philosophy of F3 / F4d).
+
+Carve-outs / non-goals (preregistered for F4f):
+- PEP 654 `except*` exception groups: a `try` carrying any
+  `except_group_clause` is skipped whole (not analysed) in v0.
+- Body raise-set inference (flagging a handler for an exception the `try`
+  body provably cannot raise) is NOT done — it requires inter-procedural
+  raise inference and is low precision.
+- Cross-module / imported user-defined exception hierarchies are not
+  resolved (indeterminate → not flagged).
+
+Finding shape (`python-unreachable-except`): `anomaly_class = Logic`,
+`raw_severity = Warning`; `primary` = the unreachable handler's type
+expression; `related = [the covering handler's type]`; `message =
+"except handler is unreachable; <child> is already caught by <ancestor> on
+line <N>"`; `evidence.citation_keys ⊇ {hovemeyer-pugh-oopsla-2004,
+de-padua-shang-icpc-2017}`; `evidence.raw` carries `caught_type`,
+`covering_type`, `covering_line`. Python coverage is
+`LanguageCitationStatus::Unconfirmed` per `docs/spec/citations-policy.md`
+(survey: `docs/surveys/python-unreachable-except-python-2026-06.md`).
+
 ### F4d / F4e non-goals (preregistered)
 
 The following remain explicit non-goals; lifting them requires a
@@ -322,8 +387,11 @@ separate spec extension with its own corpus pre-registration:
 - `while cond { ... }` (Rust) where `cond` is a constant true
   (constant folding for Rust expressions; spec-mirror of F4e but on
   the Rust side).
-- Python `except` handler reachability based on the exception type
-  (requires class-hierarchy and raise-set analysis).
+- Python `except` handler reachability based on the exception type:
+  the ordering / subsumption case is now implemented as the separate
+  `python-unreachable-except` detector (see F4f). Body raise-set inference
+  (a handler for an exception the `try` body cannot raise) remains a
+  non-goal.
 - Macro argument re-parsing (`panic!(return, x)` etc.).
 - Python `while 0.0:` / `while None:` / `while []:` /
   `while "":` constant-falsy shapes beyond the four literal kinds
@@ -450,8 +518,11 @@ Exposed as `pub const` for visibility; not user-tunable from CLI in v0.
 - Rust-side `while cond { ... }` constant folding (constant-folding for
   Rust expressions is preregistered separately; F4d-v handles only the
   bare `loop { ... }` shape).
-- Python `except` handler reachability based on the exception type
-  (requires class-hierarchy and raise-set analysis).
+- Python `except` handler reachability based on the exception type:
+  the ordering / subsumption case is now implemented as the separate
+  `python-unreachable-except` detector (see F4f). Body raise-set inference
+  (a handler for an exception the `try` body cannot raise) remains a
+  non-goal.
 - Cross-language: only Rust in v0 (mirrors clone-drift / arg-swap /
   comment-code)
 - Attribute parsing beyond substring match

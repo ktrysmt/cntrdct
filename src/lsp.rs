@@ -40,6 +40,7 @@ use crate::core::{Detector, Finding, Severity};
 use crate::detectors::arg_swap::ArgSwap;
 use crate::detectors::clone_drift::CloneDrift;
 use crate::detectors::comment_code::CommentCode;
+use crate::detectors::lang::python_unreachable_except::PythonUnreachableExcept;
 use crate::detectors::lang::rust_config_interaction::ConfigInteraction;
 use crate::detectors::pr_miner::PrMinerDetector;
 use crate::detectors::unreachable_after_terminator::UnreachableAfterTerminator;
@@ -469,6 +470,7 @@ fn citation_url_for_key(key: &str) -> Option<&'static str> {
             Box::new(ConfigInteraction::new()),
             Box::new(UnreachableAfterTerminator::new()),
             Box::new(PrMinerDetector::new()),
+            Box::new(PythonUnreachableExcept::new()),
         ];
         let mut out: HashMap<&'static str, Option<&'static str>> = HashMap::new();
         for d in detectors {

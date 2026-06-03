@@ -212,6 +212,7 @@ fn sarif_emitter_handles_mixed_rust_and_python_unchanged() {
     use cntrdct::detectors::arg_swap::ArgSwap;
     use cntrdct::detectors::clone_drift::CloneDrift;
     use cntrdct::detectors::comment_code::CommentCode;
+    use cntrdct::detectors::lang::python_unreachable_except::PythonUnreachableExcept;
     use cntrdct::detectors::lang::rust_config_interaction::ConfigInteraction;
     use cntrdct::detectors::pr_miner::PrMinerDetector;
     use cntrdct::detectors::unreachable_after_terminator::UnreachableAfterTerminator;
@@ -227,6 +228,7 @@ fn sarif_emitter_handles_mixed_rust_and_python_unchanged() {
     let unreachable = UnreachableAfterTerminator::new();
     let config_interaction = ConfigInteraction::new();
     let pr_miner = PrMinerDetector::new();
+    let python_unreachable_except = PythonUnreachableExcept::new();
     let detectors: Vec<&dyn Detector> = vec![
         &clone_drift,
         &arg_swap,
@@ -234,6 +236,7 @@ fn sarif_emitter_handles_mixed_rust_and_python_unchanged() {
         &unreachable,
         &config_interaction,
         &pr_miner,
+        &python_unreachable_except,
     ];
     let sarif = cntrdct::sarif::to_sarif_with_rules_ranked(&ranked, &detectors);
 

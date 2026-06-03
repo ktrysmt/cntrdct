@@ -50,6 +50,7 @@ pub const ALL_DETECTOR_IDS: &[&str] = &[
     "comment-code",
     "config-interaction",
     "pr-miner",
+    "python-unreachable-except",
     "unreachable-after-terminator",
 ];
 
@@ -71,6 +72,7 @@ use crate::cross_model_kappa::{
 use crate::detectors::arg_swap::ArgSwap;
 use crate::detectors::clone_drift::CloneDrift;
 use crate::detectors::comment_code::CommentCode;
+use crate::detectors::lang::python_unreachable_except::PythonUnreachableExcept;
 use crate::detectors::lang::rust_config_interaction::ConfigInteraction;
 use crate::detectors::pr_miner::PrMinerDetector;
 use crate::detectors::unreachable_after_terminator::UnreachableAfterTerminator;
@@ -240,7 +242,7 @@ pub fn scan_buffer(path: &Path, source: String) -> Result<(Vec<Finding>, Vec<IrF
     run_detectors_on(vec![ir_file])
 }
 
-/// Run all six Layer 1 detectors over a pre-built [`IrFile`] vector.
+/// Run all seven Layer 1 detectors over a pre-built [`IrFile`] vector.
 /// Shared between the disk-walking [`scan_full_with_config`] and the
 /// buffer-only [`scan_buffer`] (used by the LSP server) so the registration
 /// list and ordering rules live in exactly one place.
@@ -251,12 +253,14 @@ fn run_detectors_on(parsed: Vec<IrFile>) -> Result<(Vec<Finding>, Vec<IrFile>), 
     let unreachable = UnreachableAfterTerminator::new();
     let config_interaction = ConfigInteraction::new();
     let pr_miner = PrMinerDetector::new();
+    let python_unreachable_except = PythonUnreachableExcept::new();
     register_detector(&clone_drift)?;
     register_detector(&arg_swap)?;
     register_detector(&comment_code)?;
     register_detector(&unreachable)?;
     register_detector(&config_interaction)?;
     register_detector(&pr_miner)?;
+    register_detector(&python_unreachable_except)?;
 
     let stats = CorpusStats {
         file_count: parsed.len(),
@@ -269,7 +273,7 @@ fn run_detectors_on(parsed: Vec<IrFile>) -> Result<(Vec<Finding>, Vec<IrFile>), 
         config: &config,
     };
 
-    // Run all six detectors in parallel against the shared context. Each
+    // Run all seven detectors in parallel against the shared context. Each
     // detector implementation is `Send + Sync` per the trait bound, so this
     // is sound. Output ordering is restored via a deterministic post-hoc
     // sort below so the ranker (and snapshot tests) see stable input.
@@ -280,6 +284,7 @@ fn run_detectors_on(parsed: Vec<IrFile>) -> Result<(Vec<Finding>, Vec<IrFile>), 
         &unreachable,
         &config_interaction,
         &pr_miner,
+        &python_unreachable_except,
     ];
     let nested: Result<Vec<Vec<Finding>>, crate::core::DetectorError> =
         detectors.par_iter().map(|d| d.detect(&ctx)).collect();

@@ -18,6 +18,7 @@ use cntrdct::core::Detector;
 use cntrdct::detectors::arg_swap::ArgSwap;
 use cntrdct::detectors::clone_drift::CloneDrift;
 use cntrdct::detectors::comment_code::CommentCode;
+use cntrdct::detectors::lang::python_unreachable_except::PythonUnreachableExcept;
 use cntrdct::detectors::lang::rust_config_interaction::ConfigInteraction;
 use cntrdct::detectors::pr_miner::PrMinerDetector;
 use cntrdct::detectors::unreachable_after_terminator::UnreachableAfterTerminator;
@@ -48,6 +49,7 @@ fn scanner_registration_ids() -> Vec<String> {
         UnreachableAfterTerminator::new().id().to_string(),
         ConfigInteraction::new().id().to_string(),
         PrMinerDetector::new().id().to_string(),
+        PythonUnreachableExcept::new().id().to_string(),
     ];
     ids.sort();
     ids

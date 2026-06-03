@@ -34,6 +34,13 @@
     "wilson_lower_95": 0.8049356770309068,
     "prior_method": "jeffreys"
   },
+  "python-unreachable-except": {
+    "tp": 8,
+    "fp": 0,
+    "posterior_tp": 0.9,
+    "wilson_lower_95": 0.6637328831200571,
+    "prior_method": "jeffreys"
+  },
   "unreachable-after-terminator": {
     "tp": 15,
     "fp": 0,

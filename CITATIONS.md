@@ -102,6 +102,26 @@ pointing at the relevant `docs/surveys/` file.
   Empirical evidence that contradictory cfg predicates recur in production code.
   Languages: Rust (grandfathered; original subjects were Linux / KConfig).
 
+### python-unreachable-except
+
+- `hovemeyer-pugh-oopsla-2004` — D. Hovemeyer, W. Pugh, "Finding Bugs is Easy",
+  OOPSLA 2004 (ACM SIGPLAN Notices 39(12)). DOI 10.1145/1052883.1052895.
+  Introduces the FindBugs "UR — Unreachable code" bug pattern category; an
+  unreachable `except` handler is a control-flow instance of the same class.
+  Languages: (general; the FindBugs study is Java, not a Python study).
+- `de-padua-shang-icpc-2017` — G. B. de Pádua, W. Shang, "Studying the
+  Prevalence of Exception Handling Anti-Patterns", ICPC 2017 (IEEE/ACM 25th
+  International Conference on Program Comprehension), pp. 328-331.
+  DOI 10.1109/ICPC.2017.1. Defines the "Unreachable Handler" exception-handling
+  anti-pattern that this detector flags.
+  Languages: (general; the study's subjects are Java/C# applications, so it
+  grounds the concept rather than Python specifically).
+- (python-unreachable-except Python coverage: unconfirmed; survey notes at
+  docs/surveys/python-unreachable-except-python-2026-06.md. The detector ships
+  Python with `LanguageCitationStatus::Unconfirmed` per
+  docs/spec/citations-policy.md — the survey found no peer-reviewed,
+  Python-subject study of this specific anti-pattern.)
+
 ## Layer 2 (Statistical ranking)
 
 - `kremenek-engler-sas-2003` — T. Kremenek, D. Engler, "Z-Ranking: Using Statistical

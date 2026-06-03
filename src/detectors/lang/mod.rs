@@ -3,4 +3,5 @@
 //! `cfg(...)` attribute reasoning) rather than a cross-cutting pattern
 //! reusable across languages.
 
+pub mod python_unreachable_except;
 pub mod rust_config_interaction;

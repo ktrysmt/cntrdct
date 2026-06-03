@@ -18,6 +18,7 @@ use cntrdct::core::Detector;
 use cntrdct::detectors::arg_swap::ArgSwap;
 use cntrdct::detectors::clone_drift::CloneDrift;
 use cntrdct::detectors::comment_code::CommentCode;
+use cntrdct::detectors::lang::python_unreachable_except::PythonUnreachableExcept;
 use cntrdct::detectors::lang::rust_config_interaction::ConfigInteraction;
 use cntrdct::detectors::pr_miner::PrMinerDetector;
 use cntrdct::detectors::unreachable_after_terminator::UnreachableAfterTerminator;
@@ -39,6 +40,7 @@ fn registered_detector_ids() -> Vec<String> {
         Box::new(UnreachableAfterTerminator::new()),
         Box::new(ConfigInteraction::new()),
         Box::new(PrMinerDetector::new()),
+        Box::new(PythonUnreachableExcept::new()),
     ];
     detectors.iter().map(|d| d.id().to_string()).collect()
 }

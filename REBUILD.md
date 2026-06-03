@@ -720,7 +720,7 @@ R-4. P3 revisit for Layer 0 LLM (carry-over from Q-17) — `[ ]`
   precedent).
 - Spec: `docs/spec/p3-amendment-v0.md` (new).
 
-R-5. Python `except` handler reachability — `[ ]`
+R-5. Python `except` handler reachability — `[x]`
 
 - Implement F4f (raise-set extraction + class-hierarchy check)
   under `src/detectors/lang/python_unreachable_except.rs`. This is
@@ -731,6 +731,50 @@ R-5. Python `except` handler reachability — `[ ]`
   future Python version drift).
 - Spec: extend `docs/spec/unreachable-after-terminator-v0.md` with
   the F4f section.
+  Status: `[x]` 2026-06-03 (uncommitted in working tree). v0 scope is
+  the ordering/subsumption check only (confirmed): a handler is flagged
+  iff every exception type it catches is provably a subclass-or-equal of
+  a type caught by an earlier handler in the same `try`. The
+  REBUILD-sketch "raise-set extraction" was scoped to mean the
+  caught-type subsumption analysis; body raise-set inference (a handler
+  for an exception the `try` body cannot raise) and PEP 654 `except*`
+  groups are explicit non-goals (the F4f spec section preregisters
+  both). New detector `python-unreachable-except`
+  (`src/detectors/lang/python_unreachable_except.rs`, Pattern B raw
+  tree-sitter per ir-v0.md §F5): reads `try_statement` → `except_clause`
+  handlers, resolves subclass relationships via the embedded CPython
+  hierarchy table (`data/python-builtin-exceptions.json`, Python 3.13,
+  child→parent + per-entry doc URL, `include_str!` so `detect()` stays
+  fs/socket-free per P3) chained with same-file `class Foo(Bar)`
+  definitions; unresolvable (imported/unknown) names are INDETERMINATE
+  and never flagged (precision-first). `anomaly_class = Logic`,
+  `raw_severity = Warning`. Wiring: added to `ALL_DETECTOR_IDS`,
+  `run_detectors_on` (six→seven), `src/main.rs` SARIF rule vec,
+  `src/lsp.rs` citation registry, and the four hardcoded test lists
+  (`wiring_consistency`, `citations_consistency`, `multilang_config`,
+  `corpus_shape`). Citations: `hovemeyer-pugh-oopsla-2004` (FindBugs UR
+  pattern) + `de-padua-shang-icpc-2017` (ICPC 2017 "Unreachable Handler"
+  anti-pattern), both peer-reviewed concept grounding; Python coverage
+  is `LanguageCitationStatus::Unconfirmed` per citations-policy.md —
+  survey `docs/surveys/python-unreachable-except-python-2026-06.md`
+  found no peer-reviewed Python-subject study of this anti-pattern (the
+  SSRN "Slithering ... Python" study is the top revisit trigger).
+  Corpus: 8 positive Python fixtures under `benchmarks/corpus/files/
+  python_unreachable_except_00{1..8}.py` + manifest entries (meets the
+  `corpus_shape` ≥8-positives-per-registered-detector contract) and 8
+  matching `benchmarks/labelled-findings.jsonl` TruePositive lines;
+  `benchmarks/priors-default.json` regenerated (additive: new
+  `python-unreachable-except` prior tp=8/fp=0/jeffreys, existing priors
+  byte-identical). Tests: `tests/detector_python_unreachable_except.rs`
+  (15 cases T1-T15: superclass-before-subclass, ordering, tuple full/
+  partial coverage, same-file user class, indeterminate import, bare
+  `except` reachability, `except*` skip, citation/status, determinism,
+  non-Python skip, anomaly class, duplicate, builtin chain). Full gate
+  green: `cargo test --all-targets` (+ `--features lsp`),
+  `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --
+  --check`; recall audit `overall_recall_upper_bound` = 0.918 (unchanged
+  — no audit-corpus entries added, §9 floor held). Not yet released; a
+  v0.9.0 bump + tag is the gated follow-up.
 
 R-6. VS Code extension (carry-over from T3-12 Phase 2) — `[ ]`
 

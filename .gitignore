@@ -2,7 +2,11 @@
 research/target
 **/*.rs.bk
 .DS_Store
-/data/
+# data/ holds research scratch (phase0) plus the load-bearing
+# python-builtin-exceptions.json contract table (R-5); ignore the
+# scratch, track the table so `include_str!` builds from a clean clone.
+/data/*
+!/data/python-builtin-exceptions.json
 # Q-16 cargo-mutants output (per-mutant logs, outcomes, locks)
 /mutants.out/
 /mutants.out.old/

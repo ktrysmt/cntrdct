@@ -83,3 +83,11 @@
 {"anomaly_class": "Documentation", "detector_id": "comment-code", "file": "files/comment_code_python_005.py", "line": 4, "repo": "corpus", "verdict": "TruePositive"}
 {"anomaly_class": "Documentation", "detector_id": "comment-code", "file": "files/parking_lot_core__parking_lot.rs", "line": 736, "repo": "wild-corpus", "verdict": "FalsePositive"}
 {"anomaly_class": "Documentation", "detector_id": "comment-code", "file": "files/parking_lot_core__parking_lot.rs", "line": 892, "repo": "wild-corpus", "verdict": "FalsePositive"}
+{"anomaly_class": "Logic", "detector_id": "python-unreachable-except", "file": "files/python_unreachable_except_001.py", "line": 6, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "python-unreachable-except", "file": "files/python_unreachable_except_002.py", "line": 6, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "python-unreachable-except", "file": "files/python_unreachable_except_003.py", "line": 7, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "python-unreachable-except", "file": "files/python_unreachable_except_004.py", "line": 6, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "python-unreachable-except", "file": "files/python_unreachable_except_005.py", "line": 6, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "python-unreachable-except", "file": "files/python_unreachable_except_006.py", "line": 6, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "python-unreachable-except", "file": "files/python_unreachable_except_007.py", "line": 10, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "python-unreachable-except", "file": "files/python_unreachable_except_008.py", "line": 6, "repo": "corpus", "verdict": "TruePositive"}
