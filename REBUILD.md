@@ -773,8 +773,10 @@ R-5. Python `except` handler reachability — `[x]`
   green: `cargo test --all-targets` (+ `--features lsp`),
   `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --
   --check`; recall audit `overall_recall_upper_bound` = 0.918 (unchanged
-  — no audit-corpus entries added, §9 floor held). Not yet released; a
-  v0.9.0 bump + tag is the gated follow-up.
+  — no audit-corpus entries added, §9 floor held). Detector landed in
+  commit 646f9a4; released as v0.9.0 (R-1 v0.6.0-v0.8.1 + R-5 shipped
+  together — the baselines fixture-rename release step stays retired per
+  R-1.e).
 
 R-6. VS Code extension (carry-over from T3-12 Phase 2) — `[ ]`
 
