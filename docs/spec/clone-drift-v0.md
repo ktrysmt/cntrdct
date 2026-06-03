@@ -412,6 +412,34 @@ in β.
 Exposed as `pub const` in `cntrdct-detector-clone-drift` for tuning without API
 change. Real-world calibration belongs to Layer 2 (ranker), not these constants.
 
+## Known recall bound — branches_sharing_code (recorded 2026-06-03)
+
+The 2026-06-03 audit-corpus FN triage
+(`docs/spec/recall-audit-v0.md` "arg-swap / clone-drift FN triage")
+classified clone-drift's single audit FN as a structural granularity
+bound, not a labelling error:
+
+- `benchmarks/audit-corpus/files/clippy_ui_branches_sharing_code_shared_at_top.rs:15`
+  — the clippy `branches_sharing_code` lint fires when an `if` / `else`
+  share a common *prefix* (or suffix) of statements while the branches
+  diverge overall. F2b detects only the case where the consequence and
+  alternative blocks are *fully byte-identical* after comment-strip /
+  whitespace-collapse (the `if_same_then_else` class); a shared prefix
+  with divergent tails is not byte-identical, so F2b emits nothing. The
+  function-level pipeline (F2 / F3 / F5) operates at whole-`fn`
+  granularity and never reaches the sub-branch fragment.
+
+This is a genuine clone-evolution anomaly (the clippy lint is the
+ground-truth source), but detecting it requires a partial-overlap
+fragment matcher — longest-common-prefix / suffix over branch
+statement sequences — that F2b deliberately does not implement in v0
+(see the Non-goals entry below). It is recorded here as future work
+(a candidate "F2c — shared-prefix/suffix branch clone" pass) rather
+than a defect: `clone-drift`'s `recall_upper_bound = 0.5` (1tp/1fn)
+against this corpus reflects the bound, and a figure at that level
+with T1 green is expected. Lifting it is out of REBUILD R-1 scope and
+not currently sequenced.
+
 ## Non-goals (v0)
 
 - Multi-language (F2b is Rust-only; Python intra-fn if-clone is a

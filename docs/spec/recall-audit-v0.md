@@ -2,7 +2,8 @@
 
 Status: active draft, approved for TDD implementation 2026-05-11.
 
-Q-14 deliverable from `ROADMAP.md`. Counters the labeller-bias loop in
+Q-14 deliverable (originally tracked in the retired `ROADMAP.md`; the
+forward plan now lives in `REBUILD.md`). Counters the labeller-bias loop in
 which cntrdct's priors are fit on corpora cntrdct labelled itself
 (P-1 → P-4 → embedded `priors-default.json`). When the only labels
 come from triaging cntrdct's own findings, the resulting recall
@@ -389,6 +390,44 @@ forward-compatible:
     FindBugs UR pattern testset; rustc UCDR examples.
 - README publishes the recall figures under a "Latest audit run"
   section, refreshed manually on each release tag.
+
+## arg-swap / clone-drift FN triage (recorded 2026-06-03)
+
+The two lowest per-detector recall figures —
+`arg-swap = 0.25` (1tp/3fn) and `clone-drift = 0.5` (1tp/1fn) — were
+triaged against the audit corpus to separate detector-logic limits
+from labelling artefacts. Method: `audit_recall` (F5) matches on the
+exact `(detector_id, file, start_line)` triple, so each expected
+entry with no actual finding at that line is an FN; each FN file was
+read and its root cause classified against the detector specs and
+minimal repro experiments. Result: all four FNs are genuine anomalies
+(verified by upstream fix commits / PyPIBugs labels / clippy lint
+triggers) — zero labelling errors — and split into three structural,
+documented bounds:
+
+- arg-swap bound A (same-file resolution, F4): `unv_app_settings.py:41`,
+  `nbrmd_test_ipynb_to_R.py:26` — callee imported from a module absent
+  from the (single-file) corpus entry, so F4 finds no definition. See
+  `docs/spec/arg-swap-v0.md` "Known recall upper bounds → Bound A".
+- arg-swap bound B (name-correlation ceiling, F5):
+  `totalsegmentator_statistics.py:10` — definition is same-file and
+  resolves, but the argument identifiers share no lexical signal with
+  the parameter names, so F5 (and the SwapD SOTA) emit nothing. Target
+  of REBUILD.md R-4. See arg-swap-v0.md "Bound B".
+- clone-drift bound C (granularity, F2/F2b):
+  `clippy_ui_branches_sharing_code_shared_at_top.rs:15` — the clippy
+  `branches_sharing_code` class (branches sharing a common prefix but
+  diverging) is out of scope; F2b flags only fully byte-identical
+  consequence/alternative blocks. See
+  `docs/spec/clone-drift-v0.md` "Known recall bound — branches_sharing_code".
+
+The triage also surfaced an arg-swap call-enumeration regression from
+the R-1.c'' IR migration (calls nested in `IrExpr::Other` shapes were
+unvisited) — invisible to the T1 gate because the one such audit call
+is itself bound B. Fixed 2026-06-03 (arg-swap-v0.md §F3); it does not
+move this corpus's recall figure but recovers real-world recall. These
+bounds are recall *upper bounds*, not regressions: a figure at or above
+the floor with T1 green is expected, not a defect.
 
 ## References
 

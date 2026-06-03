@@ -51,28 +51,36 @@ later at resolution (F4), not at registration.
 
 ### F3 — Call-site extraction
 
-Recursively walk every registered function body's IR
-(`IrBlock.statements`, descending through `IrStmtKind::{If, While, Loop,
-For, Match, With, Try}` sub-blocks, `Let` / `Assign` RHS, `Return` /
-`Raise` / `Assert` payloads, `DivergentCall` args, and `IrExpr::Call`
-argument nesting). Collect each `IrCallSite` whose:
-- callee `IrPath` is a single bare identifier (Rust), or a bare
+Walk the raw tree-sitter tree (`IrFile::raw_tree()`) for every
+`call_expression` (Rust) / `call` (Python) node, in document order,
+across the whole file. Collect each call whose:
+- function operand is a single bare identifier (Rust), or a bare
   identifier / single-segment `self.` / `cls.` method (Python, F3b),
   and whose
-- arguments are all `IrExpr::Ident`.
+- arguments are all bare `identifier` nodes.
 
 Record callee name, the identifier-name argument vector, argument
 count, and location. Skip calls where any argument is non-identifier
 (keyword args, splats, literals, nested calls).
 
-The IR walk reaches a strict subset of the v0.5.x raw-tree traversal:
-calls buried in still-`IrExpr::Other` shapes (`binary_operator`,
-`subscript`, …) are not visited. Because the walk can only ever see
-*fewer* call sites than the v0.5.x full-tree walk, it cannot
-manufacture a finding v0.5.x did not also produce — the T1 pinning
-(ir-v0.md §F6 T1) stays byte-identical. The transparent `await` wrapper
-is unwrapped by the converter (ir-v0.md §F2) so `await foo(args)` call
-sites remain reachable.
+Call-site enumeration is a raw-tree walk rather than an IR walk
+(definition extraction in F2 stays on IR). The R-1.c'' Path (b) IR
+migration narrowed enumeration to the converter-materialised shapes;
+that walk could not reach calls buried in `IrExpr::Other` shapes
+(`binary_operator`, closures, Python comprehensions / generators /
+conditional expressions, f-strings, …), silently regressing arg-swap
+recall on real code — a name-correlating swap inside any of those
+shapes produced no finding where v0.5.x did. The T1 pinning
+(ir-v0.md §F6 T1) did not catch the regression because the only such
+call in the audit / wild corpora
+(`benchmarks/audit-corpus/files/totalsegmentator_statistics.py:10`)
+has no argument/parameter name correlation and so fires in neither
+version. Enumeration was therefore reverted to the v0.5.x full raw-tree
+walk (2026-06-03), which keeps the T1 pinning byte-identical and
+restores detection of swaps nested in `Other` shapes. This is the
+Pattern-B escape hatch pr-miner keeps (ir-v0.md §F5): full call-set
+enumeration is not losslessly representable in the simplified IR. The
+regression guard lives in `tests/detector_arg_swap.rs` T30 / T31.
 
 ### F3b — Method calls on `self` / `cls` (added 2026-05-21)
 
@@ -201,46 +209,81 @@ Files that fail to parse are skipped silently in v0.
 - Fuzzy name matching beyond the strict-prefix shape admitted by F5b
   (no Levenshtein, no edit distance, no semantic embeddings)
 
-## Name-correlation upper bound (recorded 2026-05-21)
+## Known recall upper bounds (recorded 2026-05-21, refined 2026-06-03)
 
 The audit corpus at `benchmarks/audit-corpus/` carries four
 expected `arg-swap` entries (one `github-commit`, three
-`paper-appendix`). cntrdct currently recovers one — the
-`rarfile_set_attrs.py:14` case — via F3b + F4b + F5b. The
-remaining three were re-examined against the cover-based checker
-described in Scott et al. ASE 2020 (SwapD, arXiv 2009.09117,
-§3.4), which is the published state-of-the-art for syntactic
-name-correlation arg-swap detection. The result is that none of
-the three FNs would be caught by SwapD either:
+`paper-appendix`). cntrdct recovers one — the
+`rarfile_set_attrs.py:14` case — via F3b + F4b + F5b, giving
+`recall_upper_bound = 0.25` (1/4). All three FNs are genuine
+swaps (verified by upstream fix commits / PyPIBugs labels), not
+labelling errors. They fall into two distinct, structural recall
+bounds — not v0 scope choices that a later spec amendment closes
+cheaply. The 2026-06-03 audit (`docs/spec/recall-audit-v0.md`
+"arg-swap / clone-drift FN triage") confirmed both, and that the
+F3 call-enumeration regression fix does NOT move this corpus
+figure (see bound B).
 
-- `unv_app_settings.py:41` — `update_dict_recur(settings,
-  base_settings)` against signature `(base_dict, override_dict)`.
-  After SwapD's intra-position common-morpheme elimination, the
-  argument morpheme set at position 0 collapses to ∅, so the
-  cover-based checker skips the call (SwapD §3.4 step 2).
-- `nbrmd_test_ipynb_to_R.py:26` — `compare_notebooks(nb1, nb2)`
-  against signature `(notebook_expected, notebook_actual)`. The
-  argument morphemes collapse to {`nb`, `nb`}; intra-position
-  elimination leaves both sides empty.
+### Bound A — same-file resolution (F4)
+
+F4 resolves a callee only against definitions in the same scan unit
+(SHOULD: any file in the same scan; the corpus entries are
+single-file, so the imported definition is absent). Two FNs are
+unresolvable for this reason — the callee is imported from a module
+not present in the corpus file, so F4 finds zero candidate
+definitions and skips before F5 ever runs:
+
+- `unv_app_settings.py:41` — `update_dict_recur(...)` imported from
+  `unv.utils.collections` (upstream line 7).
+- `nbrmd_test_ipynb_to_R.py:26` — `compare_notebooks(...)` imported
+  from `jupytext.compare` (upstream line 5).
+
+This is the resolution model stated in Scope ("same-file only") and
+Non-goals ("cross-crate / cross-module resolution beyond same
+scan"). T11 shows cntrdct DOES resolve cross-file when both the
+definition and call files are in the scan; the bound is that the
+audit entries package only the call-site file. Closing it would
+require either packaging the imported module into the corpus entry
+(a labelling/corpus change) or whole-program / import-following
+resolution (out of Layer 1's per-file deterministic contract).
+
+### Bound B — name-correlation ceiling (F5)
+
+The third FN resolves cleanly (definition is same-file) but carries
+no lexical signal F5 can use:
+
 - `totalsegmentator_statistics.py:10` —
-  `get_radiomics_features(ct_file, mask)` against signature
-  `(seg_file, img_file)`. After common-morpheme elimination the
-  surviving morphemes share no first character, so SwapD's
-  similarity metric (which is zero when first characters differ;
-  §3.2) collapses every coverage to 0 and the dual threshold
-  `(<α₁=0.5, >α₂=0.75)` cannot be satisfied.
+  `get_radiomics_features(ct_file, mask)` against same-file
+  signature `(seg_file, img_file)`. The argument identifiers share
+  no equality or prefix with the parameter names, so neither
+  identity nor swap matches and F5 emits nothing.
 
-All three are genuine semantic swaps (CT vs. segmentation, base
-vs. override, expected vs. actual) that require reasoning beyond
-identifier morphology — either the Allamanis et al. NeurIPS 2021
-self-supervised PyBugLab approach (a learned graph-neural-network
-model, not a deterministic checker) or LLM adjudication. Neither
-fits Layer 1's deterministic, citation-grounded contract. The
-current `recall_upper_bound = 0.25` is therefore the
-**name-correlation ceiling** for this corpus, not a v0 scope
-choice. Closing the remaining gap is a Layer-3 architecture
-question, tracked separately in ROADMAP and not in scope for
-F5c-or-later spec amendments.
+This was cross-checked against the cover-based checker in Scott et
+al. ASE 2020 (SwapD, arXiv 2009.09117, §3.4), the published
+state-of-the-art for syntactic name-correlation arg-swap detection,
+which would also miss all three even given the signatures: after
+common-morpheme elimination the surviving morphemes share no first
+character, so SwapD's similarity metric (zero when first characters
+differ; §3.2) collapses every coverage to 0 and the dual threshold
+`(<α₁=0.5, >α₂=0.75)` cannot be satisfied. These are semantic swaps
+(CT vs. segmentation) that require reasoning beyond identifier
+morphology — the Allamanis et al. NeurIPS 2021 self-supervised
+PyBugLab model or LLM adjudication, neither of which fits Layer 1's
+deterministic, citation-grounded contract.
+
+Bound B is the target of REBUILD.md R-4 (the P3 amendment for a
+Layer 0 LLM candidate generator running against IR call-site
+predicates); it is NOT an F5c-or-later Layer 1 spec amendment.
+
+Note on the F3 regression (2026-06-03): the call-enumeration revert
+(F3) does not change this corpus's `recall_upper_bound`, because the
+one audit call hidden in an `IrExpr::Other` shape
+(`totalsegmentator_statistics.py:10`, inside a list comprehension)
+is itself bound B (no name correlation) and so fires in neither the
+pre- nor post-fix detector. The fix recovers real-world recall for
+name-correlating swaps nested in `Other` expression shapes, which no
+audit/wild fixture exercised — hence the regression's invisibility
+to the T1 gate.
 
 ## References (P1)
 

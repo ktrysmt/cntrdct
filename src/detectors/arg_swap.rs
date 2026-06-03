@@ -3,18 +3,21 @@
 //! Spec: `cntrdct/docs/spec/arg-swap-v0.md` (Rust v0).
 //! Multi-language: `cntrdct/docs/spec/multilang-v0.md` (Pattern A).
 //!
-//! Algorithm (shared, IR-based since R-1.c''):
-//! 1. Read each [`IrFile`]'s functions (the converter parsed every file
-//!    once; the detector never reparses).
+//! Algorithm (shared; definitions on IR, call sites on raw tree):
+//! 1. Definition extraction reads each [`IrFile`]'s functions from the
+//!    IR the converter already produced (parameter lists are losslessly
+//!    modelled by `IrFn.params` / `is_method`).
 //! 2. Across all files in the scan, build a map from function name to
 //!    definitions (collecting parameter names). Rust registers only
 //!    top-level functions (`!is_method`, matching the v0.5.x root-level
 //!    `function_item` walk); Python additionally registers class methods
 //!    (F4b) with the leading `self` / `cls` receiver dropped.
-//! 3. Recursively walk every function body's IR statements / expressions
-//!    and collect [`crate::ir::IrCallSite`]s whose callee is a bare
-//!    identifier (Rust) or a bare identifier / `self.` / `cls.` method
-//!    (Python) and whose arguments are all bare identifiers.
+//! 3. Call-site enumeration walks the raw tree-sitter tree
+//!    ([`IrFile::raw_tree`]) for every `call_expression` (Rust) / `call`
+//!    (Python) node whose callee is a bare identifier (Rust) or a bare
+//!    identifier / `self.` / `cls.` method (Python) and whose arguments
+//!    are all bare identifiers. See the "Call-site extraction" note
+//!    below for why this is a raw walk rather than an IR walk.
 //! 4. For binary callees with a unique 2-arg definition, check whether the
 //!    argument identifier multiset is the swap permutation of the parameter
 //!    name multiset (case-insensitive, F5a strict / F5b prefix).
@@ -27,16 +30,24 @@
 //! NeurIPS 2021 (PyBugLab + PyPIBugs); see
 //! `docs/surveys/arg-swap-python-2026-05.md`.
 //!
-//! IR migration note (R-1.c'' Path b): the v0.5.x raw tree-sitter walk
-//! visited every `call_expression` / `call` node in the file. The IR
-//! walk reaches the same call sites the converter materialises —
-//! statement position, `let` / assignment RHS, `for` iterable / body,
-//! `try` / `with` blocks, `if` / `match` / `while` / `loop` bodies, and
-//! call-argument nesting — plus the transparent `await` wrapper
-//! (ir-v0.md §F2). Calls buried in still-`IrExpr::Other` shapes
-//! (`binary_operator`, `subscript`, …) are not visited; this is a strict
-//! subset of the v0.5.x traversal and so can never manufacture a finding
-//! v0.5.x did not also produce, preserving the T1 byte-identical pinning.
+//! IR migration note (R-1.c'' Path b, then reverted for call sites):
+//! the R-1.c'' migration narrowed call enumeration to an IR walk over
+//! the converter-materialised shapes (statement position, `let` /
+//! assignment RHS, `for` iterable / body, `try` / `with` blocks,
+//! `if` / `match` / `while` / `loop` bodies, call-argument nesting).
+//! That walk could not reach calls buried in `IrExpr::Other` shapes
+//! (`binary_operator`, closures, Python comprehensions / generators /
+//! conditional expressions, f-strings, …), so it silently regressed
+//! arg-swap recall on real code: a name-correlating swap inside any of
+//! those shapes produced no finding where v0.5.x's full-tree walk did.
+//! The T1 pinning gate missed the regression because the only such call
+//! in the audit / wild corpora (`totalsegmentator_statistics.py:10`) has
+//! no argument/parameter name correlation and so fires in neither
+//! version. Call-site enumeration is therefore reverted to the v0.5.x
+//! full raw-tree walk (this file's "Call-site extraction" section);
+//! definition extraction stays on IR. This is the same Pattern-B escape
+//! hatch pr-miner keeps (ir-v0.md §F5) — full call-set enumeration is
+//! not losslessly representable in the simplified IR.
 
 use std::collections::HashMap;
 
@@ -44,9 +55,7 @@ use crate::core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
     LanguageCitationStatus, Location, Severity,
 };
-use crate::ir::{
-    IrBlock, IrCallSite, IrExpr, IrExprKind, IrFile, IrFn, IrIfStmt, IrPath, IrStmtKind, ParamKind,
-};
+use crate::ir::{IrFile, IrFn, ParamKind};
 use rayon::prelude::*;
 
 static CITATIONS: &[Citation] = &[
@@ -345,194 +354,175 @@ fn ir_fn_to_def(f: &IrFn) -> Option<(String, FnDef)> {
     ))
 }
 
-// ---------- Call-site extraction (IR) ----------
+// ---------- Call-site extraction (raw tree-sitter) ----------
 //
-// Walk every function body (including impl / class methods — the
-// v0.5.x raw walk visited the whole tree, so calls inside methods are
-// in scope even though the method itself is not a Rust definition) and
-// collect the call sites that match the v0 swap-candidate shape.
+// arg-swap must enumerate EVERY call site in the file, including calls
+// nested in expression shapes the converter leaves as `IrExpr::Other`
+// (binary operators, closures, Python comprehensions / generators /
+// conditional expressions, f-strings, …). The structured IR does not
+// materialise those, so an IR-only walk silently drops their calls (the
+// R-1.c'' regression — see the module header). Call enumeration is
+// therefore a raw tree-sitter walk over `IrFile::raw_tree()`, byte-for-
+// byte the v0.5.x traversal; this is the Pattern-B escape hatch pr-miner
+// uses (ir-v0.md §F5). Definition extraction stays on IR because
+// parameter lists ARE losslessly modelled (`IrFn.params` / `is_method`).
+//
+// The `parse_recovered` guard reproduces the v0.5.x `root.has_error()`
+// skip: the converter sets `parse_recovered` from exactly that flag
+// (`src/parsers/mod.rs`).
 
 fn extract_rust_call_sites(file: &IrFile) -> Option<Vec<CallSite>> {
-    extract_call_sites(file, Language::Rust)
-}
-
-fn extract_python_call_sites(file: &IrFile) -> Option<Vec<CallSite>> {
-    extract_call_sites(file, Language::Python)
-}
-
-fn extract_call_sites(file: &IrFile, lang: Language) -> Option<Vec<CallSite>> {
     if file.parse_recovered {
         return None;
     }
-    let mut out: Vec<CallSite> = Vec::new();
-    for f in &file.fns {
-        walk_block_calls(&f.body, lang, &mut out);
-    }
-    Some(out)
+    let tree = file.raw_tree();
+    let mut calls = Vec::new();
+    walk_rust_for_calls(tree.root_node(), file, &mut calls);
+    Some(calls)
 }
 
-fn walk_block_calls(block: &IrBlock, lang: Language, out: &mut Vec<CallSite>) {
-    for stmt in &block.statements {
-        match &stmt.kind {
-            IrStmtKind::Call(call) => {
-                consider_call(call, lang, out);
-                walk_args(&call.args, lang, out);
-            }
-            IrStmtKind::Let { value } | IrStmtKind::Assign { value } => {
-                if let Some(v) = value {
-                    walk_expr_calls(v, lang, out);
-                }
-            }
-            IrStmtKind::Return(value) | IrStmtKind::Raise(value) => {
-                if let Some(v) = value {
-                    walk_expr_calls(v, lang, out);
-                }
-            }
-            IrStmtKind::Assert(cond) => walk_expr_calls(cond, lang, out),
-            IrStmtKind::DivergentCall { args, .. } => walk_args(args, lang, out),
-            IrStmtKind::If(if_stmt) => walk_if_calls(if_stmt, lang, out),
-            IrStmtKind::While(w) => {
-                walk_expr_calls(&w.condition, lang, out);
-                walk_block_calls(&w.body, lang, out);
-            }
-            IrStmtKind::Loop(l) => walk_block_calls(&l.body, lang, out),
-            IrStmtKind::For(f) => {
-                walk_expr_calls(&f.iterable, lang, out);
-                walk_block_calls(&f.body, lang, out);
-            }
-            IrStmtKind::Match(m) => {
-                walk_expr_calls(&m.scrutinee, lang, out);
-                for arm in &m.arms {
-                    walk_expr_calls(&arm.body, lang, out);
-                }
-            }
-            IrStmtKind::With(wi) => {
-                for cm in &wi.context_managers {
-                    walk_expr_calls(cm, lang, out);
-                }
-                walk_block_calls(&wi.body, lang, out);
-            }
-            IrStmtKind::Try(t) => {
-                walk_block_calls(&t.body, lang, out);
-                for h in &t.handlers {
-                    walk_block_calls(h, lang, out);
-                }
-                if let Some(o) = &t.orelse {
-                    walk_block_calls(o, lang, out);
-                }
-                if let Some(fb) = &t.finalbody {
-                    walk_block_calls(fb, lang, out);
-                }
-            }
-            IrStmtKind::Break(_)
-            | IrStmtKind::Continue(_)
-            | IrStmtKind::HoistedItem { .. }
-            | IrStmtKind::Other { .. } => {}
+fn walk_rust_for_calls(node: tree_sitter::Node, file: &IrFile, out: &mut Vec<CallSite>) {
+    if node.kind() == "call_expression" {
+        if let Some(call) = parse_rust_call(node, file) {
+            out.push(call);
         }
     }
-}
-
-fn walk_expr_calls(expr: &IrExpr, lang: Language, out: &mut Vec<CallSite>) {
-    match &expr.kind {
-        IrExprKind::Call(call) => {
-            consider_call(call, lang, out);
-            walk_args(&call.args, lang, out);
-        }
-        IrExprKind::Return(inner) | IrExprKind::Raise(inner) => {
-            if let Some(e) = inner {
-                walk_expr_calls(e, lang, out);
-            }
-        }
-        IrExprKind::Block(b) => walk_block_calls(b, lang, out),
-        IrExprKind::If(if_stmt) => walk_if_calls(if_stmt, lang, out),
-        IrExprKind::Match(m) => {
-            walk_expr_calls(&m.scrutinee, lang, out);
-            for arm in &m.arms {
-                walk_expr_calls(&arm.body, lang, out);
-            }
-        }
-        IrExprKind::Loop(l) => walk_block_calls(&l.body, lang, out),
-        IrExprKind::DivergentCall { args, .. } => walk_args(args, lang, out),
-        IrExprKind::Ident(_)
-        | IrExprKind::Path(_)
-        | IrExprKind::Literal(_)
-        | IrExprKind::Break(_)
-        | IrExprKind::Continue(_)
-        | IrExprKind::Other { .. } => {}
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        walk_rust_for_calls(child, file, out);
     }
 }
 
-fn walk_if_calls(if_stmt: &IrIfStmt, lang: Language, out: &mut Vec<CallSite>) {
-    walk_expr_calls(&if_stmt.condition, lang, out);
-    walk_block_calls(&if_stmt.consequence, lang, out);
-    if let Some(alt) = &if_stmt.alternative {
-        walk_block_calls(alt, lang, out);
-    }
-}
-
-fn walk_args(args: &[IrExpr], lang: Language, out: &mut Vec<CallSite>) {
-    for a in args {
-        walk_expr_calls(a, lang, out);
-    }
-}
-
-/// Push a [`CallSite`] for `call` iff it matches the v0 swap-candidate
-/// shape: a bare-identifier callee (Rust) / bare-identifier or
-/// `self.` / `cls.` method callee (Python) whose arguments are all bare
-/// identifiers. Any non-identifier argument disqualifies the whole call.
-fn consider_call(call: &IrCallSite, lang: Language, out: &mut Vec<CallSite>) {
-    let callee = match lang {
-        Language::Rust => rust_callee_name(&call.callee),
-        Language::Python => python_callee_name(&call.callee),
-    };
-    let Some(callee) = callee else { return };
-
-    let mut args: Vec<String> = Vec::with_capacity(call.args.len());
-    for a in &call.args {
-        match &a.kind {
-            IrExprKind::Ident(name) => args.push(name.clone()),
-            // keyword arguments, splats, literals, attribute access,
-            // nested calls — anything other than a bare identifier
-            // disqualifies the call from v0 swap analysis.
-            _ => return,
-        }
-    }
-
-    out.push(CallSite {
-        callee,
-        args,
-        location: ir_loc_to_core(&call.location),
-    });
-}
-
-/// A Rust callee is in scope only when it is a single bare identifier
-/// (`foo`), mirroring v0.5.x `function.kind() == "identifier"`. Scoped
-/// paths (`a::b`) and method / field calls (`a.b`) are rejected.
-fn rust_callee_name(path: &IrPath) -> Option<String> {
-    if path.receiver.is_empty() && path.segments.len() == 1 && path.raw == path.segments[0] {
-        Some(path.segments[0].clone())
-    } else {
-        None
-    }
-}
-
-/// A Python callee is in scope when it is a bare identifier (`foo`) or a
-/// single-segment `self.` / `cls.` method (`self.foo` / `cls.foo`),
-/// mirroring v0.5.x `parse_python_call` (identifier or
-/// `python_self_method_name`). Deeper attribute access
-/// (`self.x.y`, `obj.foo`) is rejected.
-fn python_callee_name(path: &IrPath) -> Option<String> {
-    if path.segments.len() != 1 {
+/// A Rust call is in scope only when its function operand is a single
+/// bare identifier (`foo(...)`); scoped paths (`a::b`) and method /
+/// field calls (`a.b`) are rejected. Every argument must be a bare
+/// `identifier` — any other shape disqualifies the call from v0 swap
+/// analysis.
+fn parse_rust_call(node: tree_sitter::Node, file: &IrFile) -> Option<CallSite> {
+    let function = node.child_by_field_name("function")?;
+    if function.kind() != "identifier" {
         return None;
     }
-    match path.receiver.as_slice() {
-        [] => Some(path.segments[0].clone()),
-        [recv] if recv == "self" || recv == "cls" => Some(path.segments[0].clone()),
-        _ => None,
+    let callee = node_text(function, &file.source);
+
+    let arguments = node.child_by_field_name("arguments")?;
+    let mut args = Vec::new();
+    let mut cursor = arguments.walk();
+    for child in arguments.children(&mut cursor) {
+        if !child.is_named() {
+            continue;
+        }
+        if child.kind() == "identifier" {
+            args.push(node_text(child, &file.source));
+        } else {
+            return None;
+        }
     }
+
+    Some(CallSite {
+        callee,
+        args,
+        location: node_location(file, node),
+    })
+}
+
+fn extract_python_call_sites(file: &IrFile) -> Option<Vec<CallSite>> {
+    if file.parse_recovered {
+        return None;
+    }
+    let tree = file.raw_tree();
+    let mut calls = Vec::new();
+    walk_python_for_calls(tree.root_node(), file, &mut calls);
+    Some(calls)
+}
+
+fn walk_python_for_calls(node: tree_sitter::Node, file: &IrFile, out: &mut Vec<CallSite>) {
+    if node.kind() == "call" {
+        if let Some(call) = parse_python_call(node, file) {
+            out.push(call);
+        }
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        walk_python_for_calls(child, file, out);
+    }
+}
+
+/// A Python call is in scope when its function operand is a bare
+/// identifier (`foo(...)`) or a single-segment `self.` / `cls.` method
+/// (`self.foo(...)` / `cls.foo(...)`, F3b); the receiver is dropped and
+/// the attribute identifier becomes the callee, matching how the method
+/// is registered under F4b. Deeper attribute access (`self.x.y(...)`,
+/// `obj.foo(...)`) is out of v0 scope. Every argument must be a bare
+/// `identifier`.
+fn parse_python_call(node: tree_sitter::Node, file: &IrFile) -> Option<CallSite> {
+    let function = node.child_by_field_name("function")?;
+    let callee = match function.kind() {
+        "identifier" => node_text(function, &file.source),
+        "attribute" => python_self_method_name(function, &file.source)?,
+        _ => return None,
+    };
+
+    let arguments = node.child_by_field_name("arguments")?;
+    let mut args = Vec::new();
+    let mut cursor = arguments.walk();
+    for child in arguments.children(&mut cursor) {
+        if !child.is_named() {
+            continue;
+        }
+        if child.kind() == "identifier" {
+            args.push(node_text(child, &file.source));
+        } else {
+            // keyword_argument, list_splat, dictionary_splat, literals,
+            // attribute access, nested calls — anything other than a
+            // bare identifier disqualifies the call from v0 swap analysis.
+            return None;
+        }
+    }
+
+    Some(CallSite {
+        callee,
+        args,
+        location: node_location(file, node),
+    })
+}
+
+/// Extract the method name from a `self.<name>` or `cls.<name>`
+/// attribute node, or return `None` for any other receiver shape.
+fn python_self_method_name(attribute: tree_sitter::Node, source: &str) -> Option<String> {
+    let object = attribute.child_by_field_name("object")?;
+    let attr = attribute.child_by_field_name("attribute")?;
+    if object.kind() != "identifier" || attr.kind() != "identifier" {
+        return None;
+    }
+    let receiver = node_text(object, source);
+    if receiver != "self" && receiver != "cls" {
+        return None;
+    }
+    Some(node_text(attr, source))
 }
 
 // ---------- Shared helpers ----------
+
+/// Source text of a raw tree-sitter node.
+fn node_text(node: tree_sitter::Node, source: &str) -> String {
+    source[node.byte_range()].to_string()
+}
+
+/// Build a [`Location`] from a raw tree-sitter node, mirroring the
+/// v0.5.x `node_location` (1-based line / column, no byte offsets) so
+/// the emitted finding shape stays byte-identical.
+fn node_location(file: &IrFile, node: tree_sitter::Node) -> Location {
+    let start = node.start_position();
+    let end = node.end_position();
+    Location {
+        file: file.path.clone(),
+        start_line: start.row as u32 + 1,
+        start_col: start.column as u32 + 1,
+        end_line: end.row as u32 + 1,
+        end_col: end.column as u32 + 1,
+    }
+}
 
 /// Project an [`crate::ir::Location`] (6 fields, byte offsets included)
 /// onto the [`crate::core::Location`] (4 fields) the [`Finding`] surface

@@ -432,6 +432,25 @@ R-1.c''. IR compaction follow-up. The R-1.c' lazy reparse cut the
          reachable. ir-v0.md §F2 transparent-wrapper note +
          arg-swap-v0.md §F2 / F3 updated. No T4 re-bless (no `await`
          fixture).
+         CORRECTION (2026-06-03): the "strict subset is harmless" claim
+         above was wrong. A recall-audit FN triage showed the IR-only
+         call walk silently regressed arg-swap recall on real code —
+         name-correlating swaps nested in `IrExpr::Other` shapes (binary
+         operands, closures, Python comprehensions / generators /
+         conditional expressions, f-strings) produced no finding where
+         v0.5.x did. The T1 gate missed it because the one such audit call
+         (`totalsegmentator_statistics.py:10`, inside a list comprehension)
+         has no name correlation and so fires in neither version. Fix:
+         arg-swap call-site ENUMERATION reverted to the v0.5.x raw-tree
+         walk over `IrFile::raw_tree()` (Pattern-B escape hatch, same as
+         pr-miner); DEFINITION extraction stays on IR (`IrFn.params` /
+         `is_method` are lossless). T1 byte-identical preserved; corpus
+         `recall_upper_bound` unchanged (0.918 / arg-swap 0.25); regression
+         guard `tests/detector_arg_swap.rs` T30 / T31. arg-swap-v0.md §F3
+         + "Known recall upper bounds" (Bound A same-file resolution,
+         Bound B name-correlation ceiling → R-4), recall-audit-v0.md
+         "arg-swap / clone-drift FN triage", clone-drift-v0.md "Known
+         recall bound — branches_sharing_code" (Bound C) updated.
        T1 byte-identical across audit / wild-rust / wild-python for
        both migrated detectors. T7 spot-check (3 trials, wild-corpus
        Rust): wall-clock 1.62 → ~1.29 s (now ≈ v0.5.2's 1.33 s — the

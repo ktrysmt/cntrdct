@@ -596,3 +596,84 @@ fn copy(dst: i32, src: i32) {
         findings
     );
 }
+
+// ---------------------------------------------------------------------
+// Regression guard (R-1.c'' follow-up, 2026-06-03): call sites nested in
+// expression shapes the converter leaves as `IrExpr::Other` (binary
+// operators, closures, Python comprehensions / generators / conditional
+// expressions, f-strings) must still be enumerated. The R-1.c'' IR-walk
+// migration silently dropped these (calls reachable only through an
+// `Other` expression were unvisited), regressing arg-swap recall on real
+// code; call enumeration was reverted to the v0.5.x raw-tree walk. The
+// T1 audit/wild pinning did not catch the regression because the only
+// such call in those corpora (`totalsegmentator_statistics.py:10`) has no
+// argument/parameter name correlation and so fires in neither version.
+// These tests put a name-correlating swap inside each shape so a future
+// re-narrowing of call enumeration fails the gate.
+// ---------------------------------------------------------------------
+
+#[test]
+fn t30_rust_swap_inside_other_expression_shapes_detected() {
+    // `make(img_file, seg_file)` is a name-swap against the definition
+    // `make(seg_file, img_file)`. Each call sits inside an expression
+    // the converter materialises as `IrExpr::Other` (binary operand,
+    // closure body), so an IR-only walk would miss them.
+    let src = r#"
+fn make(seg_file: u32, img_file: u32) -> u32 { seg_file + img_file }
+
+fn d_binary(seg_file: u32, img_file: u32) -> u32 {
+    1 + make(img_file, seg_file)
+}
+
+fn d_closure(seg_file: u32, img_file: u32) -> u32 {
+    (0..3).map(|_| make(img_file, seg_file)).sum()
+}
+"#;
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert_eq!(
+        findings.len(),
+        2,
+        "swaps nested in binary / closure expressions must be detected, got {:#?}",
+        findings
+    );
+    assert!(findings.iter().all(|f| f.detector_id == "arg-swap"));
+}
+
+#[test]
+fn t31_python_swap_inside_other_expression_shapes_detected() {
+    // Each `make(img_file, seg_file)` is a name-swap against the
+    // definition `make(seg_file, img_file)`, nested in (in order) a list
+    // comprehension, generator expression, dict comprehension,
+    // conditional expression, binary expression, and f-string — every
+    // shape the converter leaves as `IrExpr::Other`.
+    let src = r#"
+def make(seg_file, img_file="x"):
+    return seg_file, img_file
+
+def d_listcomp(seg_file, img_file, xs):
+    return [make(img_file, seg_file) for x in xs]
+
+def d_gen(seg_file, img_file, xs):
+    return (make(img_file, seg_file) for x in xs)
+
+def d_dictcomp(seg_file, img_file, xs):
+    return {x: make(img_file, seg_file) for x in xs}
+
+def d_ternary(seg_file, img_file, c):
+    return make(img_file, seg_file) if c else None
+
+def d_binary(seg_file, img_file):
+    return 1 + len(make(img_file, seg_file))
+
+def d_fstring(seg_file, img_file):
+    return f"{make(img_file, seg_file)}"
+"#;
+    let findings = run(vec![parsed_python("a.py", src)]);
+    assert_eq!(
+        findings.len(),
+        6,
+        "swaps nested in comprehension / generator / dict-comprehension / ternary / binary / f-string must be detected, got {:#?}",
+        findings
+    );
+    assert!(findings.iter().all(|f| f.detector_id == "arg-swap"));
+}
