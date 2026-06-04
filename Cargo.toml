@@ -1,10 +1,10 @@
 [package]
 name = "cntrdct"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2021"
 license = "MIT"
 authors = ["cntrdct contributors"]
-description = "Evidence-based contradiction linter for Rust and Python."
+description = "Evidence-based contradiction linter for Rust, Python, and TypeScript."
 repository = "https://github.com/ktrysmt/cntrdct"
 homepage = "https://github.com/ktrysmt/cntrdct"
 readme = "README.md"
