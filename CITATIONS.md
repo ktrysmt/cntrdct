@@ -33,6 +33,8 @@ pointing at the relevant `docs/surveys/` file.
   cloned fragments across release histories.
   Languages: Python (clause (b) per docs/spec/citations-policy.md;
   see docs/surveys/clone-drift-python-2026-05.md).
+- (clone-drift TypeScript coverage: unconfirmed; survey notes at
+  docs/surveys/clone-drift-typescript-2026-06.md)
 
 ### arg-swap
 
@@ -48,6 +50,8 @@ pointing at the relevant `docs/surveys/` file.
   corpus); argument swapping is one of four target bug classes.
   Languages: Python (clause (a) and (c) per docs/spec/citations-policy.md;
   see docs/surveys/arg-swap-python-2026-05.md).
+- (arg-swap TypeScript coverage: unconfirmed; survey notes at
+  docs/surveys/arg-swap-typescript-2026-06.md)
 
 ### comment-code
 
@@ -59,6 +63,8 @@ pointing at the relevant `docs/surveys/` file.
   Languages: Rust (grandfathered).
 - (comment-code Python coverage: unconfirmed; survey notes at
   docs/surveys/comment-code-python-2026-05.md)
+- (comment-code TypeScript coverage: unconfirmed; survey notes at
+  docs/surveys/comment-code-typescript-2026-06.md)
 
 ### unreachable-after-terminator
 
@@ -74,6 +80,8 @@ pointing at the relevant `docs/surveys/` file.
   systems code).
 - (unreachable-after-terminator Python coverage: unconfirmed; survey notes at
   docs/surveys/unreachable-after-terminator-python-2026-05.md)
+- (unreachable-after-terminator TypeScript coverage: unconfirmed; survey notes at
+  docs/surveys/unreachable-after-terminator-typescript-2026-06.md)
 
 ### pr-miner
 
@@ -84,6 +92,9 @@ pointing at the relevant `docs/surveys/` file.
 - (pr-miner Python coverage: unconfirmed; survey notes at
   docs/surveys/pr-miner-python-2026-05.md. v0.1 ships Python dispatch with
   `LanguageCitationStatus::Unconfirmed`, mirroring the comment-code precedent.)
+- (pr-miner TypeScript coverage: unconfirmed; survey notes at
+  docs/surveys/pr-miner-typescript-2026-06.md. TypeScript dispatch ships with
+  `LanguageCitationStatus::Unconfirmed`, same as the Python precedent.)
 - (Methodology reference for the Apriori miner: Agrawal & Srikant, VLDB 1994.
   Not listed as a Detector citation per citations-policy.md — the paper does not
   introduce the detector concept.)
