@@ -725,6 +725,12 @@ pub enum IrCommentKind {
     PythonComment,
     /// Python `"""..."""` docstring (or `'''...'''`).
     PythonDocstring,
+    /// TypeScript `// ...` line comment.
+    TypeScriptLine,
+    /// TypeScript `/* ... */` block comment (non-JSDoc).
+    TypeScriptBlock,
+    /// TypeScript `/** ... */` JSDoc doc-comment block.
+    TypeScriptDocBlock,
 }
 
 // ---------- IrDecorator ----------
@@ -813,6 +819,10 @@ pub enum DivergentKind {
     ExitBuiltin,
     /// Python builtin `quit(...)`.
     QuitBuiltin,
+    /// TypeScript / Node `process.exit(...)`. The Node runtime
+    /// terminates the process, so control never returns past the call
+    /// — the divergent analogue of Python's `sys.exit` (R-2).
+    ProcessExit,
 }
 
 /// Branch-merge subkind for [`IrTerminator::BranchMerge`].

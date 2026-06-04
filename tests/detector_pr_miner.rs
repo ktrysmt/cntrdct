@@ -584,3 +584,72 @@ fn f4b_stdlib_constructor_cooccurrence_filtered_out() {
         err_ok_violations
     );
 }
+
+// ---------- R-2.e: TypeScript ----------
+
+fn parsed_typescript(name: &str, src: &str) -> IrFile {
+    cntrdct::ir_from_source(&PathBuf::from(name), Language::TypeScript, src.to_string())
+        .expect("ir_from_source")
+}
+
+fn fillers_ts(n: usize) -> String {
+    let mut out = String::new();
+    for i in 0..n {
+        out.push_str(&format!(
+            "function fillerTs{i}() {{\n  fillerA();\n  fillerB();\n}}\n"
+        ));
+    }
+    out
+}
+
+#[test]
+fn t_typescript_single_violation() {
+    // 9 satisfiers of beginTx/commitTx + 1 violator + 10 fillers => 20
+    // transactions. beginTx cardinality = 10/20 = 0.5 (kept), confidence
+    // beginTx->commitTx = 9/10 = 0.9 >= 0.85.
+    let mut src = String::new();
+    for i in 0..9 {
+        src.push_str(&format!(
+            "function good{i}() {{\n  beginTx();\n  commitTx();\n}}\n"
+        ));
+    }
+    src.push_str("function loneViolator() {\n  beginTx();\n  helperTs();\n}\n");
+    src.push_str(&fillers_ts(10));
+    let findings = run(vec![parsed_typescript("t.ts", &src)]);
+    let prm: Vec<&Finding> = findings
+        .iter()
+        .filter(|f| f.evidence.raw.get("rule_lhs").and_then(|v| v.as_str()) == Some("beginTx"))
+        .collect();
+    assert_eq!(
+        prm.len(),
+        1,
+        "expected exactly 1 beginTx->commitTx violation, got {findings:#?}"
+    );
+    assert_eq!(prm[0].detector_id, "pr-miner");
+    assert_eq!(
+        prm[0].evidence.language_citation_status,
+        LanguageCitationStatus::Unconfirmed,
+        "TypeScript pr-miner findings are Unconfirmed until R-2.f"
+    );
+}
+
+#[test]
+fn t_typescript_no_violation_when_all_paired() {
+    // Every function pairs beginTx/commitTx; no violator.
+    let mut src = String::new();
+    for i in 0..10 {
+        src.push_str(&format!(
+            "function good{i}() {{\n  beginTx();\n  commitTx();\n}}\n"
+        ));
+    }
+    src.push_str(&fillers_ts(10));
+    let findings = run(vec![parsed_typescript("t.ts", &src)]);
+    let prm: Vec<&Finding> = findings
+        .iter()
+        .filter(|f| f.evidence.raw.get("rule_lhs").and_then(|v| v.as_str()) == Some("beginTx"))
+        .collect();
+    assert!(
+        prm.is_empty(),
+        "no beginTx violation expected, got {findings:#?}"
+    );
+}

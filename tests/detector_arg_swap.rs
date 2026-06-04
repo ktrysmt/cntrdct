@@ -677,3 +677,64 @@ def d_fstring(seg_file, img_file):
     );
     assert!(findings.iter().all(|f| f.detector_id == "arg-swap"));
 }
+
+// ---------- R-2.d: TypeScript ----------
+
+fn parsed_typescript(name: &str, src: &str) -> IrFile {
+    cntrdct::ir_from_source(&PathBuf::from(name), Language::TypeScript, src.to_string())
+        .expect("ir_from_source")
+}
+
+#[test]
+fn t_typescript_swap_detected() {
+    let src = r#"
+function connect(host: string, port: string): void {
+    open(host, port);
+}
+function caller(port: string, host: string): void {
+    connect(port, host);
+}
+"#;
+    let findings = run(vec![parsed_typescript("a.ts", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "expected 1 TS swap finding, got {findings:#?}"
+    );
+    assert_eq!(findings[0].detector_id, "arg-swap");
+    assert_eq!(
+        findings[0].evidence.language_citation_status,
+        LanguageCitationStatus::Unconfirmed,
+        "TypeScript arg-swap findings are Unconfirmed until R-2.f"
+    );
+}
+
+#[test]
+fn t_typescript_no_swap_when_order_matches() {
+    let src = r#"
+function connect(host: string, port: string): void {}
+function caller(host: string, port: string): void {
+    connect(host, port);
+}
+"#;
+    let findings = run(vec![parsed_typescript("a.ts", src)]);
+    assert!(findings.is_empty(), "no swap expected, got {findings:#?}");
+}
+
+#[test]
+fn t_typescript_this_method_swap() {
+    let src = r#"
+class Net {
+    connect(host: string, port: string): void {}
+    run(port: string, host: string): void {
+        this.connect(port, host);
+    }
+}
+"#;
+    let findings = run(vec![parsed_typescript("a.ts", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "expected 1 this.method swap finding, got {findings:#?}"
+    );
+}

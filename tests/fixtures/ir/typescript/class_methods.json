@@ -1,0 +1,256 @@
+{
+  "path": "class_methods.ts",
+  "language": "typescript",
+  "fns": [
+    {
+      "name": "find",
+      "params": [
+        {
+          "name": "id",
+          "kind": "Plain",
+          "location": {
+            "file": "class_methods.ts",
+            "start_line": 2,
+            "start_col": 8,
+            "end_line": 2,
+            "end_col": 18,
+            "start_byte": 26,
+            "end_byte": 36
+          }
+        }
+      ],
+      "body": {
+        "statements": [
+          {
+            "kind": {
+              "Return": {
+                "kind": {
+                  "Call": {
+                    "callee": {
+                      "receiver": [
+                        "this"
+                      ],
+                      "segments": [
+                        "lookup"
+                      ],
+                      "raw": "this.lookup"
+                    },
+                    "args": [
+                      {
+                        "kind": {
+                          "Ident": "id"
+                        },
+                        "location": {
+                          "file": "class_methods.ts",
+                          "start_line": 3,
+                          "start_col": 24,
+                          "end_line": 3,
+                          "end_col": 26,
+                          "start_byte": 69,
+                          "end_byte": 71
+                        }
+                      }
+                    ],
+                    "location": {
+                      "file": "class_methods.ts",
+                      "start_line": 3,
+                      "start_col": 12,
+                      "end_line": 3,
+                      "end_col": 27,
+                      "start_byte": 57,
+                      "end_byte": 72
+                    }
+                  }
+                },
+                "location": {
+                  "file": "class_methods.ts",
+                  "start_line": 3,
+                  "start_col": 12,
+                  "end_line": 3,
+                  "end_col": 27,
+                  "start_byte": 57,
+                  "end_byte": 72
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "class_methods.ts",
+              "start_line": 3,
+              "start_col": 5,
+              "end_line": 3,
+              "end_col": 28,
+              "start_byte": 50,
+              "end_byte": 73
+            }
+          }
+        ],
+        "terminator": "Return",
+        "normalised_token_count": 8,
+        "location": {
+          "file": "class_methods.ts",
+          "start_line": 2,
+          "start_col": 26,
+          "end_line": 4,
+          "end_col": 4,
+          "start_byte": 44,
+          "end_byte": 77
+        }
+      },
+      "return_type_text": "Item",
+      "decorators": [],
+      "is_method": true,
+      "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "method_definition"
+        },
+        "Ident",
+        {
+          "Kind": "formal_parameters"
+        },
+        {
+          "Kind": "required_parameter"
+        },
+        "Ident",
+        {
+          "Kind": "type_annotation"
+        },
+        {
+          "Kind": "predefined_type"
+        },
+        {
+          "Kind": "type_annotation"
+        },
+        "Ident",
+        {
+          "Kind": "statement_block"
+        },
+        {
+          "Kind": "return_statement"
+        },
+        {
+          "Kind": "call_expression"
+        },
+        {
+          "Kind": "member_expression"
+        },
+        {
+          "Kind": "this"
+        },
+        "Ident",
+        {
+          "Kind": "arguments"
+        },
+        "Ident"
+      ],
+      "location": {
+        "file": "class_methods.ts",
+        "start_line": 2,
+        "start_col": 3,
+        "end_line": 4,
+        "end_col": 4,
+        "start_byte": 21,
+        "end_byte": 77
+      }
+    },
+    {
+      "name": "create",
+      "params": [],
+      "body": {
+        "statements": [
+          {
+            "kind": {
+              "Return": {
+                "kind": {
+                  "Other": {
+                    "node_kind": "new_expression",
+                    "node_ref": {
+                      "start_byte": 122,
+                      "end_byte": 138,
+                      "start_row": 6,
+                      "start_col": 11,
+                      "end_row": 6,
+                      "end_col": 27
+                    }
+                  }
+                },
+                "location": {
+                  "file": "class_methods.ts",
+                  "start_line": 7,
+                  "start_col": 12,
+                  "end_line": 7,
+                  "end_col": 28,
+                  "start_byte": 122,
+                  "end_byte": 138
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "class_methods.ts",
+              "start_line": 7,
+              "start_col": 5,
+              "end_line": 7,
+              "end_col": 29,
+              "start_byte": 115,
+              "end_byte": 139
+            }
+          }
+        ],
+        "terminator": "Return",
+        "normalised_token_count": 5,
+        "location": {
+          "file": "class_methods.ts",
+          "start_line": 6,
+          "start_col": 31,
+          "end_line": 8,
+          "end_col": 4,
+          "start_byte": 109,
+          "end_byte": 143
+        }
+      },
+      "return_type_text": "Repository",
+      "decorators": [],
+      "is_method": true,
+      "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "method_definition"
+        },
+        "Ident",
+        {
+          "Kind": "formal_parameters"
+        },
+        {
+          "Kind": "type_annotation"
+        },
+        "Ident",
+        {
+          "Kind": "statement_block"
+        },
+        {
+          "Kind": "return_statement"
+        },
+        {
+          "Kind": "new_expression"
+        },
+        "Ident",
+        {
+          "Kind": "arguments"
+        }
+      ],
+      "location": {
+        "file": "class_methods.ts",
+        "start_line": 6,
+        "start_col": 3,
+        "end_line": 8,
+        "end_col": 4,
+        "start_byte": 81,
+        "end_byte": 143
+      }
+    }
+  ],
+  "top_level_comments": [],
+  "parse_recovered": false
+}

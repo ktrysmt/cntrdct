@@ -93,20 +93,26 @@ impl Detector for UnreachableAfterTerminator {
     }
 
     fn supported_languages(&self) -> &'static [Language] {
-        &[Language::Rust, Language::Python]
+        &[Language::Rust, Language::Python, Language::TypeScript]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
         let mut findings: Vec<Finding> = ctx
             .files
             .par_iter()
-            .filter(|f| matches!(f.language, Language::Rust | Language::Python))
+            .filter(|f| {
+                matches!(
+                    f.language,
+                    Language::Rust | Language::Python | Language::TypeScript
+                )
+            })
             .flat_map_iter(|file| {
                 let mut local = Vec::new();
                 if !file.parse_recovered {
                     match file.language {
                         Language::Rust => scan_rust(file, &mut local),
                         Language::Python => scan_python(file, &mut local),
+                        Language::TypeScript => scan_typescript(file, &mut local),
                     }
                 }
                 local
@@ -141,6 +147,7 @@ fn divergent_kind_str(kind: DivergentKind) -> &'static str {
         DivergentKind::OsExit => "os._exit",
         DivergentKind::ExitBuiltin => "exit",
         DivergentKind::QuitBuiltin => "quit",
+        DivergentKind::ProcessExit => "process.exit",
     }
 }
 
@@ -674,6 +681,165 @@ fn python_if_false_body_is_carveout(block: &IrBlock) -> bool {
             }
         )
     })
+}
+
+// ---------- TypeScript scan (R-2.d) ----------
+//
+// Mirrors the Python scan: the block-level F4a rule (first divergent
+// statement renders the following statement unreachable) plus recursion
+// into control-flow bodies and the F4e constant-condition rule. IR is
+// language-agnostic post-conversion, so the only TypeScript-specific
+// surface is the terminator-kind table (`throw` maps to `Raise`,
+// `process.exit(...)` to the `ProcessExit` divergent kind) and the
+// absence of Rust attribute suppression / `match`. Findings emit
+// `LanguageCitationStatus::Unconfirmed` until the R-2.f survey grounds a
+// TypeScript citation.
+
+fn scan_typescript(file: &IrFile, findings: &mut Vec<Finding>) {
+    for f in &file.fns {
+        walk_ts_block(file, &f.body, findings);
+    }
+}
+
+fn walk_ts_block(file: &IrFile, block: &IrBlock, findings: &mut Vec<Finding>) {
+    analyze_ts_block(block, findings);
+    for stmt in &block.statements {
+        walk_ts_stmt(file, stmt, findings);
+    }
+}
+
+fn analyze_ts_block(block: &IrBlock, findings: &mut Vec<Finding>) {
+    // Hoisted `function` / `class` declarations do not execute in source
+    // order (TypeScript hoists function declarations), so exclude them
+    // from the linear statement stream — parity with the Rust F4c rule.
+    let stmts: Vec<&IrStmt> = block
+        .statements
+        .iter()
+        .filter(|s| !matches!(s.kind, IrStmtKind::HoistedItem { .. }))
+        .collect();
+    for (i, stmt) in stmts.iter().enumerate() {
+        if let Some(kind) = ts_stmt_terminator_kind(stmt) {
+            let following = stmts.len() - i - 1;
+            if following == 0 {
+                return;
+            }
+            findings.push(build_finding(
+                ir_loc_to_core(&stmts[i + 1].location),
+                ir_loc_to_core(&stmt.location),
+                kind,
+                following,
+                LanguageCitationStatus::Unconfirmed,
+            ));
+            return;
+        }
+    }
+}
+
+fn ts_stmt_terminator_kind(stmt: &IrStmt) -> Option<&'static str> {
+    match &stmt.kind {
+        IrStmtKind::Return(_) => Some("return"),
+        // TypeScript `throw` unwinds the call stack — the divergent
+        // analogue of Python `raise`.
+        IrStmtKind::Raise(_) => Some("throw"),
+        IrStmtKind::Break(_) => Some("break"),
+        IrStmtKind::Continue(_) => Some("continue"),
+        IrStmtKind::DivergentCall { kind, .. } => Some(divergent_kind_str(*kind)),
+        IrStmtKind::If(if_stmt) => match if_stmt.terminator {
+            Some(IrTerminator::BranchMerge {
+                kind: BranchMergeKind::IfBranchesDiverge,
+            }) => Some("if-branches-diverge"),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn walk_ts_stmt(file: &IrFile, stmt: &IrStmt, findings: &mut Vec<Finding>) {
+    match &stmt.kind {
+        IrStmtKind::If(if_stmt) => {
+            analyze_ts_if_constant(if_stmt, findings);
+            walk_ts_block(file, &if_stmt.consequence, findings);
+            if let Some(alt) = &if_stmt.alternative {
+                walk_ts_block(file, alt, findings);
+            }
+        }
+        IrStmtKind::While(w) => {
+            analyze_ts_while_constant(w, findings);
+            walk_ts_block(file, &w.body, findings);
+        }
+        IrStmtKind::For(f) => walk_ts_block(file, &f.body, findings),
+        IrStmtKind::Try(t) => {
+            walk_ts_block(file, &t.body, findings);
+            for h in &t.handlers {
+                walk_ts_block(file, h, findings);
+            }
+            if let Some(o) = &t.orelse {
+                walk_ts_block(file, o, findings);
+            }
+            if let Some(fb) = &t.finalbody {
+                walk_ts_block(file, fb, findings);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// F4e classifier for TypeScript: truthiness of a condition known at
+/// parse time. Conservative — only literal constants resolve; any
+/// non-literal (or non-decimal integer) is indeterminate. `null` /
+/// `undefined` map to [`IrLiteral::None`] (falsy).
+fn ts_constant_condition(expr: &IrExpr) -> Option<bool> {
+    match &expr.kind {
+        IrExprKind::Literal(IrLiteral::Bool(b)) => Some(*b),
+        IrExprKind::Literal(IrLiteral::None) => Some(false),
+        IrExprKind::Literal(IrLiteral::Int(Some(v))) => Some(*v != 0),
+        IrExprKind::Literal(IrLiteral::Int(None)) => None,
+        IrExprKind::Literal(IrLiteral::String { is_empty }) => Some(!*is_empty),
+        _ => None,
+    }
+}
+
+fn analyze_ts_while_constant(w: &IrWhileStmt, findings: &mut Vec<Finding>) {
+    if let Some(false) = ts_constant_condition(&w.condition) {
+        if let Some(first) = w.body.statements.first() {
+            findings.push(build_finding(
+                ir_loc_to_core(&first.location),
+                ir_loc_to_core(&w.condition.location),
+                "constant-false-while",
+                1,
+                LanguageCitationStatus::Unconfirmed,
+            ));
+        }
+    }
+}
+
+fn analyze_ts_if_constant(if_stmt: &IrIfStmt, findings: &mut Vec<Finding>) {
+    let Some(cond_value) = ts_constant_condition(&if_stmt.condition) else {
+        return;
+    };
+    if !cond_value {
+        // `if (false) { ... }` consequence is unreachable.
+        if let Some(first) = if_stmt.consequence.statements.first() {
+            findings.push(build_finding(
+                ir_loc_to_core(&first.location),
+                ir_loc_to_core(&if_stmt.condition.location),
+                "constant-false-if",
+                1,
+                LanguageCitationStatus::Unconfirmed,
+            ));
+        }
+    } else if let Some(alt) = &if_stmt.alternative {
+        // `if (true) { ... } else { ... }` alternative is unreachable.
+        if let Some(first) = alt.statements.first() {
+            findings.push(build_finding(
+                ir_loc_to_core(&first.location),
+                ir_loc_to_core(&if_stmt.condition.location),
+                "constant-true-if-else",
+                1,
+                LanguageCitationStatus::Unconfirmed,
+            ));
+        }
+    }
 }
 
 // ---------- Shared finding construction ----------

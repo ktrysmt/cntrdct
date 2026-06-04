@@ -1,0 +1,273 @@
+{
+  "path": "arrow_export.ts",
+  "language": "typescript",
+  "fns": [
+    {
+      "name": "add",
+      "params": [
+        {
+          "name": "a",
+          "kind": "Plain",
+          "location": {
+            "file": "arrow_export.ts",
+            "start_line": 5,
+            "start_col": 21,
+            "end_line": 5,
+            "end_col": 30,
+            "start_byte": 66,
+            "end_byte": 75
+          }
+        },
+        {
+          "name": "b",
+          "kind": "Plain",
+          "location": {
+            "file": "arrow_export.ts",
+            "start_line": 5,
+            "start_col": 32,
+            "end_line": 5,
+            "end_col": 41,
+            "start_byte": 77,
+            "end_byte": 86
+          }
+        }
+      ],
+      "body": {
+        "statements": [
+          {
+            "kind": {
+              "Return": {
+                "kind": {
+                  "Other": {
+                    "node_kind": "binary_expression",
+                    "node_ref": {
+                      "start_byte": 107,
+                      "end_byte": 112,
+                      "start_row": 5,
+                      "start_col": 9,
+                      "end_row": 5,
+                      "end_col": 14
+                    }
+                  }
+                },
+                "location": {
+                  "file": "arrow_export.ts",
+                  "start_line": 6,
+                  "start_col": 10,
+                  "end_line": 6,
+                  "end_col": 15,
+                  "start_byte": 107,
+                  "end_byte": 112
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "arrow_export.ts",
+              "start_line": 6,
+              "start_col": 3,
+              "end_line": 6,
+              "end_col": 16,
+              "start_byte": 100,
+              "end_byte": 113
+            }
+          }
+        ],
+        "terminator": "Return",
+        "normalised_token_count": 5,
+        "location": {
+          "file": "arrow_export.ts",
+          "start_line": 5,
+          "start_col": 51,
+          "end_line": 7,
+          "end_col": 2,
+          "start_byte": 96,
+          "end_byte": 115
+        }
+      },
+      "return_type_text": "number",
+      "decorators": [],
+      "is_method": false,
+      "leading_doc": "Adds two numbers.\n@param a left",
+      "normalised_tokens": [
+        {
+          "Kind": "function_declaration"
+        },
+        "Ident",
+        {
+          "Kind": "formal_parameters"
+        },
+        {
+          "Kind": "required_parameter"
+        },
+        "Ident",
+        {
+          "Kind": "type_annotation"
+        },
+        {
+          "Kind": "predefined_type"
+        },
+        {
+          "Kind": "required_parameter"
+        },
+        "Ident",
+        {
+          "Kind": "type_annotation"
+        },
+        {
+          "Kind": "predefined_type"
+        },
+        {
+          "Kind": "type_annotation"
+        },
+        {
+          "Kind": "predefined_type"
+        },
+        {
+          "Kind": "statement_block"
+        },
+        {
+          "Kind": "return_statement"
+        },
+        {
+          "Kind": "binary_expression"
+        },
+        "Ident",
+        "Ident"
+      ],
+      "location": {
+        "file": "arrow_export.ts",
+        "start_line": 5,
+        "start_col": 8,
+        "end_line": 7,
+        "end_col": 2,
+        "start_byte": 53,
+        "end_byte": 115
+      }
+    },
+    {
+      "name": "scale",
+      "params": [
+        {
+          "name": "factor",
+          "kind": "Plain",
+          "location": {
+            "file": "arrow_export.ts",
+            "start_line": 9,
+            "start_col": 23,
+            "end_line": 9,
+            "end_col": 37,
+            "start_byte": 139,
+            "end_byte": 153
+          }
+        }
+      ],
+      "body": {
+        "statements": [
+          {
+            "kind": {
+              "Return": {
+                "kind": {
+                  "Other": {
+                    "node_kind": "binary_expression",
+                    "node_ref": {
+                      "start_byte": 158,
+                      "end_byte": 168,
+                      "start_row": 8,
+                      "start_col": 41,
+                      "end_row": 8,
+                      "end_col": 51
+                    }
+                  }
+                },
+                "location": {
+                  "file": "arrow_export.ts",
+                  "start_line": 9,
+                  "start_col": 42,
+                  "end_line": 9,
+                  "end_col": 52,
+                  "start_byte": 158,
+                  "end_byte": 168
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "arrow_export.ts",
+              "start_line": 9,
+              "start_col": 42,
+              "end_line": 9,
+              "end_col": 52,
+              "start_byte": 158,
+              "end_byte": 168
+            }
+          }
+        ],
+        "terminator": "Return",
+        "normalised_token_count": 3,
+        "location": {
+          "file": "arrow_export.ts",
+          "start_line": 9,
+          "start_col": 22,
+          "end_line": 9,
+          "end_col": 52,
+          "start_byte": 138,
+          "end_byte": 168
+        }
+      },
+      "return_type_text": null,
+      "decorators": [],
+      "is_method": false,
+      "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "arrow_function"
+        },
+        {
+          "Kind": "formal_parameters"
+        },
+        {
+          "Kind": "required_parameter"
+        },
+        "Ident",
+        {
+          "Kind": "type_annotation"
+        },
+        {
+          "Kind": "predefined_type"
+        },
+        {
+          "Kind": "binary_expression"
+        },
+        "Ident",
+        "LitInt"
+      ],
+      "location": {
+        "file": "arrow_export.ts",
+        "start_line": 9,
+        "start_col": 22,
+        "end_line": 9,
+        "end_col": 52,
+        "start_byte": 138,
+        "end_byte": 168
+      }
+    }
+  ],
+  "top_level_comments": [
+    {
+      "kind": "TypeScriptDocBlock",
+      "text": "Adds two numbers.\n@param a left",
+      "target": null,
+      "location": {
+        "file": "arrow_export.ts",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 4,
+        "end_col": 4,
+        "start_byte": 0,
+        "end_byte": 45
+      }
+    }
+  ],
+  "parse_recovered": false
+}

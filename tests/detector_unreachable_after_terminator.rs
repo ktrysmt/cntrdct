@@ -931,3 +931,78 @@ fn t61_f4e_indeterminate_condition_no_flag() {
         findings
     );
 }
+
+// ---------- R-2.d: TypeScript ----------
+
+fn parsed_typescript(name: &str, src: &str) -> IrFile {
+    cntrdct::ir_from_source(&PathBuf::from(name), Language::TypeScript, src.to_string())
+        .expect("ir_from_source")
+}
+
+#[test]
+fn t_typescript_unreachable_after_throw() {
+    let src = r#"
+function f(x: number): number {
+    throw new Error("e");
+    return x;
+}
+"#;
+    let findings = run(vec![parsed_typescript("a.ts", src)]);
+    assert_eq!(findings.len(), 1, "expected 1 finding, got {findings:#?}");
+    assert_eq!(findings[0].detector_id, "unreachable-after-terminator");
+    assert_eq!(
+        findings[0].evidence.language_citation_status,
+        LanguageCitationStatus::Unconfirmed
+    );
+}
+
+#[test]
+fn t_typescript_unreachable_after_process_exit() {
+    let src = r#"
+function f(): void {
+    process.exit(1);
+    cleanup();
+}
+"#;
+    let findings = run(vec![parsed_typescript("a.ts", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "process.exit must terminate; got {findings:#?}"
+    );
+}
+
+#[test]
+fn t_typescript_unreachable_after_if_both_branches_diverge() {
+    let src = r#"
+function f(x: number): number {
+    if (x > 0) {
+        return x;
+    } else {
+        throw new Error("e");
+    }
+    cleanup();
+}
+"#;
+    let findings = run(vec![parsed_typescript("a.ts", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "if/else both diverging must make trailing stmt unreachable; got {findings:#?}"
+    );
+}
+
+#[test]
+fn t_typescript_reachable_when_no_terminator() {
+    let src = r#"
+function f(x: number): number {
+    const y = x + 1;
+    return y;
+}
+"#;
+    let findings = run(vec![parsed_typescript("a.ts", src)]);
+    assert!(
+        findings.is_empty(),
+        "no unreachable code, got {findings:#?}"
+    );
+}

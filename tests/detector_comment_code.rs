@@ -629,3 +629,79 @@ def f():
         dep
     );
 }
+
+// ---------- R-2.d: TypeScript ----------
+
+fn parsed_typescript(name: &str, src: &str) -> IrFile {
+    cntrdct::ir_from_source(&PathBuf::from(name), Language::TypeScript, src.to_string())
+        .expect("ir_from_source")
+}
+
+#[test]
+fn t_typescript_throws_doc_without_throw() {
+    let src = r#"
+/**
+ * Parses input.
+ * @throws {Error} when invalid
+ */
+function parse(input: string): number {
+    return input.length;
+}
+"#;
+    let findings = run(vec![parsed_typescript("a.ts", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "expected 1 ts-throws finding, got {findings:#?}"
+    );
+    assert_eq!(findings[0].detector_id, "comment-code");
+    assert_eq!(
+        findings[0]
+            .evidence
+            .raw
+            .get("pattern")
+            .and_then(|v| v.as_str()),
+        Some("ts-throws")
+    );
+    assert_eq!(
+        findings[0].evidence.language_citation_status,
+        LanguageCitationStatus::Unconfirmed
+    );
+}
+
+#[test]
+fn t_typescript_no_finding_when_body_throws() {
+    let src = r#"
+/**
+ * @throws {Error}
+ */
+function parse(input: string): number {
+    if (!input) {
+        throw new Error("empty");
+    }
+    return input.length;
+}
+"#;
+    let findings = run(vec![parsed_typescript("a.ts", src)]);
+    assert!(
+        findings.is_empty(),
+        "body throws, no mismatch; got {findings:#?}"
+    );
+}
+
+#[test]
+fn t_typescript_no_finding_when_returns_call() {
+    let src = r#"
+/**
+ * @throws {Error}
+ */
+function parse(input: string): number {
+    return doParse(input);
+}
+"#;
+    let findings = run(vec![parsed_typescript("a.ts", src)]);
+    assert!(
+        findings.is_empty(),
+        "factory-shape return suppresses ts-throws; got {findings:#?}"
+    );
+}

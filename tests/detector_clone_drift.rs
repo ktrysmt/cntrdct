@@ -1003,3 +1003,74 @@ fn t31_no_drift_on_small_cluster_floor() {
         findings
     );
 }
+
+// ---------- R-2.d: TypeScript ----------
+
+fn parsed_typescript(name: &str, src: &str) -> IrFile {
+    cntrdct::ir_from_source(&PathBuf::from(name), Language::TypeScript, src.to_string())
+        .expect("ir_from_source")
+}
+
+const FN_TS_BASE: &str = r#"
+function process(items) {
+    const out = [];
+    for (const it of items) {
+        if (it > 0) {
+            out.push(it * 2);
+        }
+    }
+    return out;
+}
+"#;
+
+const FN_TS_DRIFTED: &str = r#"
+function process(items) {
+    const out = [];
+    for (const it of items) {
+        if (it > 0 && it < 100) {
+            out.push(it * 2);
+        }
+    }
+    return out;
+}
+"#;
+
+#[test]
+fn t_typescript_drift_detected_4_identical_plus_1_modified() {
+    let files = vec![
+        parsed_typescript("a.ts", FN_TS_BASE),
+        parsed_typescript("b.ts", FN_TS_BASE),
+        parsed_typescript("c.ts", FN_TS_BASE),
+        parsed_typescript("d.ts", FN_TS_BASE),
+        parsed_typescript("e.ts", FN_TS_DRIFTED),
+    ];
+    let findings = run(files);
+    assert_eq!(
+        findings.len(),
+        1,
+        "expected 1 TS drift finding, got {}: {:#?}",
+        findings.len(),
+        findings
+    );
+    assert_eq!(findings[0].detector_id, "clone-drift");
+    assert_eq!(
+        findings[0].evidence.language_citation_status,
+        LanguageCitationStatus::Unconfirmed,
+        "TypeScript clone-drift findings are Unconfirmed until R-2.f"
+    );
+}
+
+#[test]
+fn t_typescript_no_drift_when_all_identical() {
+    let files = vec![
+        parsed_typescript("a.ts", FN_TS_BASE),
+        parsed_typescript("b.ts", FN_TS_BASE),
+        parsed_typescript("c.ts", FN_TS_BASE),
+        parsed_typescript("d.ts", FN_TS_BASE),
+    ];
+    let findings = run(files);
+    assert!(
+        findings.is_empty(),
+        "all-identical clones are not drift; got {findings:#?}"
+    );
+}

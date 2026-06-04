@@ -34,6 +34,7 @@ use crate::core::{
 mod apriori;
 mod extract_python;
 mod extract_rust;
+mod extract_typescript;
 
 use apriori::{mine_pairs, Rule};
 
@@ -147,6 +148,49 @@ pub const PYTHON_STOPLIST: &[&str] = &[
     "super",
 ];
 
+/// R6 stop-list for TypeScript (R-2.e). Last-segment call names that are
+/// ubiquitous in idiomatic TypeScript and would otherwise mine spurious
+/// co-occurrence rules (the same Li-Zhou §3.2 frequency pathology the
+/// Rust / Python lists guard against): console logging, the `Array` /
+/// `Object` / `JSON` / `Promise` static helpers reached by their last
+/// segment, and the universal iteration / collection methods. Kept
+/// deliberately small in v0; the R-2.e wild corpus is what would justify
+/// any additions.
+pub const TYPESCRIPT_STOPLIST: &[&str] = &[
+    // Logging / debug — appears in nearly every non-trivial function.
+    "log",
+    "warn",
+    "error",
+    "info",
+    "debug",
+    "assert",
+    // Collection / iteration methods reached by last segment.
+    "map",
+    "filter",
+    "forEach",
+    "reduce",
+    "push",
+    "pop",
+    "join",
+    "split",
+    "slice",
+    "keys",
+    "values",
+    "entries",
+    "has",
+    "get",
+    "set",
+    // Promise / async plumbing.
+    "then",
+    "catch",
+    "resolve",
+    "reject",
+    "all",
+    // Serialisation helpers.
+    "stringify",
+    "parse",
+];
+
 static CITATIONS: &[Citation] = &[Citation {
     key: "li-zhou-fse-2005",
     authors: "Z. Li, Y. Zhou",
@@ -183,10 +227,10 @@ impl Detector for PrMinerDetector {
     }
 
     fn supported_languages(&self) -> &'static [Language] {
-        // v0.1: Rust + Python. Python findings carry
-        // LanguageCitationStatus::Unconfirmed per
-        // docs/surveys/pr-miner-python-2026-05.md.
-        &[Language::Rust, Language::Python]
+        // Rust + Python + TypeScript. Python and TypeScript findings
+        // carry LanguageCitationStatus::Unconfirmed per the per-language
+        // surveys (docs/surveys/pr-miner-{python,typescript}-*.md).
+        &[Language::Rust, Language::Python, Language::TypeScript]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
@@ -196,6 +240,7 @@ impl Detector for PrMinerDetector {
             match file.language {
                 Language::Rust => all_txns.extend(extract_rust::extract(file)),
                 Language::Python => all_txns.extend(extract_python::extract(file)),
+                Language::TypeScript => all_txns.extend(extract_typescript::extract(file)),
             }
         }
 
@@ -354,6 +399,7 @@ fn stoplist_for(language: Language) -> &'static [&'static str] {
     match language {
         Language::Rust => RUST_STOPLIST,
         Language::Python => PYTHON_STOPLIST,
+        Language::TypeScript => TYPESCRIPT_STOPLIST,
     }
 }
 

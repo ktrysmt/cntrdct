@@ -130,7 +130,7 @@ impl Detector for ArgSwap {
     }
 
     fn supported_languages(&self) -> &'static [Language] {
-        &[Language::Rust, Language::Python]
+        &[Language::Rust, Language::Python, Language::TypeScript]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
@@ -154,6 +154,17 @@ impl Detector for ArgSwap {
                 "rice-icse-2017",
                 "allamanis-neurips-2021",
             ],
+        ));
+        // R-2.d: TypeScript reuses the same name-correlation pipeline —
+        // IR definition extraction + a raw-tree call walk (Pattern B).
+        // Unconfirmed until the R-2.f survey grounds a TypeScript citation.
+        findings.extend(run_pipeline(
+            ctx,
+            Language::TypeScript,
+            extract_typescript_fn_defs,
+            extract_typescript_call_sites,
+            LanguageCitationStatus::Unconfirmed,
+            &["li-zhou-fse-2005", "rice-icse-2017"],
         ));
 
         findings.sort_by(|a, b| {
@@ -500,6 +511,91 @@ fn python_self_method_name(attribute: tree_sitter::Node, source: &str) -> Option
         return None;
     }
     Some(node_text(attr, source))
+}
+
+// ---------- TypeScript extraction (R-2.d) ----------
+
+/// TypeScript definitions mirror Python: every IR function (top-level,
+/// class method, and `const f = () => {}` declarator) is a candidate.
+/// `ir_fn_to_def` drops the explicit `this` receiver and rejects
+/// rest / destructuring / `_`-prefixed parameter shapes.
+fn extract_typescript_fn_defs(file: &IrFile) -> Option<Vec<(String, FnDef)>> {
+    if file.parse_recovered {
+        return None;
+    }
+    Some(file.fns.iter().filter_map(ir_fn_to_def).collect())
+}
+
+fn extract_typescript_call_sites(file: &IrFile) -> Option<Vec<CallSite>> {
+    if file.parse_recovered {
+        return None;
+    }
+    let tree = file.raw_tree();
+    let mut calls = Vec::new();
+    walk_typescript_for_calls(tree.root_node(), file, &mut calls);
+    Some(calls)
+}
+
+fn walk_typescript_for_calls(node: tree_sitter::Node, file: &IrFile, out: &mut Vec<CallSite>) {
+    if node.kind() == "call_expression" {
+        if let Some(call) = parse_typescript_call(node, file) {
+            out.push(call);
+        }
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        walk_typescript_for_calls(child, file, out);
+    }
+}
+
+/// A TypeScript call is in scope when its function operand is a bare
+/// identifier (`foo(...)`) or a single-segment `this.<name>(...)` method
+/// call (the receiver is dropped and the property name becomes the
+/// callee, mirroring how methods register as definitions). Deeper member
+/// access (`a.b.c(...)`, `obj.foo(...)`) is out of v0 scope. Every
+/// argument must be a bare `identifier`.
+fn parse_typescript_call(node: tree_sitter::Node, file: &IrFile) -> Option<CallSite> {
+    let function = node.child_by_field_name("function")?;
+    let callee = match function.kind() {
+        "identifier" => node_text(function, &file.source),
+        "member_expression" => typescript_this_method_name(function, &file.source)?,
+        _ => return None,
+    };
+
+    let arguments = node.child_by_field_name("arguments")?;
+    let mut args = Vec::new();
+    let mut cursor = arguments.walk();
+    for child in arguments.children(&mut cursor) {
+        if !child.is_named() {
+            continue;
+        }
+        if child.kind() == "identifier" {
+            args.push(node_text(child, &file.source));
+        } else {
+            // spread_element, literals, member access, nested calls,
+            // object / array literals — anything other than a bare
+            // identifier disqualifies the call from v0 swap analysis.
+            return None;
+        }
+    }
+
+    Some(CallSite {
+        callee,
+        args,
+        location: node_location(file, node),
+    })
+}
+
+/// Extract the method name from a `this.<name>` member expression, or
+/// return `None` for any other receiver shape (matching the Python
+/// `self.` / `cls.` restriction).
+fn typescript_this_method_name(member: tree_sitter::Node, source: &str) -> Option<String> {
+    let object = member.child_by_field_name("object")?;
+    let property = member.child_by_field_name("property")?;
+    if object.kind() != "this" || property.kind() != "property_identifier" {
+        return None;
+    }
+    Some(node_text(property, source))
 }
 
 // ---------- Shared helpers ----------

@@ -72,6 +72,7 @@ fn language_dir(lang: Language) -> &'static str {
     match lang {
         Language::Rust => "rust",
         Language::Python => "python",
+        Language::TypeScript => "typescript",
         _ => unreachable!("unsupported language under §F6 T4 in v0"),
     }
 }
@@ -114,4 +115,24 @@ fn t4_python_nested_if_match() {
 #[test]
 fn t4_python_for_try_assign() {
     run_case(Language::Python, "for_try_assign", "py");
+}
+
+#[test]
+fn t4_typescript_class_methods() {
+    run_case(Language::TypeScript, "class_methods", "ts");
+}
+
+#[test]
+fn t4_typescript_nested_calls() {
+    run_case(Language::TypeScript, "nested_calls", "ts");
+}
+
+#[test]
+fn t4_typescript_nested_if_throw() {
+    run_case(Language::TypeScript, "nested_if_throw", "ts");
+}
+
+#[test]
+fn t4_typescript_arrow_export() {
+    run_case(Language::TypeScript, "arrow_export", "ts");
 }

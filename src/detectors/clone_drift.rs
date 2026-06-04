@@ -172,7 +172,7 @@ impl Detector for CloneDrift {
     }
 
     fn supported_languages(&self) -> &'static [Language] {
-        &[Language::Rust, Language::Python]
+        &[Language::Rust, Language::Python, Language::TypeScript]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
@@ -196,6 +196,21 @@ impl Detector for CloneDrift {
                 "bettenburg-msr-2009",
                 "krinke-icsm-2007",
                 "assi-tosem-2025",
+            ],
+        ));
+        // R-2.d: TypeScript runs the same function-level NiCad-style
+        // pipeline (the IR `normalised_tokens` are language-agnostic).
+        // Status is Unconfirmed until the R-2.f survey grounds a
+        // TypeScript citation; the cross-cutting concept keys carry over.
+        // F2b (intra-fn if-branch clones) stays Rust-only for v0.
+        findings.extend(run_detect_for_language(
+            ctx,
+            Language::TypeScript,
+            LanguageCitationStatus::Unconfirmed,
+            &[
+                "cordy-roy-icpc-2008",
+                "bettenburg-msr-2009",
+                "krinke-icsm-2007",
             ],
         ));
         // F2b: intra-fn if-then-else branch clone detection. The

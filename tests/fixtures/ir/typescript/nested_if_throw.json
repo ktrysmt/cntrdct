@@ -1,0 +1,314 @@
+{
+  "path": "nested_if_throw.ts",
+  "language": "typescript",
+  "fns": [
+    {
+      "name": "guard",
+      "params": [
+        {
+          "name": "x",
+          "kind": "Plain",
+          "location": {
+            "file": "nested_if_throw.ts",
+            "start_line": 1,
+            "start_col": 16,
+            "end_line": 1,
+            "end_col": 25,
+            "start_byte": 15,
+            "end_byte": 24
+          }
+        }
+      ],
+      "body": {
+        "statements": [
+          {
+            "kind": {
+              "If": {
+                "condition": {
+                  "kind": {
+                    "Other": {
+                      "node_kind": "binary_expression",
+                      "node_ref": {
+                        "start_byte": 42,
+                        "end_byte": 47,
+                        "start_row": 1,
+                        "start_col": 6,
+                        "end_row": 1,
+                        "end_col": 11
+                      }
+                    }
+                  },
+                  "location": {
+                    "file": "nested_if_throw.ts",
+                    "start_line": 2,
+                    "start_col": 7,
+                    "end_line": 2,
+                    "end_col": 12,
+                    "start_byte": 42,
+                    "end_byte": 47
+                  }
+                },
+                "consequence": {
+                  "statements": [
+                    {
+                      "kind": {
+                        "Return": {
+                          "kind": {
+                            "Ident": "x"
+                          },
+                          "location": {
+                            "file": "nested_if_throw.ts",
+                            "start_line": 3,
+                            "start_col": 12,
+                            "end_line": 3,
+                            "end_col": 13,
+                            "start_byte": 62,
+                            "end_byte": 63
+                          }
+                        }
+                      },
+                      "attributes": [],
+                      "location": {
+                        "file": "nested_if_throw.ts",
+                        "start_line": 3,
+                        "start_col": 5,
+                        "end_line": 3,
+                        "end_col": 14,
+                        "start_byte": 55,
+                        "end_byte": 64
+                      }
+                    }
+                  ],
+                  "terminator": "Return",
+                  "normalised_token_count": 3,
+                  "location": {
+                    "file": "nested_if_throw.ts",
+                    "start_line": 2,
+                    "start_col": 14,
+                    "end_line": 4,
+                    "end_col": 4,
+                    "start_byte": 49,
+                    "end_byte": 68
+                  }
+                },
+                "alternative": {
+                  "statements": [
+                    {
+                      "kind": {
+                        "Raise": {
+                          "kind": {
+                            "Other": {
+                              "node_kind": "new_expression",
+                              "node_ref": {
+                                "start_byte": 86,
+                                "end_byte": 111,
+                                "start_row": 4,
+                                "start_col": 10,
+                                "end_row": 4,
+                                "end_col": 35
+                              }
+                            }
+                          },
+                          "location": {
+                            "file": "nested_if_throw.ts",
+                            "start_line": 5,
+                            "start_col": 11,
+                            "end_line": 5,
+                            "end_col": 36,
+                            "start_byte": 86,
+                            "end_byte": 111
+                          }
+                        }
+                      },
+                      "attributes": [],
+                      "location": {
+                        "file": "nested_if_throw.ts",
+                        "start_line": 5,
+                        "start_col": 5,
+                        "end_line": 5,
+                        "end_col": 37,
+                        "start_byte": 80,
+                        "end_byte": 112
+                      }
+                    }
+                  ],
+                  "terminator": "Raise",
+                  "normalised_token_count": 6,
+                  "location": {
+                    "file": "nested_if_throw.ts",
+                    "start_line": 4,
+                    "start_col": 10,
+                    "end_line": 6,
+                    "end_col": 4,
+                    "start_byte": 74,
+                    "end_byte": 116
+                  }
+                },
+                "terminator": {
+                  "BranchMerge": {
+                    "kind": "IfBranchesDiverge"
+                  }
+                },
+                "location": {
+                  "file": "nested_if_throw.ts",
+                  "start_line": 2,
+                  "start_col": 3,
+                  "end_line": 6,
+                  "end_col": 4,
+                  "start_byte": 38,
+                  "end_byte": 116
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "nested_if_throw.ts",
+              "start_line": 2,
+              "start_col": 3,
+              "end_line": 6,
+              "end_col": 4,
+              "start_byte": 38,
+              "end_byte": 116
+            }
+          },
+          {
+            "kind": {
+              "Call": {
+                "callee": {
+                  "receiver": [],
+                  "segments": [
+                    "unreachable"
+                  ],
+                  "raw": "unreachable"
+                },
+                "args": [],
+                "location": {
+                  "file": "nested_if_throw.ts",
+                  "start_line": 7,
+                  "start_col": 3,
+                  "end_line": 7,
+                  "end_col": 16,
+                  "start_byte": 119,
+                  "end_byte": 132
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "nested_if_throw.ts",
+              "start_line": 7,
+              "start_col": 3,
+              "end_line": 7,
+              "end_col": 17,
+              "start_byte": 119,
+              "end_byte": 133
+            }
+          }
+        ],
+        "terminator": {
+          "BranchMerge": {
+            "kind": "IfBranchesDiverge"
+          }
+        },
+        "normalised_token_count": 20,
+        "location": {
+          "file": "nested_if_throw.ts",
+          "start_line": 1,
+          "start_col": 35,
+          "end_line": 8,
+          "end_col": 2,
+          "start_byte": 34,
+          "end_byte": 135
+        }
+      },
+      "return_type_text": "number",
+      "decorators": [],
+      "is_method": false,
+      "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "function_declaration"
+        },
+        "Ident",
+        {
+          "Kind": "formal_parameters"
+        },
+        {
+          "Kind": "required_parameter"
+        },
+        "Ident",
+        {
+          "Kind": "type_annotation"
+        },
+        {
+          "Kind": "predefined_type"
+        },
+        {
+          "Kind": "type_annotation"
+        },
+        {
+          "Kind": "predefined_type"
+        },
+        {
+          "Kind": "statement_block"
+        },
+        {
+          "Kind": "if_statement"
+        },
+        {
+          "Kind": "parenthesized_expression"
+        },
+        {
+          "Kind": "binary_expression"
+        },
+        "Ident",
+        "LitInt",
+        {
+          "Kind": "statement_block"
+        },
+        {
+          "Kind": "return_statement"
+        },
+        "Ident",
+        {
+          "Kind": "else_clause"
+        },
+        {
+          "Kind": "statement_block"
+        },
+        {
+          "Kind": "throw_statement"
+        },
+        {
+          "Kind": "new_expression"
+        },
+        "Ident",
+        {
+          "Kind": "arguments"
+        },
+        "LitStr",
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "call_expression"
+        },
+        "Ident",
+        {
+          "Kind": "arguments"
+        }
+      ],
+      "location": {
+        "file": "nested_if_throw.ts",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 8,
+        "end_col": 2,
+        "start_byte": 0,
+        "end_byte": 135
+      }
+    }
+  ],
+  "top_level_comments": [],
+  "parse_recovered": false
+}

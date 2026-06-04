@@ -73,12 +73,18 @@ pub enum Language {
     Rust,
     /// Python source (`.py`, `.pyi`).
     Python,
+    /// TypeScript source (`.ts`, `.mts`, `.cts`). JSX-bearing `.tsx`
+    /// is intentionally out of scope for v0: the `language_tsx()`
+    /// grammar resolves `<T>expr` toward JSX, which would misparse
+    /// TypeScript type-assertion casts in `.ts` files — a future
+    /// language variant owns `.tsx`.
+    TypeScript,
 }
 
 impl Language {
     /// Every variant defined today, in declaration order.
     pub fn all() -> &'static [Language] {
-        &[Language::Rust, Language::Python]
+        &[Language::Rust, Language::Python, Language::TypeScript]
     }
 
     /// Canonical lowercase name used in `IrFile.language` strings,
@@ -87,6 +93,7 @@ impl Language {
         match self {
             Language::Rust => "rust",
             Language::Python => "python",
+            Language::TypeScript => "typescript",
         }
     }
 
@@ -97,6 +104,7 @@ impl Language {
         match name {
             "rust" => Some(Language::Rust),
             "python" => Some(Language::Python),
+            "typescript" => Some(Language::TypeScript),
             _ => None,
         }
     }

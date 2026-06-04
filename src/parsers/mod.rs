@@ -36,9 +36,11 @@ use crate::ir::{IrConvertError, IrFile};
 
 pub mod python;
 pub mod rust;
+pub mod typescript;
 
 pub use python::PythonParserProvider;
 pub use rust::RustParserProvider;
+pub use typescript::TypeScriptParserProvider;
 
 /// Map a path's extension to a [`Language`]. Returns `None` for
 /// extensions cntrdct does not analyse, including extension-less
@@ -49,6 +51,7 @@ pub fn detect_language(path: &Path) -> Option<Language> {
     match ext {
         "rs" => Some(Language::Rust),
         "py" | "pyi" => Some(Language::Python),
+        "ts" | "mts" | "cts" => Some(Language::TypeScript),
         _ => None,
     }
 }
@@ -144,6 +147,7 @@ pub fn parser_for(lang: Language) -> Box<dyn ParserProvider> {
     match lang {
         Language::Rust => Box::new(RustParserProvider),
         Language::Python => Box::new(PythonParserProvider),
+        Language::TypeScript => Box::new(TypeScriptParserProvider),
     }
 }
 
@@ -217,6 +221,7 @@ mod tests {
             let source = match lang {
                 Language::Rust => "fn main() {}\n",
                 Language::Python => "def main():\n    pass\n",
+                Language::TypeScript => "function main() {}\n",
             };
             let tree = parse_with(lang, source);
             let ir = p

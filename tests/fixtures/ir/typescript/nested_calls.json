@@ -1,0 +1,372 @@
+{
+  "path": "nested_calls.ts",
+  "language": "typescript",
+  "fns": [
+    {
+      "name": "pipeline",
+      "params": [
+        {
+          "name": "x",
+          "kind": "Plain",
+          "location": {
+            "file": "nested_calls.ts",
+            "start_line": 1,
+            "start_col": 19,
+            "end_line": 1,
+            "end_col": 28,
+            "start_byte": 18,
+            "end_byte": 27
+          }
+        }
+      ],
+      "body": {
+        "statements": [
+          {
+            "kind": {
+              "Let": {
+                "value": {
+                  "kind": {
+                    "Call": {
+                      "callee": {
+                        "receiver": [],
+                        "segments": [
+                          "transform"
+                        ],
+                        "raw": "transform"
+                      },
+                      "args": [
+                        {
+                          "kind": {
+                            "Ident": "x"
+                          },
+                          "location": {
+                            "file": "nested_calls.ts",
+                            "start_line": 2,
+                            "start_col": 23,
+                            "end_line": 2,
+                            "end_col": 24,
+                            "start_byte": 61,
+                            "end_byte": 62
+                          }
+                        },
+                        {
+                          "kind": {
+                            "Call": {
+                              "callee": {
+                                "receiver": [],
+                                "segments": [
+                                  "normalise"
+                                ],
+                                "raw": "normalise"
+                              },
+                              "args": [
+                                {
+                                  "kind": {
+                                    "Ident": "x"
+                                  },
+                                  "location": {
+                                    "file": "nested_calls.ts",
+                                    "start_line": 2,
+                                    "start_col": 36,
+                                    "end_line": 2,
+                                    "end_col": 37,
+                                    "start_byte": 74,
+                                    "end_byte": 75
+                                  }
+                                }
+                              ],
+                              "location": {
+                                "file": "nested_calls.ts",
+                                "start_line": 2,
+                                "start_col": 26,
+                                "end_line": 2,
+                                "end_col": 38,
+                                "start_byte": 64,
+                                "end_byte": 76
+                              }
+                            }
+                          },
+                          "location": {
+                            "file": "nested_calls.ts",
+                            "start_line": 2,
+                            "start_col": 26,
+                            "end_line": 2,
+                            "end_col": 38,
+                            "start_byte": 64,
+                            "end_byte": 76
+                          }
+                        }
+                      ],
+                      "location": {
+                        "file": "nested_calls.ts",
+                        "start_line": 2,
+                        "start_col": 13,
+                        "end_line": 2,
+                        "end_col": 39,
+                        "start_byte": 51,
+                        "end_byte": 77
+                      }
+                    }
+                  },
+                  "location": {
+                    "file": "nested_calls.ts",
+                    "start_line": 2,
+                    "start_col": 13,
+                    "end_line": 2,
+                    "end_col": 39,
+                    "start_byte": 51,
+                    "end_byte": 77
+                  }
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "nested_calls.ts",
+              "start_line": 2,
+              "start_col": 3,
+              "end_line": 2,
+              "end_col": 40,
+              "start_byte": 41,
+              "end_byte": 78
+            }
+          },
+          {
+            "kind": {
+              "Call": {
+                "callee": {
+                  "receiver": [
+                    "obj",
+                    "handler"
+                  ],
+                  "segments": [
+                    "process"
+                  ],
+                  "raw": "obj.handler.process"
+                },
+                "args": [
+                  {
+                    "kind": {
+                      "Ident": "a"
+                    },
+                    "location": {
+                      "file": "nested_calls.ts",
+                      "start_line": 3,
+                      "start_col": 23,
+                      "end_line": 3,
+                      "end_col": 24,
+                      "start_byte": 101,
+                      "end_byte": 102
+                    }
+                  },
+                  {
+                    "kind": {
+                      "Ident": "b"
+                    },
+                    "location": {
+                      "file": "nested_calls.ts",
+                      "start_line": 3,
+                      "start_col": 26,
+                      "end_line": 3,
+                      "end_col": 27,
+                      "start_byte": 104,
+                      "end_byte": 105
+                    }
+                  }
+                ],
+                "location": {
+                  "file": "nested_calls.ts",
+                  "start_line": 3,
+                  "start_col": 3,
+                  "end_line": 3,
+                  "end_col": 28,
+                  "start_byte": 81,
+                  "end_byte": 106
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "nested_calls.ts",
+              "start_line": 3,
+              "start_col": 3,
+              "end_line": 3,
+              "end_col": 29,
+              "start_byte": 81,
+              "end_byte": 107
+            }
+          },
+          {
+            "kind": {
+              "Return": {
+                "kind": {
+                  "Call": {
+                    "callee": {
+                      "receiver": [],
+                      "segments": [
+                        "finalise"
+                      ],
+                      "raw": "finalise"
+                    },
+                    "args": [
+                      {
+                        "kind": {
+                          "Ident": "a"
+                        },
+                        "location": {
+                          "file": "nested_calls.ts",
+                          "start_line": 4,
+                          "start_col": 19,
+                          "end_line": 4,
+                          "end_col": 20,
+                          "start_byte": 126,
+                          "end_byte": 127
+                        }
+                      }
+                    ],
+                    "location": {
+                      "file": "nested_calls.ts",
+                      "start_line": 4,
+                      "start_col": 10,
+                      "end_line": 4,
+                      "end_col": 21,
+                      "start_byte": 117,
+                      "end_byte": 128
+                    }
+                  }
+                },
+                "location": {
+                  "file": "nested_calls.ts",
+                  "start_line": 4,
+                  "start_col": 10,
+                  "end_line": 4,
+                  "end_col": 21,
+                  "start_byte": 117,
+                  "end_byte": 128
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "nested_calls.ts",
+              "start_line": 4,
+              "start_col": 3,
+              "end_line": 4,
+              "end_col": 22,
+              "start_byte": 110,
+              "end_byte": 129
+            }
+          }
+        ],
+        "terminator": "Return",
+        "normalised_token_count": 27,
+        "location": {
+          "file": "nested_calls.ts",
+          "start_line": 1,
+          "start_col": 38,
+          "end_line": 5,
+          "end_col": 2,
+          "start_byte": 37,
+          "end_byte": 131
+        }
+      },
+      "return_type_text": "number",
+      "decorators": [],
+      "is_method": false,
+      "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "function_declaration"
+        },
+        "Ident",
+        {
+          "Kind": "formal_parameters"
+        },
+        {
+          "Kind": "required_parameter"
+        },
+        "Ident",
+        {
+          "Kind": "type_annotation"
+        },
+        {
+          "Kind": "predefined_type"
+        },
+        {
+          "Kind": "type_annotation"
+        },
+        {
+          "Kind": "predefined_type"
+        },
+        {
+          "Kind": "statement_block"
+        },
+        {
+          "Kind": "lexical_declaration"
+        },
+        {
+          "Kind": "variable_declarator"
+        },
+        "Ident",
+        {
+          "Kind": "call_expression"
+        },
+        "Ident",
+        {
+          "Kind": "arguments"
+        },
+        "Ident",
+        {
+          "Kind": "call_expression"
+        },
+        "Ident",
+        {
+          "Kind": "arguments"
+        },
+        "Ident",
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "call_expression"
+        },
+        {
+          "Kind": "member_expression"
+        },
+        {
+          "Kind": "member_expression"
+        },
+        "Ident",
+        "Ident",
+        "Ident",
+        {
+          "Kind": "arguments"
+        },
+        "Ident",
+        "Ident",
+        {
+          "Kind": "return_statement"
+        },
+        {
+          "Kind": "call_expression"
+        },
+        "Ident",
+        {
+          "Kind": "arguments"
+        },
+        "Ident"
+      ],
+      "location": {
+        "file": "nested_calls.ts",
+        "start_line": 1,
+        "start_col": 1,
+        "end_line": 5,
+        "end_col": 2,
+        "start_byte": 0,
+        "end_byte": 131
+      }
+    }
+  ],
+  "top_level_comments": [],
+  "parse_recovered": false
+}

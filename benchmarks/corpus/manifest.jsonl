@@ -155,3 +155,16 @@
 {"file":"files/python_unreachable_except_006.py","expected":[{"detector_id":"python-unreachable-except","line":6}],"pr_miner_eligible":false}
 {"file":"files/python_unreachable_except_007.py","expected":[{"detector_id":"python-unreachable-except","line":10}],"pr_miner_eligible":false}
 {"file":"files/python_unreachable_except_008.py","expected":[{"detector_id":"python-unreachable-except","line":6}],"pr_miner_eligible":false}
+// pr-miner (TypeScript positives — R-2.e). beginTx/commitTx pairing rule violated by the final function in each file.
+{"file":"files/pr_miner_ts_001.ts","expected":[{"detector_id":"pr-miner","line":53}]}
+{"file":"files/pr_miner_ts_002.ts","expected":[{"detector_id":"pr-miner","line":53}]}
+{"file":"files/pr_miner_ts_003.ts","expected":[{"detector_id":"pr-miner","line":53}]}
+{"file":"files/pr_miner_ts_004.ts","expected":[{"detector_id":"pr-miner","line":53}]}
+{"file":"files/pr_miner_ts_005.ts","expected":[{"detector_id":"pr-miner","line":53}]}
+{"file":"files/pr_miner_ts_006.ts","expected":[{"detector_id":"pr-miner","line":53}]}
+{"file":"files/pr_miner_ts_007.ts","expected":[{"detector_id":"pr-miner","line":53}]}
+{"file":"files/pr_miner_ts_008.ts","expected":[{"detector_id":"pr-miner","line":53}]}
+// pr-miner (TypeScript negatives — R-2.e). Every function pairs beginTx/commitTx; no violation.
+{"file":"files/pr_miner_ts_negative_001.ts","expected":[]}
+{"file":"files/pr_miner_ts_negative_002.ts","expected":[]}
+{"file":"files/pr_miner_ts_negative_003.ts","expected":[]}

@@ -689,7 +689,7 @@ apply to v0.6.0.
 
 Cuts v0.6.0.
 
-R-2. TypeScript pilot — `[ ]`
+R-2. TypeScript pilot — `[~]`
 
 - Add `src/parsers/typescript.rs`, `tree-sitter-typescript` Cargo
   dep, `benchmarks/wild-corpus-typescript/`.
@@ -701,6 +701,147 @@ R-2. TypeScript pilot — `[ ]`
 - Cuts v0.7.0. This is the proof point that the G1+G3 promises hold:
   the PR diff should be parser + corpus + surveys, not detector
   edits.
+
+Sub-step ledger (R-2 is not pre-sequenced like R-1; recorded as the
+work lands):
+
+R-2.a. Language plumbing — `[x]` 2026-06-04 (uncommitted in working
+       tree). `core::Language` gains the `TypeScript` variant
+       (`all()` / `canonical_name` / `from_canonical_name`);
+       `parsers::detect_language` maps `.ts` / `.mts` / `.cts`;
+       `parser_for` dispatches to the new `TypeScriptParserProvider`;
+       `Cargo.toml` pins `tree-sitter-typescript = "0.21"` (0.21.2,
+       `tree-sitter >=0.21.0` — compatible with the workspace
+       `tree-sitter = "0.22"` and the rust/python 0.21 grammars; the
+       latest 0.23.x requires tree-sitter 0.24 and was rejected).
+       Scope decision: `.tsx` is excluded — the `language_tsx()`
+       grammar resolves `<T>expr` toward JSX and would misparse
+       TypeScript type-assertion casts; a future variant owns it.
+       The four cross-cutting dispatch `match file.language` arms
+       (pr-miner extract + stoplist, unreachable, comment-code,
+       config suppressions) and the config placeholder match carry
+       temporary no-op / empty TypeScript arms until R-2.d opts the
+       detectors in.
+R-2.b. IR converter — `[x]` 2026-06-04 (uncommitted in working tree).
+       `src/parsers/typescript.rs` implements the full `to_ir` over
+       `language_typescript()`: `function_declaration` /
+       `method_definition` / `class_declaration` (+ `abstract_`) +
+       `export_statement` unwrap + `const f = () => {}` /
+       `function_expression` declarator extraction (arrow concise
+       body modelled as a one-statement `return` block); params via
+       `formal_parameters` (`required`/`optional`, rest/destructuring
+       → `Unsupported`, explicit `this` → `Receiver`); statement
+       classification incl. `return` → Return, `throw` → Raise,
+       `process.exit(...)` → DivergentCall (new
+       `DivergentKind::ProcessExit`), `if`/`while`/`do`/`for`/
+       `for_in`/`try`/`break`/`continue`/`lexical_declaration` /
+       nested `function_declaration` → HoistedItem; `member_expression`
+       → receiver-chain `IrPath`; literals via `parse_ts_number` /
+       `ts_string_is_empty`; comments classified by delimiter into new
+       `IrCommentKind::{TypeScriptLine,TypeScriptBlock,TypeScriptDocBlock}`
+       with JSDoc `/** */` rendered as `leading_doc`; function-rooted
+       `walk_normalize_ts` for clone-drift. v0 limitations (documented
+       in the module header, all safe under the total "unknown → Other"
+       contract): `switch_statement` recorded as `Other`; no v0.5.x
+       byte-identical pinning corpus exists for TypeScript so the
+       converter is anchored only by the T4 goldens. IR additive
+       changes (`DivergentKind::ProcessExit`, three `IrCommentKind`
+       variants) ripple only to the one exhaustive `divergent_kind_str`
+       match (arm added); no external exhaustive match on either enum.
+R-2.c. IR tests + T4 goldens — `[x]` 2026-06-04 (uncommitted in
+       working tree). 13 inline converter unit tests in
+       `typescript.rs` + four T4 golden fixtures under
+       `tests/fixtures/ir/typescript/{class_methods,nested_calls,
+       nested_if_throw,arrow_export}.{ts,json}` wired into
+       `tests/ir_convert.rs` (`language_dir` gains a TypeScript arm).
+       Full gate green: `cargo test --all-targets` (+ `--features
+       lsp`), `cargo clippy --all-targets -- -D warnings`,
+       `cargo fmt --all -- --check`.
+R-2.d. Opt the cross-cutting detectors into TypeScript — `[~]`
+       2026-06-04 (uncommitted in working tree). FOUR of the five
+       detectors opted in; pr-miner deferred to R-2.e (see below).
+       - arg-swap: `supported_languages()` += TypeScript; new
+         `run_pipeline(Language::TypeScript, extract_typescript_fn_defs,
+         extract_typescript_call_sites, Unconfirmed, [li-zhou, rice])`.
+         Definitions from IR (`ir_fn_to_def`, same as Python — incl.
+         class methods + arrow declarators); call sites from a raw-tree
+         walk over `call_expression` (Pattern B), callee a bare
+         `identifier` or `this.<name>` member, args bare identifiers
+         only.
+       - clone-drift: += TypeScript on the function-level NiCad
+         pipeline (`run_detect_for_language`, IR `normalised_tokens` are
+         language-agnostic), status Unconfirmed. F2b intra-fn if-branch
+         clones stay Rust-only for v0.
+       - comment-code: += TypeScript; new `collect_typescript_findings`
+         ships the `ts-throws` pattern (JSDoc `@throws` / prose claims
+         throwing but the body has no `throw`), reusing the
+         language-agnostic `body_contains_raise` /
+         `body_returns_call_expression` walks; Unconfirmed.
+       - unreachable-after-terminator: += TypeScript; new
+         `scan_typescript` mirrors the Python scan (block-level F4a
+         first-terminator rule + recursion + F4e constant-condition),
+         terminator table maps `throw`→Raise, `process.exit(...)`→the
+         `ProcessExit` divergent kind, plus if-branch-merge; Unconfirmed.
+       All four emit `LanguageCitationStatus::Unconfirmed` for
+       TypeScript (no TS-grounded citation yet; keys carry the
+       cross-cutting concept papers). citations_consistency is
+       unaffected (no new keys). 12 new TypeScript regression tests
+       across `tests/detector_{arg_swap,clone_drift,comment_code,
+       unreachable_after_terminator}.rs`. End-to-end `cntrdct scan`
+       over a seeded `.ts` file fires arg-swap / unreachable /
+       comment-code with `languageCitationStatus: Unconfirmed`. Full
+       gate green (`cargo test --all-targets` + `--features lsp`,
+       `clippy -D warnings`, `fmt --check`); audit-recall floor
+       0.918 unchanged (no TS audit-corpus entries; Rust/Python
+       detect paths byte-identical).
+       - pr-miner: NOT yet opted in. `corpus_shape::
+         pr_miner_corpus_meets_per_language_positives` iterates
+         `pr_miner.supported_languages()` and requires ≥ 8 corpus
+         positives per supported language (panics on an unknown
+         language token), so pr-miner's TypeScript opt-in is coupled to
+         the R-2.e corpus and lands there together with
+         `extract_typescript` + a TS stop-list + the `"typescript" =>
+         "ts"` token-map arm. Its temporary no-op `match` arms from
+         R-2.a remain until then.
+R-2.e. pr-miner TypeScript opt-in + TypeScript corpora — `[x]`
+       2026-06-04 (uncommitted in working tree). Two parts:
+       (1) pr-miner opt-in (the deferred 5th detector). New
+       `src/detectors/pr_miner/extract_typescript.rs` mirrors the Python
+       extractor (one `Transaction` per top-level `function_declaration`
+       / `export`-wrapped / `const f = () => {}` declarator; call-head
+       last-segment via `identifier` or identifier-chain
+       `member_expression`; no `with`-synthesis). Wired into `mod.rs`
+       (`mod extract_typescript`, dispatch arm, `TYPESCRIPT_STOPLIST`,
+       `supported_languages()` += TypeScript); `make_finding` already
+       maps non-Rust → `Unconfirmed`. `tests/corpus_shape.rs`
+       `file_language_token` + the per-language token map gain
+       `".ts"`/`"typescript" => "ts"`.
+       Labelled corpus: 8 positive `benchmarks/corpus/files/
+       pr_miner_ts_0{01..08}.ts` (7 `beginTx`/`commitTx` satisfiers + 1
+       violator each; rule confidence 56/64 = 0.875 ≥ 0.85, `beginTx`
+       cardinality 64/|T| < 0.5 in the full corpus) + 3 negatives +
+       11 `manifest.jsonl` entries (`pr-miner` @ line 53). Verified
+       firing: a full `benchmarks/corpus/files` scan reports pr-miner @
+       L53 Unconfirmed on all 8, matching the manifest. 2 new
+       `tests/detector_pr_miner.rs` TypeScript tests
+       (`corpus_shape::pr_miner_corpus_meets_per_language_positives` now
+       green with ts).
+       (2) Wild corpus: `benchmarks/wild-corpus-typescript/` — 16
+       verbatim `.ts` extracts from zod 3.23.8 (MIT) and ky 1.7.2 (MIT)
+       GitHub release tarballs, each with a `// Source:` / `// License:`
+       / `// Note:` provenance header (the Source line doubles as the
+       clone-drift scope key), `manifest.jsonl` (unlabelled, `expected:
+       []`, with `source`/`license`/`sha256`), and a README. All 16
+       parse clean (`parse_recovered == false`; converter extracts
+       functions from every file). `cntrdct eval` reports
+       `actual_total = 0` — an honest result for high-quality library
+       code, not a detector failure (documented in the README).
+       Full gate green (`cargo test --all-targets`, `--features lsp`,
+       `clippy -D warnings`, `fmt --check`); audit-recall floor 0.918
+       unchanged. All five cross-cutting detectors now support
+       TypeScript.
+R-2.f. Per-(detector, TypeScript) literature surveys + CITATIONS — `[ ]`.
+R-2.g. Recalibrate priors + self-replication ledger + release — `[ ]`.
 
 R-3. Go pilot — `[ ]`
 

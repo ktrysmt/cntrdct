@@ -1,0 +1,19 @@
+// cntrdct R-2 wild-corpus-typescript manifest. One JSON object per non-blank line.
+// Lines starting with // are skipped by the loader. Unlabelled (expected=[]):
+// these are real OSS extracts mined for eval-drift signal, not hand-labelled.
+{"expected": [], "file": "files/zod_ZodError.ts", "license": "MIT", "sha256": "f5d4ca968da6ba38609705049a15deafdddc413cbc83b7de5fdc796861a64440", "source": "https://codeload.github.com/colinhacks/zod/tar.gz/refs/tags/v3.23.8"}
+{"expected": [], "file": "files/zod_errors.ts", "license": "MIT", "sha256": "376a0ce94e5d3e652eff78c03f95ae4ff22745da4d38e77adee6f17263ba72c7", "source": "https://codeload.github.com/colinhacks/zod/tar.gz/refs/tags/v3.23.8"}
+{"expected": [], "file": "files/zod_external.ts", "license": "MIT", "sha256": "0dc064841822f5fc67849cba571a99b434b929fcc8509cf6cf1f6ae723c08c27", "source": "https://codeload.github.com/colinhacks/zod/tar.gz/refs/tags/v3.23.8"}
+{"expected": [], "file": "files/zod_util.ts", "license": "MIT", "sha256": "44bf05537bf7ce25429e716cc710d31b64f7f36cfb1cfe85f4bd376605229eec", "source": "https://codeload.github.com/colinhacks/zod/tar.gz/refs/tags/v3.23.8"}
+{"expected": [], "file": "files/zod_parseUtil.ts", "license": "MIT", "sha256": "028506a8233af71d5cd7176d4b39ceaf4813b026dc77c064f86d6259bb5d9250", "source": "https://codeload.github.com/colinhacks/zod/tar.gz/refs/tags/v3.23.8"}
+{"expected": [], "file": "files/zod_errorUtil.ts", "license": "MIT", "sha256": "41436a8bbdeaec5234e297e0b5e756a999888d07de084d794808c6cbdbe278bf", "source": "https://codeload.github.com/colinhacks/zod/tar.gz/refs/tags/v3.23.8"}
+{"expected": [], "file": "files/zod_partialUtil.ts", "license": "MIT", "sha256": "a3952eccc6373057ecb47de04d38085924365a28023f289bd303949e4113a441", "source": "https://codeload.github.com/colinhacks/zod/tar.gz/refs/tags/v3.23.8"}
+{"expected": [], "file": "files/zod_locales_en.ts", "license": "MIT", "sha256": "6e74782e99081d9738953768d8fa09739f10642230a62e9caba361e961fadf1c", "source": "https://codeload.github.com/colinhacks/zod/tar.gz/refs/tags/v3.23.8"}
+{"expected": [], "file": "files/ky_Ky.ts", "license": "MIT", "sha256": "83ad41e1b7bd65380a50d61817bb96aca80d3d31a8e3683c6a341d0c03e5f729", "source": "https://codeload.github.com/sindresorhus/ky/tar.gz/refs/tags/v1.7.2"}
+{"expected": [], "file": "files/ky_constants.ts", "license": "MIT", "sha256": "123e1579a4676adf7ab2942108749cd60202d116501ec72e014700ac572a5b09", "source": "https://codeload.github.com/sindresorhus/ky/tar.gz/refs/tags/v1.7.2"}
+{"expected": [], "file": "files/ky_HTTPError.ts", "license": "MIT", "sha256": "1413943f2b3dc798246c38e4047e9d486e47b6e48a1f1e18c5133df5f6477ba5", "source": "https://codeload.github.com/sindresorhus/ky/tar.gz/refs/tags/v1.7.2"}
+{"expected": [], "file": "files/ky_TimeoutError.ts", "license": "MIT", "sha256": "c33236eef4e9cf6aad268fdeec4ea74a1178ad919e50e1f781d4681e9f1e7d1d", "source": "https://codeload.github.com/sindresorhus/ky/tar.gz/refs/tags/v1.7.2"}
+{"expected": [], "file": "files/ky_index.ts", "license": "MIT", "sha256": "98bb81622cacd098584748e310c4c58edec34a794b9e36fec60d85035477c043", "source": "https://codeload.github.com/sindresorhus/ky/tar.gz/refs/tags/v1.7.2"}
+{"expected": [], "file": "files/ky_merge.ts", "license": "MIT", "sha256": "c24abba6c014a9fadf9e670f336980be4faf0e007332ac0f356602805020acdd", "source": "https://codeload.github.com/sindresorhus/ky/tar.gz/refs/tags/v1.7.2"}
+{"expected": [], "file": "files/ky_normalize.ts", "license": "MIT", "sha256": "b50325fb862a4820531b7e4d41b9d6d6529a175b9588fccc1e73c86b09bba581", "source": "https://codeload.github.com/sindresorhus/ky/tar.gz/refs/tags/v1.7.2"}
+{"expected": [], "file": "files/ky_timeout.ts", "license": "MIT", "sha256": "7fde06948a3f9edaabaabe627f0dfc2f36ce70e6cd19465d3b94854a86c33385", "source": "https://codeload.github.com/sindresorhus/ky/tar.gz/refs/tags/v1.7.2"}

@@ -106,14 +106,19 @@ impl Detector for CommentCode {
     }
 
     fn supported_languages(&self) -> &'static [Language] {
-        &[Language::Rust, Language::Python]
+        &[Language::Rust, Language::Python, Language::TypeScript]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
         let mut findings: Vec<Finding> = ctx
             .files
             .par_iter()
-            .filter(|f| matches!(f.language, Language::Rust | Language::Python))
+            .filter(|f| {
+                matches!(
+                    f.language,
+                    Language::Rust | Language::Python | Language::TypeScript
+                )
+            })
             .flat_map_iter(|file| {
                 let mut local = Vec::new();
                 if file.parse_recovered {
@@ -122,6 +127,7 @@ impl Detector for CommentCode {
                 match file.language {
                     Language::Rust => collect_rust_findings(file, &mut local),
                     Language::Python => collect_python_findings(file, &mut local),
+                    Language::TypeScript => collect_typescript_findings(file, &mut local),
                 }
                 local
             })
@@ -316,6 +322,67 @@ fn collect_python_findings(file: &IrFile, out: &mut Vec<Finding>) {
             ));
         }
     }
+}
+
+// ---------- TypeScript (R-2.d) ----------
+
+/// JSDoc / prose markers that claim the function throws. The TypeScript
+/// convention is the JSDoc `@throws` (alias `@exception`) tag; the prose
+/// forms catch hand-written docs that describe throwing without the tag.
+const TYPESCRIPT_THROWS_TRIGGERS: &[&str] = &[
+    "@throws",
+    "@throw",
+    "@exception",
+    "throws ",
+    "throws an",
+    "may throw",
+    "will throw",
+];
+
+/// TypeScript analogue of `collect_python_findings`. v0 ships the
+/// `ts-throws` pattern (doc claims the function throws but the body has
+/// no `throw`), mirroring py-raises. Findings carry
+/// `LanguageCitationStatus::Unconfirmed` per the R-2.f survey.
+fn collect_typescript_findings(file: &IrFile, out: &mut Vec<Finding>) {
+    for ir_fn in &file.fns {
+        // Mirror the Rust/Python "top-level only" walk; class methods
+        // arrive with is_method == true and are skipped in v0.
+        if ir_fn.is_method {
+            continue;
+        }
+        let Some(doc) = ir_fn.leading_doc.as_deref() else {
+            continue;
+        };
+        let doc_lc = doc.to_lowercase();
+        if let Some(trigger) = typescript_pattern_throws(&doc_lc, &ir_fn.body) {
+            out.push(make_finding_with_status(
+                file,
+                ir_fn,
+                "ts-throws",
+                trigger,
+                LanguageCitationStatus::Unconfirmed,
+            ));
+        }
+    }
+}
+
+fn typescript_pattern_throws(doc_lc: &str, body: &IrBlock) -> Option<&'static str> {
+    let trigger = TYPESCRIPT_THROWS_TRIGGERS
+        .iter()
+        .find(|p| doc_lc.contains(*p))
+        .copied()?;
+    // The IR maps `throw` onto `IrStmtKind::Raise`, so the
+    // language-agnostic `body_contains_raise` walk applies directly.
+    if body_contains_raise(body) {
+        return None;
+    }
+    // Factory-shape suppression, same as py-raises: a function that
+    // returns the result of a call (e.g. `return makeError(x)`) is
+    // delegating, not making a direct no-throw claim.
+    if body_returns_call_expression(body) {
+        return None;
+    }
+    Some(trigger)
 }
 
 fn python_pattern_raises(doc_lc: &str, body: &IrBlock) -> Option<&'static str> {

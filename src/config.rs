@@ -245,6 +245,9 @@ pub fn collect_attribute_suppressions(file: &IrFile) -> Vec<AttributeSuppression
     match file.language {
         Language::Rust => collect_rust_suppressions(file),
         Language::Python => collect_python_suppressions(file),
+        // TypeScript suppression syntax (R-2.d) is not yet modelled;
+        // no attribute-based suppressions are collected for TS files.
+        Language::TypeScript => Vec::new(),
     }
 }
 
@@ -677,6 +680,7 @@ mod tests {
                 let placeholder = match lang {
                     Language::Rust => "fn _x() {}\n",
                     Language::Python => "def _x():\n    pass\n",
+                    Language::TypeScript => "function _x() {}\n",
                 };
                 let source_for_ir: Arc<str> = if body.trim().is_empty() {
                     Arc::from(placeholder)

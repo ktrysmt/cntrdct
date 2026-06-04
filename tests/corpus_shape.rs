@@ -60,6 +60,8 @@ fn file_language_token(rel: &str) -> Option<&'static str> {
         Some("rs")
     } else if rel.ends_with(".py") {
         Some("py")
+    } else if rel.ends_with(".ts") {
+        Some("ts")
     } else {
         None
     }
@@ -168,6 +170,7 @@ fn pr_miner_corpus_meets_per_language_positives() {
         let lang_token = match language.canonical_name() {
             "rust" => "rs",
             "python" => "py",
+            "typescript" => "ts",
             other => panic!(
                 "pr-miner declares unsupported language token `{}` — extend file_language_token()",
                 other
