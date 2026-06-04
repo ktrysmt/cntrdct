@@ -28,10 +28,10 @@
     "prior_method": "jeffreys"
   },
   "pr-miner": {
-    "tp": 16,
+    "tp": 24,
     "fp": 0,
-    "posterior_tp": 0.9444444444444444,
-    "wilson_lower_95": 0.8049356770309068,
+    "posterior_tp": 0.9615384615384616,
+    "wilson_lower_95": 0.8628148284692874,
     "prior_method": "jeffreys"
   },
   "python-unreachable-except": {

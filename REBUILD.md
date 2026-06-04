@@ -840,8 +840,84 @@ R-2.e. pr-miner TypeScript opt-in + TypeScript corpora — `[x]`
        `clippy -D warnings`, `fmt --check`); audit-recall floor 0.918
        unchanged. All five cross-cutting detectors now support
        TypeScript.
-R-2.f. Per-(detector, TypeScript) literature surveys + CITATIONS — `[ ]`.
-R-2.g. Recalibrate priors + self-replication ledger + release — `[ ]`.
+R-2.f. Per-(detector, TypeScript) literature surveys + CITATIONS — `[x]`
+       2026-06-05 (uncommitted in working tree). Ran the per-(detector,
+       TypeScript) survey for all five cross-cutting detectors
+       (arg-swap, clone-drift, comment-code, unreachable-after-terminator,
+       pr-miner) per docs/spec/citations-policy.md. Outcome: ALL FIVE
+       Unconfirmed — no peer-reviewed publication or established benchmark
+       grounds any of the five concepts on TypeScript under the strict
+       JS≠TS rule (a JavaScript-subject paper does not satisfy clause (a)
+       for TypeScript). The closest near-misses were rejected honestly:
+       DeepBugs (Pradel & Sen OOPSLA 2018, JS-only) for arg-swap; MSCCD
+       (JSS 2024, not NiCad + Java-evaluated) for clone-drift; DocPrism
+       (arXiv preprint, TS subjects but unpublished) for comment-code;
+       SniffTSX / "Bugs in the TypeScript Ecosystem" (no unreachable-code
+       category) for unreachable; Wu et al. KSEM 2023 (right algorithm,
+       Java/MUBench corpus) for pr-miner. This matches the Python-era
+       pattern (3 of 5 surveys were Unconfirmed). Deliverables: five
+       survey docs `docs/surveys/<detector>-typescript-2026-06.md`
+       (each ~250-300 lines, candidate-by-candidate with verified URLs)
+       and five explicit-no-citation lines added to `CITATIONS.md` under
+       each detector subsection. No detector source change — every TS
+       pipeline already emitted `LanguageCitationStatus::Unconfirmed`
+       (the R-2.d/R-2.e `R-2.f survey` markers), and no new citation key
+       enters the P1 surface, so `tests/citations_consistency.rs` is
+       unaffected (the `- (... unconfirmed ...)` lines carry no backtick
+       key). Full gate green: `cargo test --all-targets`,
+       `cargo clippy --all-targets -- -D warnings`,
+       `cargo fmt --all -- --check`. Surveyed via a 5-member Agent Team
+       (one surveyor per detector); citations re-verified centrally
+       before integration.
+R-2.g. Recalibrate priors + self-replication ledger + release — `[x]`
+       2026-06-05 (shipped as the v0.10.1 follow-up patch — see Release
+       note below).
+       Recalibrate: the 8 TS pr-miner positives R-2.e added under
+       `benchmarks/corpus/files/pr_miner_ts_0{01..08}.ts` were present
+       in the eval manifest but not yet in the P4 priors corpus, so
+       eight `pr-miner` / `TruePositive` lines (`files/pr_miner_ts_*.ts`
+       @ line 53) were appended to `benchmarks/labelled-findings.jsonl`
+       — the same per-language pattern Python followed
+       (`pr_miner_python_*.py` already live there). `cntrdct calibrate
+       benchmarks/labelled-findings.jsonl --output
+       benchmarks/priors-default.json` then lifted only the `pr-miner`
+       prior (tp 16 → 24, posterior_tp 0.944 → 0.962, wilson_lower_95
+       0.805 → 0.863); the other six detector priors are byte-identical
+       (TS findings key to the existing detector ids — no new prior
+       entry, no language axis in the prior). Recall floor held:
+       `cntrdct calibrate --audit-recall benchmarks/audit-corpus`
+       `overall_recall_upper_bound` = 0.918 (unchanged — no TS entries
+       in `benchmarks/audit-corpus`; §9 floor green).
+       Self-replication ledger: `benchmarks/self-replication/v0.10.1/
+       cntrdct.jsonl` — four `EvalReport` lines (audit-corpus,
+       wild-corpus, wild-corpus-python, wild-corpus-typescript). The
+       three carried-over corpora are byte-identical to the v0.8.0
+       snapshot (confirms detect() is unchanged by R-2 for Rust/Python);
+       the new `wild-corpus-typescript` line reports
+       `actual_total = 0` over 16 files — the honest R-2.e result for
+       high-quality library code, recorded as a baseline (no prior
+       snapshot line) by `eval --against`. Full gate green:
+       `cargo test --all-targets`, `cargo test --features lsp`,
+       `cargo clippy --all-targets -- -D warnings`,
+       `cargo fmt --all -- --check`.
+       Release — shipped as v0.10.1 (a follow-up patch; v0.10.0 was cut
+       early). v0.10.0 was tagged and pushed on 2026-06-04 at commit
+       e747437 (`chore(release): bump version to 0.10.0`), one commit
+       BEFORE R-2.f / R-2.g landed; its `Release` workflow succeeded
+       (GitHub Release + crates.io publish green) so 0.10.0 is immutable
+       and carries the PRE-recalibration `pr-miner` prior (tp=16) without
+       the TS surveys. Because crates.io is write-once, the recalibrated
+       prior (`pr-miner` tp=24) + surveys + ledger ship as v0.10.1
+       instead: `Cargo.toml` bumped 0.10.0 → 0.10.1, `Cargo.lock` synced,
+       annotated `v0.10.1` tag pushed per CLAUDE.md "Release procedure".
+       The v0.10.1 release notes (git-cliff since v0.10.0) carry
+       `docs(surveys)` (R-2.f) + `chore(calibration)` (R-2.g); the bump
+       commit is dropped by the parser. Note the eval ledger numbers are
+       identical for 0.10.0 and 0.10.1 — eval/detect() is unaffected by
+       the Layer-2 prior change (it only reorders ranking, not which
+       findings fire) — so the v0.10.1 snapshot also faithfully describes
+       the 0.10.0 detector behaviour. The baselines fixture-rename
+       release step stays retired per R-1.e.
 
 R-3. Go pilot — `[ ]`
 

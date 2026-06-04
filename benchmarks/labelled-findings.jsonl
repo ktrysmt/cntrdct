@@ -91,3 +91,11 @@
 {"anomaly_class": "Logic", "detector_id": "python-unreachable-except", "file": "files/python_unreachable_except_006.py", "line": 6, "repo": "corpus", "verdict": "TruePositive"}
 {"anomaly_class": "Logic", "detector_id": "python-unreachable-except", "file": "files/python_unreachable_except_007.py", "line": 10, "repo": "corpus", "verdict": "TruePositive"}
 {"anomaly_class": "Logic", "detector_id": "python-unreachable-except", "file": "files/python_unreachable_except_008.py", "line": 6, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_ts_001.ts", "line": 53, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_ts_002.ts", "line": 53, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_ts_003.ts", "line": 53, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_ts_004.ts", "line": 53, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_ts_005.ts", "line": 53, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_ts_006.ts", "line": 53, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_ts_007.ts", "line": 53, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_ts_008.ts", "line": 53, "repo": "corpus", "verdict": "TruePositive"}
