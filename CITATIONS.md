@@ -35,6 +35,8 @@ pointing at the relevant `docs/surveys/` file.
   see docs/surveys/clone-drift-python-2026-05.md).
 - (clone-drift TypeScript coverage: unconfirmed; survey notes at
   docs/surveys/clone-drift-typescript-2026-06.md)
+- (clone-drift Go coverage: unconfirmed; survey notes at
+  docs/surveys/clone-drift-go-2026-06.md)
 
 ### arg-swap
 
@@ -52,6 +54,8 @@ pointing at the relevant `docs/surveys/` file.
   see docs/surveys/arg-swap-python-2026-05.md).
 - (arg-swap TypeScript coverage: unconfirmed; survey notes at
   docs/surveys/arg-swap-typescript-2026-06.md)
+- (arg-swap Go coverage: unconfirmed; survey notes at
+  docs/surveys/arg-swap-go-2026-06.md)
 
 ### comment-code
 
@@ -65,6 +69,8 @@ pointing at the relevant `docs/surveys/` file.
   docs/surveys/comment-code-python-2026-05.md)
 - (comment-code TypeScript coverage: unconfirmed; survey notes at
   docs/surveys/comment-code-typescript-2026-06.md)
+- (comment-code Go coverage: unconfirmed; survey notes at
+  docs/surveys/comment-code-go-2026-06.md)
 
 ### unreachable-after-terminator
 
@@ -82,6 +88,8 @@ pointing at the relevant `docs/surveys/` file.
   docs/surveys/unreachable-after-terminator-python-2026-05.md)
 - (unreachable-after-terminator TypeScript coverage: unconfirmed; survey notes at
   docs/surveys/unreachable-after-terminator-typescript-2026-06.md)
+- (unreachable-after-terminator Go coverage: unconfirmed; survey notes at
+  docs/surveys/unreachable-after-terminator-go-2026-06.md)
 
 ### pr-miner
 
@@ -95,6 +103,9 @@ pointing at the relevant `docs/surveys/` file.
 - (pr-miner TypeScript coverage: unconfirmed; survey notes at
   docs/surveys/pr-miner-typescript-2026-06.md. TypeScript dispatch ships with
   `LanguageCitationStatus::Unconfirmed`, same as the Python precedent.)
+- (pr-miner Go coverage: unconfirmed; survey notes at
+  docs/surveys/pr-miner-go-2026-06.md. Go dispatch ships with
+  `LanguageCitationStatus::Unconfirmed`, same as the Python/TypeScript precedent.)
 - (Methodology reference for the Apriori miner: Agrawal & Srikant, VLDB 1994.
   Not listed as a Detector citation per citations-policy.md — the paper does not
   introduce the detector concept.)
