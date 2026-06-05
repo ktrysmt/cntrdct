@@ -1,0 +1,265 @@
+{
+  "path": "nested_if_panic.go",
+  "language": "go",
+  "fns": [
+    {
+      "name": "classify",
+      "params": [
+        {
+          "name": "x",
+          "kind": "Plain",
+          "location": {
+            "file": "nested_if_panic.go",
+            "start_line": 3,
+            "start_col": 15,
+            "end_line": 3,
+            "end_col": 16,
+            "start_byte": 29,
+            "end_byte": 30
+          }
+        }
+      ],
+      "body": {
+        "statements": [
+          {
+            "kind": {
+              "If": {
+                "condition": {
+                  "kind": {
+                    "Other": {
+                      "node_kind": "binary_expression",
+                      "node_ref": {
+                        "start_byte": 49,
+                        "end_byte": 54,
+                        "start_row": 3,
+                        "start_col": 4,
+                        "end_row": 3,
+                        "end_col": 9
+                      }
+                    }
+                  },
+                  "location": {
+                    "file": "nested_if_panic.go",
+                    "start_line": 4,
+                    "start_col": 5,
+                    "end_line": 4,
+                    "end_col": 10,
+                    "start_byte": 49,
+                    "end_byte": 54
+                  }
+                },
+                "consequence": {
+                  "statements": [
+                    {
+                      "kind": {
+                        "Return": {
+                          "kind": {
+                            "Literal": {
+                              "String": {
+                                "is_empty": false
+                              }
+                            }
+                          },
+                          "location": {
+                            "file": "nested_if_panic.go",
+                            "start_line": 5,
+                            "start_col": 10,
+                            "end_line": 5,
+                            "end_col": 20,
+                            "start_byte": 66,
+                            "end_byte": 76
+                          }
+                        }
+                      },
+                      "attributes": [],
+                      "location": {
+                        "file": "nested_if_panic.go",
+                        "start_line": 5,
+                        "start_col": 3,
+                        "end_line": 5,
+                        "end_col": 20,
+                        "start_byte": 59,
+                        "end_byte": 76
+                      }
+                    }
+                  ],
+                  "terminator": "Return",
+                  "normalised_token_count": 4,
+                  "location": {
+                    "file": "nested_if_panic.go",
+                    "start_line": 4,
+                    "start_col": 11,
+                    "end_line": 6,
+                    "end_col": 3,
+                    "start_byte": 55,
+                    "end_byte": 79
+                  }
+                },
+                "alternative": {
+                  "statements": [
+                    {
+                      "kind": {
+                        "DivergentCall": {
+                          "kind": "Panic",
+                          "args": [
+                            {
+                              "kind": {
+                                "Literal": {
+                                  "String": {
+                                    "is_empty": false
+                                  }
+                                }
+                              },
+                              "location": {
+                                "file": "nested_if_panic.go",
+                                "start_line": 7,
+                                "start_col": 9,
+                                "end_line": 7,
+                                "end_col": 23,
+                                "start_byte": 95,
+                                "end_byte": 109
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      "attributes": [],
+                      "location": {
+                        "file": "nested_if_panic.go",
+                        "start_line": 7,
+                        "start_col": 3,
+                        "end_line": 7,
+                        "end_col": 24,
+                        "start_byte": 89,
+                        "end_byte": 110
+                      }
+                    }
+                  ],
+                  "terminator": {
+                    "DivergentCall": {
+                      "kind": "Panic"
+                    }
+                  },
+                  "normalised_token_count": 6,
+                  "location": {
+                    "file": "nested_if_panic.go",
+                    "start_line": 6,
+                    "start_col": 9,
+                    "end_line": 8,
+                    "end_col": 3,
+                    "start_byte": 85,
+                    "end_byte": 113
+                  }
+                },
+                "terminator": {
+                  "BranchMerge": {
+                    "kind": "IfBranchesDiverge"
+                  }
+                },
+                "location": {
+                  "file": "nested_if_panic.go",
+                  "start_line": 4,
+                  "start_col": 2,
+                  "end_line": 8,
+                  "end_col": 3,
+                  "start_byte": 46,
+                  "end_byte": 113
+                }
+              }
+            },
+            "attributes": [],
+            "location": {
+              "file": "nested_if_panic.go",
+              "start_line": 4,
+              "start_col": 2,
+              "end_line": 8,
+              "end_col": 3,
+              "start_byte": 46,
+              "end_byte": 113
+            }
+          }
+        ],
+        "terminator": {
+          "BranchMerge": {
+            "kind": "IfBranchesDiverge"
+          }
+        },
+        "normalised_token_count": 15,
+        "location": {
+          "file": "nested_if_panic.go",
+          "start_line": 3,
+          "start_col": 29,
+          "end_line": 9,
+          "end_col": 2,
+          "start_byte": 43,
+          "end_byte": 115
+        }
+      },
+      "return_type_text": "string",
+      "decorators": [],
+      "is_method": false,
+      "leading_doc": null,
+      "normalised_tokens": [
+        {
+          "Kind": "function_declaration"
+        },
+        "Ident",
+        {
+          "Kind": "parameter_list"
+        },
+        {
+          "Kind": "parameter_declaration"
+        },
+        "Ident",
+        "Ident",
+        "Ident",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "if_statement"
+        },
+        {
+          "Kind": "binary_expression"
+        },
+        "Ident",
+        "LitInt",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "return_statement"
+        },
+        {
+          "Kind": "expression_list"
+        },
+        "LitStr",
+        {
+          "Kind": "block"
+        },
+        {
+          "Kind": "expression_statement"
+        },
+        {
+          "Kind": "call_expression"
+        },
+        "Ident",
+        {
+          "Kind": "argument_list"
+        },
+        "LitStr"
+      ],
+      "location": {
+        "file": "nested_if_panic.go",
+        "start_line": 3,
+        "start_col": 1,
+        "end_line": 9,
+        "end_col": 2,
+        "start_byte": 15,
+        "end_byte": 115
+      }
+    }
+  ],
+  "top_level_comments": [],
+  "parse_recovered": false
+}

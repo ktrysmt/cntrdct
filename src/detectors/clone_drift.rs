@@ -172,7 +172,12 @@ impl Detector for CloneDrift {
     }
 
     fn supported_languages(&self) -> &'static [Language] {
-        &[Language::Rust, Language::Python, Language::TypeScript]
+        &[
+            Language::Rust,
+            Language::Python,
+            Language::TypeScript,
+            Language::Go,
+        ]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
@@ -206,6 +211,21 @@ impl Detector for CloneDrift {
         findings.extend(run_detect_for_language(
             ctx,
             Language::TypeScript,
+            LanguageCitationStatus::Unconfirmed,
+            &[
+                "cordy-roy-icpc-2008",
+                "bettenburg-msr-2009",
+                "krinke-icsm-2007",
+            ],
+        ));
+        // R-3.d: Go runs the same function-level NiCad-style pipeline over
+        // the language-agnostic IR `normalised_tokens`. Top-level `func`
+        // declarations participate (`!is_method`); methods are excluded as
+        // for Rust/TS. Unconfirmed until the R-3.f survey grounds a Go
+        // citation. F2b (intra-fn if-branch clones) stays Rust-only.
+        findings.extend(run_detect_for_language(
+            ctx,
+            Language::Go,
             LanguageCitationStatus::Unconfirmed,
             &[
                 "cordy-roy-icpc-2008",

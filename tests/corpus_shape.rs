@@ -62,6 +62,8 @@ fn file_language_token(rel: &str) -> Option<&'static str> {
         Some("py")
     } else if rel.ends_with(".ts") {
         Some("ts")
+    } else if rel.ends_with(".go") {
+        Some("go")
     } else {
         None
     }
@@ -171,6 +173,7 @@ fn pr_miner_corpus_meets_per_language_positives() {
             "rust" => "rs",
             "python" => "py",
             "typescript" => "ts",
+            "go" => "go",
             other => panic!(
                 "pr-miner declares unsupported language token `{}` — extend file_language_token()",
                 other

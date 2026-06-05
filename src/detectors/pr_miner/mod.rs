@@ -32,6 +32,7 @@ use crate::core::{
 };
 
 mod apriori;
+mod extract_go;
 mod extract_python;
 mod extract_rust;
 mod extract_typescript;
@@ -191,6 +192,21 @@ pub const TYPESCRIPT_STOPLIST: &[&str] = &[
     "parse",
 ];
 
+/// R6 stop-list for Go. Ubiquitous builtins, logging, and formatting
+/// helpers whose presence in a function body carries no implicit-rule
+/// signal (spec F4c). Pairing primitives a contributor might mine
+/// (`Lock`/`Unlock`, `beginTx`/`commitTx`) are intentionally absent.
+pub const GO_STOPLIST: &[&str] = &[
+    // Builtins reached as a bare identifier head.
+    "len", "cap", "make", "new", "append", "copy", "delete", "close", "print", "println",
+    // fmt logging / formatting (last segment of `fmt.Printf` etc.).
+    "Print", "Printf", "Println", "Sprint", "Sprintf", "Sprintln", "Fprintf",
+    // error / log plumbing.
+    "Error", "Errorf", "Fatal", "Fatalf", "Fatalln",
+    // Common stringer / byte conversions.
+    "String", "Bytes",
+];
+
 static CITATIONS: &[Citation] = &[Citation {
     key: "li-zhou-fse-2005",
     authors: "Z. Li, Y. Zhou",
@@ -227,10 +243,16 @@ impl Detector for PrMinerDetector {
     }
 
     fn supported_languages(&self) -> &'static [Language] {
-        // Rust + Python + TypeScript. Python and TypeScript findings
-        // carry LanguageCitationStatus::Unconfirmed per the per-language
-        // surveys (docs/surveys/pr-miner-{python,typescript}-*.md).
-        &[Language::Rust, Language::Python, Language::TypeScript]
+        // Rust + Python + TypeScript + Go. Python, TypeScript, and Go
+        // findings carry LanguageCitationStatus::Unconfirmed per the
+        // per-language surveys
+        // (docs/surveys/pr-miner-{python,typescript,go}-*.md).
+        &[
+            Language::Rust,
+            Language::Python,
+            Language::TypeScript,
+            Language::Go,
+        ]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
@@ -241,6 +263,7 @@ impl Detector for PrMinerDetector {
                 Language::Rust => all_txns.extend(extract_rust::extract(file)),
                 Language::Python => all_txns.extend(extract_python::extract(file)),
                 Language::TypeScript => all_txns.extend(extract_typescript::extract(file)),
+                Language::Go => all_txns.extend(extract_go::extract(file)),
             }
         }
 
@@ -400,6 +423,7 @@ fn stoplist_for(language: Language) -> &'static [&'static str] {
         Language::Rust => RUST_STOPLIST,
         Language::Python => PYTHON_STOPLIST,
         Language::TypeScript => TYPESCRIPT_STOPLIST,
+        Language::Go => GO_STOPLIST,
     }
 }
 

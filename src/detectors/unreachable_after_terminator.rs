@@ -93,7 +93,12 @@ impl Detector for UnreachableAfterTerminator {
     }
 
     fn supported_languages(&self) -> &'static [Language] {
-        &[Language::Rust, Language::Python, Language::TypeScript]
+        &[
+            Language::Rust,
+            Language::Python,
+            Language::TypeScript,
+            Language::Go,
+        ]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
@@ -103,7 +108,7 @@ impl Detector for UnreachableAfterTerminator {
             .filter(|f| {
                 matches!(
                     f.language,
-                    Language::Rust | Language::Python | Language::TypeScript
+                    Language::Rust | Language::Python | Language::TypeScript | Language::Go
                 )
             })
             .flat_map_iter(|file| {
@@ -113,6 +118,7 @@ impl Detector for UnreachableAfterTerminator {
                         Language::Rust => scan_rust(file, &mut local),
                         Language::Python => scan_python(file, &mut local),
                         Language::TypeScript => scan_typescript(file, &mut local),
+                        Language::Go => scan_go(file, &mut local),
                     }
                 }
                 local
@@ -148,6 +154,8 @@ fn divergent_kind_str(kind: DivergentKind) -> &'static str {
         DivergentKind::ExitBuiltin => "exit",
         DivergentKind::QuitBuiltin => "quit",
         DivergentKind::ProcessExit => "process.exit",
+        DivergentKind::GoOsExit => "os.Exit",
+        DivergentKind::LogFatal => "log.Fatal",
     }
 }
 
@@ -830,6 +838,126 @@ fn analyze_ts_if_constant(if_stmt: &IrIfStmt, findings: &mut Vec<Finding>) {
         }
     } else if let Some(alt) = &if_stmt.alternative {
         // `if (true) { ... } else { ... }` alternative is unreachable.
+        if let Some(first) = alt.statements.first() {
+            findings.push(build_finding(
+                ir_loc_to_core(&first.location),
+                ir_loc_to_core(&if_stmt.condition.location),
+                "constant-true-if-else",
+                1,
+                LanguageCitationStatus::Unconfirmed,
+            ));
+        }
+    }
+}
+
+// ---------- Go scan (R-3.d) ----------
+//
+// Mirrors the Python / TypeScript scan: the block-level F4a rule (first
+// divergent statement renders the following statement unreachable) plus
+// recursion into control-flow bodies (`if` / `for`) and the F4e
+// constant-condition rule. The only Go-specific surface is the
+// terminator-kind table — Go has no `throw`; divergence is `panic(...)`
+// (`Panic`), `os.Exit(...)` (`GoOsExit`), and `log.Fatal*(...)`
+// (`LogFatal`) — plus the absence of `while` / `try` / attribute
+// suppression. Findings emit `LanguageCitationStatus::Unconfirmed` until
+// the R-3.f survey grounds a Go citation.
+
+fn scan_go(file: &IrFile, findings: &mut Vec<Finding>) {
+    for f in &file.fns {
+        walk_go_block(file, &f.body, findings);
+    }
+}
+
+fn walk_go_block(file: &IrFile, block: &IrBlock, findings: &mut Vec<Finding>) {
+    analyze_go_block(block, findings);
+    for stmt in &block.statements {
+        walk_go_stmt(file, stmt, findings);
+    }
+}
+
+fn analyze_go_block(block: &IrBlock, findings: &mut Vec<Finding>) {
+    // Local `type` / hoisted declarations do not participate in the linear
+    // statement stream — parity with the Rust F4c rule.
+    let stmts: Vec<&IrStmt> = block
+        .statements
+        .iter()
+        .filter(|s| !matches!(s.kind, IrStmtKind::HoistedItem { .. }))
+        .collect();
+    for (i, stmt) in stmts.iter().enumerate() {
+        if let Some(kind) = go_stmt_terminator_kind(stmt) {
+            let following = stmts.len() - i - 1;
+            if following == 0 {
+                return;
+            }
+            findings.push(build_finding(
+                ir_loc_to_core(&stmts[i + 1].location),
+                ir_loc_to_core(&stmt.location),
+                kind,
+                following,
+                LanguageCitationStatus::Unconfirmed,
+            ));
+            return;
+        }
+    }
+}
+
+fn go_stmt_terminator_kind(stmt: &IrStmt) -> Option<&'static str> {
+    match &stmt.kind {
+        IrStmtKind::Return(_) => Some("return"),
+        IrStmtKind::Break(_) => Some("break"),
+        IrStmtKind::Continue(_) => Some("continue"),
+        IrStmtKind::DivergentCall { kind, .. } => Some(divergent_kind_str(*kind)),
+        IrStmtKind::If(if_stmt) => match if_stmt.terminator {
+            Some(IrTerminator::BranchMerge {
+                kind: BranchMergeKind::IfBranchesDiverge,
+            }) => Some("if-branches-diverge"),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn walk_go_stmt(file: &IrFile, stmt: &IrStmt, findings: &mut Vec<Finding>) {
+    match &stmt.kind {
+        IrStmtKind::If(if_stmt) => {
+            analyze_go_if_constant(if_stmt, findings);
+            walk_go_block(file, &if_stmt.consequence, findings);
+            if let Some(alt) = &if_stmt.alternative {
+                walk_go_block(file, alt, findings);
+            }
+        }
+        IrStmtKind::For(f) => walk_go_block(file, &f.body, findings),
+        _ => {}
+    }
+}
+
+/// F4e classifier for Go: a condition known at parse time. Go requires a
+/// boolean condition, so only `true` / `false` literals resolve; every
+/// other expression is indeterminate.
+fn go_constant_condition(expr: &IrExpr) -> Option<bool> {
+    match &expr.kind {
+        IrExprKind::Literal(IrLiteral::Bool(b)) => Some(*b),
+        _ => None,
+    }
+}
+
+fn analyze_go_if_constant(if_stmt: &IrIfStmt, findings: &mut Vec<Finding>) {
+    let Some(cond_value) = go_constant_condition(&if_stmt.condition) else {
+        return;
+    };
+    if !cond_value {
+        // `if false { ... }` consequence is unreachable.
+        if let Some(first) = if_stmt.consequence.statements.first() {
+            findings.push(build_finding(
+                ir_loc_to_core(&first.location),
+                ir_loc_to_core(&if_stmt.condition.location),
+                "constant-false-if",
+                1,
+                LanguageCitationStatus::Unconfirmed,
+            ));
+        }
+    } else if let Some(alt) = &if_stmt.alternative {
+        // `if true { ... } else { ... }` alternative is unreachable.
         if let Some(first) = alt.statements.first() {
             findings.push(build_finding(
                 ir_loc_to_core(&first.location),

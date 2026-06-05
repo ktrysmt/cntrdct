@@ -738,3 +738,57 @@ class Net {
         "expected 1 this.method swap finding, got {findings:#?}"
     );
 }
+
+// ---------- R-3.d: Go ----------
+
+fn parsed_go(name: &str, src: &str) -> IrFile {
+    cntrdct::ir_from_source(&PathBuf::from(name), Language::Go, src.to_string())
+        .expect("ir_from_source")
+}
+
+#[test]
+fn t_go_swap_detected() {
+    let src = r#"
+package main
+func connect(host string, port string) { open(host, port) }
+func caller(port string, host string) { connect(port, host) }
+"#;
+    let findings = run(vec![parsed_go("a.go", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "expected 1 Go swap finding, got {findings:#?}"
+    );
+    assert_eq!(findings[0].detector_id, "arg-swap");
+    assert_eq!(
+        findings[0].evidence.language_citation_status,
+        LanguageCitationStatus::Unconfirmed,
+        "Go arg-swap findings are Unconfirmed until R-3.f"
+    );
+}
+
+#[test]
+fn t_go_no_swap_when_order_matches() {
+    let src = r#"
+package main
+func connect(host string, port string) {}
+func caller(host string, port string) { connect(host, port) }
+"#;
+    let findings = run(vec![parsed_go("a.go", src)]);
+    assert!(findings.is_empty(), "no swap expected, got {findings:#?}");
+}
+
+#[test]
+fn t_go_method_receiver_swap() {
+    let src = r#"
+package main
+func (n *Net) connect(host string, port string) {}
+func (n *Net) run(port string, host string) { n.connect(port, host) }
+"#;
+    let findings = run(vec![parsed_go("a.go", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "expected 1 receiver-method swap finding, got {findings:#?}"
+    );
+}

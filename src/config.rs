@@ -248,6 +248,9 @@ pub fn collect_attribute_suppressions(file: &IrFile) -> Vec<AttributeSuppression
         // TypeScript suppression syntax (R-2.d) is not yet modelled;
         // no attribute-based suppressions are collected for TS files.
         Language::TypeScript => Vec::new(),
+        // Go suppression syntax is not yet modelled (R-3); no
+        // attribute-based suppressions are collected for Go files.
+        Language::Go => Vec::new(),
     }
 }
 
@@ -681,6 +684,7 @@ mod tests {
                     Language::Rust => "fn _x() {}\n",
                     Language::Python => "def _x():\n    pass\n",
                     Language::TypeScript => "function _x() {}\n",
+                    Language::Go => "package main\nfunc _x() {}\n",
                 };
                 let source_for_ir: Arc<str> = if body.trim().is_empty() {
                     Arc::from(placeholder)

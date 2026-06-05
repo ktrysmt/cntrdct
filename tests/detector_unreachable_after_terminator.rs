@@ -1006,3 +1006,124 @@ function f(x: number): number {
         "no unreachable code, got {findings:#?}"
     );
 }
+
+// ---------- R-3.d: Go ----------
+
+fn parsed_go(name: &str, src: &str) -> IrFile {
+    cntrdct::ir_from_source(&PathBuf::from(name), Language::Go, src.to_string())
+        .expect("ir_from_source")
+}
+
+#[test]
+fn t_go_unreachable_after_return() {
+    let src = r#"
+package main
+func f(x int) int {
+    return x
+    cleanup()
+}
+"#;
+    let findings = run(vec![parsed_go("a.go", src)]);
+    assert_eq!(findings.len(), 1, "expected 1 finding, got {findings:#?}");
+    assert_eq!(findings[0].detector_id, "unreachable-after-terminator");
+    assert_eq!(
+        findings[0].evidence.language_citation_status,
+        LanguageCitationStatus::Unconfirmed
+    );
+}
+
+#[test]
+fn t_go_unreachable_after_panic() {
+    let src = r#"
+package main
+func f() {
+    panic("boom")
+    cleanup()
+}
+"#;
+    let findings = run(vec![parsed_go("a.go", src)]);
+    assert_eq!(findings.len(), 1, "panic must terminate; got {findings:#?}");
+}
+
+#[test]
+fn t_go_unreachable_after_os_exit_and_log_fatal() {
+    let exit_src = r#"
+package main
+func f() {
+    os.Exit(1)
+    cleanup()
+}
+"#;
+    let fatal_src = r#"
+package main
+func g() {
+    log.Fatal("dead")
+    cleanup()
+}
+"#;
+    assert_eq!(
+        run(vec![parsed_go("a.go", exit_src)]).len(),
+        1,
+        "os.Exit must terminate"
+    );
+    assert_eq!(
+        run(vec![parsed_go("b.go", fatal_src)]).len(),
+        1,
+        "log.Fatal must terminate"
+    );
+}
+
+#[test]
+fn t_go_unreachable_after_if_both_branches_diverge() {
+    let src = r#"
+package main
+func f(x int) int {
+    if x > 0 {
+        return x
+    } else {
+        panic("e")
+    }
+    cleanup()
+}
+"#;
+    let findings = run(vec![parsed_go("a.go", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "if/else both diverging must make trailing stmt unreachable; got {findings:#?}"
+    );
+}
+
+#[test]
+fn t_go_constant_false_if_consequence_unreachable() {
+    let src = r#"
+package main
+func f() {
+    if false {
+        cleanup()
+    }
+}
+"#;
+    let findings = run(vec![parsed_go("a.go", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "if false consequence is unreachable; got {findings:#?}"
+    );
+}
+
+#[test]
+fn t_go_reachable_when_no_terminator() {
+    let src = r#"
+package main
+func f(x int) int {
+    y := x + 1
+    return y
+}
+"#;
+    let findings = run(vec![parsed_go("a.go", src)]);
+    assert!(
+        findings.is_empty(),
+        "no unreachable code, got {findings:#?}"
+    );
+}

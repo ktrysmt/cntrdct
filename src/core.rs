@@ -79,12 +79,22 @@ pub enum Language {
     /// TypeScript type-assertion casts in `.ts` files — a future
     /// language variant owns `.tsx`.
     TypeScript,
+    /// Go source (`.go`). The R-3 pilot covers the five cross-cutting
+    /// detectors; Go build-tag interaction (the `//go:build` analogue of
+    /// the Rust `#[cfg]` detector) is a future language-specific detector
+    /// under `src/detectors/lang/`, not part of this pilot.
+    Go,
 }
 
 impl Language {
     /// Every variant defined today, in declaration order.
     pub fn all() -> &'static [Language] {
-        &[Language::Rust, Language::Python, Language::TypeScript]
+        &[
+            Language::Rust,
+            Language::Python,
+            Language::TypeScript,
+            Language::Go,
+        ]
     }
 
     /// Canonical lowercase name used in `IrFile.language` strings,
@@ -94,6 +104,7 @@ impl Language {
             Language::Rust => "rust",
             Language::Python => "python",
             Language::TypeScript => "typescript",
+            Language::Go => "go",
         }
     }
 
@@ -105,6 +116,7 @@ impl Language {
             "rust" => Some(Language::Rust),
             "python" => Some(Language::Python),
             "typescript" => Some(Language::TypeScript),
+            "go" => Some(Language::Go),
             _ => None,
         }
     }

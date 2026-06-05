@@ -106,7 +106,12 @@ impl Detector for CommentCode {
     }
 
     fn supported_languages(&self) -> &'static [Language] {
-        &[Language::Rust, Language::Python, Language::TypeScript]
+        &[
+            Language::Rust,
+            Language::Python,
+            Language::TypeScript,
+            Language::Go,
+        ]
     }
 
     fn detect(&self, ctx: &DetectContext) -> Result<Vec<Finding>, DetectorError> {
@@ -116,7 +121,7 @@ impl Detector for CommentCode {
             .filter(|f| {
                 matches!(
                     f.language,
-                    Language::Rust | Language::Python | Language::TypeScript
+                    Language::Rust | Language::Python | Language::TypeScript | Language::Go
                 )
             })
             .flat_map_iter(|file| {
@@ -128,6 +133,7 @@ impl Detector for CommentCode {
                     Language::Rust => collect_rust_findings(file, &mut local),
                     Language::Python => collect_python_findings(file, &mut local),
                     Language::TypeScript => collect_typescript_findings(file, &mut local),
+                    Language::Go => collect_go_findings(file, &mut local),
                 }
                 local
             })
@@ -383,6 +389,91 @@ fn typescript_pattern_throws(doc_lc: &str, body: &IrBlock) -> Option<&'static st
         return None;
     }
     Some(trigger)
+}
+
+// ---------- Go (R-3.d) ----------
+
+/// Doc / prose markers that claim the function panics. Go has no `@throws`
+/// tag; the convention is prose in the doc comment ("panics if …").
+const GO_PANICS_TRIGGERS: &[&str] = &[
+    "panics",
+    "will panic",
+    "may panic",
+    "panic if",
+    "panic when",
+];
+
+/// Go analogue of `collect_typescript_findings`. v0 ships the `go-panics`
+/// pattern (doc claims the function panics but the body has no `panic` /
+/// `log.Fatal` / `os.Exit` divergent call), the Go counterpart of
+/// `ts-throws` / `py-raises`. Findings carry
+/// `LanguageCitationStatus::Unconfirmed` per the R-3.f survey.
+fn collect_go_findings(file: &IrFile, out: &mut Vec<Finding>) {
+    for ir_fn in &file.fns {
+        // Top-level only, mirroring the other languages; methods arrive
+        // with is_method == true and are skipped in v0.
+        if ir_fn.is_method {
+            continue;
+        }
+        let Some(doc) = ir_fn.leading_doc.as_deref() else {
+            continue;
+        };
+        let doc_lc = doc.to_lowercase();
+        if let Some(trigger) = go_pattern_panics(&doc_lc, &ir_fn.body) {
+            out.push(make_finding_with_status(
+                file,
+                ir_fn,
+                "go-panics",
+                trigger,
+                LanguageCitationStatus::Unconfirmed,
+            ));
+        }
+    }
+}
+
+fn go_pattern_panics(doc_lc: &str, body: &IrBlock) -> Option<&'static str> {
+    let trigger = GO_PANICS_TRIGGERS
+        .iter()
+        .find(|p| doc_lc.contains(*p))
+        .copied()?;
+    // Go expresses divergence through `panic(...)` / `os.Exit(...)` /
+    // `log.Fatal*(...)`, modelled as `IrStmtKind::DivergentCall`; a body
+    // that has one is not contradicting its doc.
+    if body_contains_divergent_call(body) {
+        return None;
+    }
+    // Factory-shape suppression, same as ts-throws / py-raises: a function
+    // that returns the result of a call is delegating, not making a direct
+    // no-panic claim.
+    if body_returns_call_expression(body) {
+        return None;
+    }
+    Some(trigger)
+}
+
+/// Recursively scan `block` for any `IrStmtKind::DivergentCall` (Go
+/// `panic` / `os.Exit` / `log.Fatal*`). Walks into the Go IR's
+/// compound-statement shapes (`If`, `For`). Calls inside nested closures
+/// are `IrStmtKind::Other` and are not recursed into — a panic inside an
+/// inner closure belongs to that scope.
+fn body_contains_divergent_call(block: &IrBlock) -> bool {
+    block.statements.iter().any(stmt_contains_divergent_call)
+}
+
+fn stmt_contains_divergent_call(stmt: &IrStmt) -> bool {
+    match &stmt.kind {
+        IrStmtKind::DivergentCall { .. } => true,
+        IrStmtKind::If(if_stmt) => {
+            body_contains_divergent_call(&if_stmt.consequence)
+                || if_stmt
+                    .alternative
+                    .as_ref()
+                    .map(body_contains_divergent_call)
+                    .unwrap_or(false)
+        }
+        IrStmtKind::For(for_stmt) => body_contains_divergent_call(&for_stmt.body),
+        _ => false,
+    }
 }
 
 fn python_pattern_raises(doc_lc: &str, body: &IrBlock) -> Option<&'static str> {

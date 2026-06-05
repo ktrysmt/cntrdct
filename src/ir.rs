@@ -731,6 +731,12 @@ pub enum IrCommentKind {
     TypeScriptBlock,
     /// TypeScript `/** ... */` JSDoc doc-comment block.
     TypeScriptDocBlock,
+    /// Go `// ...` line comment. Go doc comments are line comments
+    /// immediately preceding a declaration; the converter folds a run
+    /// of them into [`IrFn::leading_doc`] rather than a distinct kind.
+    GoLine,
+    /// Go `/* ... */` block comment.
+    GoBlock,
 }
 
 // ---------- IrDecorator ----------
@@ -823,6 +829,14 @@ pub enum DivergentKind {
     /// terminates the process, so control never returns past the call
     /// — the divergent analogue of Python's `sys.exit` (R-2).
     ProcessExit,
+    /// Go `os.Exit(...)`. Distinct from the Python [`OsExit`]
+    /// (`os._exit`) so the finding message renders the correct Go
+    /// spelling (R-3).
+    GoOsExit,
+    /// Go `log.Fatal` / `log.Fatalf` / `log.Fatalln`. The `log`
+    /// package calls `os.Exit(1)` after writing, so control never
+    /// returns past the call (R-3). Go `panic(...)` reuses [`Panic`].
+    LogFatal,
 }
 
 /// Branch-merge subkind for [`IrTerminator::BranchMerge`].

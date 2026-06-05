@@ -689,7 +689,7 @@ apply to v0.6.0.
 
 Cuts v0.6.0.
 
-R-2. TypeScript pilot — `[~]`
+R-2. TypeScript pilot — `[x]`
 
 - Add `src/parsers/typescript.rs`, `tree-sitter-typescript` Cargo
   dep, `benchmarks/wild-corpus-typescript/`.
@@ -919,11 +919,178 @@ R-2.g. Recalibrate priors + self-replication ledger + release — `[x]`
        the 0.10.0 detector behaviour. The baselines fixture-rename
        release step stays retired per R-1.e.
 
-R-3. Go pilot — `[ ]`
+R-3. Go pilot — `[x]`
 
 - Same shape as R-2 for Go. Validates that R-2 was not
   TypeScript-specific.
-- Cuts v0.7.x.
+- Cuts v0.7.x (actual release line is v0.11.0 — see R-3.g).
+
+Sub-step ledger (mirrors R-2's a-g shape; recorded as the work lands).
+R-3.a-f landed together in one working-tree pass; R-3.g recalibrated,
+built the ledger, and cut the v0.11.0 release.
+
+R-3.a. Language plumbing — `[x]` 2026-06-05 (uncommitted in working
+       tree). `core::Language` gains the `Go` variant (`all()` /
+       `canonical_name` / `from_canonical_name`); `parsers::detect_language`
+       maps `.go`; `parser_for` dispatches to the new `GoParserProvider`;
+       `Cargo.toml` pins `tree-sitter-go = "0.21"` (0.21.2,
+       `tree-sitter >=0.21.0` — compatible with the workspace
+       `tree-sitter = "0.22"` and the rust/python/typescript 0.21
+       grammars; the latest 0.23.2+ requires tree-sitter 0.24 and was
+       rejected, same shape as the R-2 TS pin). `.go` is the only
+       extension; Go has no `.tsx`-style grammar-ambiguity exclusion.
+       IR additive variants: `DivergentKind::{GoOsExit, LogFatal}` (Go
+       `panic` reuses `Panic`; `GoOsExit` is distinct from the Python
+       `OsExit`=`os._exit` so the finding message renders `os.Exit`) and
+       `IrCommentKind::{GoLine, GoBlock}`. The one exhaustive
+       `divergent_kind_str` match gains the two arms; `config.rs` gains a
+       no-op Go suppression arm. Temporary no-op Go arms added to the four
+       cross-cutting dispatch sites (replaced in R-3.d/e).
+R-3.b. IR converter — `[x]` 2026-06-05 (uncommitted in working tree).
+       `src/parsers/go.rs` implements the full `to_ir` over
+       `tree_sitter_go::language()`: `function_declaration` /
+       `method_declaration` (the receiver lives in a separate field, not
+       in `parameters`, so `params` carries only the real args and
+       `is_method` records method-ness — `ir_fn_to_def` needs no receiver
+       to drop); multi-name `parameter_declaration` expansion (`a, b int`
+       → two Plain params), variadic → Unsupported; statement
+       classification incl. `return` → Return, `panic`/`os.Exit`/
+       `log.Fatal*` → DivergentCall, `if`/`for`/`short_var_declaration`/
+       `var`/`assignment`/`break`/`continue`/`type_declaration`;
+       `selector_expression` → receiver-chain `IrPath`; literals via
+       `parse_go_number` (octal/hex → Int(None)); Go doc comments folded
+       from a row-adjacent run of `//` lines into `leading_doc`;
+       function-rooted `walk_normalize_go` for clone-drift. v0 limitations
+       in the module header (switch/type_switch/select/defer/go/labeled →
+       Other; infinite `for {}` not a terminator — all safe under the
+       total "unknown → Other" contract). No v0.5.x byte-identical pinning
+       corpus for Go (TS-parity), so anchored only by the T4 goldens. 15
+       inline converter unit tests.
+R-3.c. IR tests + T4 goldens — `[x]` 2026-06-05 (uncommitted in working
+       tree). Four T4 goldens under `tests/fixtures/ir/go/{methods,
+       nested_calls,nested_if_panic,func_decls}.{go,json}` wired into
+       `tests/ir_convert.rs` (`language_dir` gains a Go arm + 4 tests),
+       blessed via `CNTRDCT_BLESS=1`; all parse `parse_recovered == false`
+       and the goldens carry real IR (methods flagged, leading_doc,
+       receiver chains, `DivergentCall: Panic`, `BranchMerge`).
+R-3.d. Opt the cross-cutting detectors into Go (4 of 5) — `[x]`
+       2026-06-05 (uncommitted in working tree). pr-miner deferred to
+       R-3.e (corpus_shape coupling, same as R-2.d→R-2.e).
+       - arg-swap: `supported_languages()` += Go; new
+         `run_pipeline(Go, extract_go_fn_defs, extract_go_call_sites,
+         Unconfirmed, [li-zhou, rice])`. Definitions from IR (incl.
+         methods); call sites from a raw-tree walk (Pattern B) over
+         `call_expression`, callee a bare `identifier` or single-receiver
+         `recv.Method`, args bare identifiers only.
+       - clone-drift: += Go (language-agnostic `run_detect_for_language`,
+         IR `normalised_tokens`), Unconfirmed. Top-level `func`s
+         participate (`!is_method`); methods excluded as for Rust/TS.
+       - comment-code: += Go; new `collect_go_findings` ships the
+         `go-panics` pattern (doc claims panic but body has no panic /
+         os.Exit / log.Fatal divergent call; factory-shape return
+         suppresses), reusing `body_returns_call_expression` + a new
+         `body_contains_divergent_call` walk; Unconfirmed.
+       - unreachable-after-terminator: += Go; new `scan_go` mirrors the
+         Python/TS scan (block-level F4a + recursion into if/for + F4e
+         constant-condition). Terminator table maps `panic`→Panic,
+         `os.Exit`→GoOsExit, `log.Fatal*`→LogFatal, if-branch-merge.
+         Unconfirmed.
+       Each detector's `par_iter().filter(matches!(... languages ...))`
+       pre-filter was extended to include Go (the bug that initially gave
+       comment-code 0 Go findings). 14 new Go regression tests across the
+       four `tests/detector_*.rs`. End-to-end `cntrdct scan` over a seeded
+       `.go` file fires arg-swap / unreachable / comment-code with
+       `languageCitationStatus: Unconfirmed`.
+R-3.e. pr-miner Go opt-in + Go corpora — `[x]` 2026-06-05 (uncommitted
+       in working tree). New `src/detectors/pr_miner/extract_go.rs`
+       mirrors the Python/TS extractor (one `Transaction` per top-level
+       `function_declaration` / `method_declaration`; call-head last
+       segment via `identifier` or identifier-chain `selector_expression`).
+       Wired into `mod.rs` (`mod extract_go`, dispatch arm, `GO_STOPLIST`,
+       `supported_languages()` += Go, `stoplist_for` arm). 6 inline tests.
+       Labelled corpus: 8 positive `benchmarks/corpus/files/
+       pr_miner_go_0{01..08}.go` (7 `beginTx`/`commitTx` satisfiers + 1
+       violator @ line 55) + 3 negatives + 11 `manifest.jsonl` entries.
+       `tests/corpus_shape.rs` `file_language_token` + the per-language
+       token map gain `.go`/`"go" => "go"`. Verified firing: a full
+       `benchmarks/corpus/files` scan reports pr-miner @ L55 Unconfirmed
+       on all 8 (the global cardinality gate requires the full-corpus
+       transaction set, not a 3-file subset). 2 new
+       `tests/detector_pr_miner.rs` Go tests. Wild corpus:
+       `benchmarks/wild-corpus-go/` — 16 verbatim `.go` extracts from
+       google/uuid 1.6.0 (BSD-3-Clause, 8 files) and sirupsen/logrus
+       1.9.3 (MIT, 8 files) GitHub release tarballs, each with a
+       `// Source:` / `// License:` / `// Note:` provenance header,
+       `manifest.jsonl` (unlabelled, `expected: []`, with
+       `source`/`license`/`sha256` of the headered file), and a README.
+       All 16 parse clean (`parse_recovered == false`; functions
+       extracted from every file). `cntrdct eval` reports
+       `actual_total = 0` — the honest result for high-quality library
+       code, recorded in the README. All five cross-cutting detectors now
+       support Go.
+R-3.f. Per-(detector, Go) literature surveys + CITATIONS — `[x]`
+       2026-06-05 (uncommitted in working tree). Ran the per-(detector,
+       Go) survey for all five cross-cutting detectors per
+       docs/spec/citations-policy.md. Outcome: ALL FIVE Unconfirmed — no
+       peer-reviewed publication or established benchmark grounds any of
+       the five concepts on Go under the strict "other-language ≠ Go"
+       rule (a Java/C/C++/JS/TS/Python-subject paper does not satisfy
+       clause (a) for Go). Honest near-misses recorded and rejected:
+       DeepBugs/SWAPD/Rice (non-Go) and the Go-subject concurrency studies
+       (Tu et al. ASPLOS 2019, GoBench/GCatch) for arg-swap; Go-Clone
+       (ISSTA 2019 tool demo, deep-learning, not NiCad) and `dupl` (tool)
+       for clone-drift; DocChecker (EACL 2024 demo, Go only in
+       pre-training) and DocPrism (preprint) for comment-code; the JSS
+       2026 Go-linters assessment + go vet/staticcheck/deadcode tooling
+       for unreachable; Wu et al. AUGP (KSEM 2023, Java) and NAR-Miner
+       (FSE 2018, C) for pr-miner. Deliverables: five survey docs
+       `docs/surveys/<detector>-go-2026-06.md` (each ~270-325 lines,
+       candidate-by-candidate with verified URLs) and five
+       explicit-no-citation lines added to `CITATIONS.md` under each
+       detector subsection. No detector source change — every Go pipeline
+       already emitted `LanguageCitationStatus::Unconfirmed`, and no new
+       citation key enters the P1 surface, so
+       `tests/citations_consistency.rs` is unaffected. Surveyed via a
+       5-member Agent Team (one surveyor per detector); the more unusual /
+       current-year references (Go-Clone ISSTA 2019, Tu ASPLOS 2019, the
+       JSS 2026 linters assessment, NAR-Miner FSE 2018) were re-verified
+       centrally before integration. Full gate green:
+       `cargo test --all-targets` (+ `--features lsp`),
+       `cargo clippy --all-targets -- -D warnings`,
+       `cargo fmt --all -- --check`; audit-recall floor 0.918 unchanged
+       (no TS/Go entries in `benchmarks/audit-corpus`; Rust/Python detect
+       paths byte-identical).
+R-3.g. Recalibrate priors + self-replication ledger + release — `[x]`
+       2026-06-05. Recalibrate: appended the 8 Go pr-miner positives
+       (`files/pr_miner_go_*.go` @ line 55, `pr-miner` / `TruePositive`)
+       to `benchmarks/labelled-findings.jsonl` (101 → 109 lines) and ran
+       `cntrdct calibrate benchmarks/labelled-findings.jsonl --output
+       benchmarks/priors-default.json` — lifted ONLY the `pr-miner` prior
+       (tp 24 → 32, posterior_tp 0.962 → 0.971, wilson_lower_95
+       0.863 → 0.893; prior_method jeffreys → wilson as the tp count
+       crossed the method threshold); the other six detector priors are
+       byte-identical (Go findings key to the existing detector id — no
+       new prior entry, no language axis). Recall floor held:
+       `cntrdct calibrate --audit-recall benchmarks/audit-corpus`
+       `overall_recall_upper_bound` = 0.918 (56 tp / 5 fn — no Go entries
+       in `benchmarks/audit-corpus`; § 9 floor green). Self-replication
+       ledger: `benchmarks/self-replication/v0.11.0/cntrdct.jsonl` — five
+       `EvalReport` lines (audit-corpus, wild-corpus, wild-corpus-python,
+       wild-corpus-typescript, wild-corpus-go). The four carried-over
+       lines are byte-identical to the v0.10.1 snapshot (confirms detect()
+       is unchanged by R-3 for Rust/Python/TS); the new
+       `wild-corpus-typescript`-style `wild-corpus-go` line reports
+       `actual_total = 0` over 16 files — the honest R-3.e result for
+       high-quality library code, recorded as a baseline. Full gate green
+       before tagging: `cargo test --all-targets`, `cargo test --features
+       lsp`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all
+       -- --check`. Release: four commits mirroring R-2's shape
+       (`feat(go)` → `docs(surveys)` → `chore(calibration)` →
+       `chore(release): bump version to 0.11.0`); `Cargo.toml` 0.10.1 →
+       0.11.0 (new language = minor bump), `Cargo.lock` synced; annotated
+       `v0.11.0` tag pushed via `git push --follow-tags` per CLAUDE.md
+       "Release procedure". The baselines fixture-rename release step
+       stays retired per R-1.e.
 
 R-4. P3 revisit for Layer 0 LLM (carry-over from Q-17) — `[ ]`
 

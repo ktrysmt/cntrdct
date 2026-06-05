@@ -73,6 +73,7 @@ fn language_dir(lang: Language) -> &'static str {
         Language::Rust => "rust",
         Language::Python => "python",
         Language::TypeScript => "typescript",
+        Language::Go => "go",
         _ => unreachable!("unsupported language under §F6 T4 in v0"),
     }
 }
@@ -135,4 +136,24 @@ fn t4_typescript_nested_if_throw() {
 #[test]
 fn t4_typescript_arrow_export() {
     run_case(Language::TypeScript, "arrow_export", "ts");
+}
+
+#[test]
+fn t4_go_methods() {
+    run_case(Language::Go, "methods", "go");
+}
+
+#[test]
+fn t4_go_nested_calls() {
+    run_case(Language::Go, "nested_calls", "go");
+}
+
+#[test]
+fn t4_go_nested_if_panic() {
+    run_case(Language::Go, "nested_if_panic", "go");
+}
+
+#[test]
+fn t4_go_func_decls() {
+    run_case(Language::Go, "func_decls", "go");
 }

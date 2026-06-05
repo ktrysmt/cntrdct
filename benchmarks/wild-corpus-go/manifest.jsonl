@@ -1,0 +1,19 @@
+// cntrdct R-3 wild-corpus-go manifest. One JSON object per non-blank line.
+// Lines starting with // are skipped by the loader. Unlabelled (expected=[]):
+// these are real OSS extracts mined for eval-drift signal, not hand-labelled.
+{"expected": [], "file": "files/uuid_hash.go", "license": "BSD-3-Clause", "sha256": "90bc4a660e1fbc4000414b57546364f053fde9832de6e306c52f1159bbc55b17", "source": "https://codeload.github.com/google/uuid/tar.gz/refs/tags/v1.6.0"}
+{"expected": [], "file": "files/uuid_marshal.go", "license": "BSD-3-Clause", "sha256": "bf12d5e74d5f2be5211ed1d87a582aba77e6d88a81b6f291420c76dbd6d79f00", "source": "https://codeload.github.com/google/uuid/tar.gz/refs/tags/v1.6.0"}
+{"expected": [], "file": "files/uuid_node.go", "license": "BSD-3-Clause", "sha256": "8116552c233e700667b5a8e2f135c4f4c53a97e7074e8a146eb644616de841fb", "source": "https://codeload.github.com/google/uuid/tar.gz/refs/tags/v1.6.0"}
+{"expected": [], "file": "files/uuid_sql.go", "license": "BSD-3-Clause", "sha256": "21c4b222030eea518a62db82e85719a5bc107943bbb9a5792f4a56deac883ec5", "source": "https://codeload.github.com/google/uuid/tar.gz/refs/tags/v1.6.0"}
+{"expected": [], "file": "files/uuid_util.go", "license": "BSD-3-Clause", "sha256": "8336c93d67a625d708145e3b7517420e911877eb10bcbe3a549f0aafb93d54d2", "source": "https://codeload.github.com/google/uuid/tar.gz/refs/tags/v1.6.0"}
+{"expected": [], "file": "files/uuid_version1.go", "license": "BSD-3-Clause", "sha256": "0110885d2d3799337e60b466492edd35dc07d2dbad4ba33e1dd79f365a8c6673", "source": "https://codeload.github.com/google/uuid/tar.gz/refs/tags/v1.6.0"}
+{"expected": [], "file": "files/uuid_version4.go", "license": "BSD-3-Clause", "sha256": "a42a4c56bd646003e640d0eeac1f2feb9764104eb033d376db89310b2f12b3b4", "source": "https://codeload.github.com/google/uuid/tar.gz/refs/tags/v1.6.0"}
+{"expected": [], "file": "files/uuid_version6.go", "license": "BSD-3-Clause", "sha256": "493b8a822bfeb96e4e6a74a2acfca7ca4ab7d676d2e2348e2321c2445324bc58", "source": "https://codeload.github.com/google/uuid/tar.gz/refs/tags/v1.6.0"}
+{"expected": [], "file": "files/logrus_alt_exit.go", "license": "MIT", "sha256": "ce1dbe61587fb3d1acd26e48598c556eee5e0286324bd93bf78a671d17997ef9", "source": "https://codeload.github.com/sirupsen/logrus/tar.gz/refs/tags/v1.9.3"}
+{"expected": [], "file": "files/logrus_buffer_pool.go", "license": "MIT", "sha256": "cb812f8eee9bbd4816fe7dc5898e448d663226c68d9945280b753617dad9a741", "source": "https://codeload.github.com/sirupsen/logrus/tar.gz/refs/tags/v1.9.3"}
+{"expected": [], "file": "files/logrus_entry.go", "license": "MIT", "sha256": "44964f8e2c38656fcc2bac3872306ce7fe6562c9e6f509f916dfb4e26f0397a9", "source": "https://codeload.github.com/sirupsen/logrus/tar.gz/refs/tags/v1.9.3"}
+{"expected": [], "file": "files/logrus_exported.go", "license": "MIT", "sha256": "527e0f9d1a96ec817432e17db7e8c88b852ebaf339bcf8f8c6bc42be84f122d3", "source": "https://codeload.github.com/sirupsen/logrus/tar.gz/refs/tags/v1.9.3"}
+{"expected": [], "file": "files/logrus_formatter.go", "license": "MIT", "sha256": "613e7ccd91e381b81403d21ebfc4e3dbabaa795a0cbb2675b1c3afe69746f528", "source": "https://codeload.github.com/sirupsen/logrus/tar.gz/refs/tags/v1.9.3"}
+{"expected": [], "file": "files/logrus_hooks.go", "license": "MIT", "sha256": "4132052cebd48cac766bed98700c7f03d87b0d73e1f7b4bdd34546ef14b64182", "source": "https://codeload.github.com/sirupsen/logrus/tar.gz/refs/tags/v1.9.3"}
+{"expected": [], "file": "files/logrus_logrus.go", "license": "MIT", "sha256": "9ae18276c1328ee60eeb2852770340c365dbf931c8c5d10e38910b6f3f6b393b", "source": "https://codeload.github.com/sirupsen/logrus/tar.gz/refs/tags/v1.9.3"}
+{"expected": [], "file": "files/logrus_writer.go", "license": "MIT", "sha256": "2ae2b25130aec4cf858e887188a62ed152e0562bf58d8c8202d78434b626e810", "source": "https://codeload.github.com/sirupsen/logrus/tar.gz/refs/tags/v1.9.3"}

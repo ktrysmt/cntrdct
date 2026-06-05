@@ -1074,3 +1074,76 @@ fn t_typescript_no_drift_when_all_identical() {
         "all-identical clones are not drift; got {findings:#?}"
     );
 }
+
+// ---------- R-3.d: Go ----------
+
+fn parsed_go(name: &str, src: &str) -> IrFile {
+    cntrdct::ir_from_source(&PathBuf::from(name), Language::Go, src.to_string())
+        .expect("ir_from_source")
+}
+
+const FN_GO_BASE: &str = r#"
+package main
+func process(items []int) []int {
+    out := []int{}
+    for _, it := range items {
+        if it > 0 {
+            out = append(out, it*2)
+        }
+    }
+    return out
+}
+"#;
+
+const FN_GO_DRIFTED: &str = r#"
+package main
+func process(items []int) []int {
+    out := []int{}
+    for _, it := range items {
+        if it > 0 && it < 100 {
+            out = append(out, it*2)
+        }
+    }
+    return out
+}
+"#;
+
+#[test]
+fn t_go_drift_detected_4_identical_plus_1_modified() {
+    let files = vec![
+        parsed_go("a.go", FN_GO_BASE),
+        parsed_go("b.go", FN_GO_BASE),
+        parsed_go("c.go", FN_GO_BASE),
+        parsed_go("d.go", FN_GO_BASE),
+        parsed_go("e.go", FN_GO_DRIFTED),
+    ];
+    let findings = run(files);
+    assert_eq!(
+        findings.len(),
+        1,
+        "expected 1 Go drift finding, got {}: {:#?}",
+        findings.len(),
+        findings
+    );
+    assert_eq!(findings[0].detector_id, "clone-drift");
+    assert_eq!(
+        findings[0].evidence.language_citation_status,
+        LanguageCitationStatus::Unconfirmed,
+        "Go clone-drift findings are Unconfirmed until R-3.f"
+    );
+}
+
+#[test]
+fn t_go_no_drift_when_all_identical() {
+    let files = vec![
+        parsed_go("a.go", FN_GO_BASE),
+        parsed_go("b.go", FN_GO_BASE),
+        parsed_go("c.go", FN_GO_BASE),
+        parsed_go("d.go", FN_GO_BASE),
+    ];
+    let findings = run(files);
+    assert!(
+        findings.is_empty(),
+        "all-identical clones are not drift; got {findings:#?}"
+    );
+}

@@ -705,3 +705,76 @@ function parse(input: string): number {
         "factory-shape return suppresses ts-throws; got {findings:#?}"
     );
 }
+
+// ---------- R-3.d: Go ----------
+
+fn parsed_go(name: &str, src: &str) -> IrFile {
+    cntrdct::ir_from_source(&PathBuf::from(name), Language::Go, src.to_string())
+        .expect("ir_from_source")
+}
+
+#[test]
+fn t_go_panics_doc_without_panic() {
+    let src = r#"
+package main
+// Parse parses input. It panics if the input is empty.
+func Parse(input string) int {
+    n := len(input)
+    return n
+}
+"#;
+    let findings = run(vec![parsed_go("a.go", src)]);
+    assert_eq!(
+        findings.len(),
+        1,
+        "expected 1 go-panics finding, got {findings:#?}"
+    );
+    assert_eq!(findings[0].detector_id, "comment-code");
+    assert_eq!(
+        findings[0]
+            .evidence
+            .raw
+            .get("pattern")
+            .and_then(|v| v.as_str()),
+        Some("go-panics")
+    );
+    assert_eq!(
+        findings[0].evidence.language_citation_status,
+        LanguageCitationStatus::Unconfirmed
+    );
+}
+
+#[test]
+fn t_go_no_finding_when_body_panics() {
+    let src = r#"
+package main
+// Parse panics if the input is empty.
+func Parse(input string) int {
+    if input == "" {
+        panic("empty")
+    }
+    return len(input)
+}
+"#;
+    let findings = run(vec![parsed_go("a.go", src)]);
+    assert!(
+        findings.is_empty(),
+        "body panics, no mismatch; got {findings:#?}"
+    );
+}
+
+#[test]
+fn t_go_no_finding_when_returns_call() {
+    let src = r#"
+package main
+// Parse panics if the input is invalid.
+func Parse(input string) int {
+    return doParse(input)
+}
+"#;
+    let findings = run(vec![parsed_go("a.go", src)]);
+    assert!(
+        findings.is_empty(),
+        "factory-shape return suppresses go-panics; got {findings:#?}"
+    );
+}

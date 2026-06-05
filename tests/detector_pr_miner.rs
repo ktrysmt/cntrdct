@@ -653,3 +653,71 @@ fn t_typescript_no_violation_when_all_paired() {
         "no beginTx violation expected, got {findings:#?}"
     );
 }
+
+// ---------- R-3.e: Go ----------
+
+fn parsed_go(name: &str, src: &str) -> IrFile {
+    cntrdct::ir_from_source(&PathBuf::from(name), Language::Go, src.to_string())
+        .expect("ir_from_source")
+}
+
+fn fillers_go(n: usize) -> String {
+    let mut out = String::new();
+    for i in 0..n {
+        out.push_str(&format!(
+            "func fillerGo{i}() {{\n\tfillerA()\n\tfillerB()\n}}\n"
+        ));
+    }
+    out
+}
+
+#[test]
+fn t_go_single_violation() {
+    // 9 satisfiers of beginTx/commitTx + 1 violator + 10 fillers => 20
+    // transactions. beginTx cardinality = 10/20 = 0.5 (kept), confidence
+    // beginTx->commitTx = 9/10 = 0.9 >= 0.85.
+    let mut src = String::from("package corpus\n");
+    for i in 0..9 {
+        src.push_str(&format!(
+            "func good{i}() {{\n\tbeginTx()\n\tcommitTx()\n}}\n"
+        ));
+    }
+    src.push_str("func loneViolator() {\n\tbeginTx()\n\thelperGo()\n}\n");
+    src.push_str(&fillers_go(10));
+    let findings = run(vec![parsed_go("t.go", &src)]);
+    let prm: Vec<&Finding> = findings
+        .iter()
+        .filter(|f| f.evidence.raw.get("rule_lhs").and_then(|v| v.as_str()) == Some("beginTx"))
+        .collect();
+    assert_eq!(
+        prm.len(),
+        1,
+        "expected exactly 1 beginTx->commitTx violation, got {findings:#?}"
+    );
+    assert_eq!(prm[0].detector_id, "pr-miner");
+    assert_eq!(
+        prm[0].evidence.language_citation_status,
+        LanguageCitationStatus::Unconfirmed,
+        "Go pr-miner findings are Unconfirmed until R-3.f"
+    );
+}
+
+#[test]
+fn t_go_no_violation_when_all_paired() {
+    let mut src = String::from("package corpus\n");
+    for i in 0..10 {
+        src.push_str(&format!(
+            "func good{i}() {{\n\tbeginTx()\n\tcommitTx()\n}}\n"
+        ));
+    }
+    src.push_str(&fillers_go(10));
+    let findings = run(vec![parsed_go("t.go", &src)]);
+    let prm: Vec<&Finding> = findings
+        .iter()
+        .filter(|f| f.evidence.raw.get("rule_lhs").and_then(|v| v.as_str()) == Some("beginTx"))
+        .collect();
+    assert!(
+        prm.is_empty(),
+        "no beginTx violation expected, got {findings:#?}"
+    );
+}

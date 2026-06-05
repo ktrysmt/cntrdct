@@ -34,10 +34,12 @@ use std::sync::Arc;
 pub use crate::core::Language;
 use crate::ir::{IrConvertError, IrFile};
 
+pub mod go;
 pub mod python;
 pub mod rust;
 pub mod typescript;
 
+pub use go::GoParserProvider;
 pub use python::PythonParserProvider;
 pub use rust::RustParserProvider;
 pub use typescript::TypeScriptParserProvider;
@@ -52,6 +54,7 @@ pub fn detect_language(path: &Path) -> Option<Language> {
         "rs" => Some(Language::Rust),
         "py" | "pyi" => Some(Language::Python),
         "ts" | "mts" | "cts" => Some(Language::TypeScript),
+        "go" => Some(Language::Go),
         _ => None,
     }
 }
@@ -148,6 +151,7 @@ pub fn parser_for(lang: Language) -> Box<dyn ParserProvider> {
         Language::Rust => Box::new(RustParserProvider),
         Language::Python => Box::new(PythonParserProvider),
         Language::TypeScript => Box::new(TypeScriptParserProvider),
+        Language::Go => Box::new(GoParserProvider),
     }
 }
 
@@ -205,6 +209,16 @@ mod tests {
             .parse("def main(): pass\n", None)
             .expect("parse python");
         assert!(!tree.root_node().has_error());
+
+        let mut parser = tree_sitter::Parser::new();
+        let p = parser_for(Language::Go);
+        parser
+            .set_language(&p.ts_language())
+            .expect("set go language");
+        let tree = parser
+            .parse("package main\nfunc main() {}\n", None)
+            .expect("parse go");
+        assert!(!tree.root_node().has_error());
     }
 
     fn parse_with(lang: Language, source: &str) -> tree_sitter::Tree {
@@ -222,6 +236,7 @@ mod tests {
                 Language::Rust => "fn main() {}\n",
                 Language::Python => "def main():\n    pass\n",
                 Language::TypeScript => "function main() {}\n",
+                Language::Go => "package main\nfunc main() {}\n",
             };
             let tree = parse_with(lang, source);
             let ir = p
