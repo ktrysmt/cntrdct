@@ -99,3 +99,11 @@
 {"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_ts_006.ts", "line": 53, "repo": "corpus", "verdict": "TruePositive"}
 {"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_ts_007.ts", "line": 53, "repo": "corpus", "verdict": "TruePositive"}
 {"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_ts_008.ts", "line": 53, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_go_001.go", "line": 55, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_go_002.go", "line": 55, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_go_003.go", "line": 55, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_go_004.go", "line": 55, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_go_005.go", "line": 55, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_go_006.go", "line": 55, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_go_007.go", "line": 55, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_go_008.go", "line": 55, "repo": "corpus", "verdict": "TruePositive"}
