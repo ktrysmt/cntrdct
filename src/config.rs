@@ -722,6 +722,7 @@ mod tests {
                 raw: serde_json::Value::Null,
                 language_citation_status: LanguageCitationStatus::Confirmed,
             },
+            origin: Default::default(),
         }
     }
 

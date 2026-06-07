@@ -21,6 +21,7 @@
 
 pub mod adjudicator;
 pub mod calibration;
+pub mod candidate_llm;
 pub mod config;
 pub mod core;
 pub mod cross_model_kappa;
@@ -470,6 +471,28 @@ pub fn adjudicate_top_n<A: Adjudicator>(
     for rf in ranked.iter_mut().take(top_n) {
         let result = adjudicator.adjudicate(rf)?;
         rf.adjudication = Some(result);
+    }
+    Ok(())
+}
+
+/// R-4 (review B5, `docs/spec/p3-amendment-v0.md` §3.3): adjudicate every
+/// `Origin::Layer0Llm` candidate in `ranked` that is not already
+/// adjudicated, REGARDLESS of the `--adjudicate-top` cap. Layer 0
+/// proposes; Layer 3 disposes — a candidate the adjudicator never sees
+/// has no precision floor and is suppressed from output downstream. Layer
+/// 1 findings are untouched here (they go through `adjudicate_top_n`).
+///
+/// On the first adjudicator error the function returns `Err`; the caller
+/// treats any still-unadjudicated Layer 0 candidate as suppressed.
+pub fn adjudicate_layer0_candidates<A: Adjudicator>(
+    ranked: &mut [RankedFinding],
+    adjudicator: &A,
+) -> Result<(), crate::core::DetectorError> {
+    for rf in ranked.iter_mut() {
+        if rf.finding.origin == crate::core::Origin::Layer0Llm && rf.adjudication.is_none() {
+            let result = adjudicator.adjudicate(rf)?;
+            rf.adjudication = Some(result);
+        }
     }
     Ok(())
 }

@@ -28,6 +28,7 @@ fn finding_at(detector_id: &str, file: &Path, line: u32) -> Finding {
             raw: serde_json::Value::Null,
             language_citation_status: LanguageCitationStatus::Confirmed,
         },
+        origin: Default::default(),
     }
 }
 

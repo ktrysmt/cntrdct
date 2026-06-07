@@ -300,6 +300,7 @@ mod tests {
                 raw: serde_json::json!({}),
                 language_citation_status: LanguageCitationStatus::Confirmed,
             },
+            origin: Default::default(),
         }
     }
 

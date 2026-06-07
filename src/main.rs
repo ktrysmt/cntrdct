@@ -58,6 +58,29 @@ enum Commands {
         /// treated as an empty config.
         #[arg(long)]
         config: Option<PathBuf>,
+        /// R-4: run the opt-in Layer 0 LLM candidate generator (arg-swap
+        /// Bound B) before Layer 1. REQUIRES `--adjudicate`: candidates
+        /// flow through Layer 3, and any candidate left unadjudicated is
+        /// suppressed from the output (an unadjudicated LLM proposal has
+        /// no precision floor). The optional value selects the provider
+        /// CLI (`claude-cli` default, or `gemini-cli`); auth is delegated
+        /// to that CLI's own login. Excluded from the `network-isolation`
+        /// netns gate by design. Spec: `docs/spec/p3-amendment-v0.md`.
+        #[arg(
+            long,
+            value_enum,
+            num_args = 0..=1,
+            require_equals = true,
+            default_missing_value = "claude-cli",
+            requires = "adjudicate"
+        )]
+        candidate_llm: Option<CandidateProvider>,
+        /// R-4: hard ceiling on Layer 0 LLM dispatches per scan. The
+        /// deterministic pre-filter narrows the LLM to the Bound B
+        /// residue; this caps fan-out on large trees. Call sites beyond
+        /// the cap are logged as skipped, never silently dropped.
+        #[arg(long, default_value_t = cntrdct::candidate_llm::DEFAULT_MAX_CALLS)]
+        candidate_llm_max_calls: usize,
     },
     /// Build calibration priors from a labelled JSONL corpus.
     ///
@@ -156,6 +179,17 @@ enum OutputFormat {
     Sarif,
 }
 
+/// R-4: provider CLI backing the Layer 0 candidate generator. Both shell
+/// out via `PromptDispatch` (no `reqwest`); auth is delegated to each
+/// CLI's own login.
+#[derive(Copy, Clone, Debug, ValueEnum)]
+enum CandidateProvider {
+    /// Claude Code's `claude --print`.
+    ClaudeCli,
+    /// The Gemini CLI's `gemini -p`.
+    GeminiCli,
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match cli.command {
@@ -167,6 +201,8 @@ fn main() -> ExitCode {
             adjudicate,
             adjudicate_top,
             config,
+            candidate_llm,
+            candidate_llm_max_calls,
         } => {
             let cfg = match cntrdct::load_config(config.as_deref(), &path) {
                 Ok(c) => c,
@@ -177,13 +213,57 @@ fn main() -> ExitCode {
             };
             match cntrdct::scan_full_with_config(&path, &cfg) {
                 Ok((raw_findings, parsed_files)) => {
-                    let findings = match cntrdct::config::apply(&cfg, &parsed_files, raw_findings) {
-                        Ok(f) => f,
-                        Err(e) => {
-                            eprintln!("error: {}", e);
-                            return ExitCode::from(1);
+                    let mut findings =
+                        match cntrdct::config::apply(&cfg, &parsed_files, raw_findings) {
+                            Ok(f) => f,
+                            Err(e) => {
+                                eprintln!("error: {}", e);
+                                return ExitCode::from(1);
+                            }
+                        };
+
+                    // R-4 Layer 0: originate LLM candidates BEFORE Layer 2,
+                    // so they flow through ranking + adjudication. Opt-in,
+                    // requires --adjudicate (enforced by clap). The provider
+                    // CLI shells out via PromptDispatch (no reqwest).
+                    let mut layer0_ran = false;
+                    if let Some(provider) = candidate_llm {
+                        let handle = match provider {
+                            CandidateProvider::ClaudeCli => {
+                                cntrdct::build_audit_claude_cli_provider()
+                            }
+                            CandidateProvider::GeminiCli => {
+                                cntrdct::build_audit_gemini_cli_provider()
+                            }
+                        };
+                        match handle.adjudicator {
+                            Some(dispatch) => {
+                                let outcome = cntrdct::candidate_llm::run_candidate_llm(
+                                    &parsed_files,
+                                    dispatch.as_ref(),
+                                    candidate_llm_max_calls,
+                                );
+                                eprintln!(
+                                    "note: Layer 0 candidate generator ({}): {} dispatched, {} candidate(s), {} skipped over cap, {} dropped",
+                                    handle.provider_id,
+                                    outcome.dispatched,
+                                    outcome.candidates.len(),
+                                    outcome.skipped_over_cap,
+                                    outcome.dropped,
+                                );
+                                findings.extend(outcome.candidates);
+                                layer0_ran = true;
+                            }
+                            None => {
+                                // R-4 (R9): a missing optional provider must
+                                // not fail the scan — continue Layer-1-only.
+                                eprintln!(
+                                    "note: --candidate-llm requested but provider `{}` unavailable ({:?}); continuing with Layer 1 findings only",
+                                    handle.provider_id, handle.status,
+                                );
+                            }
                         }
-                    };
+                    }
 
                     let mut ranked = match cntrdct::rank_with_calibration(
                         findings,
@@ -212,6 +292,18 @@ fn main() -> ExitCode {
                                         e
                                     );
                                     }
+                                    // R-4 (B5): every Layer 0 candidate is
+                                    // adjudicated regardless of --adjudicate-top.
+                                    if layer0_ran {
+                                        if let Err(e) =
+                                            cntrdct::adjudicate_layer0_candidates(&mut ranked, &adj)
+                                        {
+                                            eprintln!(
+                                                "note: Layer 0 adjudication failed; affected candidates will be suppressed ({})",
+                                                e
+                                            );
+                                        }
+                                    }
                                 }
                                 Err(e) => {
                                     eprintln!(
@@ -233,6 +325,24 @@ fn main() -> ExitCode {
                         // and consumers fall back to raw `confidence`.
                         let registry = cntrdct::embedded_platt_registry();
                         cntrdct::apply_llm_calibration(&mut ranked, &registry);
+                    }
+
+                    // R-4 (B5 / §3.3): suppress any Layer 0 candidate that
+                    // was not adjudicated — an unadjudicated LLM proposal has
+                    // no precision floor. Layer 1 findings are never affected.
+                    if layer0_ran {
+                        let before = ranked.len();
+                        ranked.retain(|rf| {
+                            rf.finding.origin != cntrdct::core::Origin::Layer0Llm
+                                || rf.adjudication.is_some()
+                        });
+                        let suppressed = before - ranked.len();
+                        if suppressed > 0 {
+                            eprintln!(
+                                "note: suppressed {} unadjudicated Layer 0 candidate(s) from output",
+                                suppressed
+                            );
+                        }
                     }
 
                     let output = match format {

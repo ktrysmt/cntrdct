@@ -439,6 +439,7 @@ fn emit_findings_for_scope(
                     }),
                     language_citation_status: citation_status,
                 },
+                origin: Default::default(),
             });
         }
     }
@@ -812,6 +813,7 @@ fn analyze_if_branches(file: &IrFile, if_stmt: &IrIfStmt) -> Option<Finding> {
             }),
             language_citation_status: LanguageCitationStatus::Confirmed,
         },
+        origin: Default::default(),
     })
 }
 

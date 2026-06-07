@@ -74,6 +74,16 @@ pub fn rank(findings: Vec<Finding>) -> Vec<RankedFinding> {
 /// ranker silently falls back to the uncalibrated rank_score
 /// (`related.len() as f64`) for that finding. This keeps a partially-calibrated
 /// corpus useful: detectors not yet covered are not penalised.
+///
+/// R-4 prior separation (B3, `docs/spec/p3-amendment-v0.md` §6 P4): a
+/// Layer 0 LLM candidate ([`crate::core::Origin::Layer0Llm`]) must NOT
+/// inherit the Layer 1 detector's prior — an LLM-originated candidate has
+/// a different base rate than a deterministic detector hit, even when it
+/// carries the same `detector_id` (e.g. `arg-swap`). v0 ships no Layer-0
+/// prior, so such candidates always take the `related.len()` fallback; the
+/// full `(detector_id, origin)`-keyed prior map lands in Phase B when
+/// labelled Layer-0 entries exist. This keeps `priors-default.json`
+/// byte-identical (its entries describe Layer-1 base rates only).
 #[derive(Debug, Default)]
 pub struct CalibratedRanker {
     priors: HashMap<String, DetectorPrior>,
@@ -93,28 +103,38 @@ impl crate::core::Ranker for CalibratedRanker {
     fn rank(&self, findings: Vec<Finding>) -> Vec<RankedFinding> {
         let mut ranked: Vec<RankedFinding> = findings
             .into_iter()
-            .map(|f| match self.priors.get(&f.detector_id) {
-                Some(prior) => {
-                    let related = f.related.len() as f64;
-                    let rank_score = prior.wilson_lower_95 * (1.0 + (1.0 + related).log2());
-                    RankedFinding {
-                        finding: f,
-                        posterior_tp: Some(prior.posterior_tp),
-                        wilson_lower: Some(prior.wilson_lower_95),
-                        prior_method: Some(prior.prior_method),
-                        rank_score,
-                        adjudication: None,
+            .map(|f| {
+                // R-4 (B3): Layer 0 LLM candidates never consult a
+                // Layer-1 prior; v0 has no Layer-0 prior so they take the
+                // related.len() fallback below.
+                let prior = if f.origin.is_default() {
+                    self.priors.get(&f.detector_id)
+                } else {
+                    None
+                };
+                match prior {
+                    Some(prior) => {
+                        let related = f.related.len() as f64;
+                        let rank_score = prior.wilson_lower_95 * (1.0 + (1.0 + related).log2());
+                        RankedFinding {
+                            finding: f,
+                            posterior_tp: Some(prior.posterior_tp),
+                            wilson_lower: Some(prior.wilson_lower_95),
+                            prior_method: Some(prior.prior_method),
+                            rank_score,
+                            adjudication: None,
+                        }
                     }
-                }
-                None => {
-                    let rank_score = f.related.len() as f64;
-                    RankedFinding {
-                        finding: f,
-                        posterior_tp: None,
-                        wilson_lower: None,
-                        prior_method: None,
-                        rank_score,
-                        adjudication: None,
+                    None => {
+                        let rank_score = f.related.len() as f64;
+                        RankedFinding {
+                            finding: f,
+                            posterior_tp: None,
+                            wilson_lower: None,
+                            prior_method: None,
+                            rank_score,
+                            adjudication: None,
+                        }
                     }
                 }
             })

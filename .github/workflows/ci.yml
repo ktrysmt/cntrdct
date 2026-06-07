@@ -47,6 +47,19 @@ jobs:
             echo "::error::detectors must call cntrdct::parsers::parser_for(...).ts_language() instead of tree_sitter_*::language() directly" >&2
             exit 1
           fi
+      # R-4 (P3 amendment): the Layer 0 LLM candidate generator must reach
+      # the model ONLY via CLI-shellout PromptDispatch providers, never via
+      # the reqwest HTTP path. Keeping `src/candidate_llm.rs` free of the
+      # reqwest-reachable symbols preserves the reqwest-reachability
+      # invariant {adjudicator.rs::ReqwestClient, build_default_adjudicator}
+      # structurally, so the network-isolation netns gate keeps holding for
+      # the default scan. Spec: docs/spec/p3-amendment-v0.md §3.1 / §6 P3.
+      - name: Layer 0 opens no reqwest path (P3 reqwest-reachability)
+        run: |
+          if grep -REn 'reqwest|ReqwestClient|build_default_adjudicator|AnthropicAdjudicator' src/candidate_llm.rs; then
+            echo "::error::src/candidate_llm.rs must not reference the reqwest HTTP path; Layer 0 dispatches only via CLI PromptDispatch providers (P3)" >&2
+            exit 1
+          fi
 
   clippy-test:
     name: clippy + test (technical, ${{ matrix.os }})
@@ -179,3 +192,24 @@ jobs:
           test -s /tmp/isolated.sarif
           python3 -c "import json; json.load(open('/tmp/isolated.sarif'))"
           echo "::notice::cntrdct scan completed with no network access"
+      # R-4 (P3 amendment, defence-in-depth, §9): the DEFAULT (unflagged)
+      # scan must never originate a Layer 0 LLM candidate. A JSON-format
+      # scan in the same isolated namespace must emit no finding whose
+      # `origin` is `Layer0Llm` — a regression that made Layer 0 default-on
+      # would surface here. The authoritative guard against accidental
+      # activation is the network-independent construction-probe test
+      # `tests/candidate_llm_default_off.rs` (the netns gate cannot tell
+      # "Layer 0 dormant" from "Layer 0 ran but its subprocess could not
+      # reach the network"). Spec: docs/spec/p3-amendment-v0.md §3.2 / §9.
+      - name: default scan originates no Layer 0 candidate (R-4)
+        run: |
+          set -euo pipefail
+          sudo unshare --net ./target/release/cntrdct \
+              scan benchmarks/corpus/files \
+              --format json --no-calibration \
+              > /tmp/isolated.json
+          if grep -q 'Layer0Llm' /tmp/isolated.json; then
+            echo "::error::default scan emitted a Layer0Llm finding inside the netns; Layer 0 must be opt-in only (P3)" >&2
+            exit 1
+          fi
+          echo "::notice::default scan originated no Layer 0 candidate"

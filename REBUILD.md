@@ -1092,7 +1092,7 @@ R-3.g. Recalibrate priors + self-replication ledger + release — `[x]`
        "Release procedure". The baselines fixture-rename release step
        stays retired per R-1.e.
 
-R-4. P3 revisit for Layer 0 LLM (carry-over from Q-17) — `[ ]`
+R-4. P3 revisit for Layer 0 LLM (carry-over from Q-17) — `[x]`
 
 - Architectural amendment to P3 permitting a Layer 0 candidate
   generator that runs an LLM against IR call-site predicates
@@ -1103,6 +1103,127 @@ R-4. P3 revisit for Layer 0 LLM (carry-over from Q-17) — `[ ]`
   upper bound", `docs/spec/cross-model-kappa-v0.md` (Q-13 reuse
   precedent).
 - Spec: `docs/spec/p3-amendment-v0.md` (new).
+  Status: `[~]` 2026-06-07 (uncommitted in working tree). Spec
+  DRAFT landed at `docs/spec/p3-amendment-v0.md` (status "draft for
+  review, NOT approved for implementation"; mirrors the R-0/ir-v0.md
+  review-before-build gate). Drafted from the R-4 required reading:
+  the amendment narrows P3 from "only Layer 3 may invoke an LLM" to
+  "only Layer 0 and Layer 3, both opt-in; default scan/calibrate/eval
+  stays deterministic + network-free." Key settled-in-draft decisions
+  (open to review): (1) Layer 0 uses Q-13 CLI shellout via
+  `PromptDispatch`, NOT `reqwest` — keeps the reqwest-reachable set and
+  the `network-isolation` netns invariant unchanged; (2) opt-in
+  `scan --candidate-llm` flag, default off, netns gate runs the
+  unflagged path + asserts zero `Layer0Llm` findings offline;
+  (3) originate-then-adjudicate — Layer 0 emits low-confidence
+  candidate `Finding{origin: Layer0Llm}` that flow through Layer 2/3/4
+  (Layer 0 proposes, Layer 3 disposes); (4) v0 target is arg-swap
+  Bound B only (`totalsegmentator_statistics.py:10` semantic swap),
+  Bound A stays out of scope. Predicate interface (`CallSitePredicate`)
+  built only from existing R-1 IR fields (`IrCallSite` / `IrPath` /
+  `IrFn.params` / `IrParam`). P1/P4/P5 reconciled in §6; six open
+  questions (R1 determinism, R2 labeller-bias for the P4 corpus, R3
+  proposer=confirmer self-preference, R4 fan-out/cost, R5 flag naming,
+  R6 scope creep) recorded in §7. Implementation remains pending —
+  R-4 stays `[~]` until the draft is reviewed and a build is approved.
+  No code change; no gate run (docs-only).
+  Update 2026-06-07 (review-before-build gate, uncommitted in working
+  tree): ran the R-4 review-before-build gate as a 4-axis parallel
+  review (P3-integrity / architecture / spec-consistency /
+  risk-completeness — the R-0/ir-v0.md precedent). Gate result:
+  NEEDS-REVISION on three of four axes (spec-consistency was
+  APPROVE-WITH-CHANGES; all design-bearing cross-references verified
+  true). 8 blockers + 8 majors absorbed into a "post-R-4-review
+  revision" of `docs/spec/p3-amendment-v0.md`: B1 call-site enumeration
+  must use the raw-tree Pattern-B walk (structured `IrCallSite` is blind
+  to the comprehension-nested flagship call — the decisive catch); B2
+  `Finding.origin` needs `skip_serializing_if` or it breaks T1
+  byte-identity flag-off; B3 Layer-0 prior re-keyed on
+  `(detector_id, origin)` + v0 ships an empty prior with a no-op
+  fallback (corpus deferred to Phase B; the unvalidated OSV claim
+  dropped); B4 P1 enforced via a static citations table (Layer 0 ≠
+  `Detector`); B5 `--candidate-llm` requires `--adjudicate`; B6 hard
+  `--candidate-llm-max-calls` cap; B7 response-validation contract; B8
+  approval criteria added (§11). New §11 (approval criteria, two settled
+  forks flagged for the approval reviewer) + §12 (review log). The
+  architecture itself was confirmed sound (Bound B motivation,
+  CLI-shellout reuse, reqwest/netns claims).
+  Approval 2026-06-07: the revised spec is APPROVED for implementation
+  and both §11 forks accepted (prior keying on `(detector_id, origin)`;
+  v0 empty Layer-0 prior + no-op fallback, corpus deferred to Phase B).
+  Implementation of R-4 v0 (Layer 0 arg-swap Bound B candidate
+  generator) is now in progress against the §11 gate criteria; R-4
+  moves to `[~]`-building.
+  Implementation progress 2026-06-07 (uncommitted in working tree),
+  3 of 6 increments landed, full gate green at each
+  (`cargo test --all-targets` 37 binaries, `clippy -D warnings`, `fmt
+  --check`, `--features lsp`):
+  - Inc 1 (B2): `core::Origin {Layer1Deterministic default, Layer0Llm}`
+    + `Finding.origin` field with `#[serde(skip_serializing_if =
+    "Origin::is_default")]`; threaded `origin: Default::default()`
+    through ~21 construction sites. T1 byte-identical pinning 15/15
+    holds (default-origin findings serialise unchanged).
+  - Inc 2 (B3): `CalibratedRanker` no longer applies a Layer-1 prior to
+    a `Layer0Llm`-origin finding (v0 empty Layer-0 prior → related.len()
+    fallback); `priors-default.json` byte-identical.
+  - Inc 3 (B1/B4/B6/B7/R10): `src/candidate_llm.rs` Layer 0 driver —
+    Bound B residue enumeration via arg-swap's shared raw-tree walk
+    (the comprehension-nested flagship call IS enumerated; new
+    `arg_swap::{extract_call_sites, extract_fn_defs,
+    has_name_correlation}` pub(crate) shims), same-file unique-2-arg
+    resolution, deterministic pre-filter + hard `max_calls` cap,
+    escaped untrusted-data prompt, `PromptDispatch` dispatch reusing the
+    Layer 3 `{verdict,confidence,rationale}` envelope, drop-on-error
+    (never abort). Static `CANDIDATE_LLM_CITATIONS` (allamanis +
+    wataoka + zheng, all pre-existing keys) + 3 consistency tests
+    (Layer 0 ≠ Detector; P1 via static table). 7 driver unit tests
+    (mock dispatch) incl. the decisive B1 comprehension-enumeration
+    case. M6 (ParamFact default-value literals) deferred to Phase B —
+    field present, populated None; flagship is decidable from names.
+  - Inc 4 (B5/B6/R9): CLI wiring in `src/main.rs` + `src/lib.rs`.
+    `scan --candidate-llm[=claude-cli|gemini-cli]` (clap `requires =
+    "adjudicate"`, verified exit 2 without it) + `--candidate-llm-max-calls`
+    (default `DEFAULT_MAX_CALLS`). Layer 0 runs BEFORE Layer 2 (candidates
+    merged into the finding set, flow through rank/adjudicate/SARIF);
+    provider built via the reused `build_audit_{claude,gemini}_cli_provider`
+    (availability-checked → R9 graceful degrade to Layer-1-only, exit 0,
+    verified). New `lib::adjudicate_layer0_candidates` adjudicates every
+    Layer0Llm candidate regardless of `--adjudicate-top` (B5); any candidate
+    still unadjudicated is `retain`-suppressed from output with a note
+    (§3.3 precision floor, verified: candidate generated → no API key →
+    suppressed → `[]`). End-to-end manually verified against the real
+    `claude` CLI (flagship dispatched, 1 candidate) and a forced-unavailable
+    provider (R9).
+  - Inc 5 (M1/M2): structural P3 guards. `.github/workflows/ci.yml`
+    `fmt` job gains a grep guard asserting `src/candidate_llm.rs`
+    references none of `reqwest` / `ReqwestClient` /
+    `build_default_adjudicator` / `AnthropicAdjudicator` (M1 — the module
+    doc was reworded so the guard is a pure code check); the
+    `network-isolation` job gains a JSON-format netns scan asserting the
+    default (unflagged) scan emits no `Layer0Llm` finding (defence-in-
+    depth). New `tests/candidate_llm_default_off.rs` is the AUTHORITATIVE
+    network-independent construction probe (M2): the library `scan` path
+    emits no `Origin::Layer0Llm` finding on the flagship file, and a
+    default-origin finding omits the `origin` field from JSON (B2
+    corollary). Both grep guards verified locally; YAML well-formed.
+  - Inc 6 (§9): end-to-end CLI integration tests in
+    `tests/candidate_llm_cli.rs` (4) using a stub `claude` script (no real
+    LLM / network): B5 flag contract (`--candidate-llm` without
+    `--adjudicate` → exit 2), R9 graceful degradation (unavailable
+    provider → Layer-1-only, exit 0), B5 suppression (candidate generated
+    but unadjudicated → suppressed, output carries no `Layer0Llm`), B6
+    cost cap (`--candidate-llm-max-calls 0` → 0 dispatched, 1 skipped,
+    logged not dropped).
+  R-4 v0 IMPLEMENTATION COMPLETE (all 6 increments landed; the §9 GATE
+  set is green via 7 driver unit tests + 2 construction-probe tests + 4
+  CLI integration tests + the T1 byte-identity pins + 2 CI grep/netns
+  guards). The [MEASURE] recall item (§9) is intentionally not gated
+  (LLM non-determinism, R1) and is deferred to a measured run with a
+  recorded (CLI version, model id). Phase-B follow-ups (not blocking v0):
+  the labelled Layer-0 corpus + fitted prior (B3/R2), `ParamFact` default
+  literals (M6), and R3 self-preference enforcement. Full gate green
+  (`cargo test --all-targets`, `--features lsp`, `clippy -D warnings`,
+  `fmt --check`); all changes uncommitted in the working tree.
 
 R-5. Python `except` handler reachability — `[x]`
 

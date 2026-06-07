@@ -272,6 +272,7 @@ fn make_finding_with_status(
             }),
             language_citation_status: status,
         },
+        origin: Default::default(),
     }
 }
 

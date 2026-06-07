@@ -158,6 +158,36 @@ pub struct Citation {
 
 // ---------- Finding ----------
 
+/// Provenance of a [`Finding`]: which layer originated it.
+///
+/// R-4 (P3 amendment, `docs/spec/p3-amendment-v0.md`): Layer 1
+/// deterministic detectors are the default origin; the opt-in Layer 0
+/// LLM candidate generator stamps its proposals [`Origin::Layer0Llm`]
+/// so Layer 2/3/4 and SARIF can label provenance and the default scan
+/// path can be probed for "no Layer 0 candidate produced offline".
+///
+/// Serialized only when non-default: [`Finding`] applies
+/// `skip_serializing_if = "Origin::is_default"` so a Layer-1 finding's
+/// JSON stays byte-identical to the pre-amendment shape (T1 pinning,
+/// ir-v0.md F6 T1; review blocker B2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum Origin {
+    /// Produced by a Layer 1 deterministic detector (the default).
+    #[default]
+    Layer1Deterministic,
+    /// Proposed by the opt-in Layer 0 LLM candidate generator (R-4).
+    Layer0Llm,
+}
+
+impl Origin {
+    /// True for the default [`Origin::Layer1Deterministic`]. Used by
+    /// `Finding`'s `skip_serializing_if` so default-origin findings
+    /// serialise byte-identically to the pre-R-4 shape.
+    pub fn is_default(&self) -> bool {
+        matches!(self, Origin::Layer1Deterministic)
+    }
+}
+
 /// A source-code location associated with a finding.
 #[derive(Debug, Clone, Serialize)]
 pub struct Location {
@@ -267,6 +297,11 @@ pub struct Finding {
     pub anomaly_class: AnomalyClass,
     /// Supporting evidence (citations + opaque payload).
     pub evidence: Evidence,
+    /// Provenance: which layer originated this finding (R-4). Defaults
+    /// to [`Origin::Layer1Deterministic`] and is omitted from JSON when
+    /// default, preserving T1 byte-identity (review blocker B2).
+    #[serde(default, skip_serializing_if = "Origin::is_default")]
+    pub origin: Origin,
 }
 
 // ---------- Parser context ----------
@@ -519,6 +554,7 @@ mod tests {
                 raw: serde_json::Value::Null,
                 language_citation_status: LanguageCitationStatus::Confirmed,
             },
+            origin: Default::default(),
         };
         let json = serde_json::to_string(&finding).expect("serializes");
         assert!(
@@ -547,6 +583,7 @@ mod tests {
                 raw: serde_json::Value::Null,
                 language_citation_status: LanguageCitationStatus::Confirmed,
             },
+            origin: Default::default(),
         }
     }
 

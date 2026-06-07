@@ -805,6 +805,7 @@ mod tests {
                 raw: json!({"group_size": 4, "similarity_threshold": 0.5}),
                 language_citation_status: LanguageCitationStatus::Confirmed,
             },
+            origin: Default::default(),
         }
     }
 

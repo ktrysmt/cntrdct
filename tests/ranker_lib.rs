@@ -38,6 +38,7 @@ fn make_finding_for(detector_id: &str, file: &str, line: u32, related_count: usi
             raw: serde_json::Value::Null,
             language_citation_status: LanguageCitationStatus::Confirmed,
         },
+        origin: Default::default(),
     }
 }
 

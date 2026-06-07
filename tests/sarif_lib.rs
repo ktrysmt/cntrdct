@@ -108,6 +108,7 @@ fn make_finding_with_class(severity: Severity, class: AnomalyClass) -> Finding {
             raw: serde_json::json!({"group_size": 5}),
             language_citation_status: LanguageCitationStatus::Confirmed,
         },
+        origin: Default::default(),
     }
 }
 

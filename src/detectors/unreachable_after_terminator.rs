@@ -999,6 +999,7 @@ fn build_finding(
             }),
             language_citation_status: citation_status,
         },
+        origin: Default::default(),
     }
 }
 

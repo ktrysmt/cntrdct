@@ -101,16 +101,16 @@ impl ArgSwap {
 }
 
 #[derive(Debug, Clone)]
-struct FnDef {
-    params: Vec<String>,
-    location: Location,
+pub(crate) struct FnDef {
+    pub(crate) params: Vec<String>,
+    pub(crate) location: Location,
 }
 
 #[derive(Debug, Clone)]
-struct CallSite {
-    callee: String,
-    args: Vec<String>,
-    location: Location,
+pub(crate) struct CallSite {
+    pub(crate) callee: String,
+    pub(crate) args: Vec<String>,
+    pub(crate) location: Location,
 }
 
 type ExtractDefs = fn(&IrFile) -> Option<Vec<(String, FnDef)>>;
@@ -315,10 +315,65 @@ fn check_swap(
                 }),
                 language_citation_status: citation_status,
             },
+            origin: Default::default(),
         })
     } else {
         None
     }
+}
+
+// ---------- R-4 Layer 0 reuse surface (p3-amendment-v0.md §5, B1) ----------
+//
+// The Layer 0 LLM candidate generator (`crate::candidate_llm`) must see
+// EXACTLY the call set arg-swap sees — same raw-tree Pattern-B walk, same
+// definition extraction, same F5 swap rule — so its Bound B residue is
+// precisely "resolved 2-arg calls arg-swap found no lexical signal for".
+// These thin pub(crate) shims dispatch by language and expose the F5
+// predicate without duplicating the walkers.
+
+/// Enumerate every in-scope call site in `file`, dispatched by language.
+/// Mirrors `run_pipeline`'s per-language call extraction.
+pub(crate) fn extract_call_sites(file: &IrFile) -> Option<Vec<CallSite>> {
+    match file.language {
+        Language::Rust => extract_rust_call_sites(file),
+        Language::Python => extract_python_call_sites(file),
+        Language::TypeScript => extract_typescript_call_sites(file),
+        Language::Go => extract_go_call_sites(file),
+    }
+}
+
+/// Extract `(name, FnDef)` pairs from `file`, dispatched by language.
+/// Mirrors `run_pipeline`'s per-language definition extraction (Rust
+/// top-level only; Python / TS / Go include methods).
+pub(crate) fn extract_fn_defs(file: &IrFile) -> Option<Vec<(String, FnDef)>> {
+    match file.language {
+        Language::Rust => extract_rust_fn_defs(file),
+        Language::Python => extract_python_fn_defs(file),
+        Language::TypeScript => extract_typescript_fn_defs(file),
+        Language::Go => extract_go_fn_defs(file),
+    }
+}
+
+/// True iff arg-swap's F5 name-correlation rule sees ANY lexical signal
+/// for this 2-arg `(args, params)` pair — either an identity match (args
+/// lexically match params in order, signalling the order is right) or a
+/// swap match (`check_swap` would flag it). The Layer 0 Bound B residue
+/// is exactly the resolved 2-arg calls for which this is FALSE: arg-swap
+/// found no lexical signal in either direction, so identifier morphology
+/// cannot decide the call and an LLM is the only remaining recourse
+/// (p3-amendment-v0.md §2 "semantic swaps"). Kept in lockstep with
+/// `name_matches` / `check_swap` so the two layers never disagree.
+pub(crate) fn has_name_correlation(args: &[String], params: &[String]) -> bool {
+    if args.len() != 2 || params.len() != 2 {
+        return false;
+    }
+    let a0 = args[0].to_lowercase();
+    let a1 = args[1].to_lowercase();
+    let p0 = params[0].to_lowercase();
+    let p1 = params[1].to_lowercase();
+    let identity = name_matches(&a0, &p0) && name_matches(&a1, &p1);
+    let swapped = name_matches(&a0, &p1) && name_matches(&a1, &p0);
+    identity || swapped
 }
 
 // ---------- Definition extraction (IR) ----------

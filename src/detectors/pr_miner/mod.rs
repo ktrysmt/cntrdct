@@ -411,6 +411,7 @@ fn make_finding(
             }),
             language_citation_status: status,
         },
+        origin: Default::default(),
     }
 }
 

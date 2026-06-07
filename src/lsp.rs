@@ -511,6 +511,7 @@ mod tests {
                 raw: serde_json::json!({"distance": 0.42}),
                 language_citation_status: LanguageCitationStatus::Confirmed,
             },
+            origin: Default::default(),
         }
     }
 

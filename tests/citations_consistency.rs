@@ -21,6 +21,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use cntrdct::adjudicator::ADJUDICATOR_CITATIONS;
+use cntrdct::candidate_llm::CANDIDATE_LLM_CITATIONS;
 use cntrdct::core::{
     register_detector, Citation, DetectContext, Detector, DetectorError, Finding, Language,
 };
@@ -244,6 +245,88 @@ fn adjudicator_has_at_least_one_citation() {
     assert!(
         !adjudicator_keys().is_empty(),
         "Adjudicator returned no citations (Layer 3 P1 analogue violation)"
+    );
+}
+
+// ---------- Layer 0 (LLM candidate generator, R-4) consistency ----------
+//
+// The Layer 0 candidate generator (`crate::candidate_llm`) is NOT a
+// `Detector` (the trait is deterministic; Layer 0 invokes an LLM), so P1
+// is enforced via the static `CANDIDATE_LLM_CITATIONS` table validated
+// here — mirroring the Layer 3 adjudicator (review blocker B4). Per the
+// P3 amendment, Layer 0 intentionally introduces NO new citation key: it
+// reuses `allamanis-neurips-2021` (semantic-swap model, Layer 1 arg-swap
+// subsection) plus `wataoka-2024` / `zheng-neurips-2023` (LLM-as-judge,
+// Layer 3). So the contract is "every Layer 0 key resolves somewhere in
+// CITATIONS.md", not a dedicated section.
+
+/// Every citation key appearing anywhere in `CITATIONS.md` as a
+/// `` - `<key>` `` bullet, across all sections.
+fn all_citation_keys() -> BTreeSet<String> {
+    let path = workspace_root().join("CITATIONS.md");
+    let text =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {}", path.display(), e));
+    let mut keys = BTreeSet::new();
+    for line in text.lines() {
+        let trimmed = line.trim_start();
+        let Some(bullet) = trimmed.strip_prefix("- ") else {
+            continue;
+        };
+        let Some(after_open) = bullet.strip_prefix('`') else {
+            continue;
+        };
+        if let Some(close) = after_open.find('`') {
+            let key = &after_open[..close];
+            if !key.is_empty() {
+                keys.insert(key.to_string());
+            }
+        }
+    }
+    keys
+}
+
+fn candidate_llm_keys() -> BTreeSet<String> {
+    CANDIDATE_LLM_CITATIONS
+        .iter()
+        .map(|c| c.key.to_string())
+        .collect()
+}
+
+#[test]
+fn candidate_llm_has_at_least_one_citation() {
+    assert!(
+        !candidate_llm_keys().is_empty(),
+        "Layer 0 candidate generator returned no citations (P1 analogue violation)"
+    );
+}
+
+#[test]
+fn candidate_llm_citations_all_resolve_in_citations_md() {
+    let md_keys = all_citation_keys();
+    let code_keys = candidate_llm_keys();
+    let unresolved: Vec<&String> = code_keys.difference(&md_keys).collect();
+    assert!(
+        unresolved.is_empty(),
+        "Layer 0 cites keys absent from CITATIONS.md: {:?}",
+        unresolved
+    );
+}
+
+#[test]
+fn candidate_llm_introduces_no_new_citation_key() {
+    // The P3 amendment commits Layer 0 to reusing existing keys only
+    // (no new P1 surface). Cross-check against the union of the Layer 1
+    // detector keys and the Layer 3 adjudicator keys.
+    let mut existing: BTreeSet<String> = adjudicator_keys();
+    for d in registered_detectors() {
+        existing.extend(detector_keys(&*d));
+    }
+    let code_keys = candidate_llm_keys();
+    let novel: Vec<&String> = code_keys.difference(&existing).collect();
+    assert!(
+        novel.is_empty(),
+        "Layer 0 introduced citation keys not already used by Layer 1/3: {:?}",
+        novel
     );
 }
 

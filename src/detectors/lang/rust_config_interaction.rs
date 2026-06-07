@@ -198,6 +198,7 @@ fn analyze_item(item: tree_sitter::Node, file: &IrFile) -> Option<Finding> {
             }),
             language_citation_status: LanguageCitationStatus::Confirmed,
         },
+        origin: Default::default(),
     })
 }
 

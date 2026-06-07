@@ -274,6 +274,7 @@ fn analyze_try(
                 // this anti-pattern (survey: docs/surveys/python-unreachable-except-python-2026-06.md).
                 language_citation_status: LanguageCitationStatus::Unconfirmed,
             },
+            origin: Default::default(),
         });
     }
 }
