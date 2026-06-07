@@ -1283,7 +1283,7 @@ R-5. Python `except` handler reachability — `[x]`
   together — the baselines fixture-rename release step stays retired per
   R-1.e).
 
-R-6. VS Code extension (carry-over from T3-12 Phase 2) — `[ ]`
+R-6. VS Code extension (carry-over from T3-12 Phase 2) — `[~]`
 
 - `vscode-cntrdct` extension scaffolding in a separate
   `ktrysmt/vscode-cntrdct` repo, bundling the LSP binary
@@ -1291,6 +1291,42 @@ R-6. VS Code extension (carry-over from T3-12 Phase 2) — `[ ]`
   in v0.5.2; Phase 2 is the extension itself.
 - Independent of R-1 through R-5; can start any time after R-1
   ships v0.6.0 (the LSP binary tracks the same crate version).
+  Status: `[~]` 2026-06-07. Phase 2 scaffolding landed in the new
+  public repo `ktrysmt/vscode-cntrdct`
+  (https://github.com/ktrysmt/vscode-cntrdct, commit ac74511, MIT,
+  default branch `master`). This lives OUTSIDE the cntrdct repo by
+  design (separate TypeScript/pnpm toolchain, separate Marketplace
+  release cadence, no build-time dependency on the Rust source — the
+  client/server contract is the released `cntrdct-lsp` binary + the
+  LSP wire protocol per `docs/spec/lsp-v0.md`). What shipped:
+  `src/extension.ts` starts `cntrdct-lsp` over stdio
+  (`TransportKind.stdio`, the server is arg-free per
+  `src/lsp_main.rs`) with a `documentSelector` of
+  rust/python/typescript/go (mirrors `scan_buffer`'s
+  extension-based `detect_language`); `src/binaryManager.ts` resolves
+  the binary in order explicit-`cntrdct.server.path` > globalStorage
+  cache > GitHub-Releases download (SHA-256 verified against the
+  `.sha256` sidecar, extracted from `cntrdct-<tag>-<target>.{tar.gz,
+  zip}` per `release.yml`) > PATH fallback, with target mapping for
+  linux x64/arm64 + macOS arm64 (tar.gz) + windows x64 (zip) and a
+  PATH/`cargo install` fallback for unmapped platforms (e.g. Intel
+  macOS); settings `cntrdct.{enable,server.path,server.version,
+  trace.server}` (default pin `v0.11.0`, the latest GitHub-published
+  release — overridable); commands `cntrdct.{restartServer,
+  showOutputChannel}`; the binary is NOT bundled in the `.vsix`
+  (downloaded lazily on first activation). Gates green: `pnpm run
+  check-types` (tsc --noEmit), `pnpm run lint` (eslint), `node
+  esbuild.js --production` (single-file bundle), `pnpm run package`
+  (`.vsix` built). Download path additionally verified against the
+  real `v0.11.0` aarch64-apple-darwin asset (URL shape, sidecar
+  format, and `<assetBase>/cntrdct-lsp` archive layout all confirmed).
+  Stays `[~]` not `[x]`: Phase 3 (Marketplace listing,
+  `lsp-v0.md` step 7) is not done, an in-editor F5 end-to-end run of
+  the LanguageClient against the real binary has not been performed
+  (component pieces verified individually), and no extension icon is
+  added yet (`package.json` `icon` field omitted). The cntrdct-repo
+  side of R-6 is docs-only (this Status entry); no code/gate change
+  here.
 
 ## 5. Execution order
 
