@@ -1387,6 +1387,28 @@ R-6. VS Code extension (carry-over from T3-12 Phase 2) — `[~]`
   added yet (`package.json` `icon` field omitted). The cntrdct-repo
   side of R-6 is docs-only (this Status entry); no code/gate change
   here.
+  Update 2026-06-09 (vscode-cntrdct commit da83916): the
+  prior-session staged WIP was verified and committed. It splits the
+  vscode-free download/verify/extract core into `src/download.ts`
+  (binaryManager.ts now layers the settings / global-storage cache on
+  top) and adds a HEADLESS end-to-end test (`test/e2e.test.ts`,
+  `pnpm run test:e2e`, wired into CI) that obtains a real `cntrdct-lsp`
+  (download or `CNTRDCT_LSP_PATH`) and drives an
+  initialize -> didOpen -> publishDiagnostics -> shutdown stdio
+  round-trip, asserting `source: "cntrdct"` + the
+  `unreachable-after-terminator` detector id (mirrors
+  `tests/lsp_smoke.rs`); skips with exit 0 where no asset exists. This
+  is a headless surrogate for the still-pending in-editor F5 run, not a
+  replacement. Gates green: `check-types` (tsc --noEmit), `lint`
+  (eslint src test), `compile` + `package` (.vsix), and `test:e2e`
+  run locally against `target/release/cntrdct-lsp` (1 diagnostic,
+  `unreachable-after-terminator`, clean exit). Not pushed (left for the
+  maintainer). R-6 stays `[~]`: Phase 3 Marketplace listing, the
+  in-editor F5 run, and the extension icon remain. Note: the extension
+  still pins `DEFAULT_VERSION`/`server.version` default to `v0.11.0`
+  while the latest cntrdct release is v0.12.1 — a deliberate-pin-vs-lag
+  decision left for the Marketplace/Phase-3 pass. cntrdct-repo side
+  here is docs-only (this entry); no code/gate change.
 
 ## 5. Execution order
 
