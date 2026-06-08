@@ -211,6 +211,8 @@ impl<'a> Converter<'a> {
                         out.push(IrParam {
                             name: self.text(child).to_string(),
                             kind: ParamKind::Unsupported,
+                            // Go has no default-parameter syntax (M6).
+                            default: None,
                             location: node_location(self.path, child),
                         });
                     } else {
@@ -218,6 +220,7 @@ impl<'a> Converter<'a> {
                             out.push(IrParam {
                                 name: self.text(name).to_string(),
                                 kind: ParamKind::Plain,
+                                default: None,
                                 location: node_location(self.path, name),
                             });
                         }
@@ -228,6 +231,7 @@ impl<'a> Converter<'a> {
                 "variadic_parameter_declaration" => out.push(IrParam {
                     name: self.text(child).to_string(),
                     kind: ParamKind::Unsupported,
+                    default: None,
                     location: node_location(self.path, child),
                 }),
                 _ => {}

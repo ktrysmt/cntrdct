@@ -58,6 +58,10 @@ fn scan_with_stub(file: &Path, stub: &Path, extra: &[&str]) -> std::process::Out
         .arg(file)
         .arg("--candidate-llm")
         .arg("--adjudicate")
+        // These tests use the claude-cli stub with the Anthropic-family
+        // Layer 3 adjudicator on purpose; bypass the R3 self-preference
+        // guard so they can exercise the non-R3 behaviour under test.
+        .arg("--allow-self-preference")
         .arg("--no-calibration")
         .args(extra)
         .env("CLAUDE_CLI_PROGRAM_OVERRIDE", stub)
@@ -91,6 +95,36 @@ fn candidate_llm_requires_adjudicate() {
     );
 }
 
+/// R3: a claude-family Layer 0 proposer with the Anthropic-family Layer 3
+/// adjudicator is refused (exit 2) unless `--allow-self-preference` is set —
+/// a judge must not grade its own family's proposals (wataoka-2024). The
+/// guard fires before any provider is built, so no stub is needed.
+#[test]
+fn self_preference_blocks_same_family_without_override() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let file = write_flagship(&dir);
+    let out = Command::new(bin())
+        .arg("scan")
+        .arg(&file)
+        // `--candidate-llm` with no value defaults to claude-cli.
+        .arg("--candidate-llm")
+        .arg("--adjudicate")
+        .arg("--no-calibration")
+        .env_remove("ANTHROPIC_API_KEY")
+        .output()
+        .expect("run cntrdct");
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "same-family proposer+confirmer must be refused"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("self-preference") || stderr.contains("same model family"),
+        "error should explain the self-preference refusal; stderr: {stderr}"
+    );
+}
+
 /// R9: when the provider CLI is unavailable, the scan degrades to
 /// Layer-1-only, logs a note, and exits 0 — a missing optional provider
 /// must not fail a scan the user opted into.
@@ -103,6 +137,7 @@ fn provider_unavailable_degrades_gracefully() {
         .arg(&file)
         .arg("--candidate-llm")
         .arg("--adjudicate")
+        .arg("--allow-self-preference")
         .arg("--no-calibration")
         .env("CLAUDE_CLI_PROGRAM_OVERRIDE", "/nonexistent/claude-xyz")
         .env_remove("ANTHROPIC_API_KEY")

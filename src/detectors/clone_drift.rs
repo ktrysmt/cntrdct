@@ -16,8 +16,11 @@
 //! is populated by the per-language converter (Rust `function_item`,
 //! Python `function_definition`, top-level only), so the detector no
 //! longer reparses or branches on language for the function-level
-//! pipeline. F2b (intra-fn `if`-same-then-else) walks IR
-//! [`IrStmtKind::If`] and is Rust-only.
+//! pipeline. The intra-fn if-branch pass walks IR [`IrStmtKind::If`] and
+//! runs for Rust and Python: F2b flags fully identical branches
+//! (`if_same_then_else`), F2c flags branches sharing a leading statement
+//! run (`branches_sharing_code`, shared-prefix variant). See
+//! `clone-drift-v0.md` F2b / F2c.
 
 use std::collections::{HashMap, HashSet};
 
@@ -25,7 +28,9 @@ use crate::core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
     LanguageCitationStatus, Location, Severity,
 };
-use crate::ir::{IrBlock, IrExpr, IrExprKind, IrFile, IrIfStmt, IrStmtKind, NormalisedToken};
+use crate::ir::{
+    IrBlock, IrExpr, IrExprKind, IrFile, IrIfStmt, IrStmt, IrStmtKind, NormalisedToken,
+};
 use rayon::prelude::*;
 
 pub const SIMILARITY_THRESHOLD: f64 = 0.5;
@@ -233,16 +238,44 @@ impl Detector for CloneDrift {
                 "krinke-icsm-2007",
             ],
         ));
-        // F2b: intra-fn if-then-else branch clone detection. The
+        // F2b / F2c: intra-fn if-then-else branch clone detection. The
         // function-level pipeline above operates on top-level `fn`
-        // items only (granularity locked by F2). F2b runs in parallel
-        // and surfaces if-expressions whose `consequence` and
-        // `alternative` blocks normalise to identical token
-        // sequences. This is the same Type-1 / Type-2 clone signal
-        // applied at sub-function granularity — NiCad (Cordy-Roy
-        // ICPC 2008) defines clone detection at "function or
-        // fragment" granularity, so the citation set is unchanged.
-        findings.extend(run_intra_fn_if_clones_rust(ctx));
+        // items only (granularity locked by F2). This pass surfaces
+        // if/else whose branches normalise to identical source (F2b,
+        // `if_same_then_else`) or share a leading/trailing run of
+        // statements (F2c, `branches_sharing_code`). Same Type-1 / Type-2
+        // clone signal at sub-function granularity — NiCad (Cordy-Roy
+        // ICPC 2008) defines clone detection at "function or fragment"
+        // granularity, so the citation set is unchanged. Rust uses the
+        // C-like comment grammar; Python uses `#` and reuses the Python
+        // function-level citation set (Confirmed via assi-tosem-2025).
+        findings.extend(run_intra_fn_if_clones(
+            ctx,
+            Language::Rust,
+            &IfCloneCfg {
+                comment: CommentStyle::CLike,
+                status: LanguageCitationStatus::Confirmed,
+                citation_keys: vec![
+                    "cordy-roy-icpc-2008",
+                    "bettenburg-msr-2009",
+                    "krinke-icsm-2007",
+                ],
+            },
+        ));
+        findings.extend(run_intra_fn_if_clones(
+            ctx,
+            Language::Python,
+            &IfCloneCfg {
+                comment: CommentStyle::Hash,
+                status: LanguageCitationStatus::Confirmed,
+                citation_keys: vec![
+                    "cordy-roy-icpc-2008",
+                    "bettenburg-msr-2009",
+                    "krinke-icsm-2007",
+                    "assi-tosem-2025",
+                ],
+            },
+        ));
 
         findings.sort_by(|a, b| {
             a.primary
@@ -681,15 +714,44 @@ fn cluster(fns: &[FnInfo]) -> Vec<Vec<usize>> {
 /// out under both pipelines.
 pub const INTRA_FN_IF_MIN_TOKENS: usize = 22;
 
-fn run_intra_fn_if_clones_rust(ctx: &DetectContext) -> Vec<Finding> {
+/// Comment syntax used by the F2b/F2c source-equality normaliser.
+#[derive(Clone, Copy)]
+enum CommentStyle {
+    /// `//` line + `/* */` block comments (Rust, TypeScript, Go).
+    CLike,
+    /// `#` line comments (Python).
+    Hash,
+}
+
+/// Per-language configuration for the intra-fn if-branch clone pass
+/// (F2b identical-branch + F2c shared-prefix/suffix).
+struct IfCloneCfg {
+    comment: CommentStyle,
+    status: LanguageCitationStatus,
+    citation_keys: Vec<&'static str>,
+}
+
+/// F2c minimum combined normalised-source length (chars) of the shared
+/// prefix + suffix run before a branches-sharing-code finding is emitted.
+/// A single short shared statement (`let x = 1;`) is below this floor and
+/// is left unreported; the floor keeps F2c — the clippy
+/// `branches_sharing_code` class, which clippy disables by default for
+/// FP-proneness — conservative enough not to fire on the curated
+/// wild corpora (verified: wild-rust / wild-python stay at zero
+/// clone-drift findings). Catches the audit-corpus FN
+/// `clippy_ui_branches_sharing_code_shared_at_top.rs:15` whose shared
+/// prefix `println!("Hello World!");` clears the floor.
+pub const BRANCH_SHARING_MIN_CHARS: usize = 20;
+
+fn run_intra_fn_if_clones(ctx: &DetectContext, lang: Language, cfg: &IfCloneCfg) -> Vec<Finding> {
     ctx.files
         .par_iter()
-        .filter(|f| f.language == Language::Rust)
+        .filter(|f| f.language == lang)
         .flat_map_iter(|file| {
             let mut local = Vec::new();
             if !file.parse_recovered {
                 for ir_fn in &file.fns {
-                    walk_if_branches_block(file, &ir_fn.body, &mut local);
+                    walk_if_branches_block(file, &ir_fn.body, cfg, &mut local);
                 }
             }
             local
@@ -706,24 +768,29 @@ fn run_intra_fn_if_clones_rust(ctx: &DetectContext) -> Vec<Finding> {
 /// `while` / `loop` / `with` / `match`-arm blocks. Expression-position
 /// `if`s hidden inside an opaque `IrStmtKind::Other` (e.g. a `let` RHS)
 /// are out of v0 IR-F2b scope.
-fn walk_if_branches_block(file: &IrFile, block: &IrBlock, out: &mut Vec<Finding>) {
+fn walk_if_branches_block(
+    file: &IrFile,
+    block: &IrBlock,
+    cfg: &IfCloneCfg,
+    out: &mut Vec<Finding>,
+) {
     for stmt in &block.statements {
         match &stmt.kind {
             IrStmtKind::If(if_stmt) => {
-                if let Some(f) = analyze_if_branches(file, if_stmt) {
+                if let Some(f) = analyze_if_branches(file, if_stmt, cfg) {
                     out.push(f);
                 }
-                walk_if_branches_block(file, &if_stmt.consequence, out);
+                walk_if_branches_block(file, &if_stmt.consequence, cfg, out);
                 if let Some(alt) = &if_stmt.alternative {
-                    walk_if_branches_block(file, alt, out);
+                    walk_if_branches_block(file, alt, cfg, out);
                 }
             }
-            IrStmtKind::While(w) => walk_if_branches_block(file, &w.body, out),
-            IrStmtKind::Loop(l) => walk_if_branches_block(file, &l.body, out),
-            IrStmtKind::With(wi) => walk_if_branches_block(file, &wi.body, out),
+            IrStmtKind::While(w) => walk_if_branches_block(file, &w.body, cfg, out),
+            IrStmtKind::Loop(l) => walk_if_branches_block(file, &l.body, cfg, out),
+            IrStmtKind::With(wi) => walk_if_branches_block(file, &wi.body, cfg, out),
             IrStmtKind::Match(m) => {
                 for arm in &m.arms {
-                    walk_if_branches_expr(file, &arm.body, out);
+                    walk_if_branches_expr(file, &arm.body, cfg, out);
                 }
             }
             _ => {}
@@ -731,41 +798,35 @@ fn walk_if_branches_block(file: &IrFile, block: &IrBlock, out: &mut Vec<Finding>
     }
 }
 
-fn walk_if_branches_expr(file: &IrFile, expr: &IrExpr, out: &mut Vec<Finding>) {
+fn walk_if_branches_expr(file: &IrFile, expr: &IrExpr, cfg: &IfCloneCfg, out: &mut Vec<Finding>) {
     match &expr.kind {
         IrExprKind::If(if_stmt) => {
-            if let Some(f) = analyze_if_branches(file, if_stmt) {
+            if let Some(f) = analyze_if_branches(file, if_stmt, cfg) {
                 out.push(f);
             }
-            walk_if_branches_block(file, &if_stmt.consequence, out);
+            walk_if_branches_block(file, &if_stmt.consequence, cfg, out);
             if let Some(alt) = &if_stmt.alternative {
-                walk_if_branches_block(file, alt, out);
+                walk_if_branches_block(file, alt, cfg, out);
             }
         }
-        IrExprKind::Block(b) => walk_if_branches_block(file, b, out),
-        IrExprKind::Loop(l) => walk_if_branches_block(file, &l.body, out),
+        IrExprKind::Block(b) => walk_if_branches_block(file, b, cfg, out),
+        IrExprKind::Loop(l) => walk_if_branches_block(file, &l.body, cfg, out),
         IrExprKind::Match(m) => {
             for arm in &m.arms {
-                walk_if_branches_expr(file, &arm.body, out);
+                walk_if_branches_expr(file, &arm.body, cfg, out);
             }
         }
         _ => {}
     }
 }
 
-fn analyze_if_branches(file: &IrFile, if_stmt: &IrIfStmt) -> Option<Finding> {
-    // F2b fires only on a flat `if { } else { }`. The converter sets
-    // `alternative` to `Some` exactly for a flat else block (else-if
-    // chains yield `None`), mirroring v0.5.x `find_else_block_rust`.
+fn analyze_if_branches(file: &IrFile, if_stmt: &IrIfStmt, cfg: &IfCloneCfg) -> Option<Finding> {
+    // Both F2b and F2c fire only on a flat `if { } else { }`. The
+    // converter sets `alternative` to `Some` exactly for a flat else
+    // block (else-if chains yield `None`), mirroring v0.5.x
+    // `find_else_block_rust`.
     let consequence = &if_stmt.consequence;
     let alternative = if_stmt.alternative.as_ref()?;
-
-    // Size gate on the consequence block's block-rooted normalised
-    // token count (equals v0.5.x `normalize_rust(consequence).len()`).
-    let branch_token_count = consequence.normalised_token_count;
-    if branch_token_count < INTRA_FN_IF_MIN_TOKENS {
-        return None;
-    }
 
     // Equality gate uses source-text comparison after whitespace and
     // comment normalisation rather than normalised-token equality.
@@ -779,42 +840,143 @@ fn analyze_if_branches(file: &IrFile, if_stmt: &IrIfStmt) -> Option<Finding> {
     // collapses those FPs to zero while still flagging the clippy
     // ui-test trigger sites (audit-corpus
     // clippy_ui_if_same_then_else.rs#L25 = line 29).
-    let conseq_src = normalize_block_source(block_source(file, consequence)?);
-    let alt_src = normalize_block_source(block_source(file, alternative)?);
-    if conseq_src != alt_src {
-        return None;
-    }
+    let conseq_src = normalize_block_source(block_source(file, consequence)?, cfg.comment);
+    let alt_src = normalize_block_source(block_source(file, alternative)?, cfg.comment);
 
-    let primary = ir_loc_to_core(&if_stmt.location);
-    let related = vec![
-        ir_loc_to_core(&consequence.location),
-        ir_loc_to_core(&alternative.location),
-    ];
-
-    Some(Finding {
-        detector_id: "clone-drift".to_string(),
-        primary,
-        related,
-        message: format!(
-            "if-then-else branches contain identical source ({branch_token_count} tokens) — likely a copy-paste duplicate"
-        ),
-        raw_severity: Severity::Warning,
-        anomaly_class: AnomalyClass::Logic,
-        evidence: Evidence {
-            citation_keys: vec![
-                "cordy-roy-icpc-2008",
-                "bettenburg-msr-2009",
-                "krinke-icsm-2007",
-            ],
-            raw: serde_json::json!({
+    // F2b: the whole consequence and alternative blocks are byte-for-byte
+    // identical after normalisation (the `if_same_then_else` class).
+    if conseq_src == alt_src {
+        // Size gate on the consequence block's block-rooted normalised
+        // token count (equals v0.5.x `normalize_rust(consequence).len()`).
+        let branch_token_count = consequence.normalised_token_count;
+        if branch_token_count < INTRA_FN_IF_MIN_TOKENS {
+            return None;
+        }
+        return Some(make_if_clone_finding(
+            if_stmt,
+            consequence,
+            alternative,
+            cfg,
+            format!(
+                "if-then-else branches contain identical source ({branch_token_count} tokens) — likely a copy-paste duplicate"
+            ),
+            serde_json::json!({
                 "kind": "intra-fn-if-same-then-else",
                 "branch_token_count": branch_token_count,
                 "intra_fn_if_min_tokens": INTRA_FN_IF_MIN_TOKENS,
             }),
-            language_citation_status: LanguageCitationStatus::Confirmed,
+        ));
+    }
+
+    // F2c: branches diverge overall but share a leading and/or trailing
+    // run of identical statements (the clippy `branches_sharing_code`
+    // class — clone-drift-v0.md F2c). Lifts the recorded clone-drift
+    // recall bound (recall-audit-v0.md Bound C).
+    analyze_branch_sharing(file, if_stmt, consequence, alternative, cfg)
+}
+
+/// F2c: detect a shared statement prefix/suffix between two divergent
+/// branches. Returns a finding when the combined normalised length of the
+/// shared run clears [`BRANCH_SHARING_MIN_CHARS`] and the branches still
+/// diverge (at least one statement is unshared in each).
+fn analyze_branch_sharing(
+    file: &IrFile,
+    if_stmt: &IrIfStmt,
+    consequence: &IrBlock,
+    alternative: &IrBlock,
+    cfg: &IfCloneCfg,
+) -> Option<Finding> {
+    let a = norm_statements(file, &consequence.statements, cfg.comment)?;
+    let b = norm_statements(file, &alternative.statements, cfg.comment)?;
+    if a.is_empty() || b.is_empty() {
+        return None;
+    }
+    let min_len = a.len().min(b.len());
+
+    // v0 scope: shared LEADING run only (the clippy "shared_at_top"
+    // variant — the audit FN is `..._shared_at_top.rs`). A shared
+    // trailing run ("shared_at_bottom") is the intentional fan-out-then-
+    // common-tail pattern (`if {..} else {..}; self.buffer.write(x)`)
+    // that dominates real code: an early F2c probe over `wild-corpus`
+    // produced 16 such shared-suffix detections across curated libraries
+    // (object, regex_syntax, hyper, …), exactly the noise clippy's
+    // default-off `branches_sharing_code` is known for. Restricting v0 to
+    // the leading run keeps wild-rust / wild-python at zero clone-drift
+    // findings while still catching the audit FN. Shared-suffix is a
+    // documented future scope lift (clone-drift-v0.md F2c "Non-goals").
+    let mut prefix = 0;
+    while prefix < min_len && a[prefix] == b[prefix] {
+        prefix += 1;
+    }
+    if prefix == 0 {
+        return None;
+    }
+    // Require genuine divergence: the shared prefix must not cover an
+    // entire branch (that would be the F2b identical case).
+    if prefix >= a.len() && prefix >= b.len() {
+        return None;
+    }
+
+    let shared_chars: usize = a[..prefix].iter().map(|s| s.len()).sum();
+    if shared_chars < BRANCH_SHARING_MIN_CHARS {
+        return None;
+    }
+
+    Some(make_if_clone_finding(
+        if_stmt,
+        consequence,
+        alternative,
+        cfg,
+        format!(
+            "if-then-else branches share {prefix} leading statement(s) ({shared_chars} chars) then diverge — consider hoisting the shared code"
+        ),
+        serde_json::json!({
+            "kind": "intra-fn-if-branches-sharing-code",
+            "shared_prefix_statements": prefix,
+            "shared_chars": shared_chars,
+            "branch_sharing_min_chars": BRANCH_SHARING_MIN_CHARS,
+        }),
+    ))
+}
+
+/// Normalise each statement's source slice; `None` if any slice is
+/// unrecoverable (keeps the prefix/suffix alignment honest).
+fn norm_statements(file: &IrFile, stmts: &[IrStmt], style: CommentStyle) -> Option<Vec<String>> {
+    let mut out = Vec::with_capacity(stmts.len());
+    for s in stmts {
+        let start = s.location.start_byte as usize;
+        let end = s.location.end_byte as usize;
+        out.push(normalize_block_source(file.source.get(start..end)?, style));
+    }
+    Some(out)
+}
+
+/// Shared finding builder for the F2b / F2c intra-fn if-branch passes.
+fn make_if_clone_finding(
+    if_stmt: &IrIfStmt,
+    consequence: &IrBlock,
+    alternative: &IrBlock,
+    cfg: &IfCloneCfg,
+    message: String,
+    raw: serde_json::Value,
+) -> Finding {
+    Finding {
+        detector_id: "clone-drift".to_string(),
+        primary: ir_loc_to_core(&if_stmt.location),
+        related: vec![
+            ir_loc_to_core(&consequence.location),
+            ir_loc_to_core(&alternative.location),
+        ],
+        message,
+        raw_severity: Severity::Warning,
+        anomaly_class: AnomalyClass::Logic,
+        evidence: Evidence {
+            citation_keys: cfg.citation_keys.clone(),
+            raw,
+            language_citation_status: cfg.status,
         },
         origin: Default::default(),
-    })
+    }
 }
 
 /// Source slice for a block, recovered from [`IrFile::source`] via the
@@ -825,17 +987,29 @@ fn block_source<'a>(file: &'a IrFile, block: &IrBlock) -> Option<&'a str> {
     file.source.get(start..end)
 }
 
-/// Source-text normalisation used by F2b: strip line and block
-/// comments, collapse internal whitespace runs to a single space,
-/// trim leading and trailing whitespace. Two blocks normalising to
-/// the same string are byte-for-byte identical Rust source modulo
-/// formatting and commentary.
-fn normalize_block_source(text: &str) -> String {
+/// Source-text normalisation used by F2b / F2c: strip line and block
+/// comments (per `style`), collapse internal whitespace runs to a single
+/// space, trim leading and trailing whitespace. Two blocks normalising to
+/// the same string are byte-for-byte identical source modulo formatting
+/// and commentary. The comment stripper is intentionally naive (it does
+/// not skip string literals); both branches are normalised the same way,
+/// so the equality comparison stays consistent.
+fn normalize_block_source(text: &str, style: CommentStyle) -> String {
     let mut out = String::with_capacity(text.len());
     let mut prev_space = true;
     let mut iter = text.chars().peekable();
     while let Some(c) = iter.next() {
-        if c == '/' && iter.peek() == Some(&'/') {
+        if matches!(style, CommentStyle::Hash) && c == '#' {
+            // Python line comment — consume to end of line.
+            while let Some(&n) = iter.peek() {
+                if n == '\n' {
+                    break;
+                }
+                iter.next();
+            }
+            continue;
+        }
+        if matches!(style, CommentStyle::CLike) && c == '/' && iter.peek() == Some(&'/') {
             // Line comment — consume to end of line.
             while let Some(&n) = iter.peek() {
                 if n == '\n' {
@@ -845,7 +1019,7 @@ fn normalize_block_source(text: &str) -> String {
             }
             continue;
         }
-        if c == '/' && iter.peek() == Some(&'*') {
+        if matches!(style, CommentStyle::CLike) && c == '/' && iter.peek() == Some(&'*') {
             // Block comment — consume until matching `*/` (single
             // nesting level; nested block comments are vanishingly
             // rare and out of scope for v0).

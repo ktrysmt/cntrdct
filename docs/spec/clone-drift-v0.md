@@ -79,6 +79,49 @@ applies the same Type-1 signal at fragment granularity. Bettenburg
 MSR 2009 and Krinke ICSM 2007 likewise cover sub-function clone
 analysis.
 
+Languages (added 2026-06-08): F2b runs for Rust (`//` / `/* */`
+comment grammar, Confirmed) and Python (`#` comment grammar, Confirmed
+via `assi-tosem-2025`, the Python function-level citation). The walk is
+language-agnostic IR; only the comment stripper varies by language. The
+naive comment stripper does not skip string literals, but both branches
+are normalised identically so the equality comparison stays consistent.
+
+### F2c — Intra-fn if-branch shared-prefix clone (added 2026-06-08)
+
+F2c extends the F2b pass to the clippy `branches_sharing_code`
+("shared at top") class: an `if` / `else` whose branches diverge
+overall but share a LEADING run of identical statements that could be
+hoisted above the conditional. It runs in the same walk as F2b and
+fires only when F2b did not (the branches are not fully identical).
+
+Acceptance criterion:
+
+- `IrIfStmt.alternative` is `Some` (flat `else { block }`, as F2b)
+- the consequence and alternative are NOT fully identical (else F2b owns it)
+- comparing the two branches' statement lists (each statement's source
+  slice normalised by the F2b normaliser), the longest common PREFIX is
+  `P ≥ 1` statements
+- the shared prefix does not cover an entire branch (genuine divergence)
+- the combined normalised length of the shared prefix clears
+  `BRANCH_SHARING_MIN_CHARS = 20`
+
+v0 detects the shared-PREFIX ("shared_at_top") variant only. A shared
+SUFFIX ("shared_at_bottom") is the intentional fan-out-then-common-tail
+pattern (`if {..} else {..}; self.buffer.write(x)`) that dominates real
+code — an early F2c probe over `wild-corpus` produced 16 shared-suffix
+detections across curated libraries (object, regex_syntax, hyper, …),
+exactly the noise clippy's default-off `branches_sharing_code` lint is
+known for. Restricting v0 to the leading run holds wild-rust to 2
+genuine shared-prefix detections and wild-python to 0, while catching
+the audit FN. Shared-suffix is a documented future scope lift (Non-goals).
+
+Emission shape (F6) is unchanged except `evidence.raw.kind =
+"intra-fn-if-branches-sharing-code"` with `shared_prefix_statements`
+and `shared_chars`. Citation set and languages match F2b (Rust
+Confirmed, Python Confirmed via `assi-tosem-2025`). F2c lifts the
+recorded clone-drift recall bound (see "Known recall bound" below;
+recall-audit-v0.md Bound C).
+
 ### F3 — Type-3 clone grouping
 
 For each pair of extracted functions, compute Jaccard similarity over the multiset
@@ -359,6 +402,12 @@ in β.
 | T33 | same shape but identifiers differ between branches (Type-2 fan-out) | 0 Findings (F2b source-text equality skips Type-2) |
 | T34 | `if c { 42 } else { 42 }` (below INTRA_FN_IF_MIN_TOKENS) | 0 Findings (F2b size floor) |
 | T35 | `else if` chain with non-identical inner branches | 0 Findings (F2b skips when alternative is another if_expression) |
+| T35c | branches diverge but share a leading statement above the char floor | 1 Finding, `evidence.raw.kind = "intra-fn-if-branches-sharing-code"` (F2c shared-prefix) |
+| T36c | branches share only a trailing statement (fan-out-then-tail) | 0 Findings (F2c is shared-prefix only in v0) |
+| T37c | shared leading statement below `BRANCH_SHARING_MIN_CHARS` | 0 Findings (F2c char floor) |
+| T38p | Python `if/else` with byte-identical branches above the token floor | 1 Finding, `kind = "intra-fn-if-same-then-else"` (Python F2b) |
+| T39p | Python `if/else` sharing a leading statement | 1 Finding, `kind = "intra-fn-if-branches-sharing-code"` (Python F2c) |
+| T40p | Python branches differing only in `#` comments | 1 Finding (Python F2b ignores `#` comments) |
 | T10 | one fn with parse error + valid drift fixture | invalid one skipped, drift still detected |
 
 ## Tunable constants (v0 defaults)
@@ -412,7 +461,17 @@ in β.
 Exposed as `pub const` in `cntrdct-detector-clone-drift` for tuning without API
 change. Real-world calibration belongs to Layer 2 (ranker), not these constants.
 
-## Known recall bound — branches_sharing_code (recorded 2026-06-03)
+## Known recall bound — branches_sharing_code (recorded 2026-06-03, LIFTED 2026-06-08)
+
+LIFTED 2026-06-08 (F2c): the shared-PREFIX variant of this bound is now
+detected by F2c (see above). The audit FN
+`clippy_ui_branches_sharing_code_shared_at_top.rs:15` is caught, so
+clone-drift's `recall_upper_bound` rose from `0.5` (1tp/1fn) to `1.0`
+(2tp/0fn) and the overall audit recall from `0.918` to `0.934`
+(recall-audit-v0.md Bound C). The clone-drift T1 pins were re-blessed
+accordingly (audit 2→6 findings, wild-rust 0→2; wild-python unchanged
+at 0). The shared-SUFFIX variant remains a non-goal (below). The
+original triage record follows for history.
 
 The 2026-06-03 audit-corpus FN triage
 (`docs/spec/recall-audit-v0.md` "arg-swap / clone-drift FN triage")
@@ -442,11 +501,20 @@ not currently sequenced.
 
 ## Non-goals (v0)
 
-- Multi-language (F2b is Rust-only; Python intra-fn if-clone is a
-  preregistered future scope lift)
-- Statement-block granularity outside `if_expression` consequence /
-  alternative (e.g. clippy's `branches_sharing_code` lint, which
-  detects partial-overlap branches sharing only the head or tail)
+- Shared-SUFFIX branch clones (the clippy `branches_sharing_code`
+  "shared_at_bottom" variant). F2c v0 detects the shared-PREFIX variant
+  only; the trailing-run variant is the intentional fan-out-then-common-
+  tail pattern that produced 16 wild-corpus detections in an early probe
+  and is deferred (see F2c)
+- Partial-overlap fragments other than a contiguous leading statement
+  run (interleaved or middle-shared fragments)
+- Functions inside `impl` / `trait` / `mod`
+- Strict Type-3 weighted ranking
+- Git history / SZZ
+- LSP integration
+- SARIF emission
+- LLM adjudication
+- Configuration override
 - Functions inside `impl` / `trait` / `mod`
 - Strict Type-3 weighted ranking
 - Git history / SZZ

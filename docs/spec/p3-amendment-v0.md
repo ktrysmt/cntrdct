@@ -378,13 +378,19 @@ evidence and raise FP risk in the general case. Body and full type
 information remain out (a funnel, not a verdict, §3.1); the precision
 trade-off of omitting them is accepted.
 
-Implementation note (v0): `IrParam` does not carry default-value
-literals, so populating `ParamFact.default` requires a raw-tree pass at
-the definition site. v0 ships the field present but populated `None`
-(the flagship case is decidable from identifier names alone, as the
-review's M6 finding observed); extracting default literals is a Phase-B
-enrichment. The field exists in the predicate so the wire shape is
-stable when Phase B fills it.
+Implementation note (M6 closed, Phase B 2026-06-07): `IrParam` now
+carries `default: Option<String>` — the trimmed default-value literal
+extracted by the Python (`a=expr` / `a: T = expr`) and TypeScript
+(`a = expr`) converters (Rust / Go have no default-parameter syntax, so
+it stays `None`). `arg-swap`'s `FnDef` propagates a per-parameter
+`param_defaults` vector (aligned 1:1 with `params`) and the Layer 0
+predicate populates `ParamFact.default` by ordinal from it. No raw-tree
+pass at the definition site was needed after all — the literal rides the
+existing IR definition extraction. The IR golden wire shape stays
+byte-identical for the common no-default case (`skip_serializing_if`).
+The flagship case remains decidable from identifier names alone; the
+default literal is an enrichment that strengthens the semantic signal
+when a definition declares one.
 
 Resolution stays same-file: Bound A is NOT closed by Layer 0; an
 unresolved callee yields `resolved_sig: None` and the predicate is
@@ -550,10 +556,17 @@ corpus to external ground truth per `recall-audit-v0.md`.
 R3. Self-preference when one model both proposes (Layer 0) and
 confirms (Layer 3). If `--candidate-llm=claude-cli` feeds
 `--adjudicate` backed by Anthropic, the proposer confirms itself.
-Resolution candidate: require the Layer 0 provider and the Layer 3
-adjudicator to be different model families when both are on, and reuse
-the Q-13 cross-model κ audit to quantify residual agreement on Layer 0
-candidates specifically.
+Resolution (IMPLEMENTED, Phase B 2026-06-07): the scan refuses
+(exit 2) when the Layer 0 proposer and the Layer 3 adjudicator resolve
+to the same model family. Families are classified coarsely by
+provider-id / model substring (`candidate_llm::model_family`:
+`claude`/`anthropic` → anthropic, `gemini`/`google` → google; unknown
+fails open). The default Layer 3 adjudicator is Anthropic, so
+`--candidate-llm=claude-cli` is blocked and `--candidate-llm=gemini-cli`
+is allowed. `--allow-self-preference` overrides the guard with a logged
+warning. Quantifying residual agreement on Layer 0 candidates via the
+Q-13 cross-model κ audit remains available but is not wired into the
+guard (a measurement, not a gate).
 
 R4. Cost / fan-out. One LLM call per resolved-but-unmatched call site
 is unbounded on a large corpus, and with `--adjudicate` required (§3.3)
@@ -733,10 +746,11 @@ redirect (both keep v0 shippable either way):
   P4.
 
 Implementation-time-deferrable (decided during the build, not blocking
-approval): R5 (flag/provider naming ergonomics), the *content* of the
-Phase-B labelled corpus (R2), the residual self-preference policy detail
-(R3 — different-model-family recommendation recorded, exact enforcement
-deferred).
+approval): R5 (flag/provider naming ergonomics) and the *content* of the
+Phase-B labelled corpus (R2). The self-preference policy (R3) is no
+longer deferred — Phase B (2026-06-07) implemented the
+different-model-family guard with a `--allow-self-preference` override
+(see §7 R3).
 
 ## 12. Review log (R-4 review-before-build gate, 2026-06-07)
 

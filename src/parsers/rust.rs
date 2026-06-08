@@ -213,6 +213,8 @@ impl<'a> Converter<'a> {
             out.push(IrParam {
                 name,
                 kind,
+                // Rust has no default-parameter syntax (M6).
+                default: None,
                 location: node_location(self.path, child),
             });
         }

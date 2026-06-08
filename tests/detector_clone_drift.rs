@@ -1147,3 +1147,155 @@ fn t_go_no_drift_when_all_identical() {
         "all-identical clones are not drift; got {findings:#?}"
     );
 }
+
+// ---------- F2c shared-prefix branch clone + Python F2b/F2c (2026-06) ----------
+
+const FN_F2C_SHARED_PREFIX_RUST: &str = r#"
+fn render(flag: bool) {
+    if flag {
+        println!("Hello World, this is a shared prefix line!");
+        println!("I'm branch number one and I diverge here now");
+    } else {
+        println!("Hello World, this is a shared prefix line!");
+        println!("I'm branch number two diverging differently now");
+    }
+}
+"#;
+
+#[test]
+fn t35_f2c_shared_prefix_fires() {
+    // Branches diverge overall but share a leading statement above the
+    // char floor (the clippy `branches_sharing_code` shared-at-top class).
+    let files = vec![parsed("shared_top.rs", FN_F2C_SHARED_PREFIX_RUST)];
+    let findings = run(files);
+    assert_eq!(
+        findings.len(),
+        1,
+        "F2c shared-prefix must fire once, got {findings:#?}"
+    );
+    let raw = &findings[0].evidence.raw;
+    assert_eq!(raw["kind"], "intra-fn-if-branches-sharing-code");
+    assert_eq!(raw["shared_prefix_statements"], 1);
+}
+
+const FN_F2C_SHARED_SUFFIX_RUST: &str = r#"
+fn build(is_64: bool) {
+    if is_64 {
+        let header = make_header_sixty_four_with_a_long_name();
+        self.buffer.write(&header_value_to_persist);
+    } else {
+        let header = make_header_thirty_two_with_a_long_name();
+        self.buffer.write(&header_value_to_persist);
+    }
+}
+"#;
+
+#[test]
+fn t36_f2c_shared_suffix_does_not_fire_v0() {
+    // v0 scope is shared-prefix only; a shared trailing statement is the
+    // intentional fan-out-then-common-tail pattern and must not fire.
+    let files = vec![parsed("shared_bottom.rs", FN_F2C_SHARED_SUFFIX_RUST)];
+    let findings = run(files);
+    assert!(
+        findings.is_empty(),
+        "F2c shared-suffix must not fire in v0, got {findings:#?}"
+    );
+}
+
+const FN_F2C_PREFIX_TOO_SHORT: &str = r#"
+fn tiny(flag: bool) {
+    if flag {
+        let x = 1;
+        foo_one_specific_branch_body_here();
+    } else {
+        let x = 1;
+        bar_two_specific_branch_body_here();
+    }
+}
+"#;
+
+#[test]
+fn t37_f2c_short_shared_prefix_does_not_fire() {
+    // `let x = 1;` is below BRANCH_SHARING_MIN_CHARS; conservative floor.
+    let files = vec![parsed("short.rs", FN_F2C_PREFIX_TOO_SHORT)];
+    let findings = run(files);
+    assert!(
+        findings.is_empty(),
+        "F2c below char floor must not fire, got {findings:#?}"
+    );
+}
+
+const PY_F2B_IDENTICAL: &str = "
+def render(flag):
+    if flag:
+        value = compute_the_shared_value(alpha, beta)
+        log.info('identical branch body across both arms here')
+        persist(value, destination_one_or_two_for_real)
+    else:
+        value = compute_the_shared_value(alpha, beta)
+        log.info('identical branch body across both arms here')
+        persist(value, destination_one_or_two_for_real)
+";
+
+#[test]
+fn t38_python_f2b_identical_branches_fires() {
+    // Python intra-fn if/else with byte-identical branches above the
+    // token floor fires F2b (the if_same_then_else class).
+    let files = vec![parsed_py("same.py", PY_F2B_IDENTICAL)];
+    let findings = run(files);
+    assert_eq!(findings.len(), 1, "Python F2b must fire, got {findings:#?}");
+    assert_eq!(
+        findings[0].evidence.raw["kind"],
+        "intra-fn-if-same-then-else"
+    );
+}
+
+const PY_F2C_SHARED_PREFIX: &str = "
+def handle(flag):
+    if flag:
+        message = build_the_shared_message_for_both_arms(payload)
+        dispatch_to_first_specific_target(message)
+    else:
+        message = build_the_shared_message_for_both_arms(payload)
+        dispatch_to_second_specific_target(message)
+";
+
+#[test]
+fn t39_python_f2c_shared_prefix_fires() {
+    let files = vec![parsed_py("shared.py", PY_F2C_SHARED_PREFIX)];
+    let findings = run(files);
+    assert_eq!(findings.len(), 1, "Python F2c must fire, got {findings:#?}");
+    assert_eq!(
+        findings[0].evidence.raw["kind"],
+        "intra-fn-if-branches-sharing-code"
+    );
+}
+
+const PY_F2B_COMMENT_ONLY_DIFF: &str = "
+def render(flag):
+    if flag:
+        value = compute_the_shared_value(alpha, beta)  # first comment
+        log.info('identical branch body across both arms here')
+        persist(value, destination_one_or_two_for_real)
+    else:
+        value = compute_the_shared_value(alpha, beta)  # different comment
+        log.info('identical branch body across both arms here')
+        persist(value, destination_one_or_two_for_real)
+";
+
+#[test]
+fn t40_python_f2b_ignores_hash_comments() {
+    // The `#` comment normaliser makes branches differing only in
+    // comments compare equal (F2b fires).
+    let files = vec![parsed_py("comments.py", PY_F2B_COMMENT_ONLY_DIFF)];
+    let findings = run(files);
+    assert_eq!(
+        findings.len(),
+        1,
+        "Python F2b must ignore # comments, got {findings:#?}"
+    );
+    assert_eq!(
+        findings[0].evidence.raw["kind"],
+        "intra-fn-if-same-then-else"
+    );
+}

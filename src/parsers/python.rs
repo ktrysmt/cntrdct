@@ -232,24 +232,41 @@ impl<'a> Converter<'a> {
             if !child.is_named() {
                 continue;
             }
-            let (name, kind) = match child.kind() {
+            let (name, kind, default) = match child.kind() {
                 "identifier" => {
                     let text = self.text(child).to_string();
                     if is_method && first && matches!(text.as_str(), "self" | "cls") {
-                        (text, ParamKind::Receiver)
+                        (text, ParamKind::Receiver, None)
                     } else {
-                        (text, ParamKind::Plain)
+                        (text, ParamKind::Plain, None)
                     }
                 }
-                "typed_parameter" | "default_parameter" | "typed_default_parameter" => {
+                "typed_parameter" => {
                     let id = python_first_identifier(child);
                     let text = id
                         .map(|n| self.text(n).to_string())
                         .unwrap_or_else(|| self.text(child).to_string());
                     if is_method && first && matches!(text.as_str(), "self" | "cls") {
-                        (text, ParamKind::Receiver)
+                        (text, ParamKind::Receiver, None)
                     } else {
-                        (text, ParamKind::Plain)
+                        (text, ParamKind::Plain, None)
+                    }
+                }
+                // `a=expr` / `a: T = expr`: the parameter carries a default
+                // literal (M6). tree-sitter-python exposes the default
+                // expression under the `value` field for both shapes.
+                "default_parameter" | "typed_default_parameter" => {
+                    let id = python_first_identifier(child);
+                    let text = id
+                        .map(|n| self.text(n).to_string())
+                        .unwrap_or_else(|| self.text(child).to_string());
+                    let default = child
+                        .child_by_field_name("value")
+                        .map(|n| self.text(n).trim().to_string());
+                    if is_method && first && matches!(text.as_str(), "self" | "cls") {
+                        (text, ParamKind::Receiver, default)
+                    } else {
+                        (text, ParamKind::Plain, default)
                     }
                 }
                 // `*args` / `**kwargs` / positional-only / keyword-only
@@ -257,11 +274,12 @@ impl<'a> Converter<'a> {
                 // model land as Unsupported. arg-swap rejects the
                 // entire function definition when any param is
                 // Unsupported, matching v0.5.x conservatism.
-                _ => (self.text(child).to_string(), ParamKind::Unsupported),
+                _ => (self.text(child).to_string(), ParamKind::Unsupported, None),
             };
             out.push(IrParam {
                 name,
                 kind,
+                default,
                 location: node_location(self.path, child),
             });
             first = false;
@@ -1241,6 +1259,20 @@ class C:
         assert_eq!(f.params[0].kind, ParamKind::Plain);
         assert_eq!(f.params[1].kind, ParamKind::Unsupported);
         assert_eq!(f.params[2].kind, ParamKind::Unsupported);
+    }
+
+    #[test]
+    fn default_parameter_captures_default_literal() {
+        // M6: `a=expr` and `a: T = expr` capture the trimmed default
+        // expression; a plain / typed-without-default param stays None.
+        let src = "def foo(a, b=10, c: int = bar(), d: int = None):\n    pass\n";
+        let ir = to_ir(src);
+        let f = &ir.fns[0];
+        assert_eq!(f.params.len(), 4);
+        assert_eq!(f.params[0].default, None);
+        assert_eq!(f.params[1].default.as_deref(), Some("10"));
+        assert_eq!(f.params[2].default.as_deref(), Some("bar()"));
+        assert_eq!(f.params[3].default.as_deref(), Some("None"));
     }
 
     #[test]

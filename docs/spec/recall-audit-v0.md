@@ -414,11 +414,15 @@ documented bounds:
   resolves, but the argument identifiers share no lexical signal with
   the parameter names, so F5 (and the SwapD SOTA) emit nothing. Target
   of REBUILD.md R-4. See arg-swap-v0.md "Bound B".
-- clone-drift bound C (granularity, F2/F2b):
+- clone-drift bound C (granularity, F2/F2b) — LIFTED 2026-06-08 by F2c:
   `clippy_ui_branches_sharing_code_shared_at_top.rs:15` — the clippy
-  `branches_sharing_code` class (branches sharing a common prefix but
-  diverging) is out of scope; F2b flags only fully byte-identical
-  consequence/alternative blocks. See
+  `branches_sharing_code` shared-prefix class. Originally out of scope
+  (F2b flagged only fully byte-identical consequence/alternative blocks).
+  The F2c shared-prefix pass (`clone-drift-v0.md` F2c) now catches it, so
+  clone-drift's `recall_upper_bound` rose from `0.5` (1tp/1fn) to `1.0`
+  (2tp/0fn) and overall audit recall from `0.918` (56tp/5fn) to `0.934`
+  (57tp/4fn). The clone-drift T1 pins were re-blessed (audit 2→6 findings,
+  wild-rust 0→2). The shared-SUFFIX variant remains out of scope. See
   `docs/spec/clone-drift-v0.md` "Known recall bound — branches_sharing_code".
 
 The triage also surfaced an arg-swap call-enumeration regression from

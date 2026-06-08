@@ -179,3 +179,11 @@
 {"file":"files/pr_miner_go_negative_001.go","expected":[]}
 {"file":"files/pr_miner_go_negative_002.go","expected":[]}
 {"file":"files/pr_miner_go_negative_003.go","expected":[]}
+{"file": "files/build_tag_interaction_go_001.go", "expected": [{"detector_id": "build-tag-interaction-go", "line": 1}], "pr_miner_eligible": false}
+{"file": "files/build_tag_interaction_go_002.go", "expected": [{"detector_id": "build-tag-interaction-go", "line": 1}], "pr_miner_eligible": false}
+{"file": "files/build_tag_interaction_go_003.go", "expected": [{"detector_id": "build-tag-interaction-go", "line": 1}], "pr_miner_eligible": false}
+{"file": "files/build_tag_interaction_go_004.go", "expected": [{"detector_id": "build-tag-interaction-go", "line": 1}], "pr_miner_eligible": false}
+{"file": "files/build_tag_interaction_go_005.go", "expected": [{"detector_id": "build-tag-interaction-go", "line": 1}], "pr_miner_eligible": false}
+{"file": "files/build_tag_interaction_go_006.go", "expected": [{"detector_id": "build-tag-interaction-go", "line": 1}], "pr_miner_eligible": false}
+{"file": "files/build_tag_interaction_go_007.go", "expected": [{"detector_id": "build-tag-interaction-go", "line": 1}], "pr_miner_eligible": false}
+{"file": "files/build_tag_interaction_go_008.go", "expected": [{"detector_id": "build-tag-interaction-go", "line": 1}], "pr_miner_eligible": false}

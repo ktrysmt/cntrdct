@@ -211,6 +211,14 @@ pub struct IrFn {
 pub struct IrParam {
     pub name: String,
     pub kind: ParamKind,
+    /// Default-value literal (trimmed source text) where the language
+    /// admits one and the parameter declares it (Python `a=expr` /
+    /// `a: T = expr`, TypeScript `a = expr`); `None` for no default and
+    /// for Rust / Go (no default-parameter syntax). Added for the Layer 0
+    /// candidate predicate (p3-amendment-v0.md review M6). Serialised with
+    /// `skip_serializing_if = Option::is_none` so the F6 T4 golden wire
+    /// shape stays byte-identical for the common no-default case.
+    pub default: Option<String>,
     pub location: Location,
 }
 

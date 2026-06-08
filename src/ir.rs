@@ -297,6 +297,17 @@ pub struct IrParam {
     /// Classification used by `arg-swap` for receiver dropping and
     /// unsupported-shape rejection.
     pub kind: ParamKind,
+    /// Default-value literal where the language admits one and the
+    /// parameter declares it (Python `def f(a, b=10)`, TypeScript
+    /// `function f(a, b = 10)`): the raw, trimmed source text of the
+    /// default expression. `None` when the parameter has no default, or
+    /// for languages without default-parameter syntax (Rust, Go).
+    /// Consumed by the Layer 0 candidate generator's predicate (R-4
+    /// review M6); the cross-cutting `arg-swap` name matcher ignores it.
+    /// `skip_serializing_if` keeps the IR golden wire shape byte-identical
+    /// for the common no-default case (ir-v0.md F6 T4).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<String>,
     /// Source location of the parameter.
     pub location: Location,
 }

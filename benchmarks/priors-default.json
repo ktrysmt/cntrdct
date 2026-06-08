@@ -6,6 +6,13 @@
     "wilson_lower_95": 0.7940927857921773,
     "prior_method": "jeffreys"
   },
+  "build-tag-interaction-go": {
+    "tp": 8,
+    "fp": 0,
+    "posterior_tp": 0.9,
+    "wilson_lower_95": 0.6637328831200571,
+    "prior_method": "jeffreys"
+  },
   "clone-drift": {
     "tp": 14,
     "fp": 0,

@@ -6,6 +6,7 @@ use cntrdct::core::Detector;
 use cntrdct::detectors::arg_swap::ArgSwap;
 use cntrdct::detectors::clone_drift::CloneDrift;
 use cntrdct::detectors::comment_code::CommentCode;
+use cntrdct::detectors::lang::go_build_tag_interaction::GoBuildTagInteraction;
 use cntrdct::detectors::lang::python_unreachable_except::PythonUnreachableExcept;
 use cntrdct::detectors::lang::rust_config_interaction::ConfigInteraction;
 use cntrdct::detectors::pr_miner::PrMinerDetector;
@@ -81,6 +82,14 @@ enum Commands {
         /// the cap are logged as skipped, never silently dropped.
         #[arg(long, default_value_t = cntrdct::candidate_llm::DEFAULT_MAX_CALLS)]
         candidate_llm_max_calls: usize,
+        /// R-4 (R3): override the self-preference guard. By default the
+        /// scan refuses when the Layer 0 proposer and the Layer 3
+        /// adjudicator are the same model family (e.g.
+        /// `--candidate-llm=claude-cli` with the Anthropic adjudicator),
+        /// because a judge over-accepts its own family's proposals
+        /// (`wataoka-2024`). Pass this to proceed anyway.
+        #[arg(long)]
+        allow_self_preference: bool,
     },
     /// Build calibration priors from a labelled JSONL corpus.
     ///
@@ -203,6 +212,7 @@ fn main() -> ExitCode {
             config,
             candidate_llm,
             candidate_llm_max_calls,
+            allow_self_preference,
         } => {
             let cfg = match cntrdct::load_config(config.as_deref(), &path) {
                 Ok(c) => c,
@@ -228,6 +238,35 @@ fn main() -> ExitCode {
                     // CLI shells out via PromptDispatch (no reqwest).
                     let mut layer0_ran = false;
                     if let Some(provider) = candidate_llm {
+                        // R-4 (R3): refuse same-family proposer+confirmer
+                        // (self-preference, wataoka-2024). The Layer 3
+                        // adjudicator is the Anthropic default; block a
+                        // claude-family Layer 0 proposer unless overridden.
+                        let layer0_provider_id = match provider {
+                            CandidateProvider::ClaudeCli => {
+                                cntrdct::adjudicator::CLAUDE_CLI_PROVIDER_ID
+                            }
+                            CandidateProvider::GeminiCli => {
+                                cntrdct::adjudicator::GEMINI_CLI_PROVIDER_ID
+                            }
+                        };
+                        if cntrdct::candidate_llm::is_self_preference_conflict(
+                            layer0_provider_id,
+                            cntrdct::adjudicator::ANTHROPIC_PROVIDER_ID,
+                        ) {
+                            if allow_self_preference {
+                                eprintln!(
+                                    "warning: Layer 0 proposer `{}` and the Layer 3 adjudicator share a model family; self-preference bias possible (wataoka-2024). Proceeding (--allow-self-preference).",
+                                    layer0_provider_id,
+                                );
+                            } else {
+                                eprintln!(
+                                    "error: Layer 0 proposer `{}` and the Layer 3 adjudicator are the same model family (self-preference bias, wataoka-2024). Use `--candidate-llm=gemini-cli`, or pass `--allow-self-preference` to override.",
+                                    layer0_provider_id,
+                                );
+                                return ExitCode::from(2);
+                            }
+                        }
                         let handle = match provider {
                             CandidateProvider::ClaudeCli => {
                                 cntrdct::build_audit_claude_cli_provider()
@@ -360,6 +399,7 @@ fn main() -> ExitCode {
                             let config_interaction = ConfigInteraction::new();
                             let pr_miner = PrMinerDetector::new();
                             let python_unreachable_except = PythonUnreachableExcept::new();
+                            let go_build_tag_interaction = GoBuildTagInteraction::new();
                             let detectors: Vec<&dyn Detector> = vec![
                                 &clone_drift,
                                 &arg_swap,
@@ -368,6 +408,7 @@ fn main() -> ExitCode {
                                 &config_interaction,
                                 &pr_miner,
                                 &python_unreachable_except,
+                                &go_build_tag_interaction,
                             ];
                             cntrdct::sarif::to_sarif_with_rules_pretty_ranked(&ranked, &detectors)
                         }

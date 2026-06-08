@@ -35,10 +35,13 @@
 //!
 //! v0 scope: arg-swap Bound B only (§8). Bound A (cross-file resolution)
 //! is out of scope; unresolved callees are skipped. `ParamFact.default`
-//! is present in the predicate but populated `None` in v0 — populating
-//! default-value literals (review M6) is a Phase-B enrichment, since
-//! `IrParam` does not carry them and the flagship case is decidable from
-//! identifier names alone.
+//! carries the resolved definition's per-parameter default-value literal
+//! when one is declared (review M6, Phase B): `IrParam.default` now holds
+//! the trimmed default expression for Python (`a=expr` / `a: T = expr`)
+//! and TypeScript (`a = expr`); Rust and Go have no default-parameter
+//! syntax so it stays `None`. The flagship swap is still decidable from
+//! identifier names alone — defaults are an enrichment that helps the LLM
+//! disambiguate roles when present.
 
 use serde::Serialize;
 
@@ -49,6 +52,37 @@ use crate::core::{
 use crate::detectors::arg_swap;
 use crate::ir::IrFile;
 use std::collections::HashMap;
+
+/// Coarse model-family token for the R3 self-preference guard. Layer 0
+/// proposes candidates and Layer 3 confirms them; if the SAME model family
+/// does both, the confirmer over-accepts its own family's proposals
+/// (self-preference bias — `wataoka-2024`, the citation this module already
+/// carries). Classification is by provider-id / model substring so it works
+/// for both the CLI provider ids (`claude-cli` / `gemini-cli`) and the
+/// adjudicator's provider id / model string. Returns `None` for an
+/// unrecognised identity — the guard never blocks on a family it cannot name.
+pub fn model_family(provider_id_or_model: &str) -> Option<&'static str> {
+    let s = provider_id_or_model.to_ascii_lowercase();
+    if s.contains("claude") || s.contains("anthropic") {
+        Some("anthropic")
+    } else if s.contains("gemini") || s.contains("google") {
+        Some("google")
+    } else {
+        None
+    }
+}
+
+/// R3: true when the Layer 0 proposer and the Layer 3 confirmer resolve to
+/// the SAME model family — the proposer would be grading its own work. An
+/// unknown family on either side is NOT a conflict (same-family cannot be
+/// proven), so the guard fails open rather than blocking unrecognised
+/// providers.
+pub fn is_self_preference_conflict(layer0_id: &str, layer3_id: &str) -> bool {
+    match (model_family(layer0_id), model_family(layer3_id)) {
+        (Some(a), Some(b)) => a == b,
+        _ => false,
+    }
+}
 
 /// Default hard ceiling on LLM dispatches per scan (review B6 / R7). A
 /// scan runs against arbitrary user trees, so the deterministic
@@ -116,8 +150,8 @@ pub struct ParamFact {
     /// `ParamKind` variant name (`"Plain"` in v0; receivers are dropped
     /// before resolution, unsupported shapes reject the definition).
     pub kind: &'static str,
-    /// Default-value literal where present. v0: always `None` (Phase-B
-    /// enrichment, review M6).
+    /// Default-value literal where the resolved definition declares one
+    /// (review M6), sourced from `IrParam.default`; `None` otherwise.
     pub default: Option<String>,
 }
 
@@ -143,6 +177,9 @@ struct BoundBCandidate {
     callee: String,
     args: Vec<String>,
     params: Vec<String>,
+    /// Default-value literal per parameter, aligned 1:1 with `params`
+    /// (review M6); `None` where the parameter declares no default.
+    param_defaults: Vec<Option<String>>,
     call_location: Location,
     def_location: Location,
 }
@@ -170,7 +207,10 @@ impl BoundBCandidate {
                         ordinal: i,
                         name: p.clone(),
                         kind: "Plain",
-                        default: None,
+                        // M6: surface the parameter default literal when the
+                        // resolved definition declares one, aligned by
+                        // ordinal with `params`.
+                        default: self.param_defaults.get(i).cloned().flatten(),
                     })
                     .collect(),
             }),
@@ -323,6 +363,7 @@ fn enumerate_bound_b_residue(files: &[IrFile]) -> Vec<BoundBCandidate> {
                 callee: call.callee,
                 args: call.args,
                 params: def.params.clone(),
+                param_defaults: def.param_defaults.clone(),
                 call_location: call.location,
                 def_location: def.location.clone(),
             });
@@ -518,6 +559,63 @@ def run(src, dst):\n\
         )
         .expect("parse");
         assert!(enumerate_bound_b_residue(&[file]).is_empty());
+    }
+
+    #[test]
+    fn self_preference_conflict_detects_same_family() {
+        // R3: claude-cli proposing + Anthropic adjudicating is the same
+        // family (self-confirmation); gemini-cli proposing is not.
+        use crate::adjudicator::{
+            ANTHROPIC_PROVIDER_ID, CLAUDE_CLI_PROVIDER_ID, GEMINI_CLI_PROVIDER_ID,
+        };
+        assert!(is_self_preference_conflict(
+            CLAUDE_CLI_PROVIDER_ID,
+            ANTHROPIC_PROVIDER_ID
+        ));
+        assert!(!is_self_preference_conflict(
+            GEMINI_CLI_PROVIDER_ID,
+            ANTHROPIC_PROVIDER_ID
+        ));
+        // Model strings classify the same way as provider ids.
+        assert!(is_self_preference_conflict(
+            "claude-cli",
+            "claude-sonnet-4-6"
+        ));
+        assert!(!is_self_preference_conflict(
+            "gemini-2.5-flash",
+            "claude-sonnet-4-6"
+        ));
+        // Unknown family fails open (not a conflict).
+        assert!(!is_self_preference_conflict("some-other-llm", "claude-cli"));
+    }
+
+    #[test]
+    fn predicate_surfaces_param_default_literal() {
+        // M6: a resolved definition with a defaulted parameter exposes the
+        // default literal in the predicate, aligned by ordinal.
+        let src = "\
+def get_radiomics_features(seg_file, img_file=None):\n\
+    return 0\n\
+\n\
+def run(ct_file, mask, masks):\n\
+    stats = [get_radiomics_features(ct_file, mask) for _ in masks]\n\
+    return stats\n";
+        let file = ir_from_source(
+            std::path::Path::new("defaults.py"),
+            Language::Python,
+            src.to_string(),
+        )
+        .expect("parse");
+        let residue = enumerate_bound_b_residue(&[file]);
+        assert_eq!(residue.len(), 1, "still a Bound B residue with a default");
+        let sig = residue[0].predicate().resolved_sig.expect("resolved sig");
+        assert_eq!(sig.params.len(), 2);
+        assert_eq!(sig.params[0].default, None, "first param has no default");
+        assert_eq!(
+            sig.params[1].default.as_deref(),
+            Some("None"),
+            "second param surfaces its default literal",
+        );
     }
 
     #[test]

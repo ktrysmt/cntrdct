@@ -212,6 +212,7 @@ fn sarif_emitter_handles_mixed_rust_and_python_unchanged() {
     use cntrdct::detectors::arg_swap::ArgSwap;
     use cntrdct::detectors::clone_drift::CloneDrift;
     use cntrdct::detectors::comment_code::CommentCode;
+    use cntrdct::detectors::lang::go_build_tag_interaction::GoBuildTagInteraction;
     use cntrdct::detectors::lang::python_unreachable_except::PythonUnreachableExcept;
     use cntrdct::detectors::lang::rust_config_interaction::ConfigInteraction;
     use cntrdct::detectors::pr_miner::PrMinerDetector;
@@ -229,6 +230,7 @@ fn sarif_emitter_handles_mixed_rust_and_python_unchanged() {
     let config_interaction = ConfigInteraction::new();
     let pr_miner = PrMinerDetector::new();
     let python_unreachable_except = PythonUnreachableExcept::new();
+    let go_build_tag_interaction = GoBuildTagInteraction::new();
     let detectors: Vec<&dyn Detector> = vec![
         &clone_drift,
         &arg_swap,
@@ -237,6 +239,7 @@ fn sarif_emitter_handles_mixed_rust_and_python_unchanged() {
         &config_interaction,
         &pr_miner,
         &python_unreachable_except,
+        &go_build_tag_interaction,
     ];
     let sarif = cntrdct::sarif::to_sarif_with_rules_ranked(&ranked, &detectors);
 

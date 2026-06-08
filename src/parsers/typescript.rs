@@ -335,9 +335,17 @@ impl<'a> Converter<'a> {
                 }
                 _ => (self.text(child).to_string(), ParamKind::Unsupported),
             };
+            // `function f(a, b = 10)`: tree-sitter-typescript exposes the
+            // default expression under the `value` field of the parameter
+            // node (M6). `b?: number` carries no `value`, so default stays
+            // None.
+            let default = child
+                .child_by_field_name("value")
+                .map(|n| self.text(n).trim().to_string());
             out.push(IrParam {
                 name,
                 kind,
+                default,
                 location: node_location(self.path, child),
             });
         }
@@ -1038,6 +1046,18 @@ mod tests {
         assert_eq!(f.params[0].kind, ParamKind::Plain);
         assert!(!f.is_method);
         assert_eq!(f.return_type_text.as_deref(), Some("number"));
+    }
+
+    #[test]
+    fn default_parameter_captures_default_literal() {
+        // M6: `b = expr` captures the trimmed default; `c?: T` (optional,
+        // no value) and a required param stay None.
+        let ir = to_ir("function f(a: number, b: number = 10, c?: string): void {}\n");
+        let f = &ir.fns[0];
+        assert_eq!(f.params.len(), 3);
+        assert_eq!(f.params[0].default, None);
+        assert_eq!(f.params[1].default.as_deref(), Some("10"));
+        assert_eq!(f.params[2].default, None);
     }
 
     #[test]

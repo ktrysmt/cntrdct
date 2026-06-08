@@ -1,1 +1,98 @@
-[]
+[
+  {
+    "finding": {
+      "detector_id": "clone-drift",
+      "primary": {
+        "file": "benchmarks/wild-corpus/files/h2__proto_streams_recv.rs",
+        "start_line": 254,
+        "start_col": 9,
+        "end_line": 287,
+        "end_col": 10
+      },
+      "related": [
+        {
+          "file": "benchmarks/wild-corpus/files/h2__proto_streams_recv.rs",
+          "start_line": 254,
+          "start_col": 39,
+          "end_line": 272,
+          "end_col": 10
+        },
+        {
+          "file": "benchmarks/wild-corpus/files/h2__proto_streams_recv.rs",
+          "start_line": 272,
+          "start_col": 16,
+          "end_line": 287,
+          "end_col": 10
+        }
+      ],
+      "message": "if-then-else branches share 1 leading statement(s) (79 chars) then diverge — consider hoisting the shared code",
+      "raw_severity": "Warning",
+      "anomaly_class": "Logic",
+      "evidence": {
+        "citation_keys": [
+          "cordy-roy-icpc-2008",
+          "bettenburg-msr-2009",
+          "krinke-icsm-2007"
+        ],
+        "raw": {
+          "branch_sharing_min_chars": 20,
+          "kind": "intra-fn-if-branches-sharing-code",
+          "shared_chars": 79,
+          "shared_prefix_statements": 1
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 2.0
+  },
+  {
+    "finding": {
+      "detector_id": "clone-drift",
+      "primary": {
+        "file": "benchmarks/wild-corpus/files/object__write_elf_writer.rs",
+        "start_line": 1484,
+        "start_col": 9,
+        "end_line": 1504,
+        "end_col": 10
+      },
+      "related": [
+        {
+          "file": "benchmarks/wild-corpus/files/object__write_elf_writer.rs",
+          "start_line": 1484,
+          "start_col": 23,
+          "end_line": 1494,
+          "end_col": 10
+        },
+        {
+          "file": "benchmarks/wild-corpus/files/object__write_elf_writer.rs",
+          "start_line": 1494,
+          "start_col": 16,
+          "end_line": 1504,
+          "end_col": 10
+        }
+      ],
+      "message": "if-then-else branches share 1 leading statement(s) (54 chars) then diverge — consider hoisting the shared code",
+      "raw_severity": "Warning",
+      "anomaly_class": "Logic",
+      "evidence": {
+        "citation_keys": [
+          "cordy-roy-icpc-2008",
+          "bettenburg-msr-2009",
+          "krinke-icsm-2007"
+        ],
+        "raw": {
+          "branch_sharing_min_chars": 20,
+          "kind": "intra-fn-if-branches-sharing-code",
+          "shared_chars": 54,
+          "shared_prefix_statements": 1
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 2.0
+  }
+]

@@ -144,6 +144,26 @@ pointing at the relevant `docs/surveys/` file.
   docs/spec/citations-policy.md — the survey found no peer-reviewed,
   Python-subject study of this specific anti-pattern.)
 
+### build-tag-interaction-go
+
+- `tartler-eurosys-2011` — B. Tartler, D. Lohmann, J. Sincero,
+  W. Schröder-Preikschat, "Feature consistency in compile-time-configurable
+  system software: facing the Linux 10,000 feature problem", EuroSys 2011.
+  The dead-block / inconsistent-feature anomaly class; a contradictory Go
+  `//go:build` constraint is the same always-false configuration predicate.
+  Languages: (general; the study's subjects are C / Linux KConfig, so it
+  grounds the concept rather than Go specifically).
+- `nadi-icse-2014` — S. Nadi, T. Berger, C. Kästner, K. Czarnecki, "Mining
+  configuration constraints: Static analyses and empirical results", ICSE 2014.
+  Empirical evidence that contradictory configuration predicates recur in
+  production code.
+  Languages: (general; original subjects were Linux / KConfig).
+- (build-tag-interaction-go Go coverage: unconfirmed; survey notes at
+  docs/surveys/build-tag-interaction-go-2026-06.md. The detector ships Go with
+  `LanguageCitationStatus::Unconfirmed` per docs/spec/citations-policy.md — the
+  survey found no peer-reviewed, Go-subject study of build-constraint
+  contradictions.)
+
 ## Layer 2 (Statistical ranking)
 
 - `kremenek-engler-sas-2003` — T. Kremenek, D. Engler, "Z-Ranking: Using Statistical

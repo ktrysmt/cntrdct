@@ -47,6 +47,7 @@ pub mod self_replication;
 /// comparing.
 pub const ALL_DETECTOR_IDS: &[&str] = &[
     "arg-swap",
+    "build-tag-interaction-go",
     "clone-drift",
     "comment-code",
     "config-interaction",
@@ -73,6 +74,7 @@ use crate::cross_model_kappa::{
 use crate::detectors::arg_swap::ArgSwap;
 use crate::detectors::clone_drift::CloneDrift;
 use crate::detectors::comment_code::CommentCode;
+use crate::detectors::lang::go_build_tag_interaction::GoBuildTagInteraction;
 use crate::detectors::lang::python_unreachable_except::PythonUnreachableExcept;
 use crate::detectors::lang::rust_config_interaction::ConfigInteraction;
 use crate::detectors::pr_miner::PrMinerDetector;
@@ -243,7 +245,7 @@ pub fn scan_buffer(path: &Path, source: String) -> Result<(Vec<Finding>, Vec<IrF
     run_detectors_on(vec![ir_file])
 }
 
-/// Run all seven Layer 1 detectors over a pre-built [`IrFile`] vector.
+/// Run all eight Layer 1 detectors over a pre-built [`IrFile`] vector.
 /// Shared between the disk-walking [`scan_full_with_config`] and the
 /// buffer-only [`scan_buffer`] (used by the LSP server) so the registration
 /// list and ordering rules live in exactly one place.
@@ -255,6 +257,7 @@ fn run_detectors_on(parsed: Vec<IrFile>) -> Result<(Vec<Finding>, Vec<IrFile>), 
     let config_interaction = ConfigInteraction::new();
     let pr_miner = PrMinerDetector::new();
     let python_unreachable_except = PythonUnreachableExcept::new();
+    let go_build_tag_interaction = GoBuildTagInteraction::new();
     register_detector(&clone_drift)?;
     register_detector(&arg_swap)?;
     register_detector(&comment_code)?;
@@ -262,6 +265,7 @@ fn run_detectors_on(parsed: Vec<IrFile>) -> Result<(Vec<Finding>, Vec<IrFile>), 
     register_detector(&config_interaction)?;
     register_detector(&pr_miner)?;
     register_detector(&python_unreachable_except)?;
+    register_detector(&go_build_tag_interaction)?;
 
     let stats = CorpusStats {
         file_count: parsed.len(),
@@ -274,7 +278,7 @@ fn run_detectors_on(parsed: Vec<IrFile>) -> Result<(Vec<Finding>, Vec<IrFile>), 
         config: &config,
     };
 
-    // Run all seven detectors in parallel against the shared context. Each
+    // Run all eight detectors in parallel against the shared context. Each
     // detector implementation is `Send + Sync` per the trait bound, so this
     // is sound. Output ordering is restored via a deterministic post-hoc
     // sort below so the ranker (and snapshot tests) see stable input.
@@ -286,6 +290,7 @@ fn run_detectors_on(parsed: Vec<IrFile>) -> Result<(Vec<Finding>, Vec<IrFile>), 
         &config_interaction,
         &pr_miner,
         &python_unreachable_except,
+        &go_build_tag_interaction,
     ];
     let nested: Result<Vec<Vec<Finding>>, crate::core::DetectorError> =
         detectors.par_iter().map(|d| d.detect(&ctx)).collect();

@@ -103,6 +103,11 @@ impl ArgSwap {
 #[derive(Debug, Clone)]
 pub(crate) struct FnDef {
     pub(crate) params: Vec<String>,
+    /// Default-value literal per parameter, aligned 1:1 with `params`
+    /// (`None` where the parameter has no default). Populated from
+    /// `IrParam.default` for the Layer 0 candidate predicate (R-4 M6);
+    /// the name-correlation matcher ignores it.
+    pub(crate) param_defaults: Vec<Option<String>>,
     pub(crate) location: Location,
 }
 
@@ -411,6 +416,7 @@ fn extract_python_fn_defs(file: &IrFile) -> Option<Vec<(String, FnDef)>> {
 /// matching the v0.5.x `parse_*_fn_def` conservatism byte-for-byte.
 fn ir_fn_to_def(f: &IrFn) -> Option<(String, FnDef)> {
     let mut params: Vec<String> = Vec::new();
+    let mut param_defaults: Vec<Option<String>> = Vec::new();
     for p in &f.params {
         match p.kind {
             // Drop the conventional Python `self` / `cls` receiver before
@@ -424,6 +430,7 @@ fn ir_fn_to_def(f: &IrFn) -> Option<(String, FnDef)> {
                     return None;
                 }
                 params.push(p.name.clone());
+                param_defaults.push(p.default.clone());
             }
         }
     }
@@ -431,6 +438,7 @@ fn ir_fn_to_def(f: &IrFn) -> Option<(String, FnDef)> {
         f.name.clone(),
         FnDef {
             params,
+            param_defaults,
             location: ir_loc_to_core(&f.location),
         },
     ))

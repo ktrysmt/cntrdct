@@ -757,9 +757,11 @@ R-2.c. IR tests + T4 goldens — `[x]` 2026-06-04 (uncommitted in
        Full gate green: `cargo test --all-targets` (+ `--features
        lsp`), `cargo clippy --all-targets -- -D warnings`,
        `cargo fmt --all -- --check`.
-R-2.d. Opt the cross-cutting detectors into TypeScript — `[~]`
-       2026-06-04 (uncommitted in working tree). FOUR of the five
-       detectors opted in; pr-miner deferred to R-2.e (see below).
+R-2.d. Opt the cross-cutting detectors into TypeScript — `[x]`
+       2026-06-04 (the deferred pr-miner opt-in completed in R-2.e;
+       marker reconciled 2026-06-07 to match R-3.d's `[x]`). FOUR of
+       the five detectors opted in here; pr-miner deferred to R-2.e
+       (see below).
        - arg-swap: `supported_languages()` += TypeScript; new
          `run_pipeline(Language::TypeScript, extract_typescript_fn_defs,
          extract_typescript_call_sites, Unconfirmed, [li-zhou, rice])`.
@@ -1224,6 +1226,25 @@ R-4. P3 revisit for Layer 0 LLM (carry-over from Q-17) — `[x]`
   literals (M6), and R3 self-preference enforcement. Full gate green
   (`cargo test --all-targets`, `--features lsp`, `clippy -D warnings`,
   `fmt --check`); all changes uncommitted in the working tree.
+  Phase-B follow-ups landed 2026-06-08 (uncommitted in working tree):
+  - M6 DONE: `IrParam.default: Option<String>` now carries the parameter
+    default-value literal — populated by the Python (`a=expr` /
+    `a: T = expr`) and TypeScript (`a = expr`) converters (Rust / Go have
+    no default-parameter syntax → `None`); `arg-swap`'s `FnDef` propagates
+    a `param_defaults` vector and the Layer 0 predicate fills
+    `ParamFact.default` by ordinal. `skip_serializing_if` keeps the F6 T4
+    golden wire shape byte-identical for the no-default case. Specs:
+    ir-v0.md §F1 (IrParam), p3-amendment-v0.md (M6 closed).
+  - R3 DONE: `candidate_llm::{model_family, is_self_preference_conflict}`
+    + `scan --candidate-llm` refuses (exit 2) when the Layer 0 proposer and
+    the Layer 3 (Anthropic) adjudicator share a model family
+    (`--candidate-llm=claude-cli` blocked, `gemini-cli` allowed), with a
+    `--allow-self-preference` override. Spec p3-amendment-v0.md §7 R3
+    marked IMPLEMENTED. Grounded by `wataoka-2024` (already cited).
+  - B3/R2 labelled Layer-0 corpus + fitted prior remain deferred (the
+    labeller-bias / external-anchor problem is unchanged).
+  Full gate green at each (`cargo test --all-targets`, `--features lsp`,
+  `clippy -D warnings`, `fmt --check`); T1 byte-identical pins held.
 
 R-5. Python `except` handler reachability — `[x]`
 
@@ -1282,6 +1303,45 @@ R-5. Python `except` handler reachability — `[x]`
   commit 646f9a4; released as v0.9.0 (R-1 v0.6.0-v0.8.1 + R-5 shipped
   together — the baselines fixture-rename release step stays retired per
   R-1.e).
+
+R-5.b. Detector enhancements (out-of-R-series, 2026-06-08) — `[x]`
+       (uncommitted in working tree). Two quality additions requested
+       alongside the R-4 Phase-B follow-ups:
+       - clone-drift F2c (shared-prefix branch clone) + Python F2b/F2c.
+         The intra-fn if-branch pass is now language-parameterised: F2b
+         (fully identical branches, `if_same_then_else`) and the new F2c
+         (branches sharing a leading statement run, the clippy
+         `branches_sharing_code` shared-at-top class) run for Rust AND
+         Python (`#` vs `//` comment grammar). F2c is shared-PREFIX only in
+         v0 (the shared-suffix variant produced 16 wild-corpus detections
+         in an early probe — the clippy default-off noise — so it is a
+         documented non-goal). F2c catches the audit FN
+         `clippy_ui_branches_sharing_code_shared_at_top.rs:15`, lifting
+         clone-drift recall 0.5 → 1.0 and overall 0.918 → 0.934; the
+         clone-drift T1 pins were intentionally re-blessed (audit 2→6,
+         wild-rust 0→2, wild-python unchanged) — a deliberate feature
+         change, NOT converter drift (§9, recall-audit-v0.md Bound C
+         LIFTED, clone-drift-v0.md F2c). priors byte-identical
+         (labelled-findings unchanged).
+       - build-tag-interaction-go: the second language-specific detector
+         (`src/detectors/lang/go_build_tag_interaction.rs`, Pattern B), the
+         `//go:build` analogue of Rust `config-interaction` — flags an
+         unsatisfiable build constraint (a tag and its negation in one
+         conjunction, e.g. `linux && !linux`). v0 decides the pure-
+         conjunction subset only (`||` / `!(…)` De Morgan / unknown grammar
+         → INDETERMINATE, never flagged). Wired into ALL_DETECTOR_IDS (now
+         8), run_detectors_on, main.rs SARIF, lsp.rs registry, and the four
+         enumeration tests. Citations reuse `tartler-eurosys-2011` +
+         `nadi-icse-2014` (concept grounding; Go `Unconfirmed`), new
+         CITATIONS.md subsection + survey
+         `docs/surveys/build-tag-interaction-go-2026-06.md`. Corpus: 8
+         positives `benchmarks/corpus/files/build_tag_interaction_go_0{01..08}.go`
+         + manifest + labelled-findings; additive prior (tp=8/fp=0/jeffreys),
+         no other prior changed. Spec
+         `docs/spec/build-tag-interaction-go-v0.md`. audit recall floor
+         held (no Go entries in audit-corpus; 0.934). Full gate green
+         (`cargo test --all-targets`, `--features lsp`,
+         `clippy -D warnings`, `fmt --check`).
 
 R-6. VS Code extension (carry-over from T3-12 Phase 2) — `[~]`
 
@@ -1436,6 +1496,16 @@ Before tagging v0.6.0:
   produces — the prior 0.92 was an unmeetable rounding, not a real
   floor. Corrected to 0.918 here and in ir-v0.md F6 T6 / §"recall
   threshold". This is a factual correction, not a design change.
+  **Recall lift (clone-drift F2c, 2026-06-08)**: the clone-drift F2c
+  shared-prefix pass (clone-drift-v0.md F2c, recall-audit-v0.md Bound C)
+  now catches the audit FN
+  `clippy_ui_branches_sharing_code_shared_at_top.rs:15`, raising
+  clone-drift `recall_upper_bound` 0.5 -> 1.0 and overall
+  `overall_recall_upper_bound` 0.918 -> 0.934 (57tp/4fn). The floor stays
+  `>= 0.918` (now exceeded); the clone-drift T1 pins were intentionally
+  re-blessed (audit 2->6 findings, wild-rust 0->2, wild-python unchanged) -
+  a deliberate feature addition, NOT converter drift (T1 for the other
+  four cross-cutting detectors stays byte-identical to v0.5.2).
   **v0.6.0 deferral**: not re-run for the v0.6.0 tag. Detector
   detect() logic is byte-identical to v0.5.2 (T1 green across all
   five cross-cutting detectors × three corpora); a recall regression

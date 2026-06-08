@@ -107,3 +107,11 @@
 {"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_go_006.go", "line": 55, "repo": "corpus", "verdict": "TruePositive"}
 {"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_go_007.go", "line": 55, "repo": "corpus", "verdict": "TruePositive"}
 {"anomaly_class": "Logic", "detector_id": "pr-miner", "file": "files/pr_miner_go_008.go", "line": 55, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "build-tag-interaction-go", "file": "files/build_tag_interaction_go_001.go", "line": 1, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "build-tag-interaction-go", "file": "files/build_tag_interaction_go_002.go", "line": 1, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "build-tag-interaction-go", "file": "files/build_tag_interaction_go_003.go", "line": 1, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "build-tag-interaction-go", "file": "files/build_tag_interaction_go_004.go", "line": 1, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "build-tag-interaction-go", "file": "files/build_tag_interaction_go_005.go", "line": 1, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "build-tag-interaction-go", "file": "files/build_tag_interaction_go_006.go", "line": 1, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "build-tag-interaction-go", "file": "files/build_tag_interaction_go_007.go", "line": 1, "repo": "corpus", "verdict": "TruePositive"}
+{"anomaly_class": "Logic", "detector_id": "build-tag-interaction-go", "file": "files/build_tag_interaction_go_008.go", "line": 1, "repo": "corpus", "verdict": "TruePositive"}

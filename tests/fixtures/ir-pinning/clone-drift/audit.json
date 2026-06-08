@@ -3,6 +3,198 @@
     "finding": {
       "detector_id": "clone-drift",
       "primary": {
+        "file": "benchmarks/audit-corpus/files/clippy_ui_branches_sharing_code_shared_at_top.rs",
+        "start_line": 15,
+        "start_col": 5,
+        "end_line": 22,
+        "end_col": 6
+      },
+      "related": [
+        {
+          "file": "benchmarks/audit-corpus/files/clippy_ui_branches_sharing_code_shared_at_top.rs",
+          "start_line": 15,
+          "start_col": 13,
+          "end_line": 19,
+          "end_col": 6
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/clippy_ui_branches_sharing_code_shared_at_top.rs",
+          "start_line": 19,
+          "start_col": 12,
+          "end_line": 22,
+          "end_col": 6
+        }
+      ],
+      "message": "if-then-else branches share 1 leading statement(s) (25 chars) then diverge — consider hoisting the shared code",
+      "raw_severity": "Warning",
+      "anomaly_class": "Logic",
+      "evidence": {
+        "citation_keys": [
+          "cordy-roy-icpc-2008",
+          "bettenburg-msr-2009",
+          "krinke-icsm-2007"
+        ],
+        "raw": {
+          "branch_sharing_min_chars": 20,
+          "kind": "intra-fn-if-branches-sharing-code",
+          "shared_chars": 25,
+          "shared_prefix_statements": 1
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 2.0
+  },
+  {
+    "finding": {
+      "detector_id": "clone-drift",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/clippy_ui_branches_sharing_code_shared_at_top.rs",
+        "start_line": 67,
+        "start_col": 5,
+        "end_line": 76,
+        "end_col": 6
+      },
+      "related": [
+        {
+          "file": "benchmarks/audit-corpus/files/clippy_ui_branches_sharing_code_shared_at_top.rs",
+          "start_line": 67,
+          "start_col": 16,
+          "end_line": 72,
+          "end_col": 6
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/clippy_ui_branches_sharing_code_shared_at_top.rs",
+          "start_line": 72,
+          "start_col": 12,
+          "end_line": 76,
+          "end_col": 6
+        }
+      ],
+      "message": "if-then-else branches share 2 leading statement(s) (76 chars) then diverge — consider hoisting the shared code",
+      "raw_severity": "Warning",
+      "anomaly_class": "Logic",
+      "evidence": {
+        "citation_keys": [
+          "cordy-roy-icpc-2008",
+          "bettenburg-msr-2009",
+          "krinke-icsm-2007"
+        ],
+        "raw": {
+          "branch_sharing_min_chars": 20,
+          "kind": "intra-fn-if-branches-sharing-code",
+          "shared_chars": 76,
+          "shared_prefix_statements": 2
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 2.0
+  },
+  {
+    "finding": {
+      "detector_id": "clone-drift",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/clippy_ui_branches_sharing_code_shared_at_top.rs",
+        "start_line": 83,
+        "start_col": 5,
+        "end_line": 93,
+        "end_col": 6
+      },
+      "related": [
+        {
+          "file": "benchmarks/audit-corpus/files/clippy_ui_branches_sharing_code_shared_at_top.rs",
+          "start_line": 83,
+          "start_col": 16,
+          "end_line": 89,
+          "end_col": 6
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/clippy_ui_branches_sharing_code_shared_at_top.rs",
+          "start_line": 89,
+          "start_col": 12,
+          "end_line": 93,
+          "end_col": 6
+        }
+      ],
+      "message": "if-then-else branches share 2 leading statement(s) (64 chars) then diverge — consider hoisting the shared code",
+      "raw_severity": "Warning",
+      "anomaly_class": "Logic",
+      "evidence": {
+        "citation_keys": [
+          "cordy-roy-icpc-2008",
+          "bettenburg-msr-2009",
+          "krinke-icsm-2007"
+        ],
+        "raw": {
+          "branch_sharing_min_chars": 20,
+          "kind": "intra-fn-if-branches-sharing-code",
+          "shared_chars": 64,
+          "shared_prefix_statements": 2
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 2.0
+  },
+  {
+    "finding": {
+      "detector_id": "clone-drift",
+      "primary": {
+        "file": "benchmarks/audit-corpus/files/clippy_ui_branches_sharing_code_shared_at_top.rs",
+        "start_line": 121,
+        "start_col": 5,
+        "end_line": 127,
+        "end_col": 6
+      },
+      "related": [
+        {
+          "file": "benchmarks/audit-corpus/files/clippy_ui_branches_sharing_code_shared_at_top.rs",
+          "start_line": 121,
+          "start_col": 13,
+          "end_line": 124,
+          "end_col": 6
+        },
+        {
+          "file": "benchmarks/audit-corpus/files/clippy_ui_branches_sharing_code_shared_at_top.rs",
+          "start_line": 124,
+          "start_col": 12,
+          "end_line": 127,
+          "end_col": 6
+        }
+      ],
+      "message": "if-then-else branches share 1 leading statement(s) (23 chars) then diverge — consider hoisting the shared code",
+      "raw_severity": "Warning",
+      "anomaly_class": "Logic",
+      "evidence": {
+        "citation_keys": [
+          "cordy-roy-icpc-2008",
+          "bettenburg-msr-2009",
+          "krinke-icsm-2007"
+        ],
+        "raw": {
+          "branch_sharing_min_chars": 20,
+          "kind": "intra-fn-if-branches-sharing-code",
+          "shared_chars": 23,
+          "shared_prefix_statements": 1
+        },
+        "language_citation_status": "Confirmed"
+      }
+    },
+    "posterior_tp": null,
+    "wilson_lower": null,
+    "rank_score": 2.0
+  },
+  {
+    "finding": {
+      "detector_id": "clone-drift",
+      "primary": {
         "file": "benchmarks/audit-corpus/files/clippy_ui_if_same_then_else.rs",
         "start_line": 29,
         "start_col": 5,
