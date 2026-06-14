@@ -54,6 +54,16 @@ enum Commands {
         /// is set.
         #[arg(long, default_value_t = 5)]
         adjudicate_top: usize,
+        /// Which Layer 3 backend runs the adjudicator. `claude-cli`
+        /// (DEFAULT) shells out to `claude --print` on the Haiku model
+        /// using the subscription login (no API key), and falls back to
+        /// `agy` (Gemini) when the Claude subscription hits its usage cap.
+        /// `anthropic` uses the Anthropic Messages API and needs
+        /// `ANTHROPIC_API_KEY`. `agy-cli` forces a non-Anthropic Gemini
+        /// model. Spec: `docs/spec/adjudicator-v0.md`,
+        /// `docs/spec/cross-model-kappa-v0.md`.
+        #[arg(long, value_enum, default_value_t = AdjudicateVia::ClaudeCli)]
+        adjudicate_via: AdjudicateVia,
         /// Override the `cntrdct.toml` config file. When omitted, the scan
         /// root is searched for `cntrdct.toml`; absent file is silently
         /// treated as an empty config.
@@ -64,7 +74,7 @@ enum Commands {
         /// flow through Layer 3, and any candidate left unadjudicated is
         /// suppressed from the output (an unadjudicated LLM proposal has
         /// no precision floor). The optional value selects the provider
-        /// CLI (`claude-cli` default, or `gemini-cli`); auth is delegated
+        /// CLI (`claude-cli` default, or `agy-cli`); auth is delegated
         /// to that CLI's own login. Excluded from the `network-isolation`
         /// netns gate by design. Spec: `docs/spec/p3-amendment-v0.md`.
         #[arg(
@@ -157,8 +167,9 @@ enum Commands {
         against: Option<PathBuf>,
     },
     /// Q-13: cross-model κ audit. Routes the same finding set through
-    /// `claude --print` and `gemini -p`, then reports pairwise Cohen's
-    /// κ per `(detector_id, anomaly_class)` cell. Spec:
+    /// `claude --print` and `agy -p` (Antigravity, a non-Anthropic Gemini
+    /// model), then reports pairwise Cohen's κ per
+    /// `(detector_id, anomaly_class)` cell. Spec:
     /// `docs/spec/cross-model-kappa-v0.md`.
     ///
     /// Auth is delegated to each CLI's own login (no API keys read by
@@ -195,8 +206,28 @@ enum OutputFormat {
 enum CandidateProvider {
     /// Claude Code's `claude --print`.
     ClaudeCli,
-    /// The Gemini CLI's `gemini -p`.
-    GeminiCli,
+    /// Google Antigravity's `agy -p` (multi-model; forced to a Gemini
+    /// model — replaces the retired `gemini` CLI).
+    AgyCli,
+}
+
+/// Task 1: Layer 3 adjudicator backend for `scan --adjudicate`. The HTTP
+/// Anthropic path needs `ANTHROPIC_API_KEY`; the two CLI backends use the
+/// respective CLI's own subscription login instead, which is what lets the
+/// end-to-end recall measurement run without an API key.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, ValueEnum)]
+enum AdjudicateVia {
+    /// `claude --print` (Haiku) subscription login (no API key) — the
+    /// DEFAULT. Falls back to `agy` (Gemini) when the Claude subscription
+    /// hits its usage cap. This is the normal `claude -p` adjudication path.
+    #[default]
+    ClaudeCli,
+    /// Anthropic Messages API over HTTP (`reqwest`); requires
+    /// `ANTHROPIC_API_KEY`. Explicit opt-in.
+    Anthropic,
+    /// `agy -p` (Antigravity) subscription login, non-Anthropic Gemini
+    /// model (no API key). Explicit opt-in (also the claude-cli fallback).
+    AgyCli,
 }
 
 fn main() -> ExitCode {
@@ -209,6 +240,7 @@ fn main() -> ExitCode {
             priors,
             adjudicate,
             adjudicate_top,
+            adjudicate_via,
             config,
             candidate_llm,
             candidate_llm_max_calls,
@@ -239,30 +271,46 @@ fn main() -> ExitCode {
                     let mut layer0_ran = false;
                     if let Some(provider) = candidate_llm {
                         // R-4 (R3): refuse same-family proposer+confirmer
-                        // (self-preference, wataoka-2024). The Layer 3
-                        // adjudicator is the Anthropic default; block a
-                        // claude-family Layer 0 proposer unless overridden.
-                        let layer0_provider_id = match provider {
+                        // (self-preference, wataoka-2024). The guard keys on
+                        // the MODEL string of each side, not the provider id:
+                        // `agy` is multi-model, so only its selected model
+                        // (a forced Gemini by default) carries the family,
+                        // and the Layer 3 adjudicator's family now depends on
+                        // --adjudicate-via, not a hardcoded Anthropic.
+                        let proposer_model = match provider {
                             CandidateProvider::ClaudeCli => {
-                                cntrdct::adjudicator::CLAUDE_CLI_PROVIDER_ID
+                                cntrdct::adjudicator::CLAUDE_CLI_MODEL.to_string()
                             }
-                            CandidateProvider::GeminiCli => {
-                                cntrdct::adjudicator::GEMINI_CLI_PROVIDER_ID
+                            CandidateProvider::AgyCli => cntrdct::agy_cli_model(),
+                        };
+                        // The claude-cli adjudicator runs the Haiku model
+                        // (still anthropic family). Note the claude-cli
+                        // backend also carries an `agy` (google) usage-limit
+                        // fallback, so a same-family verdict here may become
+                        // cross-family at runtime if the cap is hit; the
+                        // guard classifies on the PRIMARY adjudicator.
+                        let adjudicator_model = match adjudicate_via {
+                            AdjudicateVia::Anthropic => {
+                                cntrdct::adjudicator::DEFAULT_MODEL.to_string()
                             }
+                            AdjudicateVia::ClaudeCli => {
+                                cntrdct::adjudicator::CLAUDE_CLI_ADJUDICATE_MODEL.to_string()
+                            }
+                            AdjudicateVia::AgyCli => cntrdct::agy_cli_model(),
                         };
                         if cntrdct::candidate_llm::is_self_preference_conflict(
-                            layer0_provider_id,
-                            cntrdct::adjudicator::ANTHROPIC_PROVIDER_ID,
+                            &proposer_model,
+                            &adjudicator_model,
                         ) {
                             if allow_self_preference {
                                 eprintln!(
-                                    "warning: Layer 0 proposer `{}` and the Layer 3 adjudicator share a model family; self-preference bias possible (wataoka-2024). Proceeding (--allow-self-preference).",
-                                    layer0_provider_id,
+                                    "warning: Layer 0 proposer `{}` and the Layer 3 adjudicator `{}` share a model family; self-preference bias possible (wataoka-2024). Proceeding (--allow-self-preference).",
+                                    proposer_model, adjudicator_model,
                                 );
                             } else {
                                 eprintln!(
-                                    "error: Layer 0 proposer `{}` and the Layer 3 adjudicator are the same model family (self-preference bias, wataoka-2024). Use `--candidate-llm=gemini-cli`, or pass `--allow-self-preference` to override.",
-                                    layer0_provider_id,
+                                    "error: Layer 0 proposer `{}` and the Layer 3 adjudicator `{}` are the same model family (self-preference bias, wataoka-2024). Use a cross-family pairing (e.g. `--candidate-llm=claude-cli --adjudicate-via=agy-cli`), or pass `--allow-self-preference` to override.",
+                                    proposer_model, adjudicator_model,
                                 );
                                 return ExitCode::from(2);
                             }
@@ -271,9 +319,7 @@ fn main() -> ExitCode {
                             CandidateProvider::ClaudeCli => {
                                 cntrdct::build_audit_claude_cli_provider()
                             }
-                            CandidateProvider::GeminiCli => {
-                                cntrdct::build_audit_gemini_cli_provider()
-                            }
+                            CandidateProvider::AgyCli => cntrdct::build_audit_agy_cli_provider(),
                         };
                         match handle.adjudicator {
                             Some(dispatch) => {
@@ -317,44 +363,86 @@ fn main() -> ExitCode {
                     };
 
                     if adjudicate {
-                        match cntrdct::read_anthropic_api_key() {
-                            Some(key) => match cntrdct::build_default_adjudicator(key) {
-                                Ok(mut adj) => {
-                                    if let Ok(url) = std::env::var("ANTHROPIC_API_URL_OVERRIDE") {
-                                        adj = adj.with_url(url);
-                                    }
-                                    if let Err(e) =
-                                        cntrdct::adjudicate_top_n(&mut ranked, &adj, adjudicate_top)
-                                    {
-                                        eprintln!(
-                                        "note: adjudication failed; continuing without verdicts ({})",
-                                        e
-                                    );
-                                    }
-                                    // R-4 (B5): every Layer 0 candidate is
-                                    // adjudicated regardless of --adjudicate-top.
-                                    if layer0_ran {
-                                        if let Err(e) =
-                                            cntrdct::adjudicate_layer0_candidates(&mut ranked, &adj)
-                                        {
+                        // Task 1: build the Layer 3 adjudicator per the
+                        // selected backend. `anthropic` reads the API key
+                        // (HTTP); the CLI backends use subscription auth and
+                        // need no key. A missing key / unavailable CLI yields
+                        // `None` → the scan continues without verdicts (and
+                        // any Layer 0 candidate is suppressed downstream).
+                        let adjudicator: Option<Box<dyn cntrdct::core::Adjudicator>> =
+                            match adjudicate_via {
+                                AdjudicateVia::Anthropic => match cntrdct::read_anthropic_api_key()
+                                {
+                                    Some(key) => match cntrdct::build_default_adjudicator(key) {
+                                        Ok(mut adj) => {
+                                            if let Ok(url) =
+                                                std::env::var("ANTHROPIC_API_URL_OVERRIDE")
+                                            {
+                                                adj = adj.with_url(url);
+                                            }
+                                            Some(Box::new(adj))
+                                        }
+                                        Err(e) => {
                                             eprintln!(
-                                                "note: Layer 0 adjudication failed; affected candidates will be suppressed ({})",
+                                                "note: adjudicator init failed; continuing without verdicts ({})",
                                                 e
                                             );
+                                            None
+                                        }
+                                    },
+                                    None => {
+                                        eprintln!(
+                                            "note: --adjudicate requested but ANTHROPIC_API_KEY not set; skipping adjudication"
+                                        );
+                                        None
+                                    }
+                                },
+                                AdjudicateVia::ClaudeCli => {
+                                    // Default: claude -p (Haiku) primary with
+                                    // an agy (Gemini) usage-cap fallback.
+                                    match cntrdct::build_claude_cli_adjudicator_with_agy_fallback()
+                                    {
+                                        Some(adj) => Some(adj),
+                                        None => {
+                                            eprintln!(
+                                                "note: --adjudicate-via=claude-cli but neither the `claude` nor `agy` CLI is available on PATH; skipping adjudication"
+                                            );
+                                            None
                                         }
                                     }
                                 }
-                                Err(e) => {
-                                    eprintln!(
-                                    "note: adjudicator init failed; continuing without verdicts ({})",
+                                AdjudicateVia::AgyCli => match cntrdct::build_agy_cli_adjudicator()
+                                {
+                                    Some(adj) => Some(adj),
+                                    None => {
+                                        eprintln!(
+                                            "note: --adjudicate-via=agy-cli but the `agy` CLI is unavailable on PATH; skipping adjudication"
+                                        );
+                                        None
+                                    }
+                                },
+                            };
+
+                        if let Some(adj) = adjudicator.as_deref() {
+                            if let Err(e) =
+                                cntrdct::adjudicate_top_n(&mut ranked, adj, adjudicate_top)
+                            {
+                                eprintln!(
+                                    "note: adjudication failed; continuing without verdicts ({})",
                                     e
                                 );
+                            }
+                            // R-4 (B5): every Layer 0 candidate is adjudicated
+                            // regardless of --adjudicate-top.
+                            if layer0_ran {
+                                if let Err(e) =
+                                    cntrdct::adjudicate_layer0_candidates(&mut ranked, adj)
+                                {
+                                    eprintln!(
+                                        "note: Layer 0 adjudication failed; affected candidates will be suppressed ({})",
+                                        e
+                                    );
                                 }
-                            },
-                            None => {
-                                eprintln!(
-                                "note: --adjudicate requested but ANTHROPIC_API_KEY not set; skipping adjudication"
-                            );
                             }
                         }
                         // Q-12: post-hoc Platt calibration of LLM confidence.

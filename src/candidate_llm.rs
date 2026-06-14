@@ -13,7 +13,7 @@
 //!
 //! P3 reconciliation:
 //! - This module invokes an LLM, but ONLY via the CLI-shellout
-//!   [`PromptDispatch`] providers (`claude --print` / `gemini -p`) — it
+//!   [`PromptDispatch`] providers (`claude --print` / `agy -p`) — it
 //!   never touches the HTTP transport or the default-adjudicator
 //!   constructor, so the HTTP-reachable symbol set is unchanged and the
 //!   `network-isolation` netns gate continues to hold for the default
@@ -57,9 +57,11 @@ use std::collections::HashMap;
 /// proposes candidates and Layer 3 confirms them; if the SAME model family
 /// does both, the confirmer over-accepts its own family's proposals
 /// (self-preference bias — `wataoka-2024`, the citation this module already
-/// carries). Classification is by provider-id / model substring so it works
-/// for both the CLI provider ids (`claude-cli` / `gemini-cli`) and the
-/// adjudicator's provider id / model string. Returns `None` for an
+/// carries). Classification is by provider-id / model substring. The
+/// multi-model `agy-cli` provider id carries no family token on its own, so
+/// callers pass its SELECTED MODEL string (a Gemini model by default →
+/// `google`); the `claude-cli` id and Anthropic model strings classify as
+/// `anthropic`. Returns `None` for an
 /// unrecognised identity — the guard never blocks on a family it cannot name.
 pub fn model_family(provider_id_or_model: &str) -> Option<&'static str> {
     let s = provider_id_or_model.to_ascii_lowercase();
@@ -564,18 +566,23 @@ def run(src, dst):\n\
     #[test]
     fn self_preference_conflict_detects_same_family() {
         // R3: claude-cli proposing + Anthropic adjudicating is the same
-        // family (self-confirmation); gemini-cli proposing is not.
-        use crate::adjudicator::{
-            ANTHROPIC_PROVIDER_ID, CLAUDE_CLI_PROVIDER_ID, GEMINI_CLI_PROVIDER_ID,
-        };
+        // family (self-confirmation); an `agy` Gemini model is not.
+        use crate::adjudicator::{AGY_CLI_MODEL, ANTHROPIC_PROVIDER_ID, CLAUDE_CLI_PROVIDER_ID};
         assert!(is_self_preference_conflict(
             CLAUDE_CLI_PROVIDER_ID,
             ANTHROPIC_PROVIDER_ID
         ));
+        // The guard keys on the agy MODEL string (the `agy-cli` provider id
+        // alone carries no family — agy is multi-model). The shipped
+        // default forces a Gemini model, which classifies as `google`.
+        assert_eq!(model_family(AGY_CLI_MODEL), Some("google"));
         assert!(!is_self_preference_conflict(
-            GEMINI_CLI_PROVIDER_ID,
+            AGY_CLI_MODEL,
             ANTHROPIC_PROVIDER_ID
         ));
+        // The bare `agy-cli` provider id is family-less, so callers must
+        // pass the model string; on the id alone the guard fails open.
+        assert_eq!(model_family("agy-cli"), None);
         // Model strings classify the same way as provider ids.
         assert!(is_self_preference_conflict(
             "claude-cli",
@@ -584,6 +591,11 @@ def run(src, dst):\n\
         assert!(!is_self_preference_conflict(
             "gemini-2.5-flash",
             "claude-sonnet-4-6"
+        ));
+        // An agy Claude model WOULD conflict with a claude-cli proposer.
+        assert!(is_self_preference_conflict(
+            "claude-cli",
+            "Claude Sonnet 4.6 (Thinking)"
         ));
         // Unknown family fails open (not a conflict).
         assert!(!is_self_preference_conflict("some-other-llm", "claude-cli"));

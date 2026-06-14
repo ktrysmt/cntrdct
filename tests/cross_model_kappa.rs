@@ -361,10 +361,7 @@ fn cli_subcommand_reports_insufficient_providers_when_no_clis_available() {
             "CLAUDE_CLI_PROGRAM_OVERRIDE",
             "/cntrdct-test-nonexistent-claude",
         )
-        .env(
-            "GEMINI_CLI_PROGRAM_OVERRIDE",
-            "/cntrdct-test-nonexistent-gemini",
-        )
+        .env("AGY_CLI_PROGRAM_OVERRIDE", "/cntrdct-test-nonexistent-agy")
         .output()
         .expect("spawn cntrdct");
     assert!(

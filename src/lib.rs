@@ -60,7 +60,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::adjudicator::{
-    AnthropicAdjudicator, ClaudeCliAdjudicator, GeminiCliAdjudicator, ReqwestClient,
+    AgyCliAdjudicator, AnthropicAdjudicator, ClaudeCliAdjudicator, FallbackAdjudicator,
+    ReqwestClient,
 };
 use crate::calibration::{compute_priors, load_corpus, CalibrationError, DetectorPrior};
 use crate::core::{
@@ -468,9 +469,9 @@ pub fn read_anthropic_api_key() -> Option<String> {
 /// Per design constraint P3, this is the SOLE entry point in the CLI that
 /// invokes an adjudicator (and therefore the LLM). All `Detector` and `Ranker`
 /// code remains network-free.
-pub fn adjudicate_top_n<A: Adjudicator>(
+pub fn adjudicate_top_n(
     ranked: &mut [RankedFinding],
-    adjudicator: &A,
+    adjudicator: &dyn Adjudicator,
     top_n: usize,
 ) -> Result<(), crate::core::DetectorError> {
     for rf in ranked.iter_mut().take(top_n) {
@@ -489,9 +490,9 @@ pub fn adjudicate_top_n<A: Adjudicator>(
 ///
 /// On the first adjudicator error the function returns `Err`; the caller
 /// treats any still-unadjudicated Layer 0 candidate as suppressed.
-pub fn adjudicate_layer0_candidates<A: Adjudicator>(
+pub fn adjudicate_layer0_candidates(
     ranked: &mut [RankedFinding],
-    adjudicator: &A,
+    adjudicator: &dyn Adjudicator,
 ) -> Result<(), crate::core::DetectorError> {
     for rf in ranked.iter_mut() {
         if rf.finding.origin == crate::core::Origin::Layer0Llm && rf.adjudication.is_none() {
@@ -643,13 +644,25 @@ pub fn build_audit_claude_cli_provider() -> ProviderHandle {
     }
 }
 
-/// Build a [`ProviderHandle`] for the Gemini CLI's `gemini -p`.
-/// Skipped semantics mirror [`build_audit_claude_cli_provider`].
-pub fn build_audit_gemini_cli_provider() -> ProviderHandle {
-    let provider_id = crate::adjudicator::GEMINI_CLI_PROVIDER_ID.to_string();
-    let model = crate::adjudicator::GEMINI_CLI_MODEL.to_string();
-    let program = std::env::var("GEMINI_CLI_PROGRAM_OVERRIDE")
-        .unwrap_or_else(|_| crate::adjudicator::GEMINI_CLI_PROGRAM.to_string());
+/// Resolve the `agy` model string, honouring the `AGY_CLI_MODEL_OVERRIDE`
+/// env var (e.g. a paid Antigravity account bumping the lightweight
+/// free-tier default to a heavier Gemini variant). A non-Anthropic Gemini
+/// model is assumed; overriding to a Claude model would re-introduce the
+/// self-preference conflict the default avoids. Public so the CLI's
+/// self-preference guard can classify the adjudicator's actual model.
+pub fn agy_cli_model() -> String {
+    std::env::var("AGY_CLI_MODEL_OVERRIDE")
+        .unwrap_or_else(|_| crate::adjudicator::AGY_CLI_MODEL.to_string())
+}
+
+/// Build a [`ProviderHandle`] for Antigravity's `agy -p` (the multi-model
+/// CLI that replaced the retired `gemini` binary). Skipped semantics
+/// mirror [`build_audit_claude_cli_provider`].
+pub fn build_audit_agy_cli_provider() -> ProviderHandle {
+    let provider_id = crate::adjudicator::AGY_CLI_PROVIDER_ID.to_string();
+    let model = agy_cli_model();
+    let program = std::env::var("AGY_CLI_PROGRAM_OVERRIDE")
+        .unwrap_or_else(|_| crate::adjudicator::AGY_CLI_PROGRAM.to_string());
     if !cli_is_available(&program) {
         return ProviderHandle {
             provider_id,
@@ -658,11 +671,11 @@ pub fn build_audit_gemini_cli_provider() -> ProviderHandle {
             status: ProviderStatus::Skipped(format!("{} CLI not available on PATH", program)),
         };
     }
-    match GeminiCliAdjudicator::new() {
+    match AgyCliAdjudicator::new() {
         Ok(adj) => ProviderHandle {
             provider_id,
-            model,
-            adjudicator: Some(Box::new(adj.with_program(program))),
+            model: model.clone(),
+            adjudicator: Some(Box::new(adj.with_program(program).with_model(model))),
             status: ProviderStatus::Live,
         },
         Err(e) => ProviderHandle {
@@ -674,13 +687,79 @@ pub fn build_audit_gemini_cli_provider() -> ProviderHandle {
     }
 }
 
+/// Resolve the `claude-cli` ADJUDICATOR model — Haiku by default (the
+/// normal cheap `claude -p` adjudication path), overridable via
+/// `CLAUDE_CLI_ADJUDICATE_MODEL_OVERRIDE`. Distinct from
+/// [`crate::adjudicator::CLAUDE_CLI_MODEL`] (Sonnet), which the Layer 0
+/// PROPOSER keeps.
+fn claude_cli_adjudicate_model() -> String {
+    std::env::var("CLAUDE_CLI_ADJUDICATE_MODEL_OVERRIDE")
+        .unwrap_or_else(|_| crate::adjudicator::CLAUDE_CLI_ADJUDICATE_MODEL.to_string())
+}
+
+/// Build the Layer 3 `Adjudicator` for
+/// `scan --adjudicate --adjudicate-via=claude-cli` — `claude -p` on the
+/// Haiku adjudication model. Returns `None` when the `claude` CLI is not
+/// invokable on `PATH` (the caller degrades to no adjudication, mirroring
+/// a missing `ANTHROPIC_API_KEY`). Auth is the user's `claude`
+/// subscription login — no API key is read.
+pub fn build_claude_cli_adjudicator() -> Option<Box<dyn Adjudicator>> {
+    let program = std::env::var("CLAUDE_CLI_PROGRAM_OVERRIDE")
+        .unwrap_or_else(|_| crate::adjudicator::CLAUDE_CLI_PROGRAM.to_string());
+    if !cli_is_available(&program) {
+        return None;
+    }
+    ClaudeCliAdjudicator::new().ok().map(|adj| {
+        Box::new(
+            adj.with_program(program)
+                .with_model(claude_cli_adjudicate_model()),
+        ) as Box<dyn Adjudicator>
+    })
+}
+
+/// Build the DEFAULT scan adjudicator: `claude -p` (Haiku) as primary, with
+/// `agy` (Gemini) as a usage-limit FALLBACK — when the Claude subscription
+/// hits its `$200` cap, adjudication transparently continues on Antigravity
+/// (see [`FallbackAdjudicator`]). Degradation:
+/// - claude available + agy available → the fallback chain.
+/// - claude available, agy not → claude alone (no fallback).
+/// - claude not available, agy available → agy alone.
+/// - neither → `None` (caller continues without verdicts).
+pub fn build_claude_cli_adjudicator_with_agy_fallback() -> Option<Box<dyn Adjudicator>> {
+    match (build_claude_cli_adjudicator(), build_agy_cli_adjudicator()) {
+        (Some(primary), Some(fallback)) => {
+            Some(Box::new(FallbackAdjudicator::new(primary, fallback)))
+        }
+        (Some(primary), None) => Some(primary),
+        (None, Some(fallback)) => Some(fallback),
+        (None, None) => None,
+    }
+}
+
+/// Task 1: build the Layer 3 `Adjudicator` for
+/// `scan --adjudicate --adjudicate-via=agy-cli`. Returns `None` when the
+/// `agy` CLI is not invokable on `PATH`. Forces a non-Anthropic Gemini
+/// model (see [`agy_model`]) so the verdict carries no self-preference
+/// bias against a `claude-cli` proposer.
+pub fn build_agy_cli_adjudicator() -> Option<Box<dyn Adjudicator>> {
+    let program = std::env::var("AGY_CLI_PROGRAM_OVERRIDE")
+        .unwrap_or_else(|_| crate::adjudicator::AGY_CLI_PROGRAM.to_string());
+    if !cli_is_available(&program) {
+        return None;
+    }
+    AgyCliAdjudicator::new().ok().map(|adj| {
+        Box::new(adj.with_program(program).with_model(agy_cli_model())) as Box<dyn Adjudicator>
+    })
+}
+
 /// Q-13: run the cross-model κ audit pipeline.
 ///
-/// Routes the same finding set through `claude --print` and
-/// `gemini -p`, both authenticated via their respective CLI's own
-/// login (no API keys are read or forwarded by cntrdct). Missing CLIs
-/// surface as `Skipped` provider records; the audit errors out only
-/// when fewer than two live providers remain.
+/// Routes the same finding set through `claude --print` and `agy -p`
+/// (Antigravity, running a non-Anthropic Gemini model so the pair is
+/// genuinely cross-family), both authenticated via their respective
+/// CLI's own login (no API keys are read or forwarded by cntrdct).
+/// Missing CLIs surface as `Skipped` provider records; the audit errors
+/// out only when fewer than two live providers remain.
 ///
 /// Per design constraint P3, this entry point is the only public path
 /// that invokes the cross-model adjudicators. `scan` / `calibrate` /
@@ -689,7 +768,7 @@ pub fn run_cross_model_audit(corpus_path: &Path) -> Result<AuditReport, AuditErr
     let inputs = load_audit_corpus(corpus_path)?;
     let providers = vec![
         build_audit_claude_cli_provider(),
-        build_audit_gemini_cli_provider(),
+        build_audit_agy_cli_provider(),
     ];
     let date = current_utc_date();
     let generated_at = current_iso8601_utc();

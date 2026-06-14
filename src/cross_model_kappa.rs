@@ -262,7 +262,7 @@ pub enum ProviderStatus {
 /// Provider record carried in the audit report.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProviderRecord {
-    /// Stable provider id (`"anthropic"`, `"openai"`, `"gemini"`).
+    /// Stable provider id (`"anthropic"`, `"openai"`, `"agy-cli"`).
     pub provider_id: String,
     /// Model id passed in the wire-format body.
     pub model: String,
@@ -375,7 +375,7 @@ pub enum AuditError {
     /// Live provider returned a `DetectorError` mid-dispatch.
     #[error("adjudicator error from {provider}: {source}")]
     Provider {
-        /// Provider id (`"anthropic"` / `"openai"` / `"gemini"`).
+        /// Provider id (`"anthropic"` / `"openai"` / `"agy-cli"`).
         provider: String,
         /// Underlying detector / adjudicator error.
         #[source]
@@ -554,7 +554,7 @@ pub struct AuditCellSummary {
 /// for live and mocked providers, `None` for skipped ones; the
 /// orchestrator records the status verbatim into the audit log.
 pub struct ProviderHandle {
-    /// Stable provider id (`"anthropic"`, `"openai"`, `"gemini"`).
+    /// Stable provider id (`"anthropic"`, `"openai"`, `"agy-cli"`).
     pub provider_id: String,
     /// Model id surfaced in the audit report.
     pub model: String,

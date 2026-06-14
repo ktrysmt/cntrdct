@@ -154,6 +154,9 @@ fn cli_adjudicate_without_api_key_skips_silently_with_stderr_note() {
         .arg("scan")
         .arg(dir.path())
         .arg("--adjudicate")
+        // Pin the HTTP backend (the default is now claude-cli, which would
+        // shell out to the real `claude` CLI).
+        .arg("--adjudicate-via=anthropic")
         .arg("--no-calibration")
         .env_remove("ANTHROPIC_API_KEY")
         .output()
@@ -203,6 +206,7 @@ fn cli_adjudicate_with_mock_server_populates_top_n() {
         .arg("scan")
         .arg(dir.path())
         .arg("--adjudicate")
+        .arg("--adjudicate-via=anthropic")
         .arg("--no-calibration")
         .env("ANTHROPIC_API_KEY", "sk-test-not-real")
         .env("ANTHROPIC_API_URL_OVERRIDE", &url)
@@ -255,4 +259,50 @@ fn cli_adjudicate_with_mock_server_populates_top_n() {
         headers: vec![],
         body: Value::Null,
     };
+}
+
+/// The DEFAULT `--adjudicate-via` is now `claude-cli`: `scan --adjudicate`
+/// with NO backend flag and NO `ANTHROPIC_API_KEY` adjudicates via
+/// `claude --print` (here a stub), not the HTTP path. `agy` is forced
+/// unavailable so the fallback chain reduces to the claude primary.
+#[cfg(unix)]
+#[test]
+fn cli_adjudicate_defaults_to_claude_cli_backend() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = make_drift_dir();
+    let stub_dir = tempdir().unwrap();
+    let stub = stub_dir.path().join("stub-claude.sh");
+    fs::write(
+        &stub,
+        "#!/usr/bin/env bash\nfor a in \"$@\"; do if [ \"$a\" = \"--version\" ]; then echo v; exit 0; fi; done\n\
+         printf '%s\\n' '{\"result\": \"{\\\"verdict\\\": \\\"LikelyTruePositive\\\", \\\"confidence\\\": 0.8, \\\"rationale\\\": \\\"stub\\\"}\"}'\n",
+    )
+    .unwrap();
+    fs::set_permissions(&stub, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let out = Command::new(cntrdct_bin())
+        .arg("scan")
+        .arg(dir.path())
+        .arg("--adjudicate")
+        .arg("--no-calibration")
+        .env("CLAUDE_CLI_PROGRAM_OVERRIDE", &stub)
+        .env("AGY_CLI_PROGRAM_OVERRIDE", "/nonexistent/agy-xyz")
+        .env_remove("ANTHROPIC_API_KEY")
+        .output()
+        .expect("spawn cntrdct");
+    assert!(out.status.success(), "scan must succeed");
+
+    let stdout = String::from_utf8(out.stdout).unwrap();
+    let v: Value = serde_json::from_str(&stdout).expect("stdout is JSON");
+    let arr = v.as_array().expect("array");
+    assert!(!arr.is_empty(), "drift dir should produce a finding");
+    // The top finding is adjudicated via the claude-cli stub (no API key,
+    // proving the default backend is claude-cli, not anthropic-HTTP).
+    let adj = arr[0]
+        .get("adjudication")
+        .unwrap_or_else(|| panic!("top finding missing adjudication: {}", arr[0]));
+    assert_eq!(
+        adj.get("verdict").and_then(Value::as_str),
+        Some("LikelyTruePositive")
+    );
 }

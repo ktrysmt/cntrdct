@@ -7,11 +7,29 @@
 //! Per design constraint P3 in `cntrdct-core`, this module is the SOLE
 //! component permitted to invoke an LLM. Three concrete providers ship:
 //! [`AnthropicAdjudicator`] (Anthropic Messages — the `--adjudicate`
-//! default, HTTP via `reqwest`), [`ClaudeCliAdjudicator`] (Q-13 CLI
-//! shellout to `claude --print`), and [`GeminiCliAdjudicator`] (Q-13
-//! CLI shellout to `gemini -p`). The CLI providers do not introduce
-//! a new HTTP path on the cntrdct side — auth is delegated to each
-//! CLI's own login. Detector and Ranker modules remain network-free.
+//! default, HTTP via `reqwest`), [`ClaudeCliAdjudicator`] (CLI shellout
+//! to `claude --print`), and [`AgyCliAdjudicator`] (CLI shellout to
+//! `agy -p`, Google Antigravity's multi-model CLI). The CLI providers do
+//! not introduce a new HTTP path on the cntrdct side — auth is delegated
+//! to each CLI's own login. Detector and Ranker modules remain
+//! network-free.
+//!
+//! Antigravity (`agy`) replaces the retired `gemini` CLI shellout: the
+//! standalone Gemini CLI was folded into Antigravity upstream and is no
+//! longer a distributed binary, so `gemini -p` no longer resolves on a
+//! current install. `agy` is multi-model (Gemini / Claude / GPT-OSS), so
+//! the self-preference guard (`candidate_llm::model_family`) classifies it
+//! by the SELECTED MODEL string, not by the `agy-cli` provider id — the
+//! shipped default forces a Gemini model so the provider stays
+//! non-Anthropic (cross-family vs the `claude-cli` proposer / Anthropic
+//! adjudicator). Unlike `claude`, `agy -p` has no `--output-format json`
+//! or `--system-prompt` flag, so [`AgyCliAdjudicator`] parses the raw text
+//! response directly and folds [`CLI_SYSTEM_PROMPT`] into the prompt body.
+//!
+//! All three CLI/HTTP providers implement [`PromptDispatch`]; the two CLI
+//! providers additionally implement [`Adjudicator`] (via `build_prompt` +
+//! `dispatch`) so `scan --adjudicate --adjudicate-via=claude-cli|agy-cli`
+//! can run Layer 3 on subscription auth without an `ANTHROPIC_API_KEY`.
 //!
 //! References:
 //! - `spiess-icse-2025` — Spiess et al., "Calibration and Correctness of
@@ -45,25 +63,55 @@ pub const ANTHROPIC_PROVIDER_ID: &str = "anthropic";
 
 /// Q-13: default executable name for Claude Code's CLI.
 pub const CLAUDE_CLI_PROGRAM: &str = "claude";
-/// Q-13: default model passed to `claude --model`.
+/// Default model for the `claude-cli` PROPOSER (Layer 0). Sonnet — semantic
+/// Bound-B swap generation needs the stronger model.
 pub const CLAUDE_CLI_MODEL: &str = "claude-sonnet-4-6";
+/// Default model for the `claude-cli` ADJUDICATOR (Layer 3,
+/// `scan --adjudicate-via=claude-cli`). Haiku — verdict is a binary
+/// classification, so the cheaper / faster model suffices and is the
+/// normal `claude -p` adjudication path. Overridable via
+/// `CLAUDE_CLI_ADJUDICATE_MODEL_OVERRIDE`.
+pub const CLAUDE_CLI_ADJUDICATE_MODEL: &str = "claude-haiku-4-5";
 /// Q-13: provider id surfaced in cross-model audit logs.
 pub const CLAUDE_CLI_PROVIDER_ID: &str = "claude-cli";
 
-/// Q-13: default executable name for the Gemini CLI.
-pub const GEMINI_CLI_PROGRAM: &str = "gemini";
-/// Q-13: default model passed to `gemini -m`.
-pub const GEMINI_CLI_MODEL: &str = "gemini-2.5-flash";
-/// Q-13: provider id surfaced in cross-model audit logs.
-pub const GEMINI_CLI_PROVIDER_ID: &str = "gemini-cli";
+/// Default executable name for Google Antigravity's CLI (replaces the
+/// retired `gemini` shellout).
+pub const AGY_CLI_PROGRAM: &str = "agy";
+/// Default model passed to `agy --model`. A Gemini model is forced so
+/// the provider stays non-Anthropic (cross-family vs the `claude-cli`
+/// proposer); the literal is the display-name form `agy models` lists.
+/// `Low` is the lightest variant — the gentlest on Antigravity's
+/// free-tier rate limits. Override with `AGY_CLI_MODEL_OVERRIDE` (e.g. a
+/// paid account bumping to `Gemini 3.5 Flash (Medium)`).
+pub const AGY_CLI_MODEL: &str = "Gemini 3.5 Flash (Low)";
+/// Provider id surfaced in cross-model audit logs.
+pub const AGY_CLI_PROVIDER_ID: &str = "agy-cli";
 
-/// Q-13: minimal system prompt installed for both CLI providers. The
-/// recipe assumes the CLI's default agentic persona is fully
+/// Q-13: minimal system prompt installed for the `claude` CLI provider.
+/// The recipe assumes the CLI's default agentic persona is fully
 /// overridden so the model receives essentially the user prompt only.
+/// `claude --print` installs it via `--system-prompt`; `agy -p` has no
+/// such flag and runs a stickier agentic persona, so [`AgyCliAdjudicator`]
+/// uses the stronger [`AGY_SYSTEM_PROMPT`] instead.
 pub const CLI_SYSTEM_PROMPT: &str = "You are evaluating a static analysis finding from cntrdct. \
      Respond only with the requested JSON object on a single line. \
      Do not call tools, do not read files, do not produce additional \
      prose.";
+
+/// Stronger closed-book directive prepended to the (flattened) prompt body
+/// for `agy -p`. `agy` lacks a `--system-prompt` flag AND runs an agentic
+/// persona: given a "review this finding" prompt it tries to *act*
+/// (investigate / use tools) and, in `--print` mode with no tools, hangs or
+/// returns an EMPTY response — the parse then fails and the verdict is
+/// dropped. Folding [`CLI_SYSTEM_PROMPT`] alone was empirically
+/// insufficient; this forceful closed-book prefix (plus single-line
+/// flattening in `dispatch`) makes `agy -p` emit the verdict envelope.
+/// Verified against `Gemini 3.5 Flash (Low)`.
+pub const AGY_SYSTEM_PROMPT: &str = "Output ONLY one line of valid JSON and nothing else. \
+     Do not investigate, do not use tools, do not read files, do not call any tool, do not \
+     produce prose, markdown, or explanation outside the JSON. This is a closed-book \
+     classification task: answer using only the information in the prompt below, then stop.";
 
 // ---------- Citations (Layer 3) ----------
 
@@ -382,58 +430,72 @@ impl PromptDispatch for ClaudeCliAdjudicator {
     }
 }
 
-// ---------- GeminiCliAdjudicator (Q-13) ----------
+impl Adjudicator for ClaudeCliAdjudicator {
+    /// Run Layer 3 over `claude --print` subscription auth (no
+    /// `ANTHROPIC_API_KEY`). Builds the standard finding prompt and routes
+    /// it through the same `dispatch` the cross-model audit uses, so the
+    /// verdict envelope is parsed identically to the HTTP path. Used by
+    /// `scan --adjudicate --adjudicate-via=claude-cli`.
+    fn adjudicate(&self, finding: &RankedFinding) -> Result<AdjudicationResult, DetectorError> {
+        let prompt = build_prompt(finding, &HashMap::new());
+        self.dispatch(&prompt)
+    }
+}
 
-/// Q-13: shells out to the Gemini CLI's `gemini -p` with system-prompt
-/// override via the `GEMINI_SYSTEM_MD` env var.
+// ---------- AgyCliAdjudicator ----------
+
+/// Shells out to Google Antigravity's `agy -p` (the multi-model CLI that
+/// replaced the retired standalone `gemini` binary).
 ///
-/// Auth is delegated to the user's existing `gemini` login (OAuth /
-/// subscription); the provider holds no API key. GEMINI.md
-/// auto-discovery is suppressed by spawning the subprocess with
-/// `current_dir = <tempdir>`. The system prompt is written to a temp
-/// file inside the same directory and exposed via `GEMINI_SYSTEM_MD`,
-/// fully replacing the CLI's default agentic persona.
-pub struct GeminiCliAdjudicator {
+/// Auth is delegated to the user's existing `agy` login; the provider
+/// holds no API key. Context auto-discovery (AGENTS.md / project memory)
+/// is suppressed by spawning the subprocess with `current_dir =
+/// <tempdir>`. Unlike `claude --print`, `agy -p` exposes neither
+/// `--output-format json` nor `--system-prompt`: it prints the model's
+/// raw text response to stdout, so [`Self::dispatch`] parses that text
+/// directly ([`parse_agy_cli_envelope`]) and prepends [`CLI_SYSTEM_PROMPT`]
+/// to the prompt body to stand in for the missing system-prompt flag.
+///
+/// `agy` is multi-model; the default [`AGY_CLI_MODEL`] forces a Gemini
+/// model so `candidate_llm::model_family` classifies the provider as
+/// `google` (non-Anthropic), keeping it a valid cross-family confirmer for
+/// a `claude-cli` proposer / Anthropic adjudicator.
+pub struct AgyCliAdjudicator {
     program: String,
     model: String,
     workdir: tempfile::TempDir,
-    system_prompt_path: std::path::PathBuf,
 }
 
-impl GeminiCliAdjudicator {
-    /// Build a CLI adjudicator with default `program = "gemini"` and
-    /// `model = "gemini-2.5-flash"`. Writes the minimal system prompt
-    /// to a file in a fresh tempdir; the file is deleted along with
-    /// the tempdir when the adjudicator is dropped.
+impl AgyCliAdjudicator {
+    /// Build a CLI adjudicator with default `program = "agy"` and the
+    /// forced-Gemini [`AGY_CLI_MODEL`]. Allocates a tempdir used as the
+    /// subprocess `cwd` so Antigravity picks up no project context.
     pub fn new() -> std::io::Result<Self> {
         let workdir = tempfile::tempdir()?;
-        let system_prompt_path = workdir.path().join("system.md");
-        std::fs::write(&system_prompt_path, CLI_SYSTEM_PROMPT)?;
         Ok(Self {
-            program: GEMINI_CLI_PROGRAM.to_string(),
-            model: GEMINI_CLI_MODEL.to_string(),
+            program: AGY_CLI_PROGRAM.to_string(),
+            model: AGY_CLI_MODEL.to_string(),
             workdir,
-            system_prompt_path,
         })
     }
 
     /// Override the executable name / path. Used by tests to point at
-    /// a stub script that emits a canned response envelope.
+    /// a stub script that emits a canned raw-text response.
     pub fn with_program(mut self, program: impl Into<String>) -> Self {
         self.program = program.into();
         self
     }
 
-    /// Override the model passed to `gemini -m`.
+    /// Override the model passed to `agy --model`.
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = model.into();
         self
     }
 }
 
-impl PromptDispatch for GeminiCliAdjudicator {
+impl PromptDispatch for AgyCliAdjudicator {
     fn provider_id(&self) -> &'static str {
-        GEMINI_CLI_PROVIDER_ID
+        AGY_CLI_PROVIDER_ID
     }
 
     fn model(&self) -> &str {
@@ -441,33 +503,201 @@ impl PromptDispatch for GeminiCliAdjudicator {
     }
 
     fn dispatch(&self, prompt: &str) -> Result<AdjudicationResult, DetectorError> {
+        // No --system-prompt flag on `agy -p`; fold the persona-suppressing
+        // instruction into the prompt body so the model still receives it.
+        // Two empirically-required shapes for `agy -p` (verified against
+        // `Gemini 3.5 Flash (Low)`):
+        //  1. The forceful AGY_SYSTEM_PROMPT (not the weaker
+        //     CLI_SYSTEM_PROMPT) — a verbose "evaluate this finding" prompt
+        //     otherwise triggers agy's agentic persona, which hangs / returns
+        //     an empty -p response instead of the verdict.
+        //  2. A SINGLE-LINE prompt — a multi-line prompt (newlines in the
+        //     `build_prompt` template / nested EVIDENCE_RAW JSON) trips the
+        //     same agentic path. Collapsing all whitespace to single spaces
+        //     keeps the prompt one line; JSON is whitespace-insensitive so
+        //     the EVIDENCE_RAW block survives the flatten intact.
+        let flattened = prompt.split_whitespace().collect::<Vec<_>>().join(" ");
+        let full_prompt = format!("{AGY_SYSTEM_PROMPT} {flattened}");
+        // CRITICAL arg order: `agy`'s `--print` / `-p` takes the prompt as
+        // its VALUE (it is not a boolean flag). `--model` must therefore come
+        // FIRST, with the prompt as the token immediately after `--print` —
+        // `agy --print --model <m> <prompt>` makes `--print` swallow
+        // `"--model"` as the prompt and drops the real prompt as a stray
+        // positional, which is why agy returned chatty/empty non-JSON.
         let output = std::process::Command::new(&self.program)
             .current_dir(self.workdir.path())
-            .env("GEMINI_SYSTEM_MD", &self.system_prompt_path)
-            .arg("-p")
-            .arg(prompt)
-            .arg("-m")
+            .arg("--model")
             .arg(&self.model)
-            .arg("--output-format")
-            .arg("json")
+            .arg("--print")
+            .arg(&full_prompt)
             .output()
-            .map_err(|e| DetectorError::Config(format!("gemini CLI invoke failed: {}", e)))?;
+            .map_err(|e| DetectorError::Config(format!("agy CLI invoke failed: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(DetectorError::Config(format!(
-                "gemini -p exited with {}: {}",
+                "agy -p exited with {}: {}",
                 output.status,
                 stderr.trim()
             )));
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        parse_gemini_cli_envelope(stdout.as_ref()).map_err(DetectorError::from)
+        parse_agy_cli_envelope(stdout.as_ref()).map_err(DetectorError::from)
+    }
+}
+
+impl Adjudicator for AgyCliAdjudicator {
+    /// Run Layer 3 over `agy -p` subscription auth (no `ANTHROPIC_API_KEY`),
+    /// with a non-Anthropic Gemini model so the verdict carries no
+    /// self-preference bias against a `claude-cli` proposer. Used by
+    /// `scan --adjudicate --adjudicate-via=agy-cli`.
+    fn adjudicate(&self, finding: &RankedFinding) -> Result<AdjudicationResult, DetectorError> {
+        // agy gets a COMPACT prompt, not the verbose `build_prompt` template.
+        // The full template (labelled fields + a pretty-printed EVIDENCE_RAW
+        // JSON block) reliably trips agy's agentic persona even when
+        // flattened — agy hangs / returns empty. The compact form keeps the
+        // decisive content (detector / message / location / inline evidence)
+        // short enough that `agy -p` answers directly. Verified against
+        // `Gemini 3.5 Flash (Low)`.
+        let prompt = build_compact_prompt(finding);
+        self.dispatch(&prompt)
+    }
+}
+
+// ---------- FallbackAdjudicator ----------
+
+/// True when `e` looks like the Claude subscription usage cap being hit
+/// (the "$200" Max-plan limit, a 5-hour / weekly limit, or a rate limit).
+/// Used by [`FallbackAdjudicator`] to decide when to switch from the
+/// primary `claude -p` adjudicator to the `agy` fallback. Matched on
+/// case-insensitive substrings of the surfaced error text — a deliberate
+/// heuristic, since `claude --print`'s exact wording is not a stable API.
+/// Other errors (malformed JSON, transient network) are NOT limit errors
+/// and propagate normally.
+pub fn is_usage_limit_error(e: &DetectorError) -> bool {
+    let msg = e.to_string().to_ascii_lowercase();
+    const NEEDLES: &[&str] = &[
+        "usage limit",
+        "limit reached",
+        "reached your",
+        "rate limit",
+        "rate_limit",
+        "too many requests",
+        "out of credits",
+        "insufficient credit",
+        "quota",
+        "429",
+    ];
+    NEEDLES.iter().any(|n| msg.contains(n))
+}
+
+/// Adjudicator that tries a `primary` and, ONLY when the primary fails with
+/// a usage-limit error ([`is_usage_limit_error`]), retries on a `fallback`.
+///
+/// The shipped default chains `claude -p` (Haiku) → `agy` (Gemini): when the
+/// Claude subscription hits its `$200` cap, adjudication transparently
+/// continues on Antigravity instead of failing. A non-limit primary error
+/// (malformed response, etc.) propagates without invoking the fallback, so
+/// the fallback is reserved for the cap case the user asked for. Note the
+/// fallback (`agy`, google) is a DIFFERENT model family than the
+/// claude primary, so when it engages the verdict is cross-family.
+pub struct FallbackAdjudicator {
+    primary: Box<dyn Adjudicator>,
+    fallback: Box<dyn Adjudicator>,
+}
+
+impl FallbackAdjudicator {
+    pub fn new(primary: Box<dyn Adjudicator>, fallback: Box<dyn Adjudicator>) -> Self {
+        Self { primary, fallback }
+    }
+}
+
+impl Adjudicator for FallbackAdjudicator {
+    fn adjudicate(&self, finding: &RankedFinding) -> Result<AdjudicationResult, DetectorError> {
+        match self.primary.adjudicate(finding) {
+            Ok(result) => Ok(result),
+            Err(e) if is_usage_limit_error(&e) => {
+                eprintln!(
+                    "note: primary adjudicator hit a usage limit ({}); falling back to the secondary adjudicator",
+                    e
+                );
+                self.fallback.adjudicate(finding)
+            }
+            Err(e) => Err(e),
+        }
     }
 }
 
 // ---------- Prompt construction ----------
+
+/// Compact, single-line-friendly adjudication prompt for the `agy`
+/// provider. Mirrors the decision the verbose [`build_prompt`] asks for but
+/// strips the labelled multi-field layout and the `EVIDENCE_RAW` JSON
+/// block that trip agy's agentic persona. Evidence is rendered as flat
+/// plain-text `k=v` pairs ([`render_evidence_plain`]) — NO nested `{...}`
+/// JSON object, which (even compact / flattened) reliably makes `agy -p`
+/// hang or return empty. Verified against `Gemini 3.5 Flash (Low)`.
+pub(crate) fn build_compact_prompt(rf: &RankedFinding) -> String {
+    let f = &rf.finding;
+    let location = format!(
+        "{}:{}",
+        f.primary.file.to_string_lossy(),
+        f.primary.start_line
+    );
+    let evidence = render_evidence_plain(&f.evidence.raw);
+    format!(
+        "Classify this static-analysis finding as a real bug or a false positive. \
+         detector={detector}; message={message}; location={location}; evidence: {evidence}. \
+         Respond with exactly one JSON object and nothing else: \
+         {{\"verdict\":\"LikelyTruePositive\"|\"LikelyFalsePositive\"|\"Uncertain\",\"confidence\":<0.0-1.0>,\"rationale\":\"<one short sentence>\"}} \
+         where LikelyTruePositive means it is a real bug.",
+        detector = f.detector_id,
+        message = f.message,
+        location = location,
+        evidence = evidence,
+    )
+}
+
+/// Flatten an evidence-`raw` JSON object into plain-text `k=v` pairs for
+/// the `agy` compact prompt: no nested `{...}` braces (which trip agy's
+/// agentic persona), and dropping the proposer's own verdict fields
+/// (`llm_rationale` / `llm_confidence` / `origin`) — those would both bloat
+/// the prompt and bias the judge toward the proposer's conclusion (a mini
+/// self-preference; the cross-family judge must re-decide from facts).
+/// Object-valued and over-long fields are skipped.
+fn render_evidence_plain(raw: &Value) -> String {
+    let Some(obj) = raw.as_object() else {
+        return String::new();
+    };
+    let mut parts = Vec::new();
+    for (k, v) in obj {
+        if matches!(k.as_str(), "llm_rationale" | "llm_confidence" | "origin") {
+            continue;
+        }
+        let rendered = match v {
+            Value::String(s) if s.len() <= 120 => s.clone(),
+            Value::Number(n) => n.to_string(),
+            Value::Bool(b) => b.to_string(),
+            Value::Array(arr) => {
+                let items: Vec<String> = arr
+                    .iter()
+                    .filter_map(|x| match x {
+                        Value::String(s) => Some(s.clone()),
+                        Value::Number(n) => Some(n.to_string()),
+                        Value::Bool(b) => Some(b.to_string()),
+                        _ => None,
+                    })
+                    .collect();
+                format!("[{}]", items.join(", "))
+            }
+            // Skip nested objects and over-long strings.
+            _ => continue,
+        };
+        parts.push(format!("{k}={rendered}"));
+    }
+    parts.join(", ")
+}
 
 /// Public escape hatch for diagnostics / examples: returns the exact prompt
 /// the adjudicator would send for a given `RankedFinding`. Stable as long as
@@ -569,20 +799,14 @@ pub(crate) fn parse_claude_cli_envelope(
     parse_inner_text(text)
 }
 
-/// Q-13: parse the stdout envelope produced by
-/// `gemini -p … --output-format json`. The Gemini CLI returns a
-/// single JSON object whose `response` field carries the model's text
-/// response (which is itself the verdict JSON envelope).
-pub(crate) fn parse_gemini_cli_envelope(
-    stdout: &str,
-) -> Result<AdjudicationResult, AdjudicatorError> {
-    let outer: Value = serde_json::from_str(stdout.trim())
-        .map_err(|e| AdjudicatorError::InnerJson(e.to_string()))?;
-    let text = outer
-        .get("response")
-        .and_then(|t| t.as_str())
-        .ok_or(AdjudicatorError::MissingContent)?;
-    parse_inner_text(text)
+/// Parse the stdout produced by `agy --print …`. Unlike `claude` /
+/// `gemini`, Antigravity's `agy -p` has no `--output-format json` flag —
+/// it prints the model's text response directly with no outer envelope.
+/// That text IS the verdict JSON envelope (after markdown-fence
+/// stripping), so this parser hands the raw stdout straight to the shared
+/// inner-text parser.
+pub(crate) fn parse_agy_cli_envelope(stdout: &str) -> Result<AdjudicationResult, AdjudicatorError> {
+    parse_inner_text(stdout)
 }
 
 /// Shared inner-JSON parser. Every supported provider returns a text payload
@@ -1140,9 +1364,10 @@ mod tests {
     }
 
     #[test]
-    fn parse_gemini_cli_envelope_happy_path() {
-        let stdout = r#"{"response":"{\"verdict\":\"LikelyFalsePositive\",\"confidence\":0.9,\"rationale\":\"r\"}","stats":{}}"#;
-        let res = parse_gemini_cli_envelope(stdout).unwrap();
+    fn parse_agy_cli_envelope_happy_path() {
+        // agy prints the model's raw text response with no outer envelope.
+        let stdout = "{\"verdict\":\"LikelyFalsePositive\",\"confidence\":0.9,\"rationale\":\"r\"}";
+        let res = parse_agy_cli_envelope(stdout).unwrap();
         assert!(matches!(
             res.verdict,
             AdjudicationVerdict::LikelyFalsePositive
@@ -1151,20 +1376,21 @@ mod tests {
     }
 
     #[test]
-    fn parse_gemini_cli_envelope_missing_response_errs() {
-        let stdout = r#"{"stats":{}}"#;
-        let err = parse_gemini_cli_envelope(stdout).unwrap_err();
-        assert!(matches!(err, AdjudicatorError::MissingContent));
+    fn parse_agy_cli_envelope_non_json_errs() {
+        let stdout = "I am currently using Gemini 3.5 Flash.";
+        let err = parse_agy_cli_envelope(stdout).unwrap_err();
+        assert!(matches!(err, AdjudicatorError::InnerJson(_)));
     }
 
     #[test]
-    fn parse_gemini_cli_envelope_strips_markdown_fence() {
-        let stdout = r#"{"response":"```\n{\"verdict\":\"Uncertain\",\"confidence\":0.5,\"rationale\":\"r\"}\n```"}"#;
-        let res = parse_gemini_cli_envelope(stdout).unwrap();
+    fn parse_agy_cli_envelope_strips_markdown_fence() {
+        let stdout =
+            "```json\n{\"verdict\":\"Uncertain\",\"confidence\":0.5,\"rationale\":\"r\"}\n```";
+        let res = parse_agy_cli_envelope(stdout).unwrap();
         assert!(matches!(res.verdict, AdjudicationVerdict::Uncertain));
     }
 
-    // ---- ClaudeCliAdjudicator / GeminiCliAdjudicator dispatch via stub
+    // ---- ClaudeCliAdjudicator / AgyCliAdjudicator dispatch via stub
     // bash scripts. The stub captures argv into a sidecar file the
     // assertions read so we can pin the methodology-clean flag set
     // structurally. ----
@@ -1221,18 +1447,17 @@ mod tests {
     }
 
     #[test]
-    fn gemini_cli_dispatch_uses_system_md_env_and_flags() {
+    fn agy_cli_dispatch_uses_print_model_flags_and_prepends_system_prompt() {
         let tmp = tempfile::tempdir().unwrap();
         let argv_log = tmp.path().join("argv.log");
-        let env_log = tmp.path().join("env.log");
+        // agy prints the raw text response (no JSON envelope).
         let stub_body = format!(
-            "#!/bin/sh\nprintf '%s\\n' \"$@\" > {}\nprintf '%s\\n' \"$GEMINI_SYSTEM_MD\" > {}\ncat <<'EOF'\n{{\"response\":\"{{\\\"verdict\\\":\\\"LikelyTruePositive\\\",\\\"confidence\\\":0.8,\\\"rationale\\\":\\\"r\\\"}}\",\"stats\":{{}}}}\nEOF\n",
+            "#!/bin/sh\nprintf '%s\\n' \"$@\" > {}\ncat <<'EOF'\n{{\"verdict\":\"LikelyTruePositive\",\"confidence\":0.8,\"rationale\":\"r\"}}\nEOF\n",
             argv_log.display(),
-            env_log.display()
         );
-        let stub = write_stub_script(tmp.path(), "gemini-stub", &stub_body);
+        let stub = write_stub_script(tmp.path(), "agy-stub", &stub_body);
 
-        let adj = GeminiCliAdjudicator::new()
+        let adj = AgyCliAdjudicator::new()
             .unwrap()
             .with_program(stub.to_string_lossy().into_owned());
         let res = adj.dispatch("PROMPT-BODY").unwrap();
@@ -1242,30 +1467,35 @@ mod tests {
         ));
 
         let argv = std::fs::read_to_string(&argv_log).unwrap();
-        for flag in [
-            "-p",
-            "PROMPT-BODY",
-            "-m",
-            GEMINI_CLI_MODEL,
-            "--output-format",
-            "json",
-        ] {
+        let lines: Vec<&str> = argv.lines().collect();
+        for flag in ["--print", "--model", AGY_CLI_MODEL] {
             assert!(
-                argv.lines().any(|l| l == flag),
-                "gemini argv missing {}: got\n{}",
+                lines.contains(&flag),
+                "agy argv missing {}: got\n{}",
                 flag,
                 argv
             );
         }
-
-        let env_value = std::fs::read_to_string(&env_log).unwrap();
-        let env_path = env_value.trim();
+        // LOAD-BEARING arg order: `--print` takes the prompt as its VALUE,
+        // so `--model <m>` MUST come before `--print`, and the prompt MUST be
+        // the token immediately after `--print`. Pinning this prevents the
+        // regression where `--print` swallowed `--model` as the prompt and
+        // agy returned chatty/empty non-JSON.
+        let model_pos = lines.iter().position(|l| *l == AGY_CLI_MODEL).unwrap();
+        let print_pos = lines.iter().position(|l| *l == "--print").unwrap();
         assert!(
-            !env_path.is_empty(),
-            "GEMINI_SYSTEM_MD must be set on the spawned process"
+            model_pos < print_pos,
+            "agy --model must precede --print: got\n{}",
+            argv
         );
-        let body = std::fs::read_to_string(env_path).expect("system prompt file readable");
-        assert_eq!(body, CLI_SYSTEM_PROMPT);
+        // The prompt (carrying the folded system prompt + body) is the arg
+        // right after --print.
+        let prompt_arg = lines[print_pos + 1];
+        assert!(
+            prompt_arg.contains(AGY_SYSTEM_PROMPT) && prompt_arg.contains("PROMPT-BODY"),
+            "agy prompt (folded system prompt + body) must immediately follow --print: got\n{}",
+            argv
+        );
     }
 
     #[test]
@@ -1279,13 +1509,135 @@ mod tests {
     }
 
     #[test]
-    fn gemini_cli_provider_id_is_gemini_cli() {
-        let adj = GeminiCliAdjudicator::new().unwrap();
+    fn agy_cli_provider_id_is_agy_cli() {
+        let adj = AgyCliAdjudicator::new().unwrap();
         assert_eq!(
-            <GeminiCliAdjudicator as PromptDispatch>::provider_id(&adj),
-            "gemini-cli"
+            <AgyCliAdjudicator as PromptDispatch>::provider_id(&adj),
+            "agy-cli"
         );
-        assert_eq!(adj.model(), GEMINI_CLI_MODEL);
+        assert_eq!(adj.model(), AGY_CLI_MODEL);
+    }
+
+    #[test]
+    fn cli_providers_implement_adjudicator_via_stub() {
+        // Task 1: ClaudeCliAdjudicator / AgyCliAdjudicator are usable as
+        // the Layer 3 `Adjudicator` (scan --adjudicate-via). Route a
+        // RankedFinding through each via a stub that echoes a verdict.
+        let tmp = tempfile::tempdir().unwrap();
+        // claude returns the JSON envelope inside `result`.
+        let claude_stub = write_stub_script(
+            tmp.path(),
+            "claude-stub",
+            "#!/bin/sh\ncat <<'EOF'\n{\"type\":\"result\",\"result\":\"{\\\"verdict\\\":\\\"LikelyTruePositive\\\",\\\"confidence\\\":0.7,\\\"rationale\\\":\\\"r\\\"}\"}\nEOF\n",
+        );
+        // agy returns the raw text envelope.
+        let agy_stub = write_stub_script(
+            tmp.path(),
+            "agy-stub2",
+            "#!/bin/sh\ncat <<'EOF'\n{\"verdict\":\"LikelyFalsePositive\",\"confidence\":0.6,\"rationale\":\"r\"}\nEOF\n",
+        );
+
+        let claude: Box<dyn Adjudicator> = Box::new(
+            ClaudeCliAdjudicator::new()
+                .unwrap()
+                .with_program(claude_stub.to_string_lossy().into_owned()),
+        );
+        let agy: Box<dyn Adjudicator> = Box::new(
+            AgyCliAdjudicator::new()
+                .unwrap()
+                .with_program(agy_stub.to_string_lossy().into_owned()),
+        );
+
+        let rf = make_ranked(None);
+        assert!(matches!(
+            claude.adjudicate(&rf).unwrap().verdict,
+            AdjudicationVerdict::LikelyTruePositive
+        ));
+        assert!(matches!(
+            agy.adjudicate(&rf).unwrap().verdict,
+            AdjudicationVerdict::LikelyFalsePositive
+        ));
+    }
+
+    // ---- FallbackAdjudicator (claude -p usage cap → agy) ----
+
+    /// Canned `Adjudicator` returning a fixed verdict or error, freshly
+    /// constructed per call (so `DetectorError`'s non-`Clone` is a non-issue).
+    enum CannedAdj {
+        Ok(AdjudicationVerdict),
+        Err(&'static str),
+    }
+    impl Adjudicator for CannedAdj {
+        fn adjudicate(&self, _f: &RankedFinding) -> Result<AdjudicationResult, DetectorError> {
+            match self {
+                CannedAdj::Ok(v) => Ok(AdjudicationResult {
+                    verdict: *v,
+                    confidence: 0.9,
+                    rationale: "canned".to_string(),
+                    calibration_tag: None,
+                    calibrated_confidence: None,
+                }),
+                CannedAdj::Err(m) => Err(DetectorError::Config(m.to_string())),
+            }
+        }
+    }
+
+    #[test]
+    fn is_usage_limit_error_matches_cap_messages() {
+        for msg in [
+            "claude --print exited with 1: Claude usage limit reached",
+            "adjudicator: status 429: too many requests",
+            "rate limit exceeded",
+            "you have reached your weekly limit",
+        ] {
+            assert!(
+                is_usage_limit_error(&DetectorError::Config(msg.to_string())),
+                "should classify as usage-limit: {msg}"
+            );
+        }
+        // Non-limit errors must NOT trigger the fallback.
+        for msg in [
+            "adjudicator: inner json parse error: expected value at line 1 column 1",
+            "claude CLI invoke failed: No such file or directory",
+        ] {
+            assert!(
+                !is_usage_limit_error(&DetectorError::Config(msg.to_string())),
+                "should NOT classify as usage-limit: {msg}"
+            );
+        }
+    }
+
+    #[test]
+    fn fallback_engages_only_on_usage_limit() {
+        let rf = make_ranked(None);
+
+        // Primary hits the cap → fallback's verdict is returned.
+        let fb = FallbackAdjudicator::new(
+            Box::new(CannedAdj::Err("usage limit reached")),
+            Box::new(CannedAdj::Ok(AdjudicationVerdict::LikelyFalsePositive)),
+        );
+        assert!(matches!(
+            fb.adjudicate(&rf).unwrap().verdict,
+            AdjudicationVerdict::LikelyFalsePositive
+        ));
+
+        // Primary succeeds → fallback is never consulted (primary verdict).
+        let fb = FallbackAdjudicator::new(
+            Box::new(CannedAdj::Ok(AdjudicationVerdict::LikelyTruePositive)),
+            Box::new(CannedAdj::Ok(AdjudicationVerdict::LikelyFalsePositive)),
+        );
+        assert!(matches!(
+            fb.adjudicate(&rf).unwrap().verdict,
+            AdjudicationVerdict::LikelyTruePositive
+        ));
+
+        // Primary fails with a NON-limit error → the error propagates and the
+        // fallback is NOT used.
+        let fb = FallbackAdjudicator::new(
+            Box::new(CannedAdj::Err("inner json parse error")),
+            Box::new(CannedAdj::Ok(AdjudicationVerdict::LikelyFalsePositive)),
+        );
+        assert!(fb.adjudicate(&rf).is_err());
     }
 
     #[test]

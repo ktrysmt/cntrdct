@@ -58,14 +58,18 @@ fn scan_with_stub(file: &Path, stub: &Path, extra: &[&str]) -> std::process::Out
         .arg(file)
         .arg("--candidate-llm")
         .arg("--adjudicate")
-        // These tests use the claude-cli stub with the Anthropic-family
-        // Layer 3 adjudicator on purpose; bypass the R3 self-preference
-        // guard so they can exercise the non-R3 behaviour under test.
+        // Pin the Anthropic Layer 3 backend (the default is now claude-cli,
+        // which would adjudicate via the stub). These tests use the
+        // claude-cli stub as the PROPOSER with the Anthropic-family Layer 3
+        // adjudicator on purpose; bypass the R3 self-preference guard so
+        // they can exercise the non-R3 behaviour under test.
+        .arg("--adjudicate-via=anthropic")
         .arg("--allow-self-preference")
         .arg("--no-calibration")
         .args(extra)
         .env("CLAUDE_CLI_PROGRAM_OVERRIDE", stub)
-        // No Layer 3 backend, so Layer 0 candidates stay unadjudicated.
+        // No ANTHROPIC_API_KEY → the Anthropic Layer 3 backend is skipped,
+        // so Layer 0 candidates stay unadjudicated.
         .env_remove("ANTHROPIC_API_KEY")
         .env_remove("ANTHROPIC_API_URL_OVERRIDE");
     cmd.output().expect("run cntrdct")
