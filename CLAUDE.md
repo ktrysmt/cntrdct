@@ -26,8 +26,9 @@ contract drift. Read this file before editing or running gates.
 - Subcommands: `scan`, `calibrate` (`--fit-platt` switches it to
   Q-12 LLM-confidence calibration mode; default mode produces P-4
   detector priors), `eval`, `cross-model-kappa` (Q-13: shells out to
-  `claude --print` and `gemini -p`, reports pairwise Cohen's κ; auth
-  via each CLI's own login, no API keys read by cntrdct).
+  `claude --print` and `agy -p` — Google Antigravity, a non-Anthropic
+  Gemini model, replacing the retired `gemini` CLI — reports pairwise
+  Cohen's κ; auth via each CLI's own login, no API keys read by cntrdct).
 - Scope: shippable detector / linter product, citation policy,
   multi-language detector ports.
 - Owns at repo root: `docs/surveys/`, `CITATIONS.md`,
@@ -68,11 +69,16 @@ end-user-only and does NOT document them, so reproduce here:
   `apply_llm_calibration`. `reqwest` is reachable only from
   `src/adjudicator.rs::ReqwestClient` and the
   `build_default_adjudicator` constructor in `src/lib.rs` (used by
-  `scan --adjudicate`). The Q-13 cross-model audit
-  (`run_cross_model_audit` + `build_audit_claude_cli_provider` +
-  `build_audit_gemini_cli_provider`) does NOT open a socket from
-  cntrdct itself — it shells out to `claude --print` and
-  `gemini -p`, which handle auth and HTTP themselves. The
+  `scan --adjudicate --adjudicate-via=anthropic`, an explicit opt-in
+  needing `ANTHROPIC_API_KEY`). The DEFAULT `scan --adjudicate` backend
+  is `--adjudicate-via=claude-cli` (`claude --print` on Haiku, with an
+  `agy` usage-cap fallback); `claude-cli` / `agy-cli` run Layer 3 over a
+  CLI shellout (subscription auth, no API key, no reqwest path).
+  The Q-13 cross-model audit (`run_cross_model_audit` +
+  `build_audit_claude_cli_provider` + `build_audit_agy_cli_provider`)
+  does NOT open a socket from cntrdct itself — it shells out to
+  `claude --print` and `agy -p`, which handle auth and HTTP
+  themselves. The
   `network-isolation` CI job (`.github/workflows/ci.yml`) runs
   `cntrdct scan` inside a fresh Linux network namespace
   (`sudo unshare --net`) on every push / PR; any unintended socket
@@ -112,15 +118,28 @@ but worth pinning:
   `pick_ranker` in `src/lib.rs`.
 - Layer 3 — LLM adjudicator (`src/adjudicator.rs`). The sole layer
   permitted to invoke an LLM. Three providers ship:
-  `AnthropicAdjudicator` (HTTP via `reqwest`, used by
-  `scan --adjudicate`), `ClaudeCliAdjudicator` (Q-13 CLI shellout to
-  `claude --print` with `--system-prompt` / `--tools ""` /
-  `--strict-mcp-config` / `--no-session-persistence` /
-  `--output-format json`), and `GeminiCliAdjudicator` (Q-13 CLI
-  shellout to `gemini -p` with `GEMINI_SYSTEM_MD` env override and
-  `--output-format json`). All three implement `PromptDispatch`. The
-  Q-13 cross-model audit (`src/cross_model_kappa.rs`) consumes the
-  two CLI providers and reports pairwise Cohen's κ per
+  `AnthropicAdjudicator` (HTTP via `reqwest`, explicit opt-in via
+  `scan --adjudicate-via=anthropic`, needs `ANTHROPIC_API_KEY`),
+  `ClaudeCliAdjudicator` (CLI shellout to `claude --print` with
+  `--system-prompt` / `--tools ""` / `--strict-mcp-config` /
+  `--no-session-persistence` / `--output-format json`; uses the Sonnet
+  model as the Layer 0 PROPOSER and the Haiku model
+  `CLAUDE_CLI_ADJUDICATE_MODEL` as the Layer 3 ADJUDICATOR), and
+  `AgyCliAdjudicator` (CLI shellout to `agy`, Google Antigravity's
+  multi-model CLI that replaced the retired `gemini` binary — no
+  `--output-format json` / `--system-prompt`, so it parses the raw
+  text response, folds a forceful closed-book system prompt into a
+  COMPACT prompt body, and CRITICALLY orders args `--model <m> --print
+  <prompt>` because `--print` takes the prompt as its value; the model
+  is forced to a Gemini variant so the provider stays non-Anthropic).
+  All three implement `PromptDispatch`; the two CLI providers also
+  implement `Adjudicator`. The DEFAULT `scan --adjudicate` backend is
+  `claude-cli` (Haiku) wrapped in a `FallbackAdjudicator` that switches
+  to `agy` (Gemini) when the Claude subscription hits its usage cap
+  (`is_usage_limit_error`) — both run on subscription auth with no
+  `ANTHROPIC_API_KEY`. The Q-13 cross-model audit
+  (`src/cross_model_kappa.rs`) consumes the `claude-cli` + `agy-cli`
+  providers (genuinely cross-family) and reports pairwise Cohen's κ per
   `(detector_id, anomaly_class)` cell on demand — there is no
   nightly cadence (see `docs/spec/cross-model-kappa-v0.md`
   "Design rationale" for why continuous monitoring was dropped).

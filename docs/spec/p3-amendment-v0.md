@@ -108,8 +108,9 @@ Two ways to reach an LLM already ship in the repo:
   from cntrdct itself; constrained to `adjudicator.rs` by the P3
   reqwest-reachability rule.
 - CLI shellout — `ClaudeCliAdjudicator` (`claude --print`) and
-  `GeminiCliAdjudicator` (`gemini -p`), the Q-13 cross-model-kappa
-  providers. cntrdct spawns a subprocess that itself talks to the
+  `AgyCliAdjudicator` (`agy -p`, Antigravity — replaces the retired
+  `gemini` shellout), the Q-13 cross-model-kappa providers. cntrdct
+  spawns a subprocess that itself talks to the
   network; cntrdct opens no socket. Both implement the object-safe
   `PromptDispatch` trait (`cross-model-kappa-v0.md` F1).
 
@@ -121,11 +122,11 @@ Chosen: CLI shellout, reusing `PromptDispatch`. Rationale:
    spawns `claude --print`, which opens the socket. This is the exact
    shape CLAUDE.md already blesses for Q-13 — the `cross-model-kappa`
    subcommand "does NOT open a socket from cntrdct itself … it shells
-   out to `claude --print` and `gemini -p`, which handle auth and HTTP
+   out to `claude --print` and `agy -p`, which handle auth and HTTP
    themselves." Layer 0 inherits that carve-out instead of widening
    the reqwest-reachability surface.
 2. No new auth surface. CLI providers authenticate via each CLI's own
-   login (`claude` / `gemini` OAuth), "no API keys read by cntrdct"
+   login (`claude` / `agy` OAuth), "no API keys read by cntrdct"
    (CLAUDE.md). `scan --adjudicate`'s HTTP path needs an
    `ANTHROPIC_API_KEY`; Layer 0 should not add a second key.
 3. Infrastructure reuse. `PromptDispatch`, the
@@ -146,7 +147,7 @@ implements `PromptDispatch` (`src/adjudicator.rs`), so a
 `Box<dyn PromptDispatch>` could in principle carry the HTTP provider
 into the scan path. The Layer 0 driver (`src/candidate_llm.rs`, §4.3)
 MUST therefore construct *only* the CLI providers — the
-`build_audit_claude_cli_provider` / `build_audit_gemini_cli_provider`
+`build_audit_claude_cli_provider` / `build_audit_agy_cli_provider`
 pattern already used by Q-13 (`src/lib.rs`) — and MUST NOT reference
 `build_default_adjudicator` or `ReqwestClient`. This is enforced
 structurally by a `fmt`-job grep guard in `.github/workflows/ci.yml`
@@ -246,7 +247,7 @@ per-finding *serialized bytes*: the new `Finding.origin` field must use
 `cntrdct scan <CORPUS> --candidate-llm[=<provider>] --adjudicate
 [--candidate-llm-max-calls <N>]`
 (working name; final flag name is an open question, §7 R5). Provider
-defaults to `claude-cli`; `gemini-cli` selectable. The flag is additive
+defaults to `claude-cli`; `agy-cli` selectable. The flag is additive
 to `scan`; `calibrate` / `eval` gain no LLM path (P4 corpora stay
 deterministically generated, §6). Without the flag, Layer 0 never runs
 and `scan` is byte-identical to today.
@@ -556,17 +557,27 @@ corpus to external ground truth per `recall-audit-v0.md`.
 R3. Self-preference when one model both proposes (Layer 0) and
 confirms (Layer 3). If `--candidate-llm=claude-cli` feeds
 `--adjudicate` backed by Anthropic, the proposer confirms itself.
-Resolution (IMPLEMENTED, Phase B 2026-06-07): the scan refuses
-(exit 2) when the Layer 0 proposer and the Layer 3 adjudicator resolve
-to the same model family. Families are classified coarsely by
-provider-id / model substring (`candidate_llm::model_family`:
-`claude`/`anthropic` → anthropic, `gemini`/`google` → google; unknown
-fails open). The default Layer 3 adjudicator is Anthropic, so
-`--candidate-llm=claude-cli` is blocked and `--candidate-llm=gemini-cli`
-is allowed. `--allow-self-preference` overrides the guard with a logged
-warning. Quantifying residual agreement on Layer 0 candidates via the
-Q-13 cross-model κ audit remains available but is not wired into the
-guard (a measurement, not a gate).
+Resolution (IMPLEMENTED, Phase B 2026-06-07; revised 2026-06-14 for
+the gemini→agy provider swap): the scan refuses (exit 2) when the
+Layer 0 proposer and the Layer 3 adjudicator resolve to the same model
+family. Families are classified coarsely by provider-id / model
+substring (`candidate_llm::model_family`: `claude`/`anthropic` →
+anthropic, `gemini`/`google` → google; unknown fails open). The guard
+keys on the MODEL string of each side, not the provider id, because the
+Antigravity provider (`agy-cli`) is multi-model — its id alone carries
+no family token, so the resolved model (a forced Gemini by default →
+`google`) decides. The Layer 3 adjudicator's family now also depends on
+`--adjudicate-via` (anthropic / claude-cli → anthropic; agy-cli →
+google), not a hardcoded Anthropic. So a `claude-cli` proposer is
+blocked against an anthropic-family adjudicator and allowed against an
+`agy-cli` (Gemini) adjudicator — the cross-family pairing the
+end-to-end recall measurement uses. `--allow-self-preference` overrides
+the guard with a logged warning. (The retired `gemini-cli` provider is
+replaced by `agy-cli`: the standalone `gemini` binary was folded into
+Antigravity upstream and no longer resolves on a current install.)
+Quantifying residual agreement on Layer 0 candidates via the Q-13
+cross-model κ audit remains available but is not wired into the guard
+(a measurement, not a gate).
 
 R4. Cost / fan-out. One LLM call per resolved-but-unmatched call site
 is unbounded on a large corpus, and with `--adjudicate` required (§3.3)
@@ -598,7 +609,7 @@ argument ordinals must index into `predicate.actual_args`, else reject
 as malformed; candidates referencing args/params absent from the
 predicate are rejected. §4.3 owns the contract; §9 owns the tests.
 
-R9. Provider unavailability (absorbed from review). `claude` / `gemini`
+R9. Provider unavailability (absorbed from review). `claude` / `agy`
 CLI missing or not logged in must degrade gracefully on the end-user
 `scan` verb — Layer-1 findings still emit, warning logged, exit 0
 (§4.2). A missing optional provider must never hard-fail a scan.

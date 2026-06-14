@@ -20,9 +20,15 @@ JSON to stdout.
 Both CLIs must be installed and authenticated:
 
 ```sh
-claude auth     # OAuth login for Claude Code
-gemini auth     # OAuth login for the Gemini CLI
+claude          # OAuth login for Claude Code (interactive)
+agy             # OAuth login for Google Antigravity (interactive)
 ```
+
+(`agy` is Antigravity's multi-model CLI; it replaced the retired
+standalone `gemini` binary. A free / not-fully-logged-in Antigravity
+account is aggressively rate-limited, so bursts of calls may hang /
+throttle — log in (and/or use a paid tier) and space the calls for
+clean κ runs. `AGY_CLI_MODEL_OVERRIDE` selects the model.)
 
 Then:
 
@@ -45,7 +51,14 @@ running a wrapper:
 
 ```sh
 CLAUDE_CLI_PROGRAM_OVERRIDE=/usr/local/bin/claude \
-GEMINI_CLI_PROGRAM_OVERRIDE=/usr/local/bin/gemini \
+AGY_CLI_PROGRAM_OVERRIDE=/usr/local/bin/agy \
+cntrdct cross-model-kappa <corpus.jsonl>
+```
+
+The `agy` model is overridable too (default `"Gemini 3.5 Flash (Low)"`):
+
+```sh
+AGY_CLI_MODEL_OVERRIDE="Gemini 3.5 Flash (Medium)" \
 cntrdct cross-model-kappa <corpus.jsonl>
 ```
 
@@ -59,15 +72,21 @@ features so the model receives essentially the user prompt only:
   --no-session-persistence --output-format json`. CLAUDE.md
   auto-discovery is suppressed by spawning the subprocess in a
   fresh tempdir.
-- **Gemini**: `gemini -p <prompt> -m gemini-2.5-flash --output-format json`
-  with `GEMINI_SYSTEM_MD` env var pointing at a temp file holding the
-  same minimal system prompt. GEMINI.md auto-discovery is suppressed
-  the same way (subprocess `cwd = <tempdir>`).
+- **Antigravity (`agy`)**: `agy --model "Gemini 3.5 Flash (Low)"
+  --print "<forceful closed-book system prompt> <prompt>"`. Arg order is
+  load-bearing: `--print` / `-p` takes the prompt as its VALUE, so
+  `--model` must precede it and the prompt is the token right after
+  `--print` (the wrong order makes `--print` swallow `--model`). `agy`
+  has no `--output-format json` or `--system-prompt` flag, so the system
+  prompt is folded into the (single-line, compact) prompt body and the
+  provider parses the raw text response directly. The model is forced to
+  a Gemini variant so the pairing with `claude-cli` stays cross-family.
+  Project-context auto-discovery is suppressed the same way (subprocess
+  `cwd = <tempdir>`).
 
-Temperature is not directly exposed by either CLI's flag surface.
-Gemini accepts a `modelConfigs.customAliases.<name>.modelConfig.generateContentConfig.temperature`
-override in `~/.gemini/settings.json`; Claude Code uses an internal
-default. v0 accepts this asymmetry since the audit is a snapshot,
+Temperature is not directly exposed by either CLI's flag surface; Claude
+Code uses an internal default and `agy` exposes no temperature knob in
+print mode. v0 accepts this asymmetry since the audit is a snapshot,
 not a precision instrument.
 
 ## Audit JSON schema
@@ -77,15 +96,15 @@ Top-level fields:
 - `date` — UTC date of the audit run (`YYYY-MM-DD`).
 - `generated_at` — ISO 8601 UTC timestamp of generation.
 - `providers` — one record per declared provider:
-  - `provider_id` — `"claude-cli"` or `"gemini-cli"`.
+  - `provider_id` — `"claude-cli"` or `"agy-cli"`.
   - `model` — model id passed to the CLI (`claude-sonnet-4-6`,
-    `gemini-2.5-flash`).
+    `"Gemini 3.5 Flash (Low)"`).
   - `status.kind` — `"live"` / `"mocked"` / `"skipped"`.
   - `status.detail` — present only on `skipped`; explains why
     (`"<binary> CLI not available on PATH"` etc.).
 - `cells` — per-`(detector_id, anomaly_class)` cell, sorted by key:
   - `n` — finding count in the cell.
-  - `pairwise_kappa` — `{ "claude-cli-gemini-cli": { "kappa": …, "degenerate": … } }`.
+  - `pairwise_kappa` — `{ "claude-cli-agy-cli": { "kappa": …, "degenerate": … } }`.
     With two providers there is exactly one pair per cell. Pair
     labels are alphabetised so the JSON diff stays line-oriented.
   - `min_kappa` — smallest non-degenerate κ across pairs.

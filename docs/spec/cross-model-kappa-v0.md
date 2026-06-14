@@ -5,7 +5,9 @@ Status: active draft, approved for TDD implementation 2026-05-11.
 Q-13 deliverable from `ROADMAP.md`. Surfaces self-preference bias in
 the Layer 3 LLM adjudicator by routing the same `RankedFinding` set
 through two installed CLI judges (Claude Code's `claude --print` and
-the Gemini CLI's `gemini -p`) and computing pairwise Cohen's κ on the
+Google Antigravity's `agy -p`, running a non-Anthropic Gemini model —
+this replaces the retired standalone `gemini` CLI, which was folded
+into Antigravity upstream) and computing pairwise Cohen's κ on the
 resulting verdicts per `(detector_id, anomaly_class)` cell. Cells with
 κ below the Landis & Koch (1977) substantial-agreement floor (κ < 0.6)
 are flagged as low-reliability adjudication regions.
@@ -41,8 +43,8 @@ Two earlier designs were considered and dropped:
    measurement's stationarity, so v0 ships an on-demand snapshot
    instead.
 
-The shipped design — Claude + Gemini CLI shellout, on-demand
-subcommand — is the smallest implementation that lets cntrdct surface
+The shipped design — Claude + Antigravity (`agy`) CLI shellout,
+on-demand subcommand — is the smallest implementation that lets cntrdct surface
 cross-model agreement at audit time without taking on three-API-key
 setup or false-precision time-series infrastructure.
 
@@ -55,8 +57,10 @@ In scope:
 - Two CLI-shellout providers under `src/adjudicator.rs`:
   - `ClaudeCliAdjudicator` — invokes `claude --print` with the
     methodology-clean flag set documented below.
-  - `GeminiCliAdjudicator` — invokes `gemini -p` with
-    `GEMINI_SYSTEM_MD` env var pointing at a temp file.
+  - `AgyCliAdjudicator` — invokes `agy -p` (Antigravity). `agy` has no
+    `--output-format json` or `--system-prompt` flag, so it parses the
+    raw text response and folds the system prompt into the prompt body
+    (see F3).
 - Module `src/cross_model_kappa.rs` with the pure `cohen_kappa`
   helper and per-cell aggregation. Two-family operation by design;
   one κ per cell.
@@ -136,37 +140,77 @@ auth prompt to stderr and exits non-zero; the provider surfaces this
 as a `DetectorError::Config` and the orchestrator records the
 provider as `Skipped` rather than failing the whole audit.
 
-### F3 — `GeminiCliAdjudicator`
+### F3 — `AgyCliAdjudicator`
 
-Invokes `gemini -p` with the system prompt pre-written to a temp
-file, then exposed via `GEMINI_SYSTEM_MD`:
+Invokes Google Antigravity's `agy` (the multi-model CLI that replaced
+the retired standalone `gemini` binary):
 
 ```
-[env: GEMINI_SYSTEM_MD=<temp file path>]
-gemini
-  -p <prompt>
-  -m <model>                # default gemini-2.5-flash
-  --output-format json
+agy
+  --model <model>           # default "Gemini 3.5 Flash (Low)" (forced Gemini); MUST precede --print
+  --print <prompt>          # `--print`/`-p` takes the prompt as its VALUE, not positionally
 ```
 
-The process is spawned with `current_dir = <tempdir>` so GEMINI.md
-hierarchical context auto-discovery picks up no project context.
+LOAD-BEARING arg order: `agy`'s `--print` / `-p` is NOT a boolean flag —
+it takes the prompt as its value. `--model` must therefore come BEFORE
+`--print`, and the prompt is the token immediately after `--print`.
+The wrong order (`agy --print --model <m> <prompt>`) makes `--print`
+swallow the literal `"--model"` as the prompt and drops the real prompt
+as a stray positional; agy then replies chattily or emptily. Pinned by a
+regression assertion in the `adjudicator.rs` agy dispatch test.
 
-Temperature pinning (Gemini's `modelConfigs.customAliases.audit-flash`
-in settings.json with `generateContentConfig.temperature = 0.0`) is
-documented in the audit README but not enforced by the provider; the
+The process is spawned with `current_dir = <tempdir>` so Antigravity's
+project-context auto-discovery (AGENTS.md / memory) picks up nothing.
+
+`agy` exposes a smaller flag surface than `claude` / the retired
+`gemini`: there is no `--output-format json` and no `--system-prompt`,
+AND it runs a stickier agentic persona. Consequences the provider
+absorbs:
+
+- No system-prompt flag → a FORCEFUL closed-book directive
+  (`AGY_SYSTEM_PROMPT`, not the weaker `CLI_SYSTEM_PROMPT`) is prepended
+  to the prompt body. agy otherwise treats a "review this finding"
+  prompt as an agentic task and hangs / returns empty in `-p` mode.
+- Prompt shape → the `Adjudicator` path sends a COMPACT, single-line,
+  plain-text-evidence prompt (`build_compact_prompt`), NOT the verbose
+  `build_prompt` template. The labelled multi-field layout + nested
+  `EVIDENCE_RAW` JSON block trips the same agentic path. Evidence is
+  rendered as flat `k=v` pairs with no `{...}` braces, dropping the
+  proposer's own `llm_rationale` / `llm_confidence` (which would bloat
+  the prompt and bias the judge toward the proposal).
+- Multi-model → the model is FORCED to a Gemini variant via `--model`
+  (default `AGY_CLI_MODEL = "Gemini 3.5 Flash (Low)"`, overridable via
+  `AGY_CLI_MODEL_OVERRIDE`). This keeps the provider non-Anthropic so
+  the `claude-cli` + `agy-cli` pairing is genuinely cross-family, and
+  so `candidate_llm::model_family` (which keys on the model string)
+  classifies it as `google`. Overriding to a Claude model would
+  collapse the pairing back to same-family.
+
+Temperature is not pinned at the flag level (no exposed knob); the
 flag-level surface is asymmetric across the two CLIs and v0 accepts
 that.
 
 #### Output parsing
 
-`gemini --output-format json` emits `{"response": "<text>", "stats": {...}}`.
-The provider extracts `response`, then runs `parse_inner_text` on it.
+Unlike `claude` / `gemini`, `agy --print` prints the model's text
+response directly with no outer JSON envelope. That text IS the verdict
+envelope (after markdown-fence stripping), so `parse_agy_cli_envelope`
+hands the raw stdout straight to `parse_inner_text`.
+
+Operational note (free-tier reliability): once the arg order / prompt
+shape above are correct, `agy` returns the verdict envelope (verified:
+`Gemini 3.5 Flash (Low)` confirmed a Bound-B swap, conf 0.95). The
+residual constraint is the account: a free / not-fully-logged-in
+Antigravity account (`agy` cli.log: `not logged into Antigravity`) is
+aggressively rate-limited, so bursts of calls hang / throttle. Space the
+calls or use a logged-in / paid tier; a non-JSON / empty response under
+throttle still parses as an error and is treated as a dropped verdict
+(the provider's Skipped/degrade contract) — not a cntrdct bug.
 
 #### Auth
 
-Gemini CLI uses OAuth by default. Same Skipped-on-auth-failure
-contract as Claude.
+`agy` uses the Antigravity login (OAuth / subscription) by default.
+Same Skipped-on-auth-failure contract as Claude.
 
 ### F4 — Cohen's κ helper
 
@@ -178,7 +222,7 @@ single-class collapse. Already implemented and tested.
 
 Unchanged surface (`AuditCell`, `KappaEntry`, `WorstCell`,
 `AuditCellSummary`). With two providers, every cell has exactly one
-pairwise κ entry (`"claude-cli-gemini-cli"`). `min_kappa` equals
+pairwise κ entry (`"claude-cli-agy-cli"`). `min_kappa` equals
 that single value; `low_reliability` triggers when it is below 0.6
 and the cell is not `low_n`.
 
@@ -200,7 +244,7 @@ cntrdct cross-model-kappa <CORPUS> [--output PATH]
 
 Default output is pretty JSON to stdout. `--output PATH` writes the
 audit JSON to disk and prints a one-line stderr summary
-(`worst cell: clone-drift:Logic pair=claude-cli-gemini-cli κ=0.42`).
+(`worst cell: clone-drift:Logic pair=claude-cli-agy-cli κ=0.42`).
 
 The earlier `benchmarks/cross-model-kappa/<UTC date>.json` default
 path is dropped with the nightly workflow; ad-hoc users default to
