@@ -1221,7 +1221,21 @@ R-4. P3 revisit for Layer 0 LLM (carry-over from Q-17) — `[x]`
   CLI integration tests + the T1 byte-identity pins + 2 CI grep/netns
   guards). The [MEASURE] recall item (§9) is intentionally not gated
   (LLM non-determinism, R1) and is deferred to a measured run with a
-  recorded (CLI version, model id). Phase-B follow-ups (not blocking v0):
+  recorded (CLI version, model id).
+  [MEASURE] generation-recall landed 2026-06-14 (uncommitted in working
+  tree): a real-model run of the Layer 0 proposer against the flagship
+  `benchmarks/audit-corpus/files/totalsegmentator_statistics.py:10`
+  Bound-B swap. Tuple (R1): `claude` 2.1.177 (Claude Code) /
+  `claude-sonnet-4-6`. Layer 1 baseline 0 findings (Bound-B FN); Layer 0
+  proposer 3/3 runs `1 dispatched, 1 candidate, 0 over cap, 0 dropped`
+  (B1 comprehension-nested enumeration confirmed). Generation recall is
+  proposer-only, so `--allow-self-preference` does not bias it. Cost: 3
+  subscription `claude --print` calls (Pool-2, negligible); zero API
+  billing. The §9 [MEASURE] end-to-end figure (audit recall 0.25 → Bound
+  A ceiling) stays deferred — it needs an adjudicator (`ANTHROPIC_API_KEY`
+  HTTP, or wiring the `claude-cli` adjudicator into `scan --adjudicate`).
+  Full record: `benchmarks/self-replication/measurements/
+  r4-layer0-generation-recall-2026-06.md`. Phase-B follow-ups (not blocking v0):
   the labelled Layer-0 corpus + fitted prior (B3/R2), `ParamFact` default
   literals (M6), and R3 self-preference enforcement. Full gate green
   (`cargo test --all-targets`, `--features lsp`, `clippy -D warnings`,
@@ -1245,6 +1259,126 @@ R-4. P3 revisit for Layer 0 LLM (carry-over from Q-17) — `[x]`
     labeller-bias / external-anchor problem is unchanged).
   Full gate green at each (`cargo test --all-targets`, `--features lsp`,
   `clippy -D warnings`, `fmt --check`); T1 byte-identical pins held.
+  CLI adjudicator wiring + [MEASURE] end-to-end recall + gemini→agy
+  swap landed 2026-06-14 (uncommitted in working tree):
+  - Task 1 (CLI adjudicator → scan): `ClaudeCliAdjudicator` /
+    `AgyCliAdjudicator` now implement the `Adjudicator` trait (via
+    `build_prompt` + `dispatch`); `adjudicate_top_n` /
+    `adjudicate_layer0_candidates` take `&dyn Adjudicator`; new
+    `scan --adjudicate-via=anthropic|claude-cli|agy-cli` (default
+    `anthropic`, byte-identical to before). The CLI backends run Layer 3
+    on subscription auth with NO `ANTHROPIC_API_KEY` — this is what
+    unblocks the end-to-end recall measurement. `build_{claude,agy}_cli_adjudicator`
+    are availability-checked (degrade to no-adjudication, exit 0).
+  - [MEASURE] end-to-end recall: with an adjudicator wired, the flagship
+    Bound-B FN (`totalsegmentator_statistics.py:10`) IS caught
+    end-to-end in BOTH pairings:
+    (1) self-preference (claude-cli propose + claude-cli adjudicate,
+    `--allow-self-preference`): Layer 0 `1 candidate`, verdict
+    `LikelyTruePositive` conf 0.88, candidate emitted.
+    (2) cross-family UNBIASED (claude-cli propose + agy/`Gemini 3.5 Flash
+    (Low)` adjudicate, no self-preference): verdict `LikelyTruePositive`
+    conf 0.95, candidate emitted — a DIFFERENT model family confirms the
+    swap. This is the headline self-preference-free result; arg-swap
+    audit-recall lift (0.25 → Bound-A ceiling) measured on subscription
+    auth, no `ANTHROPIC_API_KEY`.
+    Getting the cross-family run required fixing a real agy bug: `agy`'s
+    `--print`/`-p` takes the prompt as its VALUE, so the original
+    `agy --print --model <m> <prompt>` made `--print` swallow `"--model"`
+    and drop the real prompt (agy replied chattily / emptily). Fixed:
+    `agy --model <m> --print <prompt>` (arg order pinned by a regression
+    test) + a forceful closed-book `AGY_SYSTEM_PROMPT` + a compact
+    single-line plain-text-evidence prompt (`build_compact_prompt` /
+    `render_evidence_plain`; the verbose `build_prompt` template trips
+    agy's agentic persona). Full record:
+    `benchmarks/self-replication/measurements/r4-layer0-end-to-end-recall-2026-06.md`.
+  - Task 2 (gemini→agy): the retired standalone `gemini` CLI (folded
+    into Google Antigravity upstream, no longer resolves) is fully
+    replaced by `agy` (Antigravity, multi-model). `GeminiCliAdjudicator`
+    → `AgyCliAdjudicator` (no `--output-format json` / `--system-prompt`
+    on `agy`: raw-text `parse_agy_cli_envelope`, system prompt folded
+    into the prompt body, model forced to `"Gemini 3.5 Flash (Low)"` via
+    `AGY_CLI_MODEL` / `AGY_CLI_MODEL_OVERRIDE` so the provider stays
+    non-Anthropic). `build_audit_gemini_cli_provider` →
+    `build_audit_agy_cli_provider`; `run_cross_model_audit` pairs
+    `claude-cli` + `agy-cli` (genuinely cross-family);
+    `CandidateProvider::GeminiCli` → `AgyCli`. R3 self-preference guard
+    now keys on the MODEL string (not the provider id — `agy-cli` is
+    multi-model and family-less on its id alone) and the adjudicator
+    family follows `--adjudicate-via`; the "gemini-cli allowed" path
+    above is superseded by "agy-cli (Gemini model) allowed". Specs
+    (`cross-model-kappa-v0.md` F3, `p3-amendment-v0.md` §7 R3 / providers),
+    `CLAUDE.md`, and `benchmarks/cross-model-kappa/README.md` updated;
+    `tests/cross_model_kappa.rs` + adjudicator/candidate_llm unit tests
+    swapped to agy. Full gate green (`cargo test --all-targets` 40
+    result-lines ok, `--features lsp`, `clippy -D warnings`,
+    `fmt --check`).
+  - Task 3 (B3/R2 labelled Layer-0 corpus + fitted prior): still
+    deferred; scope CONFIRMED for execution as the next step (see the
+    B3/R2 plan note below). No corpus/prior code landed this session.
+
+  B3/R2 execution plan (Phase-B Layer-0 prior, confirmed 2026-06-14, NOT
+  yet started). Goal: replace the empty `(arg-swap, Layer0Llm)` prior +
+  `related.len()` fallback with a prior FIT from a labelled corpus, per
+  P4 (no hand-authored numbers). Sequence:
+  - Step 0 (GATING precondition, R2 / p3-amendment §7 R2 OPEN): quantify
+    whether an EXTERNAL ground-truth source contains enough
+    *Bound-B-class* (morphology-blind, no lexical name correlation) swap
+    examples to fit a meaningful prior. Primary anchor: the PyPIBugs
+    swapped-args partition (`allamanis-neurips-2021`, named in
+    `recall-audit-v0.md`). Risk, explicitly flagged in the spec: that
+    partition is dominated by *lexically-detectable* swaps, so the
+    Bound-B subset may be too small. This study DECIDES whether B3/R2 is
+    feasible at all; if the subset is insufficient, the outcome is a
+    documented negative result and the empty prior STAYS (not a failure —
+    the v0 no-op fallback is the designed safe state). Corpus mining of
+    PyPIBugs is research-track-shaped; the fetch/quantify can live under
+    `research/` and only the distilled labelled rows promote into the
+    technical package.
+  - Step 1 (B3 schema, only if Step 0 clears): re-key `compute_priors`
+    + the ranker prior map on `(detector_id, origin)` (today keyed on
+    `detector_id` only); add an `origin` column to the labelled-findings
+    schema defaulting to `Layer1Deterministic` so `priors-default.json`
+    Layer-1 entries stay byte-identical. The ranker already skips the
+    Layer-1 prior for `Layer0Llm` findings (Inc 2); this makes the
+    `(arg-swap, Layer0Llm)` entry consultable instead of a fallback.
+  - Step 2: assemble the labelled Layer-0 corpus from the Step-0 anchor
+    (NEVER from Layer 0's own triaged output — the labeller-bias loop
+    `recall-audit-v0.md` warns about), `calibrate` it into a non-empty
+    `(arg-swap, Layer0Llm)` prior, ship the additive
+    `priors-default.json` update, re-measure end-to-end recall.
+  Hard dependency: Step 0 is a go/no-go. Do not author a prior or build
+  the corpus before the PyPIBugs Bound-B subset is quantified.
+
+  Adjudicator default policy + agy usage-cap fallback (2026-06-15,
+  uncommitted in working tree):
+  - `scan --adjudicate` DEFAULT backend is now `--adjudicate-via=claude-cli`
+    (was `anthropic`): `claude --print` on the Haiku adjudication model
+    (`CLAUDE_CLI_ADJUDICATE_MODEL = "claude-haiku-4-5"`, overridable via
+    `CLAUDE_CLI_ADJUDICATE_MODEL_OVERRIDE`) using subscription auth, no
+    `ANTHROPIC_API_KEY`. The Layer 0 PROPOSER keeps Sonnet
+    (`CLAUDE_CLI_MODEL`) — generation needs the stronger model; the Layer 3
+    ADJUDICATOR (binary verdict) runs cheap Haiku. `anthropic` (HTTP) and
+    `agy-cli` are explicit opt-ins.
+  - agy is the usage-cap FALLBACK: the default claude-cli backend is wrapped
+    in `adjudicator::FallbackAdjudicator` (claude Haiku primary → agy Gemini
+    fallback). When `claude -p` errors with a usage-limit signal
+    (`is_usage_limit_error`: "usage limit" / "limit reached" / "429" / "rate
+    limit" / "quota" / …), adjudication transparently continues on
+    Antigravity — i.e. when the Claude `$200` subscription cap is hit, agy
+    takes over (and, being google-family, the fallback verdict is
+    cross-family). Non-limit primary errors propagate without fallback.
+    `build_claude_cli_adjudicator_with_agy_fallback` degrades by
+    availability (claude+agy → chain; claude only → claude; agy only → agy;
+    neither → skip).
+  - Tests: `adjudicator.rs` unit tests (`is_usage_limit_error_matches_cap_messages`,
+    `fallback_engages_only_on_usage_limit`); `tests/adjudicate.rs`
+    `cli_adjudicate_defaults_to_claude_cli_backend` pins the new default;
+    the two anthropic-HTTP integration tests + `candidate_llm_cli.rs`
+    `scan_with_stub` now pass `--adjudicate-via=anthropic` explicitly.
+  - Docs: CLAUDE.md Layer 3 + P3 sections updated. Full gate green
+    (`cargo test --all-targets`, `--features lsp`, `clippy -D warnings`,
+    `fmt --check`).
 
 R-5. Python `except` handler reachability — `[x]`
 
