@@ -23,10 +23,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - name: rustfmt (technical workspace)
-        run: cargo fmt --all -- --check
-      - name: rustfmt (research workspace)
-        working-directory: research
+      - name: rustfmt
         run: cargo fmt --all -- --check
       # Q-2: guard against placeholder URLs (e.g. github.com/TBD/cntrdct)
       # leaking into production SARIF output. The previous SARIF
@@ -100,28 +97,6 @@ jobs:
           ./examples/01_scan.sh > /dev/null
           ./examples/02_calibrate.sh > /dev/null
           ./examples/03_adjudicate_mock.sh > /dev/null
-
-  research-clippy-test:
-    name: clippy + test (research, ${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-        with:
-          workspaces: research
-      - name: clippy (research workspace)
-        working-directory: research
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: test (research workspace)
-        working-directory: research
-        run: cargo test --workspace --all-targets
 
   licenses:
     name: cargo-deny licenses

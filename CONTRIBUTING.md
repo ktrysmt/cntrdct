@@ -10,10 +10,7 @@ their tooling read first.
 
 ## Workspace layout
 
-The repository hosts two independent cargo workspaces. The boundary
-between them is load-bearing.
-
-Technical package (root):
+The repository is a single cargo project rooted at the repo root.
 
 - Manifest: `Cargo.toml` (single `[package]`)
 - Lockfile: `Cargo.lock`
@@ -27,32 +24,9 @@ Technical package (root):
 - Scope: shippable detector / linter product, preregistered
   evaluation, citation policy, multi-language detector ports.
 
-Research workspace (`research/`):
-
-- Manifest: `research/Cargo.toml`, members under `research/*`
-- Lockfile: `research/Cargo.lock`
-- Build artefacts: `research/target/`
-- Binary: `cntrdct-research`
-- Subcommands: `fetch`, `aggregate`, `overlap`, `clippy`, `sample`, `rank`
-- Scope: corpus mining, replication / position projects, exploratory
-  tooling that has not been promoted into the product.
-
-Boundary contract:
-
-- No `path = "research/..."` in the root `Cargo.toml`; no
-  `path = "../src/..."` (or any other technical-side path) in
-  `research/*`.
-- The two projects resolve independently and have separate
-  `Cargo.lock` files.
-- Promotion from research to technical is not `git mv`. Re-implement
-  under `src/` and prefix the commit `promote(<area>): ...`.
-
 ## Local dev loop
 
-Run the gates for the project that owns the file you edited. If a
-PR spans both, run both.
-
-Technical (from repo root):
+Run the gates from the repo root before committing:
 
 ```sh
 cargo test --all-targets
@@ -60,19 +34,8 @@ cargo clippy --all-targets -- -D warnings
 cargo fmt --all -- --check
 ```
 
-Research (from `research/`):
-
-```sh
-cd research
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
-cargo fmt --all -- --check
-```
-
-CI runs both via parallel jobs (`clippy-test` for technical and
-`research-clippy-test` for research). Branch protection requires the
-technical jobs only; research-side failures do not block a technical
-merge.
+The required CI status checks are `clippy-test`, `fmt`, `licenses`, and
+`sarif`.
 
 ## Authoring a new detector
 
@@ -182,10 +145,9 @@ Conventional Commits prefixes are in use:
 - `chore(scope)` — tooling, refactors, or other internal changes
 - `test(scope)` — test-only changes
 - `ci` — workflow changes
-- `promote(<area>)` — research-to-technical promotion
 
 Append `!` after the scope for breaking changes
-(e.g. `chore(workspace)!: split research crates`).
+(e.g. `chore(release)!: collapse 15 crates into single package`).
 
 ## Sign-off (DCO)
 
@@ -200,8 +162,8 @@ We do not maintain a separate CLA. The DCO is sufficient.
 ## Pull request review
 
 - One maintainer approval is required before merge.
-- All required CI checks must be green: technical `clippy-test`,
-  `fmt`, `licenses`, `sarif`. Research-side failures do not block.
+- All required CI checks must be green: `clippy-test`, `fmt`,
+  `licenses`, `sarif`.
 - Squash on merge is the default. Keep the squashed commit message in
   Conventional Commits form: the release workflow runs `git-cliff`
   (config at `cliff.toml`) on every tag push and uses the grouped

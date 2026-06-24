@@ -1,5 +1,4 @@
 /target
-research/target
 **/*.rs.bk
 .DS_Store
 # data/ holds research scratch (phase0) plus the load-bearing

@@ -1,8 +1,7 @@
 # Repository guide for Claude Code
 
-This repository hosts TWO independent cargo projects. The boundary between
-them is load-bearing — confusing the two produces broken builds and silent
-contract drift. Read this file before editing or running gates.
+This repository hosts a single cargo project: the `cntrdct` technical
+package at the repo root. Read this file before editing or running gates.
 
 ## Layout
 
@@ -39,19 +38,6 @@ contract drift. Read this file before editing or running gates.
   v0.2.0-beta.0 prep. The "Editing checklist" below has the full
   rename table; the short version is `crates/<X>/src/lib.rs` ->
   `src/<X>.rs` (or `src/detectors/<id>.rs` for detectors).
-
-### Research workspace (`research/`)
-
-- Manifest: `research/Cargo.toml` (members under `research/*`)
-- Lockfile: `research/Cargo.lock`
-- Build artefacts: `research/target/`
-- Binary: `cntrdct-research`
-- Subcommands: `fetch`, `aggregate`, `overlap`, `clippy`, `sample`, `rank`
-- Scope: corpus mining, replication / position projects, exploratory
-  tooling that has not been promoted into the product.
-- May stand up its own surveys / citations under
-  `research/surveys/`, `research/CITATIONS.md`. Do not share these
-  with the root-level technical files.
 
 ## Design constraints (P1, P3 - P5)
 
@@ -150,65 +136,25 @@ but worth pinning:
 - Layer 4 — SARIF 2.1.0 emitter (`src/sarif.rs`). IEEE 1044-2009
   compatible severity / anomaly class mapping.
 
-## Boundary contract (do not violate)
-
-1. **No cross-project path dependencies.** Root `Cargo.toml` MUST NOT
-   reference `path = "research/..."` and `research/*` MUST NOT reference
-   `path = "../src/..."` or any other technical-side path. Intra-workspace
-   path deps are fine inside `research/` (e.g. `research/cli-research`
-   depending on `path = "../corpus-fetch"`). CI does not enforce the
-   cross-project ban structurally; the discipline is on us.
-2. **No shared `Cargo.lock`.** Each project resolves independently.
-3. **Promotion is explicit and manual.** Moving a research artefact into
-   the technical product is NOT `git mv`. Re-implement it under
-   `src/` (or extend an existing technical module) and prefix the
-   commit `promote(<area>): ...`. The two projects are NOT a staging
-   pipeline; do not assume research code will eventually flow into
-   technical.
-4. **CLI surface is split.** `cntrdct` exposes only `scan`, `calibrate`,
-   `eval`. Anything else — `fetch`, `aggregate`, `overlap`, `clippy`,
-   `sample`, `rank` — lives on `cntrdct-research`. Update scripts and
-   docs accordingly when touching them; never reintroduce the old form
-   on `cntrdct`.
-
 ## Working in the right context
 
-When you edit a file, run gates for the project that owns it. When a
-change spans both projects, run gates for both.
+Run the gates from the repo root before committing:
 
 ```sh
-# Technical package (run from repo root)
 cargo test --all-targets
 cargo clippy --all-targets -- -D warnings
 cargo fmt --all -- --check
-
-# Research workspace (run from research/)
-cd research
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
-cargo fmt --all -- --check
 ```
 
-CI runs both: a `research-clippy-test` job mirrors the technical job in
-`working-directory: research`. Independent cadences are intended, but
-the YAML alone does NOT enforce that — both jobs are top-level and run
-in parallel. To make a research-side failure not block a technical
-merge, GitHub branch protection's "required status checks" must be
-narrowed to only the technical jobs (`clippy-test (technical, ...)`,
-`fmt`, `licenses`, `sarif`); leaving `research-clippy-test` out of the
-required set is what realises the independence in practice.
+The required CI status checks are `clippy-test (technical, ...)`, `fmt`,
+`licenses`, and `sarif`.
 
 ## Editing checklist
 
 Before editing, locate the file:
 
-- Path under `src/`, `tests/`, `examples/`, `benchmarks/`, `docs/`,
-  `prereg/`, or any repo-root file (`Cargo.toml`, `README.md`, etc.) ->
-  technical package, gate from repo root.
-- Path under `research/*` -> research workspace, gate from `research/`.
-- A research-track change should not touch the technical surface and
-  vice versa, unless the change is an explicit `promote(<area>): ...`
-  commit.
+- Path under `src/`, `tests/`, `examples/`, `benchmarks/`, `docs/`, or
+  any repo-root file (`Cargo.toml`, `README.md`, etc.).
 - Stale paths from prior layouts:
   - `crates/<X>/src/lib.rs` -> `src/<X>.rs`
   - `crates/detector-<id>/src/lib.rs` -> `src/detectors/<id>.rs` (or
@@ -220,18 +166,10 @@ Before editing, locate the file:
   If a parallel session shows you edits against the old paths,
   re-target them before committing.
 
-When proposing or implementing a promotion:
-
-- Do not `git mv`. Re-implement under `src/` so the technical product's
-  history reflects deliberate intake, not an accidental shuffle.
-- Use commit prefix `promote(<area>): <summary>`.
-- Verify both projects still pass their gates after the promotion.
-
 ## Commit conventions
 
 - Conventional Commits prefixes are in use: `feat(scope)`, `fix(scope)`,
   `chore(scope)`, `docs(scope)`, `ci`, `test(scope)`.
-- Use `promote(<area>)` for research-to-technical promotions.
 - Append `!` after the scope for breaking changes
   (e.g. `chore(release)!: collapse 15 crates into single package`).
 
@@ -247,9 +185,8 @@ before anything reaches crates.io.
 
 Only `Cargo.toml` is the source of truth for the version; `Cargo.lock`
 is kept in sync via cargo. Other `0.2.0`-shaped strings in the repo
-(`REBUILD.md` history, `CHANGELOG.md` history, `research/Cargo.toml`,
-docs, workflow examples) are NOT version-tracking and must not be
-bumped as part of the release.
+(`REBUILD.md` history, `CHANGELOG.md` history, docs, workflow examples)
+are NOT version-tracking and must not be bumped as part of the release.
 
 Steps (run from repo root):
 
@@ -290,8 +227,6 @@ Non-negotiable details:
 - The CI gate is build-only across four targets; it does not re-run
   `cargo test` / `clippy` / `fmt`. Run the standard root-package gates
   (see "Working in the right context") before tagging.
-- The research workspace has its own version cycle and is NOT released
-  through this procedure. Do not bump `research/Cargo.toml` here.
 - The GitHub Release body is generated by `git-cliff` via `cliff.toml`
   on every tag push (`--latest --strip header`), grouping commits since
   the previous tag by Conventional Commits prefix. Commits that do not

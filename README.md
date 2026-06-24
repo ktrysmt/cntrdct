@@ -159,3 +159,19 @@ The VS Code extension bundling the LSP is tracked as R-6 in
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## todo
+
+Outstanding work remaining after the v0.6.0 rebuild:
+
+- VS Code extension (R-6) — lives in the separate
+  [`ktrysmt/vscode-cntrdct`](https://github.com/ktrysmt/vscode-cntrdct)
+  repo. Phase 1 (LSP) and Phase 2 (extension scaffolding + a headless
+  end-to-end test) have landed; remaining work is the Marketplace
+  listing (`docs/spec/lsp-v0.md` step 7), an in-editor F5 end-to-end run
+  against the real `cntrdct-lsp` binary (the headless test is a
+  surrogate, not a replacement), an extension icon, and reconciling the
+  extension's pinned default server version with the latest release.
+- Layer 0 LLM candidate generator (R-4, Phase B) — a labelled Layer-0
+  confidence corpus and a fitted Layer-0 prior remain deferred; v0 ships
+  an empty prior with a no-op fallback.
