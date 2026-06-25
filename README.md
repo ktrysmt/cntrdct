@@ -33,9 +33,9 @@ cntrdct scan ./src                    # JSON to stdout (default)
 cntrdct scan ./src --format sarif     # SARIF 2.1.0 for code-scanning tools
 cargo cntrdct scan ./src              # via cargo subcommand
 
-# Optional Layer 3 LLM adjudication on the top-N findings — sends those
-# findings to the Anthropic Messages API. Off by default.
-ANTHROPIC_API_KEY=... cntrdct scan ./src --adjudicate
+# Optional Layer 3 LLM adjudication on the top-N findings. Off by
+# default; see "Network access" below for the backends.
+cntrdct scan ./src --adjudicate
 ```
 
 `cntrdct --help` lists `calibrate` (recalibrate ranker priors, or fit
@@ -74,66 +74,12 @@ do_something(b, a)
 
 ## Network access
 
-`scan`, `calibrate`, and `eval` never open a socket. Two subcommands
-talk to the network and both are opt-in:
-
-- `scan --adjudicate` — Layer 3 LLM adjudicator, gated behind
-  `ANTHROPIC_API_KEY`, hits the Anthropic Messages API directly.
-- `cross-model-kappa` — Q-13 cross-model audit. cntrdct itself does
-  not open sockets here; it shells out to `claude --print` and
-  `gemini -p`, and those CLIs handle their own auth (OAuth via
-  `claude auth` / `gemini auth`). No API keys are read by cntrdct.
-
-## Cross-model audit
-
-`cntrdct cross-model-kappa <corpus.jsonl>` routes the same finding
-set through `claude --print` and `gemini -p`, then reports pairwise
-Cohen's κ per `(detector_id, anomaly_class)` cell. Cells with κ < 0.6
-(Landis & Koch substantial-agreement floor) are flagged as
-low-reliability adjudication regions. Both CLIs must be installed
-and logged in (`claude auth`, `gemini auth`); a missing CLI surfaces
-as a `skipped` provider in the audit JSON. Output goes to stdout by
-default, or to `--output PATH` when set. Spec:
-[`docs/spec/cross-model-kappa-v0.md`](docs/spec/cross-model-kappa-v0.md).
-
-## Self-replication ledger
-
-cntrdct tracks its own precision / recall / F1 across releases instead
-of comparing against external state-of-the-art tools. The
-head-to-head-against-PyBugLab / SourcererCC framing was retired: the
-pre-trained weights and comparison infrastructure those projects
-depend on are not distributed in an installable form, so a reproducible
-external comparison was unrealisable.
-
-Each release commits an eval snapshot under
-`benchmarks/self-replication/v<release>/cntrdct.jsonl` — one
-`cntrdct eval` JSON object per tracked corpus, one per line (JSONL):
-
-```sh
-mkdir -p benchmarks/self-replication/v<release>
-for c in audit-corpus wild-corpus wild-corpus-python; do
-    cntrdct eval "benchmarks/$c" | jq -c .
-done > benchmarks/self-replication/v<release>/cntrdct.jsonl
-```
-
-(`jq -c` compacts each report to a single line; any JSON minifier works.)
-Each line carries a `corpus` field so the lines self-identify across
-releases. The wild corpora are unlabelled, so their precision / recall
-land at zero — their useful signal is `actual_total` drift (did a change
-make more or fewer findings fire?).
-
-At release time, a reviewer reads the per-detector F1 / precision /
-recall delta against the previous tag's snapshot with `--against`:
-
-```sh
-cntrdct eval benchmarks/audit-corpus \
-    --against benchmarks/self-replication/v<prev>/cntrdct.jsonl
-```
-
-This prints the delta of the current run against the matching `corpus`
-line in the previous snapshot (a baseline, with no delta, when no line
-matches). The ledger is refreshed manually per release and carries no
-CI gate.
+`scan`, `calibrate`, and `eval` never open a socket — cntrdct runs
+entirely offline by default. The only network access is opt-in Layer 3
+LLM adjudication (`scan --adjudicate`), off unless you ask for it. The
+default backend shells out to the Claude CLI on your existing
+subscription (no API key); `--adjudicate-via=anthropic` uses the
+Anthropic API with `ANTHROPIC_API_KEY` instead.
 
 ## Claude Code skill
 
@@ -152,26 +98,10 @@ built behind an optional Cargo feature for source installs:
 cargo install cntrdct --features lsp
 ```
 
-The VS Code extension bundling the LSP is tracked in the
-[todo](#todo) section. Spec:
-[`docs/spec/lsp-v0.md`](docs/spec/lsp-v0.md).
+A VS Code extension bundling the LSP lives in the separate
+[`ktrysmt/vscode-cntrdct`](https://github.com/ktrysmt/vscode-cntrdct)
+repo. Spec: [`docs/spec/lsp-v0.md`](docs/spec/lsp-v0.md).
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
-
-## todo
-
-Outstanding work remaining after the v0.6.0 rebuild:
-
-- VS Code extension (R-6) — lives in the separate
-  [`ktrysmt/vscode-cntrdct`](https://github.com/ktrysmt/vscode-cntrdct)
-  repo. Phase 1 (LSP) and Phase 2 (extension scaffolding + a headless
-  end-to-end test) have landed; remaining work is the Marketplace
-  listing (`docs/spec/lsp-v0.md` step 7), an in-editor F5 end-to-end run
-  against the real `cntrdct-lsp` binary (the headless test is a
-  surrogate, not a replacement), an extension icon, and reconciling the
-  extension's pinned default server version with the latest release.
-- Layer 0 LLM candidate generator (R-4, Phase B) — a labelled Layer-0
-  confidence corpus and a fitted Layer-0 prior remain deferred; v0 ships
-  an empty prior with a no-op fallback.
