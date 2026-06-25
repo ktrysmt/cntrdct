@@ -1,7 +1,7 @@
 //! Go tree-sitter provider + [`crate::ir::IrFile`] converter (R-3).
 //!
 //! Spec: `docs/spec/ir-v0.md` §F1, §F2, §F3 (the language-agnostic IR
-//! contract) and the R-3 Go pilot in `REBUILD.md`. The converter walks
+//! contract). The converter walks
 //! the Go tree-sitter AST emitted by `tree_sitter_go::language()` and
 //! materialises the IR nodes the cross-cutting detectors consume. Per
 //! ir-v0.md §F2, `to_ir` is total over recognised shapes: unknown

@@ -96,8 +96,7 @@ with `expected: []`.
 ## Labelling triage (v0.1, 2026-05-07)
 
 Total: 270 files, 24 cntrdct findings post-FP-reduction (was 124
-before F4b/F4c/F5b/F5c on 2026-05-06; see `prereg/2026-05-07-...`
-for the supersession trail).
+before F4b/F4c/F5b/F5c on 2026-05-06).
 
 Decision rule for `expected`: a finding is a true positive (TP) iff
 a competent reviewer SHOULD investigate it as a possible bug.

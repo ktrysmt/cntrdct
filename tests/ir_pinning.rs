@@ -8,7 +8,7 @@
 //! `tests/fixtures/ir-pinning/<detector>/{audit,wild-rust,wild-python}.json`
 //! (commit b6c6540).
 //!
-//! Capture invocation (per REBUILD.md R-1.0):
+//! Capture invocation:
 //!
 //! ```sh
 //! cntrdct scan --no-calibration --format json <corpus> \

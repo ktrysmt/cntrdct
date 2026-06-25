@@ -3,7 +3,7 @@
 Captured: 2026-05-26.
 
 Spec: `docs/spec/ir-v0.md` §F6 T7 + R-1 release gate
-(`REBUILD.md` §9 — wall-clock + peak-RSS regression < 25 % vs v0.5.2).
+(wall-clock + peak-RSS regression < 25 % vs v0.5.2).
 
 ## Method
 
@@ -92,7 +92,7 @@ materialisation). Both are out of R-1.c' scope.
 
 ## R-1.h release gate disposition
 
-The R-1.h tagging step (REBUILD.md §4 R-1.h) cannot proceed under
+The R-1.h tagging step cannot proceed under
 the current gate text — the Rust wild-corpus RSS exceeds the 25 %
 threshold by ~94 percentage points. Two options for R-1.h:
 
@@ -157,5 +157,5 @@ Gate disposition (final): wall-clock keeps the < 25 % rule (passes).
 Peak-RSS retires the relative rule for the Rust corpus in favour of
 an absolute ≤ 175 MiB ceiling — headroom over the ~150 MiB result,
 and still catches the eager-retention regression class (380 MiB).
-See REBUILD.md § 9 and ir-v0.md R1. The `Box<str>` / NodeRef-packing
+See ir-v0.md R1. The `Box<str>` / NodeRef-packing
 items were dropped as not worth the churn for a sub-gate win.

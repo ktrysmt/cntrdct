@@ -24,7 +24,5 @@ under SemVer; the LSP server and VS Code extension are still pre-1.0.
   [github.com/ktrysmt/cntrdct](https://github.com/ktrysmt/cntrdct).
 - Bibliography behind each detector:
   [CITATIONS.md](https://github.com/ktrysmt/cntrdct/blob/master/CITATIONS.md).
-- Engineering roadmap:
-  [ROADMAP.md](https://github.com/ktrysmt/cntrdct/blob/master/ROADMAP.md).
 - Per-feature specifications:
   [`docs/spec/`](https://github.com/ktrysmt/cntrdct/tree/master/docs/spec).

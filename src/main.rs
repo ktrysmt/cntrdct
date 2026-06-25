@@ -162,7 +162,6 @@ enum Commands {
         /// the precision/recall/F1 delta of this corpus against the
         /// matching line instead of the plain `EvalReport`. When no line
         /// matches the corpus, the delta is reported as a baseline.
-        /// `REBUILD.md` R-1.f.
         #[arg(long)]
         against: Option<PathBuf>,
     },

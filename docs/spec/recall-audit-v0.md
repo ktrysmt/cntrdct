@@ -2,8 +2,8 @@
 
 Status: active draft, approved for TDD implementation 2026-05-11.
 
-Q-14 deliverable (originally tracked in the retired `ROADMAP.md`; the
-forward plan now lives in `REBUILD.md`). Counters the labeller-bias loop in
+Q-14 deliverable (originally tracked in the roadmap and rebuild
+plan, both since retired). Counters the labeller-bias loop in
 which cntrdct's priors are fit on corpora cntrdct labelled itself
 (P-1 → P-4 → embedded `priors-default.json`). When the only labels
 come from triaging cntrdct's own findings, the resulting recall
@@ -413,7 +413,7 @@ documented bounds:
   `totalsegmentator_statistics.py:10` — definition is same-file and
   resolves, but the argument identifiers share no lexical signal with
   the parameter names, so F5 (and the SwapD SOTA) emit nothing. Target
-  of REBUILD.md R-4. See arg-swap-v0.md "Bound B".
+  of the P3 amendment (`p3-amendment-v0.md`). See arg-swap-v0.md "Bound B".
 - clone-drift bound C (granularity, F2/F2b) — LIFTED 2026-06-08 by F2c:
   `clippy_ui_branches_sharing_code_shared_at_top.rs:15` — the clippy
   `branches_sharing_code` shared-prefix class. Originally out of scope

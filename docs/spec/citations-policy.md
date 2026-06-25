@@ -282,8 +282,7 @@ Counters built into the design:
 - `cntrdct.toml` and `#[cntrdct::allow]` give project-level and
   in-source escape hatches.
 
-Counters not yet built (future work, surfaced in ROADMAP for
-visibility, no commitment date):
+Counters not yet built (future work, no commitment date):
 
 - Per-finding deduplication when multiple detectors flag the same
   primary location.

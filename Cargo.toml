@@ -14,9 +14,7 @@ exclude = [
     "benchmarks/wild-corpus/",
     "benchmarks/wild-corpus-python/",
     "benchmarks/labelled-findings.jsonl",
-    "prereg/",
     "docs/",
-    "data/phase0/",
     "scripts/",
 ]
 

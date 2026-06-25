@@ -53,7 +53,7 @@ pub struct LabelledFinding {
 
 /// Which 95% lower-bound method produced [`DetectorPrior::wilson_lower_95`].
 ///
-/// Per Q-11 (`ROADMAP.md`), the calibrator selects the method based on the
+/// The calibrator selects the method based on the
 /// labelled aggregate size: Wilson at `n >= 30`, a Bayes-Laplace
 /// (Beta(1,1)) lower 95% bound at `n < 30`. BCD (2001) showed that the
 /// Wilson interval enters a coverage-oscillation regime at small `n`,

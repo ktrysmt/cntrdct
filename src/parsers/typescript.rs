@@ -1,7 +1,7 @@
 //! TypeScript tree-sitter provider + [`crate::ir::IrFile`] converter.
 //!
 //! Spec: `docs/spec/ir-v0.md` §F1, §F2, §F3 (the language-agnostic IR
-//! contract) and the R-2 TypeScript pilot in `REBUILD.md`. The converter
+//! contract). The converter
 //! walks the TypeScript tree-sitter AST emitted by
 //! `tree_sitter_typescript::language_typescript()` and materialises the
 //! IR nodes the cross-cutting detectors consume. Per ir-v0.md §F2,

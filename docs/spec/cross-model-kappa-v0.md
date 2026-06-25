@@ -2,7 +2,7 @@
 
 Status: active draft, approved for TDD implementation 2026-05-11.
 
-Q-13 deliverable from `ROADMAP.md`. Surfaces self-preference bias in
+Q-13 deliverable (from the since-retired rebuild plan). Surfaces self-preference bias in
 the Layer 3 LLM adjudicator by routing the same `RankedFinding` set
 through two installed CLI judges (Claude Code's `claude --print` and
 Google Antigravity's `agy -p`, running a non-Anthropic Gemini model —
@@ -31,7 +31,7 @@ Two earlier designs were considered and dropped:
    keeping Codex specifically would produce a κ figure that mixes
    "model agreement" with "agent-CLI persona difference".
 
-3. **Nightly continuous monitoring**. The original ROADMAP wording
+3. **Nightly continuous monitoring**. The original plan wording
    called for a CI cron job emitting a dated audit log every 24h.
    Two practical realities make this low-value: (a) commercial LLMs
    are tuned and version-bumped continuously, so a κ time-series

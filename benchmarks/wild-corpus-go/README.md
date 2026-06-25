@@ -1,6 +1,6 @@
 # cntrdct Go wild corpus
 
-Real-world Go corpus for the R-3 Go pilot (REBUILD.md R-3.e). Files are
+Real-world Go corpus for the R-3 Go pilot. Files are
 verbatim extracts from popular, permissively-licensed GitHub packages.
 Unlike `benchmarks/corpus/` (the hand-labelled β corpus), this corpus is
 unlabelled: every manifest entry has an empty `expected` array. Its

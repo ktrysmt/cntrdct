@@ -25,4 +25,3 @@ SARIF emitter.
 - [Detectors and citations](https://github.com/ktrysmt/cntrdct#detectors-shipped)
 - [Full bibliography](https://github.com/ktrysmt/cntrdct/blob/master/CITATIONS.md)
 - [Per-detector specifications](https://github.com/ktrysmt/cntrdct/tree/master/docs/spec)
-- [Implementation roadmap](https://github.com/ktrysmt/cntrdct/blob/master/ROADMAP.md)

@@ -4,7 +4,7 @@ Check every DOI cited by cntrdct against a cached Retraction Watch
 snapshot and (optionally) Crossref Works' `update-to` records, and exit
 non-zero if any cited paper has been retracted.
 
-Q-6 in `ROADMAP.md`. Protects design constraint P1 (citation discipline)
+Protects design constraint P1 (citation discipline)
 against retracted papers: a retracted citation MUST fail CI before it
 ships.
 

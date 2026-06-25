@@ -90,7 +90,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${TAP_TOKEN:-}" ]; then
-            echo "::error::HOMEBREW_TAP_TOKEN secret is not set; see ROADMAP T3-14 / homebrew.yml header" >&2
+            echo "::error::HOMEBREW_TAP_TOKEN secret is not set; see homebrew.yml header" >&2
             exit 1
           fi
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/ktrysmt/homebrew-cntrdct.git" tap

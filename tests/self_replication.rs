@@ -3,7 +3,7 @@
 //! Asserts the committed `benchmarks/self-replication/v<release>/cntrdct.jsonl`
 //! snapshot parses, covers the tracked corpora, and that `assemble_report`
 //! reports a clean self-comparison (zero deltas, `has_baseline = true`) when a
-//! snapshot is compared against itself. Spec: `REBUILD.md` R-1.f.
+//! snapshot is compared against itself.
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;

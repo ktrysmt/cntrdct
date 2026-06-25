@@ -1,7 +1,7 @@
 /target
 **/*.rs.bk
 .DS_Store
-# data/ holds research scratch (phase0) plus the load-bearing
+# data/ holds local scratch plus the load-bearing
 # python-builtin-exceptions.json contract table (R-5); ignore the
 # scratch, track the table so `include_str!` builds from a clean clone.
 /data/*

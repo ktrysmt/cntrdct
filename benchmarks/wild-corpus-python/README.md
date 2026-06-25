@@ -20,7 +20,7 @@ wild-corpus-python/
 `manifest.jsonl` follows the `cntrdct-eval` schema with three additive
 fields per entry (`source`, `license`, `sha256`) so provenance is
 auditable end-to-end. The schema is shared with the future P-1 Rust β
-corpus per ROADMAP.
+corpus.
 
 ## Provenance
 
@@ -56,8 +56,7 @@ findings, and updates `manifest.jsonl` by hand. Use
 ## Labelling triage (v0.1, 2026-05-07)
 
 Total: 11 files, 4 cntrdct findings post-FP-reduction (was 19 before
-F5b/F5c on 2026-05-06; see `prereg/2026-05-07-...` for the
-supersession trail).
+F5b/F5c on 2026-05-06).
 
 Decision rule for `expected`: a finding is a true positive (TP) iff a
 competent reviewer SHOULD investigate it as a possible bug. Idiomatic
@@ -68,7 +67,7 @@ patterns the detector misreads as bugs are false positives (FP).
 The previous triage labelled `charset_normalizer_utils.py:27
 clone-drift` as TP (`is_accentuated` having eight OR conditions
 diverged from its `is_X(character) -> bool` siblings). On strict
-re-application of `prereg/2026-05-04-labelling-rubric-v0.md` §5.1
+re-application of the labelling rubric §5.1
 FP-1 ("primary and related share only the syntactic shape; their
 conceptual roles differ"), `is_accentuated` is an accent-property
 detector while its single-predicate siblings are script / category

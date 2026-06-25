@@ -22,7 +22,7 @@ pub struct ManifestEntry {
     /// Upstream source URL (PyPI / GitHub release tarball / paper appendix
     /// link, etc.). Optional — synthetic seed-corpus entries omit this.
     /// Spec: M-4 (`docs/spec/multilang-v0.md`), reuses the same field for
-    /// the future P-1 Rust β corpus per ROADMAP.
+    /// the future P-1 Rust β corpus.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
     /// SPDX license expression of the upstream source. Optional for the
@@ -71,7 +71,7 @@ pub struct EvalReport {
     /// self-replication ledger (`benchmarks/self-replication/v<release>/
     /// cntrdct.jsonl`) can match corpora across releases when computing
     /// deltas. Defaults to empty for older snapshots that predate the
-    /// field. Spec: `REBUILD.md` R-1.f.
+    /// field.
     #[serde(default)]
     pub corpus: String,
     pub per_detector: BTreeMap<String, DetectorMetrics>,

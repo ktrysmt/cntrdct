@@ -2,13 +2,13 @@
 
 Status: approved 2026-05-06.
 
-Owner of `ROADMAP.md` P-2 (multi-language reframing of the original
+Owner of the P-2 track (multi-language reframing of the original
 `pr-miner-rust` slot).
 
 ## Scope
 
 - Detector: `pr-miner` (not `pr-miner-rust` — multi-language from
-  inception per Phase E note in `ROADMAP.md`).
+  inception).
 - Languages: Rust and Python.
 - Granularity: top-level function definitions; rule items are
   function-call sites inside each function's body.
@@ -308,7 +308,7 @@ extractor is unaffected — its analogous patterns surface different
 empirical FP shapes (overloaded `walk` / `kind` / `filter` /
 `collect` across tree-sitter and iterator ecosystems) that need
 separate analysis and a different stop-list extension. That work
-is preregistered in `ROADMAP.md` as a follow-up to F4e.
+is preregistered as a follow-up to F4e.
 
 ### F5 — Finding shape
 

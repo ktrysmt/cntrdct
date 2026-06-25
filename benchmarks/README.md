@@ -64,8 +64,7 @@ ICSE 2017").
   (`arg-swap`, `clone-drift`, `comment-code`,
   `unreachable-after-terminator`) plus 10 true negatives drawn from
   production crates (anyhow, serde, ripgrep).
-- The numeric shape of this corpus is preregistered under
-  `../prereg/2026-05-03-osf-prereg.md` and enforced by
+- The numeric shape of this corpus is preregistered and enforced by
   `crates/cli/tests/corpus_shape.rs`.
 
 ## Caveats

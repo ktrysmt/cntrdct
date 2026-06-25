@@ -9,8 +9,8 @@ counter that gates `publish_diagnostics` against in-flight
 
 This spec scopes the v0 surface of `cntrdct-lsp`, a Language Server Protocol
 implementation that exposes cntrdct's findings to LSP-speaking editors
-(VS Code, Helix, Neovim, JetBrains via the LSP4IJ plugin, …). It pairs with
-ROADMAP T3-12 and is the upstream contract that any client (e.g. the
+(VS Code, Helix, Neovim, JetBrains via the LSP4IJ plugin, …). It is the
+upstream contract that any client (e.g. the
 forthcoming `vscode-cntrdct` extension) renders against.
 
 ## Wire format

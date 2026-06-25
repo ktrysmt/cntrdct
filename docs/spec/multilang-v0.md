@@ -1,7 +1,7 @@
 # Multi-language architecture v0 spec
 
 Status: draft, awaiting approval before implementation. Owner of the
-M-series ROADMAP track.
+M-series track.
 
 ## Background
 
@@ -12,7 +12,7 @@ surface (`Detector`, `ParsedFile`, `supported_languages`) was
 designed to admit other languages but no concrete second language has
 ever been validated.
 
-The strategic pivot is documented in ROADMAP M-series: the
+The strategic pivot behind the M-series: the
 peer-reviewed-citation differentiator is language-agnostic, the
 commercial market for a single-language linter is bounded, and the
 academic Track A explicitly does not require Rust focus. This spec
@@ -293,4 +293,4 @@ Approved 2026-05-04 with the following decisions locked in:
   unavailable, rather than blocking language support.
 
 Implementation can begin with M-6, then M-1, per the M-series
-sequencing in ROADMAP.
+sequencing.

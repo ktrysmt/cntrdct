@@ -1,6 +1,6 @@
 # R-4 Layer 0 — end-to-end-recall measurement (2026-06)
 
-Records the [MEASURE] end-to-end recall item from `REBUILD.md` R-4 and
+Records the [MEASURE] end-to-end recall item from
 `docs/spec/p3-amendment-v0.md` §9 — the figure deferred by
 `r4-layer0-generation-recall-2026-06.md`. Generation recall (the Layer 0
 proposer flagging the flagship Bound-B swap) was already 3/3; the open

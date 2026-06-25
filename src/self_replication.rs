@@ -11,8 +11,7 @@
 //! tracks its own metrics across releases rather than comparing head-to-head
 //! against tools whose weights / infrastructure are not distributable.
 //!
-//! Spec: `REBUILD.md` R-1.f. No CI gate — the ledger is refreshed manually
-//! per release.
+//! No CI gate — the ledger is refreshed manually per release.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;

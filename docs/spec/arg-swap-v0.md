@@ -271,9 +271,9 @@ morphology — the Allamanis et al. NeurIPS 2021 self-supervised
 PyBugLab model or LLM adjudication, neither of which fits Layer 1's
 deterministic, citation-grounded contract.
 
-Bound B is the target of REBUILD.md R-4 (the P3 amendment for a
+Bound B is the target of the P3 amendment (`p3-amendment-v0.md`) for a
 Layer 0 LLM candidate generator running against IR call-site
-predicates); it is NOT an F5c-or-later Layer 1 spec amendment.
+predicates; it is NOT an F5c-or-later Layer 1 spec amendment.
 
 Note on the F3 regression (2026-06-03): the call-enumeration revert
 (F3) does not change this corpus's `recall_upper_bound`, because the

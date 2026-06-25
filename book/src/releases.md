@@ -82,6 +82,4 @@ One surface ships under an explicit "not SemVer" label:
   `include_str!`. Changing these does not bump major.
 
 See also: [`docs/spec/`](https://github.com/ktrysmt/cntrdct/tree/master/docs/spec)
-for per-feature contracts, and
-[`ROADMAP.md`](https://github.com/ktrysmt/cntrdct/blob/master/ROADMAP.md)
-for the engineering schedule.
+for per-feature contracts.

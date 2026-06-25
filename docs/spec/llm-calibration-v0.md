@@ -2,7 +2,7 @@
 
 Status: active draft, approved for TDD implementation 2026-05-10.
 
-Q-12 deliverable from `ROADMAP.md`. Replaces the LLM's self-reported
+Q-12 deliverable (from the since-retired roadmap). Replaces the LLM's self-reported
 `calibration_tag: T<scaling factor>` (a per-response verbalised
 calibration claim) with a post-hoc Platt scaling step fit per
 `(detector_id, anomaly_class)` cell on labelled corpora.

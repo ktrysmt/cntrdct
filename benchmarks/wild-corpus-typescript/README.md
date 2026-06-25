@@ -1,7 +1,7 @@
 # cntrdct TypeScript wild corpus
 
-Real-world TypeScript corpus for the R-2 TypeScript pilot (REBUILD.md
-R-2.e). Files are verbatim extracts from popular, permissively-licensed
+Real-world TypeScript corpus for the R-2 TypeScript pilot. Files are
+verbatim extracts from popular, permissively-licensed
 npm/GitHub packages. Unlike `benchmarks/corpus/` (the hand-labelled β
 corpus), this corpus is unlabelled: every manifest entry has an empty
 `expected` array. Its purpose is eval-drift signal — the

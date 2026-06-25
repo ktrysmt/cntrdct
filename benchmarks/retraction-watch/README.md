@@ -5,7 +5,7 @@ hosted by [Crossref Labs](https://api.labs.crossref.org/data/retractionwatch)
 since 2023, used by `scripts/check_retractions.py` to fail CI when any
 DOI cited by a shipped detector has been retracted.
 
-This is the cached half of the Q-6 retraction monitor (`ROADMAP.md`).
+This is the cached half of the Q-6 retraction monitor.
 The Crossref Works `update-to` lookup is the live half; together they
 catch retractions whether or not the bibliographic record has caught
 up to Retraction Watch (or vice versa).

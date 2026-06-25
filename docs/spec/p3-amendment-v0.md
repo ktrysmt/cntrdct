@@ -10,8 +10,8 @@ Post-R-4-review revision 2026-06-07 absorbing a 4-axis parallel review
 recorded in §12 "Review log" and folded into the body below; do not
 re-litigate them.
 
-REBUILD.md R-4 deliverable (carry-over from the retired `ROADMAP.md`
-Q-17). v0.6.0 is explicitly out of scope (REBUILD.md §4 R-4); this
+R-4 deliverable of the rebuild plan (since retired; itself a carry-over
+from the retired roadmap's Q-17). v0.6.0 is explicitly out of scope; this
 spec drafts the architectural amendment to design constraint P3 so the
 IR call-site predicates landed in R-1 can anchor it. Implementation is
 gated on a review of this document, the same way `ir-v0.md` (R-0)
@@ -73,9 +73,9 @@ spec's own conclusion:
 > self-supervised PyBugLab model or LLM adjudication, neither of which
 > fits Layer 1's deterministic, citation-grounded contract.
 >
-> Bound B is the target of REBUILD.md R-4 (the P3 amendment for a
+> Bound B is the target of the P3 amendment (`p3-amendment-v0.md`) for a
 > Layer 0 LLM candidate generator running against IR call-site
-> predicates); it is NOT an F5c-or-later Layer 1 spec amendment.
+> predicates; it is NOT an F5c-or-later Layer 1 spec amendment.
 
 Layer 0 is the deliberate, P3-amended home for that reasoning. It does
 not refine Layer 1; it sits *before* Layer 1 and originates candidate
@@ -422,7 +422,7 @@ art `arg-swap-v0.md` Bound B already names:
 - `allamanis-neurips-2021` — Allamanis et al., self-supervised bug
   detection (PyBugLab), the cited model class for semantic swaps.
   Already in `CITATIONS.md` (still cited by the live arg-swap
-  detector per REBUILD.md R-1.e sweep note).
+  detector).
 - Plus the LLM-as-code-reviewer grounding already in Layer 3
   (`wataoka-2024`, `zheng-neurips-2023` from `cross-model-kappa-v0.md`
   F-citations) for the dispatch mechanism.
@@ -533,7 +533,7 @@ Unchanged. Layer 0 candidate `Finding`s carry a detector-defined
 `src/sarif.rs` table at emission time, which keys on those two fields
 only — never on `detector_id` or `origin` — so Layer 0 findings map
 exactly like Layer 1's. Severity lives above IR (`ir-v0.md`
-"Background"; REBUILD.md goal G4 / P5).
+"Background"; design goal G4 / P5).
 
 ## 7. Risks and open questions
 
@@ -643,7 +643,7 @@ gated; the LLM verdict is not, given non-determinism).
   `cross-model-kappa-v0.md` "Design rationale" point 3 (model drift
   swamps the signal).
 - The R-4-adjacent "Layer 3 ML-detector ensemble" (PyBugLab /
-  GraphCodeBERT alongside the LLM judge) — REBUILD.md §6 subsumes it
+  GraphCodeBERT alongside the LLM judge) — the rebuild plan subsumed it
   under this amendment but it is a separate, later spec.
 
 ## 9. Test plan sketch (implementation-time)
@@ -715,8 +715,7 @@ analogues review-completeness flagged as missing.
   candidate confidence.
 - `recall-audit-v0.md` — the labeller-bias loop the Layer 0 P4 corpus
   must avoid.
-- CLAUDE.md "Design constraints (P1, P3 - P5)" + REBUILD.md §4 R-4 /
-  Glossary "Layer 0".
+- CLAUDE.md "Design constraints (P1, P3 - P5)" + Glossary "Layer 0".
 
 ## 11. Approval criteria (gate for implementation)
 
@@ -785,7 +784,7 @@ findings. Axes and headline findings:
   Layer 2 does not crash on arbitrary origin.
 - spec-consistency — APPROVE-WITH-CHANGES: every design-bearing
   cross-reference verified TRUE against the actual specs/source; two
-  MINOR locator drifts fixed (`ir-v0.md G4` → REBUILD.md G4;
+  MINOR locator drifts fixed (`ir-v0.md G4` → the rebuild plan's goal G4;
   `cross-model-kappa-v0.md §3.2/§3.3` → "Design rationale" points 2/3).
 - risk-completeness — BLOCKERS: no cost cap (B6); no response-validation
   path (B7); P4 corpus rests on unvalidated PyPIBugs/OSV (B3); no gate

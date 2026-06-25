@@ -31,7 +31,7 @@ package at the repo root. Read this file before editing or running gates.
 - Scope: shippable detector / linter product, citation policy,
   multi-language detector ports.
 - Owns at repo root: `docs/surveys/`, `CITATIONS.md`,
-  `REBUILD.md`, `benchmarks/`, `examples/`, `scripts/`.
+  `benchmarks/`, `examples/`, `scripts/`.
 - History: collapsed from a 15-crate workspace
   (`crates/{core,parsers,config,sarif,calibration,ranker,eval,
   adjudicator-llm,detector-*,cli}`) into one package during
@@ -185,8 +185,8 @@ before anything reaches crates.io.
 
 Only `Cargo.toml` is the source of truth for the version; `Cargo.lock`
 is kept in sync via cargo. Other `0.2.0`-shaped strings in the repo
-(`REBUILD.md` history, `CHANGELOG.md` history, docs, workflow examples)
-are NOT version-tracking and must not be bumped as part of the release.
+(`CHANGELOG.md` history, docs, workflow examples) are NOT
+version-tracking and must not be bumped as part of the release.
 
 Steps (run from repo root):
 

@@ -1,6 +1,6 @@
 # cntrdct external-source audit corpus
 
-Q-14 deliverable from `ROADMAP.md`. Houses the corpus
+Q-14 deliverable. Houses the corpus
 `cntrdct calibrate --audit-recall` runs against to report
 per-detector recall upper bounds. Spec:
 [`docs/spec/recall-audit-v0.md`](../../docs/spec/recall-audit-v0.md).

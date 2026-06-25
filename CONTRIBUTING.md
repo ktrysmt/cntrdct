@@ -74,11 +74,10 @@ flow is:
 
 ## Adding a new language to an existing detector
 
-The cntrdct rebuild (`REBUILD.md` R-1 onwards) routes all
-cross-cutting detectors through a language-agnostic IR layer
-(`src/ir.rs`). After R-1 lands in v0.6.0, adding a new language to
-every cross-cutting detector requires one parser converter plus
-corpus and survey work, not detector edits.
+cntrdct routes all cross-cutting detectors through a language-agnostic
+IR layer (`src/ir.rs`; spec `docs/spec/ir-v0.md`). Adding a new
+language to every cross-cutting detector requires one parser converter
+plus corpus and survey work, not detector edits.
 
 1. Run a literature survey for the target language for each
    cross-cutting detector you intend to cover (arg-swap, clone-drift,

@@ -12,8 +12,9 @@ detector. The `ParsedFile` carried into `Detector::detect` is a
 own tree-sitter parser, walks the AST with a per-language helper
 (`scan_rust` / `scan_python`), and renormalises the same shape (call
 sites, blocks, comments, terminators, function definitions) that
-every other cross-cutting detector also computes. `REBUILD.md` goal
-G1 makes this duplication explicit and proposes a language-agnostic
+every other cross-cutting detector also computes. The rebuild plan's
+architecture goal G1 (since retired) made this duplication explicit and
+proposed a language-agnostic
 Intermediate Representation (IR) that absorbs the per-language scan
 helpers into a single conversion pass shared by every cross-cutting
 detector.
@@ -1040,11 +1041,10 @@ T6. Recall regression check. After R-1 lands but before tagging
 
     and assert the resulting `overall_recall_upper_bound` is within
     the noise floor of the v0.5.2 baseline (>= 0.918 absolute, the
-    same threshold codified in REBUILD-handoff.md's "エビデンス
-    検証ルール"; corrected from the rounded 0.92 by the R-1.g
+    threshold from the rebuild plan's evidence-verification rule;
+    corrected from the rounded 0.92 by the R-1.g
     re-measurement, which showed v0.5.2 itself produces 0.918 on the
-    byte-identical audit corpus — see REBUILD.md §9 "Floor
-    reconciliation"). T6 and the per-PR T1 pinning tests are
+    byte-identical audit corpus). T6 and the per-PR T1 pinning tests are
     complementary — T1 guards finding-set identity, T6 guards
     aggregate corpus recall. A T6 regression with T1 green
     indicates corpus / labelling drift, not converter drift.
@@ -1123,7 +1123,7 @@ T1-byte-identical compaction shipped: `Location.file` is a shared
 per-node `to_path_buf()`), cutting Rust wild-corpus peak RSS
 ~169 → ~150 MiB. The 175 MiB ceiling has headroom over that and
 still catches the regression class that matters (the original
-eager-tree design measured 380 MiB). See REBUILD.md § 9 and R-1.c''.
+eager-tree design measured 380 MiB).
 
 R2. Normalised-token storage duplicates work the converter already
 does to materialise `IrBlock.statements`. Eager pre-computation is the
@@ -1134,7 +1134,7 @@ Placement (revised in R-1.c''): the full token sequence lives on
 `IrFn.normalised_tokens`, rooted at the whole function item so the
 signature prefix participates in `clone-drift`'s n-gram set (the
 first R-1.c' landing rooted it at `IrFn.body`, dropping the prefix
-and shifting pairwise Jaccard — see REBUILD.md R-1.c''). Per-block,
+and shifting pairwise Jaccard). Per-block,
 only a `normalised_token_count: usize` is stored (for F2b's
 consequence size gate), not a per-block token vector: that keeps
 block storage O(1) instead of O(tokens × nesting-depth). Cost is
@@ -1245,19 +1245,12 @@ may stay invisible. R-2 / TypeScript pilot exercises a fresh
 converter and is the next forcing function on the
 `StructuralInvariant` runtime contract.
 
-R10. Stale historical references in spec / docs.
-`REBUILD-handoff.md` §"優先度低" lists 14 places where the retired
-`ROADMAP.md` is still cross-referenced (`docs/spec/multilang-v0.md`,
-`docs/spec/pr-miner-v0.md`, `docs/spec/recall-audit-v0.md`,
-`docs/spec/citations-policy.md`, `docs/spec/cross-model-kappa-v0.md`,
-`docs/spec/llm-calibration-v0.md`, `docs/spec/sota-baselines-v0.md`
-— retired entirely by R-1 — `docs/spec/arg-swap-v0.md`,
-`docs/spec/lsp-v0.md`, `book/src/{introduction,releases}.md`,
-`docs/site/index.md`, three `benchmarks/*/README.md`,
-`research/projects/PLAN.md`). R-1 PR resolves each per
-REBUILD-handoff.md's three-way choice (preserve as history /
-swap to REBUILD.md / delete). Not a converter risk; called out
-here so the R-1 PR scope is unambiguous.
+R10. Stale historical references in spec / docs. A number of specs,
+book pages, and benchmark READMEs cross-referenced the (now retired)
+rebuild plan and roadmap. Each is resolved by repointing to the
+surviving spec, rewording into standalone history, or dropping the
+dead pointer. Not a converter risk; called out here so the sweep's
+scope is unambiguous.
 
 R11. Sub-step ordering within R-1. T7 (wall-clock + peak-RSS
 measurement) MUST run before R-1.e (baseline retirement). R-1.f
@@ -1271,10 +1264,6 @@ The R-1 PR description records the sub-step order explicitly.
 
 ## References
 
-- `REBUILD.md` §1 G1 — architecture goal this spec realises.
-- `REBUILD-handoff.md` — R-1 sub-step ordering, optional / required
-  sweeps, and the エビデンス検証ルール recall threshold (>= 0.918,
-  corrected from the rounded 0.92 by R-1.g) T6 inherits.
 - `docs/spec/multilang-v0.md` — `ParserProvider` seam this spec
   extends. F3's `ParserProvider` trait gains a `to_ir` method per
   this spec's F2; the existing `language` and `ts_language` methods
@@ -1298,5 +1287,4 @@ The R-1 PR description records the sub-step order explicitly.
 ## Approval
 
 Draft, post-R-0-review revision. Once approved, R-1 implementation
-proceeds per `REBUILD.md` §4 R-1 and `REBUILD-handoff.md` "R-1
-詳細手順" with the R11 sub-step ordering above.
+proceeds with the R11 sub-step ordering above.

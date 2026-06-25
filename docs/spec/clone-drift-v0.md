@@ -496,7 +496,7 @@ statement sequences — that F2b deliberately does not implement in v0
 (a candidate "F2c — shared-prefix/suffix branch clone" pass) rather
 than a defect: `clone-drift`'s `recall_upper_bound = 0.5` (1tp/1fn)
 against this corpus reflects the bound, and a figure at that level
-with T1 green is expected. Lifting it is out of REBUILD R-1 scope and
+with T1 green is expected. Lifting it is out of current scope and
 not currently sequenced.
 
 ## Non-goals (v0)

@@ -152,8 +152,8 @@ built behind an optional Cargo feature for source installs:
 cargo install cntrdct --features lsp
 ```
 
-The VS Code extension bundling the LSP is tracked as R-6 in
-[REBUILD.md](REBUILD.md). Spec:
+The VS Code extension bundling the LSP is tracked in the
+[todo](#todo) section. Spec:
 [`docs/spec/lsp-v0.md`](docs/spec/lsp-v0.md).
 
 ## License

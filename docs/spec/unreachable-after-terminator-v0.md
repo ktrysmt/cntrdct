@@ -336,7 +336,7 @@ Unlike F4d / F4e, F4f needs the exception CLASS HIERARCHY, which is
 language-specific. It therefore ships as a SEPARATE language-specific
 detector, `python-unreachable-except`, under
 `src/detectors/lang/python_unreachable_except.rs` (the first detector in the
-post-R-1 `src/detectors/lang/` tier; REBUILD.md R-5). It is documented here
+post-R-1 `src/detectors/lang/` tier). It is documented here
 because it belongs to the same "unreachable code" anomaly class, but it is
 NOT part of the cross-cutting `unreachable-after-terminator` detector and
 reads the raw tree-sitter tree directly (Pattern B, ir-v0.md §F5).

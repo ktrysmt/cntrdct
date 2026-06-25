@@ -1,8 +1,8 @@
 # build-tag-interaction-go v0
 
-Status: implemented 2026-06-08 (REBUILD Phase-B follow-up, Go
-language-specific detector). Spec mirrors the `config-interaction`
-contract (`config-interaction-v0.md`) for the Go `//go:build` mechanism.
+Status: implemented 2026-06-08 (Go language-specific detector). Spec
+mirrors the `config-interaction` contract (`config-interaction-v0.md`)
+for the Go `//go:build` mechanism.
 
 ## Scope
 
