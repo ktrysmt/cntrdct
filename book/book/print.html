@@ -1,0 +1,2222 @@
+<!DOCTYPE HTML>
+<html lang="en" class="ayu sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>cntrdct user guide</title>
+        <meta name="robots" content="noindex">
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Evidence-based contradiction linter for Rust and Python — concepts, detectors, configuration, workflows, and integrations.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-ae938929.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "ayu";
+            const default_dark_theme = "ayu";
+            window.path_to_searchindex_js = "searchindex-89719fb4.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-87137339.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('ayu')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">cntrdct user guide</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/ktrysmt/cntrdct" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
+<p>cntrdct is an evidence-based linter for logical contradictions and
+technical inconsistencies in Rust and Python code. Every finding cites
+the peer-reviewed paper that justifies the detection — no detector ships
+without one.</p>
+<p>This guide covers the design constraints, the six Layer 1 detectors,
+how to configure and suppress findings, the supported workflows
+(<code>scan</code>, <code>calibrate</code>, <code>eval</code>, <code>cross-model-kappa</code>), and the
+integrations (GitHub Action, LSP, SARIF, Claude Code skill).</p>
+<p>For installation and a one-line quickstart, jump to
+<a href="#getting-started">Getting started</a>.</p>
+<h2 id="status"><a class="header" href="#status">Status</a></h2>
+<p>Alpha. The detector set, ranker priors, and SARIF mapping are stable
+under SemVer; the LSP server and VS Code extension are still pre-1.0.</p>
+<h2 id="where-to-find-things"><a class="header" href="#where-to-find-things">Where to find things</a></h2>
+<ul>
+<li>Source code, issues, and releases:
+<a href="https://github.com/ktrysmt/cntrdct">github.com/ktrysmt/cntrdct</a>.</li>
+<li>Bibliography behind each detector:
+<a href="https://github.com/ktrysmt/cntrdct/blob/master/CITATIONS.md">CITATIONS.md</a>.</li>
+<li>Engineering roadmap:
+<a href="https://github.com/ktrysmt/cntrdct/blob/master/ROADMAP.md">ROADMAP.md</a>.</li>
+<li>Per-feature specifications:
+<a href="https://github.com/ktrysmt/cntrdct/tree/master/docs/spec"><code>docs/spec/</code></a>.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="getting-started"><a class="header" href="#getting-started">Getting started</a></h1>
+<h2 id="install"><a class="header" href="#install">Install</a></h2>
+<pre><code class="language-sh"># crates.io
+cargo install cntrdct
+
+# macOS / Linux via Homebrew
+brew tap ktrysmt/cntrdct
+brew install cntrdct
+
+# pre-built archive (no compile); requires cargo-binstall
+cargo binstall cntrdct
+
+# install script (Linux x86_64/aarch64, macOS aarch64, Windows x86_64)
+curl -fsSL https://raw.githubusercontent.com/ktrysmt/cntrdct/master/scripts/install.sh | bash
+</code></pre>
+<p>The <code>cargo install</code> path additionally ships a <code>cargo-cntrdct</code> shim so
+<code>cargo cntrdct scan</code> works alongside <code>cntrdct scan</code>.</p>
+<h2 id="first-scan"><a class="header" href="#first-scan">First scan</a></h2>
+<pre><code class="language-sh">cntrdct scan ./src                    # JSON to stdout (default)
+cntrdct scan ./src --format sarif     # SARIF 2.1.0 for code-scanning tools
+</code></pre>
+<p>The default scan is fully offline: walker → tree-sitter parsers →
+Layer 1 detectors → Layer 2 ranker → Layer 4 SARIF emitter. No network
+access, no telemetry. See
+<a href="#network-access-policy-p3">Network access policy</a> for the design property
+and the CI gate that enforces it.</p>
+<h2 id="optional-llm-adjudication"><a class="header" href="#optional-llm-adjudication">Optional: LLM adjudication</a></h2>
+<p><code>scan --adjudicate</code> routes the top-N findings through the Layer 3
+Anthropic Messages API for a second-opinion verdict. Gated behind the
+<code>ANTHROPIC_API_KEY</code> environment variable; off by default.</p>
+<pre><code class="language-sh">ANTHROPIC_API_KEY=... cntrdct scan ./src --adjudicate
+</code></pre>
+<p>See <a href="#scan">scan</a> for the full flag reference.</p>
+<h2 id="examples"><a class="header" href="#examples">Examples</a></h2>
+<p>Three runnable end-to-end examples live under
+<a href="https://github.com/ktrysmt/cntrdct/tree/master/examples"><code>examples/</code></a>:
+a plain scan, a calibration run against a labelled corpus, and an
+adjudication run against a mock API.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="four-layer-architecture"><a class="header" href="#four-layer-architecture">Four-layer architecture</a></h1>
+<p>cntrdct is organised into four layers with a deliberate separation
+between deterministic and stochastic surfaces. Each finding flows
+through the layers in the same fixed order:</p>
+<pre><code class="language-text">source files
+    -&gt; Layer 1 (tree-sitter detectors)
+    -&gt; Layer 2 (statistical ranker)
+    -&gt; Layer 3 (optional LLM adjudicator; only when --adjudicate)
+    -&gt; Layer 4 (SARIF 2.1.0 emitter)
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Layer</th><th>Role</th><th>LLM?</th><th>Network?</th><th>Source</th></tr>
+</thead>
+<tbody>
+<tr><td>Layer 1</td><td>Tree-sitter-based detectors</td><td>No</td><td>No</td><td><code>src/detectors/</code></td></tr>
+<tr><td>Layer 2</td><td>Statistical ranker (Wilson / Jeffreys × log-sibling-count)</td><td>No</td><td>No</td><td><code>src/ranker.rs</code>, <code>src/calibration.rs</code></td></tr>
+<tr><td>Layer 3</td><td>Optional LLM adjudicator</td><td>Yes</td><td>Yes (opt-in)</td><td><code>src/adjudicator.rs</code></td></tr>
+<tr><td>Layer 4</td><td>SARIF 2.1.0 emitter</td><td>No</td><td>No</td><td><code>src/sarif.rs</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="layer-1--deterministic-detectors"><a class="header" href="#layer-1--deterministic-detectors">Layer 1 — deterministic detectors</a></h2>
+<p>Each detector under <code>src/detectors/</code> is a pure function from a
+parsed tree-sitter syntax tree to a <code>Vec&lt;Finding&gt;</code>. Six detectors
+ship in v0: <code>arg-swap</code>, <code>clone-drift</code>, <code>comment-code</code>,
+<code>config-interaction</code>, <code>pr-miner</code>, <code>unreachable-after-terminator</code>.
+The detector set is registered through <code>cntrdct::ALL_DETECTOR_IDS</code>,
+which is the single source of truth that <code>tests/wiring_consistency.rs</code>
+asserts against both <code>scan_full_with_config</code> and the SARIF
+<code>tool.driver.rules</code> array. Adding or removing a detector at one site
+without the other fails CI.</p>
+<p>All detectors reach tree-sitter through the
+<code>crate::parsers::parser_for(Language::*).ts_language()</code> seam (Q-10),
+so adding a new language is a single-module change in
+<code>src/parsers.rs</code> rather than a cross-detector edit.</p>
+<h2 id="layer-2--statistical-ranker"><a class="header" href="#layer-2--statistical-ranker">Layer 2 — statistical ranker</a></h2>
+<p>The ranker scores findings by a Wilson or Jeffreys lower bound on
+detector precision multiplied by a log-scaled sibling-finding count.
+Priors are fit by <code>cntrdct calibrate</code> against a labelled corpus
+(<code>benchmarks/labelled-findings.jsonl</code>) and embedded into the binary
+via <code>include_str!</code>. The runtime fallback chain is: explicit
+<code>--priors</code> -&gt; per-user cache -&gt; embedded default -&gt; uncalibrated
+(see <a href="#statistical-priors-p4">Statistical priors (P4)</a>).</p>
+<h2 id="layer-3--llm-adjudicator-opt-in"><a class="header" href="#layer-3--llm-adjudicator-opt-in">Layer 3 — LLM adjudicator (opt-in)</a></h2>
+<p>Layer 3 is the only layer permitted to invoke an LLM. Three
+providers ship behind a common <code>PromptDispatch</code> trait:</p>
+<ul>
+<li><code>AnthropicAdjudicator</code> (HTTP via <code>reqwest</code>) — used by
+<code>scan --adjudicate</code>.</li>
+<li><code>ClaudeCliAdjudicator</code> (CLI shellout to <code>claude --print</code>) — used
+by <code>cntrdct cross-model-kappa</code> (Q-13).</li>
+<li><code>GeminiCliAdjudicator</code> (CLI shellout to <code>gemini -p</code>) — used by
+<code>cntrdct cross-model-kappa</code>.</li>
+</ul>
+<p>The two CLI providers do not open sockets from cntrdct itself; the
+underlying CLIs handle their own auth and HTTP. Verdict confidence
+is post-hoc Platt-calibrated by the Q-12 helper
+<code>apply_llm_calibration</code> when a fitted registry is present; v0 ships
+the registry empty.</p>
+<h2 id="layer-4--sarif-emitter"><a class="header" href="#layer-4--sarif-emitter">Layer 4 — SARIF emitter</a></h2>
+<p><code>src/sarif.rs</code> converts <code>Vec&lt;Finding&gt;</code> to SARIF 2.1.0 JSON validated
+against the OASIS schema on every CI run. Severity maps to
+IEEE 1044-2009 anomaly classes at emission time
+(see <a href="#severity-and-anomaly-classes-p5">Severity and anomaly classes (P5)</a>).</p>
+<h2 id="why-this-split"><a class="header" href="#why-this-split">Why this split</a></h2>
+<p>The Layer 3 boundary is load-bearing: it is the only layer permitted
+to open a socket, and only when <code>--adjudicate</code> is passed. The
+default <code>scan</code> pipeline (Layers 1 -&gt; 2 -&gt; 4) is fully offline,
+deterministic, and embeddable. The CI <code>network-isolation</code> job runs
+<code>cntrdct scan</code> inside a Linux network namespace
+(<code>sudo unshare --net</code>) on every push and PR; any unintended socket
+open fails the job with <code>ENETUNREACH</code> / <code>EAI_*</code>. See
+<a href="#network-access-policy-p3">Network access policy (P3)</a> for the full enforcement
+story.</p>
+<p>The deterministic-by-default split is what lets cntrdct be a
+reproducible artefact: a given source tree plus a given binary
+always produces the same SARIF output, modulo the explicit
+<code>--adjudicate</code> opt-in.</p>
+<p>See also:</p>
+<ul>
+<li><a href="#citation-policy-p1">Citation policy (P1)</a></li>
+<li><a href="#network-access-policy-p3">Network access policy (P3)</a></li>
+<li><a href="#statistical-priors-p4">Statistical priors (P4)</a></li>
+<li><a href="#severity-and-anomaly-classes-p5">Severity and anomaly classes (P5)</a></li>
+<li><a href="https://github.com/ktrysmt/cntrdct/tree/master/docs/spec"><code>docs/spec/</code></a>
+for per-layer contracts.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="citation-policy-p1"><a class="header" href="#citation-policy-p1">Citation policy (P1)</a></h1>
+<p>Every detector ships with at least one peer-reviewed citation. The
+constraint — known internally as P1 — is the most stringent
+guarantee cntrdct makes, and it is enforced structurally rather than
+by convention.</p>
+<h2 id="the-rule"><a class="header" href="#the-rule">The rule</a></h2>
+<ul>
+<li>Every Layer 1 detector must declare at least one citation. The
+citation must point at a peer-reviewed publication or established
+benchmark that justifies the detection.</li>
+<li>Multi-language detectors should ship at least one citation
+grounded in empirical work on each supported language. This is a
+SHOULD, not a MUST — see <a href="#multi-language-extension">Multi-language</a>
+below for the boundary cases.</li>
+<li>Citations have DOIs where possible. The Q-6 retraction monitor
+uses the DOI to cross-check against Retraction Watch and Crossref
+Works.</li>
+</ul>
+<h2 id="enforcement-points"><a class="header" href="#enforcement-points">Enforcement points</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Point</th><th>Check</th></tr>
+</thead>
+<tbody>
+<tr><td><code>core::register_detector</code></td><td>Rejects any <code>Detector</code> whose <code>citations()</code> returns empty at startup.</td></tr>
+<tr><td><code>tests/citations_consistency.rs</code></td><td>Every citation key declared by any detector resolves to an entry in <a href="https://github.com/ktrysmt/cntrdct/blob/master/CITATIONS.md"><code>CITATIONS.md</code></a>.</td></tr>
+<tr><td><code>tests/citations_consistency.rs</code></td><td>Each <code>supported_languages()</code> is either matched by a per-language citation or carries an explicit <code>unconfirmed:</code> annotation pointing at the survey notes.</td></tr>
+<tr><td><code>.github/workflows/citations.yml</code></td><td>Q-6 retraction monitor (see below).</td></tr>
+</tbody>
+</table>
+</div>
+<p>A detector with empty <code>citations()</code> cannot register, so a P1
+violation fails before scan even begins. The consistency test runs
+on every push and PR.</p>
+<h2 id="multi-language-extension"><a class="header" href="#multi-language-extension">Multi-language extension</a></h2>
+<p>P1 was authored when cntrdct was Rust-only. The M-6 spec
+(<a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/citations-policy.md"><code>docs/spec/citations-policy.md</code></a>)
+codifies the multi-language case. When a detector declares support
+for a new language, the implementer runs a literature survey and
+records its outcome as one of:</p>
+<ul>
+<li><code>Confirmed</code> — a peer-reviewed citation grounded in empirical work
+on the target language exists, either because the cited paper’s
+experimental subjects include that language, because a separate
+peer-reviewed paper applies the algorithm to that language with
+quantitative evaluation, or because the citation introduces a
+benchmark in that language.</li>
+<li><code>Unconfirmed</code> — the survey returned no qualifying citation. The
+detector still ships; the gap is captured in
+<code>Evidence.language_citation_status</code> and exposed at SARIF emission
+time as <code>properties.languageCitationStatus</code>. SARIF consumers can
+filter or weight indirectly-grounded findings.</li>
+</ul>
+<p>When the survey is <code>Unconfirmed</code>, the implementer must still record
+the search under <code>docs/surveys/&lt;detector&gt;-&lt;lang&gt;-&lt;YYYY-MM&gt;.md</code> — the
+deliverable is the survey itself, not the citation. The existing
+Rust citations on the v0 detectors are grandfathered, since they
+predate the multi-language rule.</p>
+<p>The current per-language statuses (excerpted from
+<a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/citations-policy.md"><code>docs/spec/citations-policy.md</code></a>):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Detector</th><th>Language</th><th>Status</th></tr>
+</thead>
+<tbody>
+<tr><td><code>unreachable-after-terminator</code></td><td>Rust</td><td>Grandfathered</td></tr>
+<tr><td><code>unreachable-after-terminator</code></td><td>Python</td><td>Unconfirmed</td></tr>
+<tr><td><code>comment-code</code></td><td>Rust</td><td>Grandfathered</td></tr>
+<tr><td><code>comment-code</code></td><td>Python</td><td>Unconfirmed</td></tr>
+<tr><td><code>arg-swap</code></td><td>Rust</td><td>Grandfathered</td></tr>
+<tr><td><code>arg-swap</code></td><td>Python</td><td>Confirmed (Allamanis et al. NeurIPS 2021, PyBugLab)</td></tr>
+<tr><td><code>clone-drift</code></td><td>Rust</td><td>Grandfathered</td></tr>
+<tr><td><code>clone-drift</code></td><td>Python</td><td>Confirmed (Assi et al. TOSEM 2025)</td></tr>
+<tr><td><code>pr-miner</code></td><td>Rust</td><td>Grandfathered</td></tr>
+<tr><td><code>pr-miner</code></td><td>Python</td><td>Unconfirmed</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="citationsmd-layout"><a class="header" href="#citationsmd-layout">CITATIONS.md layout</a></h2>
+<p><a href="https://github.com/ktrysmt/cntrdct/blob/master/CITATIONS.md"><code>CITATIONS.md</code></a>
+is grouped by layer:</p>
+<ul>
+<li>Layer 1 — per-detector citations.</li>
+<li>Layer 2 — ranker statistical methods (Wilson interval,
+Brown-Cai-DasGupta 2001, Thulin 2014).</li>
+<li>Layer 3 — LLM adjudicator references (Platt 1999, Spiess et al.
+2025, the cross-model κ references).</li>
+</ul>
+<p>Each entry carries the venue, year, DOI when available, and a
+<code>Languages:</code> line declaring which languages the citation is
+grounded in (M-6 extension).</p>
+<h2 id="q-6-retraction-monitor"><a class="header" href="#q-6-retraction-monitor">Q-6 retraction monitor</a></h2>
+<p>P1’s “peer-reviewed prior art” assumption breaks if a cited paper is
+retracted after shipping. The Q-6 monitor
+(<code>scripts/check_retractions.py</code>) closes this loop on every CI run:</p>
+<ul>
+<li>DOIs are extracted from <code>CITATIONS.md</code> and from every
+<code>Citation { doi: Some("...") }</code> slot under <code>src/</code>.</li>
+<li>Each DOI is checked against (a) a cached Retraction Watch snapshot
+at <code>benchmarks/retraction-watch/cache.csv</code>, pinned by
+<code>cache.sha256</code>, and (b) Crossref Works’ <code>update-to</code> field with
+<code>type: "retraction"</code>.</li>
+<li>A Mondays-06:00-UTC cron refreshes the cache via the Crossref Labs
+endpoint and opens a <code>chore(citations): refresh Retraction Watch cache</code> PR when the snapshot changes.</li>
+<li>A synthetic-DOI fixture at
+<code>tests/fixtures/retraction-watch/</code> pins the failure path so a
+future loosening of the matcher breaks CI rather than silently
+re-opening citations to retracted work.</li>
+</ul>
+<p>See also:</p>
+<ul>
+<li><a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/citations-policy.md"><code>docs/spec/citations-policy.md</code></a>
+— the full multi-language citation rule.</li>
+<li><a href="https://github.com/ktrysmt/cntrdct/blob/master/CITATIONS.md"><code>CITATIONS.md</code></a>
+— bibliography.</li>
+<li><a href="https://github.com/ktrysmt/cntrdct/tree/master/docs/surveys"><code>docs/surveys/</code></a>
+— recorded literature surveys for <code>Unconfirmed</code> languages.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="network-access-policy-p3"><a class="header" href="#network-access-policy-p3">Network access policy (P3)</a></h1>
+<p>The default <code>cntrdct scan</code> pipeline never opens a socket. This is
+the P3 design constraint, and it is enforced structurally in CI on
+every push and pull request.</p>
+<h2 id="what-does-not-touch-the-network"><a class="header" href="#what-does-not-touch-the-network">What does not touch the network</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Subcommand</th><th>Network?</th></tr>
+</thead>
+<tbody>
+<tr><td><code>cntrdct scan</code> (default)</td><td>No</td></tr>
+<tr><td><code>cntrdct scan --adjudicate</code></td><td>Yes — Layer 3 LLM adjudicator (opt-in)</td></tr>
+<tr><td><code>cntrdct calibrate</code></td><td>No</td></tr>
+<tr><td><code>cntrdct calibrate --fit-platt</code></td><td>No</td></tr>
+<tr><td><code>cntrdct eval</code></td><td>No</td></tr>
+<tr><td><code>cntrdct cross-model-kappa</code></td><td>Indirect — shells out to CLIs that themselves talk to the network</td></tr>
+</tbody>
+</table>
+</div>
+<p>Layers 1 (detectors), 2 (ranker), and 4 (SARIF emitter) are
+deterministic and offline. The Q-12 <code>apply_llm_calibration</code> helper
+is Layer 2 / Layer 4 post-processing, also offline.</p>
+<h2 id="the-two-opt-in-network-paths"><a class="header" href="#the-two-opt-in-network-paths">The two opt-in network paths</a></h2>
+<p><code>scan --adjudicate</code> invokes the Layer 3 adjudicator. It is gated
+behind <code>ANTHROPIC_API_KEY</code> and hits the Anthropic Messages API via
+<code>reqwest</code>. The <code>reqwest</code> dependency is reachable only from
+<code>src/adjudicator.rs::ReqwestClient</code> and the
+<code>build_default_adjudicator</code> constructor in <code>src/lib.rs</code> — adding a
+non-adjudicator reach into <code>reqwest</code> is a P3 violation and breaks
+the netns gate below.</p>
+<p><code>cntrdct cross-model-kappa</code> (Q-13) is the cross-model audit. It
+shells out to <code>claude --print</code> and <code>gemini -p</code>, both of which handle
+their own auth and HTTP. No API keys are read by cntrdct itself, and
+no socket is opened from the cntrdct process. The subprocess that
+talks to the network is the user’s installed CLI.</p>
+<h2 id="ci-enforcement-the-netns-gate"><a class="header" href="#ci-enforcement-the-netns-gate">CI enforcement: the netns gate</a></h2>
+<p><code>.github/workflows/ci.yml</code> runs a <code>network-isolation</code> job on every
+push and PR. The job:</p>
+<ul>
+<li>Creates a fresh Linux network namespace via
+<code>sudo unshare --net</code>.</li>
+<li>Runs the full <code>cntrdct scan</code> path (walker -&gt; parsers -&gt; Layer 1
+detectors -&gt; Layer 2 ranker -&gt; Layer 4 SARIF emitter) inside that
+namespace.</li>
+<li>Asserts the emitted SARIF document is non-empty and well-formed.</li>
+</ul>
+<p>The namespace has no outbound routes, so any unintended socket open
+fails with <code>ENETUNREACH</code> or <code>EAI_*</code> and the job goes red. There is
+no opt-out. Adding a non-adjudicator network path on <code>scan</code>,
+<code>calibrate</code>, or <code>eval</code> breaks both the P3 constraint and the netns
+gate.</p>
+<p>The <code>cross-model-kappa</code> subcommand is excluded from the netns gate
+by design — its whole purpose is to spawn subprocesses that talk to
+the network. The same exclusion applies to <code>scan --adjudicate</code>.</p>
+<h2 id="implementation-note-apparmor"><a class="header" href="#implementation-note-apparmor">Implementation note (AppArmor)</a></h2>
+<p>The first netns implementation used the unprivileged <code>unshare -r --net</code> form, but Ubuntu 24.04’s AppArmor <code>unprivileged_userns</code>
+profile blocks <code>/proc/self/uid_map</code> writes from non-root processes
+on GitHub-hosted runners. The current job uses <code>sudo unshare --net</code>
+instead — passwordless sudo is available on GHA runners, and
+<code>--no-calibration</code> keeps the scan from needing <code>$HOME</code> access since
+priors are embedded into the binary via <code>include_str!</code>. If GHA’s
+runner image ever loosens the AppArmor profile, the unprivileged
+form is preferable for the smaller blast radius.</p>
+<h2 id="what-this-guarantees-what-it-does-not"><a class="header" href="#what-this-guarantees-what-it-does-not">What this guarantees, what it does not</a></h2>
+<p>The netns gate proves the default <code>scan</code> path opens no sockets. It
+does not prove:</p>
+<ul>
+<li>That <code>scan --adjudicate</code> only opens sockets to the Anthropic API.
+Use a network proxy or audit <code>src/adjudicator.rs</code> directly if you
+need this property.</li>
+<li>That CLI subprocesses spawned by <code>cross-model-kappa</code> only talk to
+the LLM vendor’s API. The audit explicitly delegates trust to the
+vendor CLI (<code>claude</code> / <code>gemini</code>).</li>
+<li>That tree-sitter parsers, the SARIF crate, or the standard
+library never attempt DNS or socket calls under exotic conditions.
+These would fail under netns even if they tried, so the gate
+catches them retroactively.</li>
+</ul>
+<p>See also:</p>
+<ul>
+<li><a href="#four-layer-architecture">Four-layer architecture</a> — where the Layer 3
+boundary sits.</li>
+<li><a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/cross-model-kappa-v0.md"><code>docs/spec/cross-model-kappa-v0.md</code></a>
+— design rationale for the CLI-shellout shape.</li>
+<li><a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/adjudicator-v0.md"><code>docs/spec/adjudicator-v0.md</code></a>
+— Layer 3 contract.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="statistical-priors-p4"><a class="header" href="#statistical-priors-p4">Statistical priors (P4)</a></h1>
+<p>The Layer 2 ranker scores findings by a Wilson or Jeffreys lower
+bound on detector precision multiplied by a log-scaled
+sibling-finding count. The priors come from labelled corpora —
+never from prompts, never from hardcoded constants. This is the P4
+design constraint.</p>
+<h2 id="where-priors-come-from"><a class="header" href="#where-priors-come-from">Where priors come from</a></h2>
+<p>The pipeline lives in <code>src/calibration.rs</code> plus <code>src/ranker.rs</code>:</p>
+<ul>
+<li><code>cntrdct calibrate &lt;CORPUS&gt;</code> reads a JSONL of <code>LabelledFinding</code>
+rows and writes a <code>HashMap&lt;String, DetectorPrior&gt;</code> to disk.</li>
+<li>The default labelled corpus
+(<code>benchmarks/labelled-findings.jsonl</code>) is hand-labelled across
+the seed and wild β corpora.</li>
+<li><code>benchmarks/priors-default.json</code> is the output of <code>cntrdct calibrate</code> against that corpus, embedded into the binary via
+<code>include_str!</code> so a fresh <code>cargo install cntrdct</code> ships with
+calibration ready.</li>
+</ul>
+<p>The uncalibrated ranker continues to ship <code>None</code> for the
+calibration columns when no corpus is available, rather than
+guessed values — P4 explicitly rules out hand-authored numbers
+even as defaults.</p>
+<h2 id="runtime-fallback-chain"><a class="header" href="#runtime-fallback-chain">Runtime fallback chain</a></h2>
+<p><code>cntrdct scan</code> picks the ranker by:</p>
+<ol>
+<li>If <code>--no-calibration</code> is set, use <code>UncalibratedRanker</code>.</li>
+<li>Otherwise, if <code>--priors &lt;PATH&gt;</code> is set, load that file. A
+missing file errors out; a parsed file produces
+<code>CalibratedRanker</code>.</li>
+<li>Otherwise, if the default user-cache path exists, use
+<code>CalibratedRanker</code>.</li>
+<li>Otherwise, fall through to the embedded
+<code>benchmarks/priors-default.json</code>.</li>
+<li>As a final fallback, <code>UncalibratedRanker</code> (silent, no warning).</li>
+</ol>
+<h2 id="wilson-and-jeffreys-switched-at-n--30"><a class="header" href="#wilson-and-jeffreys-switched-at-n--30">Wilson and Jeffreys, switched at n = 30</a></h2>
+<p>Below cell size <code>n = TP + FP = 30</code> the calibrator switches from the
+Wilson 95% lower bound to a Beta(1, 1) Bayes-Laplace 2.5% quantile.
+The boundary at <code>TP = 0</code> applies the Brown-Cai-DasGupta 2001 §4
+modification (return 0) so Jeffreys agrees with Wilson at the most
+common observation-free cell.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Cell size</th><th>Method</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>n &gt;= 30</code></td><td>Wilson</td><td><code>PriorMethod::Wilson</code>. Byte-stable with pre-Q-11 priors files.</td></tr>
+<tr><td><code>n &lt; 30</code>, <code>TP &gt; 0</code></td><td>Jeffreys (Beta credible interval)</td><td><code>PriorMethod::Jeffreys</code>. 2.5% quantile of <code>Beta(TP+1, FP+1)</code>.</td></tr>
+<tr><td><code>n &lt; 30</code>, <code>TP = 0</code></td><td>Jeffreys with BCD 2001 boundary</td><td>Returns 0.</td></tr>
+<tr><td><code>n = 0</code></td><td>Wilson convention</td><td>Returns 0.</td></tr>
+</tbody>
+</table>
+</div>
+<p>The chosen method is recorded on each finding as <code>prior_method</code>
+(<code>RankedFinding.prior_method</code>, SARIF
+<code>result.properties.priorMethod</code>) so the choice is auditable
+downstream.</p>
+<h2 id="why-jeffreys-at-small-n"><a class="header" href="#why-jeffreys-at-small-n">Why Jeffreys at small N</a></h2>
+<p>The roadmap framing “Jeffreys is closer to nominal than Wilson at
+n &lt; 30” is a useful shorthand but does not hold robustly under
+one-sided lower coverage averaged over <code>p</code>. With the BCD 2001
+boundary correction, both methods sit similarly close to nominal at
+small <code>n</code>. The actual reason for switching is methodological
+coherence:</p>
+<ul>
+<li><code>posterior_tp</code> is already a Beta(1, 1) Bayesian update; pairing it
+with a Beta(1, 1) credible-interval lower bound at small <code>n</code>
+keeps both columns in one regime. Mixing the two would surface
+incompatible uncertainty semantics within the same
+<code>DetectorPrior</code>.</li>
+<li>At <code>n &gt;= 30</code> Wilson and the Bayes-Laplace bound agree to several
+decimals, so the choice is irrelevant; Wilson is retained for
+byte-stability with pre-Q-11 priors files.</li>
+</ul>
+<p>See <a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/ranker-v1.md"><code>docs/spec/ranker-v1.md</code></a>
+“Q-11 design notes” for the full argument.</p>
+<h2 id="rank-score-formula"><a class="header" href="#rank-score-formula">Rank score formula</a></h2>
+<p>For each finding <code>f</code>, the calibrated ranker computes:</p>
+<pre><code class="language-text">rank_score = wilson_or_jeffreys_lower(detector_id)
+             * (1.0 + log2(1.0 + related.len()))
+</code></pre>
+<p>The lower bound replaces the raw TP rate, so a rare-but-precise
+detector cannot dominate before enough evidence accumulates
+(Z-Ranking, Kremenek &amp; Engler SAS 2003). The log-sibling factor is
+monotone and sub-linear in group size, rewarding corroboration
+without letting one huge clone group flood the top of the ranking.</p>
+<h2 id="q-12-llm-confidence-calibration"><a class="header" href="#q-12-llm-confidence-calibration">Q-12 LLM confidence calibration</a></h2>
+<p>The Q-12 helper (<code>apply_llm_calibration</code> in
+<code>src/llm_calibration.rs</code>) applies post-hoc Platt scaling to the
+Layer 3 adjudicator’s verdict confidence, per <code>(detector_id, anomaly_class)</code> cell. Platt parameters are fit by
+<code>cntrdct calibrate --fit-platt &lt;CORPUS&gt;</code> against a labelled
+adjudication corpus and embedded as
+<code>benchmarks/llm-calibration/platt-default.json</code>.</p>
+<p>This module sits in the deterministic Layer 2 / Layer 4 surface,
+not Layer 3 — <code>apply_llm_calibration</code> only post-processes whatever
+the adjudicator returned, with no LLM call. v0 ships the registry
+empty (<code>{}</code>), so the helper is a no-op until a real labelled
+adjudication corpus is fit. The motivating evidence is Spiess,
+Koohestani &amp; Sergeyuk (2025), which shows that verbalised
+confidence is not better calibrated than raw output at corpus
+scale, and the companion Spiess et al. ICSE 2025 paper, which
+demonstrates that post-hoc Platt scaling lifts expected calibration
+error on code-LLM outputs.</p>
+<p>See also:</p>
+<ul>
+<li><a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/ranker-v1.md"><code>docs/spec/ranker-v1.md</code></a>
+— ranker contract and Q-11 design notes.</li>
+<li><a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/llm-calibration-v0.md"><code>docs/spec/llm-calibration-v0.md</code></a>
+— Q-12 Platt calibration spec.</li>
+<li><a href="#calibrate">Workflows: calibrate</a>
+— CLI usage for both priors and Platt modes.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="severity-and-anomaly-classes-p5"><a class="header" href="#severity-and-anomaly-classes-p5">Severity and anomaly classes (P5)</a></h1>
+<p>Every finding carries two orthogonal labels:</p>
+<ul>
+<li>An IEEE 1044-2009 anomaly classification (<code>AnomalyClass</code>),
+describing the kind of defect.</li>
+<li>A SARIF-compatible severity level (<code>Severity</code>), describing the
+attention the finding warrants.</li>
+</ul>
+<p>Both are pinned at SARIF emission time and asserted by
+<code>tests/sarif_lib.rs</code>. The mapping is the P5 design constraint.</p>
+<h2 id="ieee-1044-2009-anomaly-classes"><a class="header" href="#ieee-1044-2009-anomaly-classes">IEEE 1044-2009 anomaly classes</a></h2>
+<p><code>Finding.anomaly_class</code> is one of seven values defined in
+<code>src/core.rs</code>:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Class</th><th>Meaning</th><th>Used by</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Logic</code></td><td>Behavioural contradiction in control or data flow.</td><td><code>clone-drift</code>, <code>config-interaction</code>, <code>pr-miner</code>, <code>unreachable-after-terminator</code></td></tr>
+<tr><td><code>Interface</code></td><td>Caller-callee mismatch in arguments or signatures.</td><td><code>arg-swap</code></td></tr>
+<tr><td><code>Data</code></td><td>Inconsistency in stored or transferred data.</td><td>—</td></tr>
+<tr><td><code>Documentation</code></td><td>Contradiction between comment and code.</td><td><code>comment-code</code></td></tr>
+<tr><td><code>Performance</code></td><td>Resource-use issue.</td><td>—</td></tr>
+<tr><td><code>Standards</code></td><td>Coding-standard violation.</td><td>—</td></tr>
+<tr><td><code>Other</code></td><td>Defects not covered above.</td><td>—</td></tr>
+</tbody>
+</table>
+</div>
+<p>The class is fixed per detector — clone-drift is always <code>Logic</code>,
+arg-swap is always <code>Interface</code>, and so on. Future detectors may
+populate the unused rows.</p>
+<h2 id="sarif-level-mapping"><a class="header" href="#sarif-level-mapping">SARIF level mapping</a></h2>
+<p>Each finding’s <code>Severity</code> maps to a SARIF 2.1.0 <code>level</code> value at
+emission time:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>Severity</code></th><th>SARIF <code>level</code></th><th>Rationale</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Error</code></td><td><code>error</code></td><td>Hard contradictions; false positives are rare by construction.</td></tr>
+<tr><td><code>Warning</code></td><td><code>warning</code></td><td>Default for shipped detectors.</td></tr>
+<tr><td><code>Note</code></td><td><code>note</code></td><td>Lower-confidence findings or downgrades.</td></tr>
+<tr><td><code>Info</code></td><td><code>none</code></td><td>User-authored downgrade; signals “less visible than <code>Note</code>” to GitHub Code Scanning.</td></tr>
+</tbody>
+</table>
+</div>
+<p>The mapping is one-way at the SARIF surface, but the original
+<code>Finding.raw_severity</code> is preserved in <code>result.properties.raw</code> so
+downstream consumers that branch on the four-valued vocabulary can
+recover it.</p>
+<h2 id="info---none-decision-log"><a class="header" href="#info---none-decision-log">Info -&gt; none decision log</a></h2>
+<p><code>Severity::Info</code> maps to SARIF <code>"none"</code>, not <code>"note"</code>. The rationale,
+recorded in <a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/sarif-v0.md"><code>docs/spec/sarif-v0.md</code></a>
+F5:</p>
+<ul>
+<li>No shipped detector emits <code>Severity::Info</code> by construction. The
+variant enters the pipeline only through user-authored
+<code>cntrdct.toml</code> severity overrides. A user who explicitly
+downgrades a finding to <code>Info</code> is signalling “I want this less
+visible than <code>Note</code>.”</li>
+<li>SARIF 2.1.0 §3.27.10 defines <code>"none"</code> as “the level is not
+applicable to the result,” and GitHub Code Scanning suppresses
+<code>none</code>-level results from the inline PR review surface. That is
+exactly what an <code>Info</code>-tagged finding should do.</li>
+<li>The alternative remap (<code>Info -&gt; "note"</code>) would conflate
+<code>Severity::Info</code> and <code>Severity::Note</code> in SARIF output, defeating
+the user’s intent.</li>
+</ul>
+<p>The trade-off is explicit: GitHub Code Scanning hides <code>Info</code>
+findings from the inline PR review surface. This is intentional and
+documented so a future SARIF consumer change does not silently
+reopen the question.</p>
+<h2 id="severity-remapping-via-cntrdcttoml"><a class="header" href="#severity-remapping-via-cntrdcttoml">Severity remapping via cntrdct.toml</a></h2>
+<p>Severity can be overridden per-detector or per-path in
+<code>cntrdct.toml</code>:</p>
+<pre><code class="language-toml">[severity]
+"clone-drift" = "note"      # global downgrade
+
+[[severity.path]]
+glob = "tests/**"
+detector = "clone-drift"
+level = "info"              # tests-only downgrade
+</code></pre>
+<p>The override is applied before SARIF emission, so the SARIF <code>level</code>
+reflects the remapped value. The original detector-side severity is
+still available in <code>result.properties.raw</code>.</p>
+<p>See <a href="#cntrdcttoml-reference">Configuration: cntrdct.toml reference</a>
+for the full schema.</p>
+<h2 id="what-is-pinned-where"><a class="header" href="#what-is-pinned-where">What is pinned where</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>File</th><th>Pins</th></tr>
+</thead>
+<tbody>
+<tr><td><code>src/core.rs</code></td><td><code>AnomalyClass</code> enum and serde projection.</td></tr>
+<tr><td><code>src/sarif.rs</code></td><td>The <code>Severity</code> -&gt; SARIF <code>level</code> mapping.</td></tr>
+<tr><td><code>tests/sarif_lib.rs</code></td><td>Assertions that the mapping holds end-to-end.</td></tr>
+<tr><td><code>tests/multilang_config.rs</code></td><td>Assertions that <code>cntrdct::ALL_DETECTOR_IDS</code> is fully present in <code>tool.driver.rules</code>.</td></tr>
+<tr><td><code>.github/workflows/ci.yml</code></td><td><code>Sarif.Multitool validate</code> against the OASIS 2.1.0 schema on every CI run.</td></tr>
+</tbody>
+</table>
+</div>
+<p>See also:</p>
+<ul>
+<li><a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/sarif-v0.md"><code>docs/spec/sarif-v0.md</code></a>
+— SARIF emitter contract and F5 decision log.</li>
+<li><a href="#sarif-output">Integrations: SARIF output</a>
+— consumer-side notes on the emitted document.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="arg-swap"><a class="header" href="#arg-swap">arg-swap</a></h1>
+<p>Flags a two-argument call site whose argument identifier names match
+the function’s parameter names in <em>reversed</em> order. The contradiction
+is between the call’s positional layout and the callee’s parameter
+contract.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Property</th><th>Value</th></tr>
+</thead>
+<tbody>
+<tr><td>Detector ID</td><td><code>arg-swap</code></td></tr>
+<tr><td>Languages</td><td>Rust, Python</td></tr>
+<tr><td>IEEE 1044-2009 class</td><td>Interface</td></tr>
+<tr><td>Default severity</td><td>Warning</td></tr>
+<tr><td>Spec</td><td><a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/arg-swap-v0.md"><code>docs/spec/arg-swap-v0.md</code></a></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="what-it-flags"><a class="header" href="#what-it-flags">What it flags</a></h2>
+<pre class="playground"><code class="language-rust">fn copy(dst: &amp;mut [u8], src: &amp;[u8]) { /* ... */ }
+
+fn main() {
+    let mut dst = vec![0u8; 16];
+    let src = b"hello";
+    copy(src, &amp;mut dst);   // &lt;- flagged: argument order reversed
+}</code></pre>
+<p>The detector resolves the call to the same-file definition of <code>copy</code>,
+notices that the call’s first identifier <code>src</code> matches the second
+parameter name and vice versa, and emits a finding pointing at the
+call site with the definition in <code>related</code>. The <code>evidence.raw</code> payload
+carries <code>callee_name</code>, <code>parameter_names</code>, and <code>argument_names</code>.</p>
+<h2 id="what-it-does-not-flag"><a class="header" href="#what-it-does-not-flag">What it does not flag</a></h2>
+<ul>
+<li>Calls whose arguments are not bare identifiers (literals,
+expressions, field accesses). <code>copy(some.dst, src)</code> is out of scope
+because the AST node is not a simple identifier.</li>
+<li>Single-argument or N ≥ 3 calls. Only binary functions participate.</li>
+<li>Method calls (<code>obj.copy(a, b)</code>) and qualified-path calls
+(<code>mod::copy(a, b)</code>).</li>
+<li>Cross-file resolution. The call and the definition must live in the
+same source file.</li>
+<li>Calls where the call-site identifier names are the same as the
+parameter names but in the right order, or where the names share no
+overlap at all.</li>
+</ul>
+<p>The narrow scope is deliberate: arg-swap trades recall for precision
+so the signal is actionable without an LLM in the loop.</p>
+<h2 id="language-coverage"><a class="header" href="#language-coverage">Language coverage</a></h2>
+<ul>
+<li>Rust: confirmed citation. Pradel &amp; Sen “DeepBugs” (FSE 2018) and
+Rice et al. “Detecting Argument Selection Defects” (ICSE 2017)
+ground the AST-level shape used here.</li>
+<li>Python: confirmed citation. Allamanis, Jackson-Flux, Brockschmidt
+(NeurIPS 2021, PyBugLab / PyPIBugs) covers the same swap pattern on
+PyPI corpora. PyBugLab also ships as the Q-15 SOTA baseline
+comparator for arg-swap (<code>baselines/pybuglab/</code>).</li>
+</ul>
+<h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
+<p>Suppress in-source:</p>
+<ul>
+<li>Rust: <code>#[cntrdct::allow(arg-swap)]</code> on the call site’s enclosing
+function or item.</li>
+<li>Python: <code># cntrdct: allow(arg-swap)</code> as a trailing or preceding
+comment (Q-9).</li>
+</ul>
+<p>Suppress project-wide via <code>cntrdct.toml</code>:</p>
+<pre><code class="language-toml">[detectors.arg-swap]
+enabled = false
+
+[languages.python]
+suppress = ["arg-swap"]
+</code></pre>
+<p>See <a href="#in-source-suppressions">In-source suppressions</a> and
+<a href="#cntrdcttoml-reference">cntrdct.toml reference</a>.</p>
+<h2 id="related"><a class="header" href="#related">Related</a></h2>
+<ul>
+<li><a href="#citation-policy-p1">Citation policy (P1)</a> — why every
+language addition needs its own grounding.</li>
+<li><a href="#statistical-priors-p4">Statistical priors (P4)</a> — how the Layer 2
+ranker re-orders arg-swap findings by Wilson / Jeffreys lower bound
+against the calibrated corpus.</li>
+<li><a href="#pr-miner">pr-miner</a> — complementary “implicit pairing” rule
+miner; both detectors target the same family of API-contract
+violations from different angles.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="clone-drift"><a class="header" href="#clone-drift">clone-drift</a></h1>
+<p>Flags a near-duplicate function whose AST has diverged from the
+strict majority of its siblings in the same scope. The contradiction
+is between “looks like a copy” and “doesn’t actually do what its
+copies do”.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Property</th><th>Value</th></tr>
+</thead>
+<tbody>
+<tr><td>Detector ID</td><td><code>clone-drift</code></td></tr>
+<tr><td>Languages</td><td>Rust, Python</td></tr>
+<tr><td>IEEE 1044-2009 class</td><td>Logic</td></tr>
+<tr><td>Default severity</td><td>Warning</td></tr>
+<tr><td>Spec</td><td><a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/clone-drift-v0.md"><code>docs/spec/clone-drift-v0.md</code></a></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="what-it-flags-1"><a class="header" href="#what-it-flags-1">What it flags</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn poll_a(cx: &amp;mut Context&lt;'_&gt;) -&gt; Poll&lt;()&gt; {
+    if let Some(x) = inner_a(cx) { return Poll::Ready(x); }
+    Poll::Pending
+}
+fn poll_b(cx: &amp;mut Context&lt;'_&gt;) -&gt; Poll&lt;()&gt; {
+    if let Some(x) = inner_b(cx) { return Poll::Ready(x); }
+    Poll::Pending
+}
+fn poll_c(cx: &amp;mut Context&lt;'_&gt;) -&gt; Poll&lt;()&gt; {
+    if let Some(x) = inner_c(cx) { return Poll::Ready(x); }
+    Poll::Pending
+}
+fn poll_d(cx: &amp;mut Context&lt;'_&gt;) -&gt; Poll&lt;()&gt; {
+    // &lt;- flagged: drifted from the other three
+    if inner_d(cx).is_some() { break; }
+    Poll::Pending
+}
+<span class="boring">}</span></code></pre>
+<p><code>poll_a</code> / <code>poll_b</code> / <code>poll_c</code> normalise to identical AST node
+sequences and form a dominant partition of size 3. <code>poll_d</code> belongs to
+the same Jaccard ≥ 0.5 cluster but has a singleton normalised form
+that differs by a small surgical edit (<code>return Poll::Ready(x)</code> →
+<code>break</code>). The finding points at <code>poll_d</code>; <code>related</code> lists the three
+canonical-form siblings.</p>
+<h2 id="how-the-gates-compose"><a class="header" href="#how-the-gates-compose">How the gates compose</a></h2>
+<p>The detector applies four ordered gates so the textbook “one of N
+copies missed an update” pattern fires while designed N-variant
+families and library-shape clusters do not:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Gate</th><th>Purpose</th><th>Default</th></tr>
+</thead>
+<tbody>
+<tr><td><code>MIN_FN_TOKENS = 22</code></td><td>drop trivially short functions</td><td>constant</td></tr>
+<tr><td><code>SIMILARITY_THRESHOLD = 0.5</code></td><td>pairwise Jaccard for cluster membership</td><td>constant</td></tr>
+<tr><td>F5b scope-bounded clustering</td><td>clusters never cross crate / package boundaries</td><td>provenance-aware</td></tr>
+<tr><td>F5c-i strict-majority</td><td>dominant partition must be &gt; 50% of the cluster</td><td>constant</td></tr>
+<tr><td>F5c-ii <code>NEAR_DUPLICATE_THRESHOLD = 0.7</code></td><td>drifted singleton must be near-duplicate of the dominant exemplar</td><td>constant</td></tr>
+<tr><td>F5d-i multi-singleton suppression</td><td>≥ 2 singleton partitions ⇒ designed family ⇒ silent</td><td>constant</td></tr>
+<tr><td>F5d-ii length-imbalance × weak-dominant gate</td><td>high length asymmetry under weak canonical evidence ⇒ silent</td><td>constants</td></tr>
+<tr><td>F5d-iii small-cluster floor</td><td><code>MIN_GROUP_SIZE</code> cluster at the resolution limit ⇒ silent</td><td>constants</td></tr>
+</tbody>
+</table>
+</div>
+<p>Gates F5b / F5c / F5d landed across P-6 and P-7 in response to the
+wild β corpus residuals. Wild β clone-drift FP count is 0 in both
+Rust and Python after F5d.</p>
+<h2 id="language-coverage-1"><a class="header" href="#language-coverage-1">Language coverage</a></h2>
+<ul>
+<li>Rust: grandfathered citation (Juergens et al. ICSE 2009 on inconsistent
+clone changes); the broader Bettenburg MSR 2009 and Krinke ICSM 2007
+citations supply the F5c-ii drift gate’s grounding.</li>
+<li>Python: confirmed citation. Assi, Hassan, Zou (TOSEM 2025, DOI
+10.1145/3721125) replicate NiCad / SourcererCC on nine Python deep-
+learning frameworks. SourcererCC also ships as the Q-15 SOTA
+baseline comparator for clone-drift (<code>baselines/sourcerercc/</code>).</li>
+</ul>
+<h2 id="what-it-does-not-flag-1"><a class="header" href="#what-it-does-not-flag-1">What it does not flag</a></h2>
+<ul>
+<li>Clusters smaller than <code>MIN_GROUP_SIZE = 3</code>.</li>
+<li>Functions whose normalised AST has fewer than <code>MIN_FN_TOKENS = 22</code>
+tokens (small utility functions whose drift signal is too noisy).</li>
+<li>Functions inside <code>impl</code> / <code>trait</code> / <code>mod</code> blocks. Only top-level
+<code>fn</code> (Rust) and <code>function_definition</code> (Python) participate in v0.</li>
+<li>Cross-scope siblings. The F5b scope rule keeps clustering within a
+single crate / package / parent-directory namespace.</li>
+</ul>
+<h2 id="configuration-1"><a class="header" href="#configuration-1">Configuration</a></h2>
+<pre><code class="language-toml">[detectors.clone-drift]
+enabled = false
+# Severity overrides apply at SARIF emission time (P5).
+severity = "Note"
+</code></pre>
+<p>Per-language disable:</p>
+<pre><code class="language-toml">[languages.python]
+suppress = ["clone-drift"]
+</code></pre>
+<p>See <a href="#in-source-suppressions">In-source suppressions</a> for
+the per-function attribute and comment forms.</p>
+<h2 id="related-1"><a class="header" href="#related-1">Related</a></h2>
+<ul>
+<li><a href="#arg-swap">arg-swap</a> — different shape of same-file contradiction
+(parameter contract vs structural-clone consistency).</li>
+<li><a href="#statistical-priors-p4">Statistical priors (P4)</a> — embedded
+clone-drift Wilson lower bound is 0.676 (8 TP / 0 FP) after P-7.</li>
+<li><a href="#severity-and-anomaly-classes-p5">Severity and anomaly classes (P5)</a> —
+Logic anomaly class mapping.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="comment-code"><a class="header" href="#comment-code">comment-code</a></h1>
+<p>Flags a doc comment whose rendered prose claims a behaviour the
+implementation does not exhibit. The contradiction is between the
+documented contract and the actual code.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Property</th><th>Value</th></tr>
+</thead>
+<tbody>
+<tr><td>Detector ID</td><td><code>comment-code</code></td></tr>
+<tr><td>Languages</td><td>Rust, Python</td></tr>
+<tr><td>IEEE 1044-2009 class</td><td>Documentation</td></tr>
+<tr><td>Default severity</td><td>Note</td></tr>
+<tr><td>Spec</td><td><a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/comment-code-v0.md"><code>docs/spec/comment-code-v0.md</code></a></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="three-patterns"><a class="header" href="#three-patterns">Three patterns</a></h2>
+<p>The Tan et al. iComment (SOSP 2007) and aComment (PLDI 2011) papers
+laid out three structural patterns that a pattern-based detector can
+match without NLP. cntrdct ships all three:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Pattern</th><th>Trigger phrase</th><th>Constraint</th></tr>
+</thead>
+<tbody>
+<tr><td>A — Result / Option claim</td><td><code>returns err</code>, <code>may fail</code>, <code>fallible</code>, <code>returns option</code>, <code>may return none</code></td><td>function’s <code>return_type</code> does not contain <code>Result</code> or <code>Option</code></td></tr>
+<tr><td>B — Panic claim</td><td><code>panic</code> substring (matches <code>panic</code> and <code>panics</code>)</td><td>function body contains none of <code>panic!</code>, <code>unwrap</code>, <code>expect(</code>, <code>unreachable!</code>, <code>assert!</code>, <code>assert_eq!</code>, <code>assert_ne!</code>, <code>todo!</code>, <code>unimplemented!</code>, <code>debug_assert</code></td></tr>
+<tr><td>C — Deprecated claim</td><td><code>deprecated</code> substring</td><td>function does not carry a <code>#[deprecated]</code> attribute</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="pattern-a-example"><a class="header" href="#pattern-a-example">Pattern A example</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// Returns Err on bad input.
+fn parse(input: &amp;str) -&gt; i32 {   // &lt;- flagged: not Result/Option
+    input.parse().unwrap_or(0)
+}
+<span class="boring">}</span></code></pre>
+<h3 id="pattern-b-example"><a class="header" href="#pattern-b-example">Pattern B example</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// Panics if `x` is zero.
+fn safe_divide(x: i32, y: i32) -&gt; i32 {   // &lt;- flagged: no panic site
+    if x == 0 { return 0; }
+    y / x
+}
+<span class="boring">}</span></code></pre>
+<h3 id="pattern-c-example"><a class="header" href="#pattern-c-example">Pattern C example</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// # Deprecated
+/// Use `bar` instead.
+fn foo() {}                       // &lt;- flagged: no #[deprecated] attr
+<span class="boring">}</span></code></pre>
+<h2 id="python-extensions"><a class="header" href="#python-extensions">Python extensions</a></h2>
+<p>Python ships the same three patterns, with two suppression rules
+added in response to wild-corpus residuals:</p>
+<ul>
+<li>F5b — <code>:raises:</code> factory suppression. A docstring that mentions a
+raise but whose function returns a <em>call expression</em> (factory shape,
+e.g. attrs’s <code>instance_of(type) -&gt; _InstanceOfValidator(type)</code>) is
+reporting the returned object’s behaviour, not the factory’s. The
+raise-pattern is suppressed.</li>
+<li>F5c — <code>.. deprecated::</code> directive subject. reST directives whose
+body starts with <code>*</code> or backtick deprecate a <em>parameter</em>, not the
+function. Function-level directives still fire.</li>
+</ul>
+<h2 id="citation-grounding"><a class="header" href="#citation-grounding">Citation grounding</a></h2>
+<ul>
+<li>Rust: confirmed via <code>tan-sosp-2007</code> (iComment Pattern A / B / C
+taxonomy) and <code>tan-pldi-2011</code> (aComment). Both are emitted on every
+finding.</li>
+<li>Python: unconfirmed per
+<a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/surveys/comment-code-python-2026-05.md"><code>docs/surveys/comment-code-python-2026-05.md</code></a>.
+P1 is satisfied by the Rust citations under the citations-policy
+grandfather clause for cross-language extensions.</li>
+</ul>
+<h2 id="audit-signal"><a class="header" href="#audit-signal">Audit signal</a></h2>
+<p>The Q-14 recall-audit harness closed <code>comment-code</code> at <strong>34 / 0 /
+1.00</strong> across twenty-three permissive-licensed upstreams, saturating
+all three Tan SOSP 2007 patterns. This is the strongest single recall
+signal cntrdct currently publishes; the other five detectors all sit
+at 0.00 recall_upper_bound by design (they exercise narrower v0 scope
+choices that the audit corpus deliberately overshoots — see
+<a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/recall-audit-v0.md"><code>docs/spec/recall-audit-v0.md</code></a>).</p>
+<h2 id="configuration-2"><a class="header" href="#configuration-2">Configuration</a></h2>
+<pre><code class="language-toml">[detectors.comment-code]
+enabled = true
+severity = "Warning"   # raise above the default Note
+</code></pre>
+<p>In-source:</p>
+<ul>
+<li>Rust: <code>#[cntrdct::allow(comment-code)]</code> on the function.</li>
+<li>Python: <code># cntrdct: allow(comment-code)</code> immediately before the
+function definition (Q-9 suppression scanner).</li>
+</ul>
+<h2 id="related-2"><a class="header" href="#related-2">Related</a></h2>
+<ul>
+<li><a href="#citation-policy-p1">Citation policy (P1)</a></li>
+<li><a href="#severity-and-anomaly-classes-p5">Severity and anomaly classes (P5)</a> — the
+Documentation anomaly class is unique to this detector at v0.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="config-interaction"><a class="header" href="#config-interaction">config-interaction</a></h1>
+<p>Flags a top-level Rust item that carries two <code>#[cfg(...)]</code> attributes
+whose predicates are structurally negations of each other — so the
+item is unsatisfiable under every feature configuration.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Property</th><th>Value</th></tr>
+</thead>
+<tbody>
+<tr><td>Detector ID</td><td><code>config-interaction</code></td></tr>
+<tr><td>Languages</td><td>Rust</td></tr>
+<tr><td>IEEE 1044-2009 class</td><td>Logic</td></tr>
+<tr><td>Default severity</td><td>Warning</td></tr>
+<tr><td>Spec</td><td><a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/config-interaction-v0.md"><code>docs/spec/config-interaction-v0.md</code></a></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="what-it-flags-2"><a class="header" href="#what-it-flags-2">What it flags</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cfg(feature = "x")]
+#[cfg(not(feature = "x"))]
+fn never_compiled() {            // &lt;- flagged: dead under every cfg
+    // ...
+}
+<span class="boring">}</span></code></pre>
+<p>The detector canonicalises each predicate’s text, checks for the
+<code>not(X)</code> / <code>X</code> pair structurally, and emits a finding pointing at the
+item with both attribute locations in <code>related</code>. The
+<code>evidence.raw.inner_predicate</code> field carries the canonical predicate
+string so reviewers can audit the match without re-reading the source.</p>
+<p>Detection is deliberately literal: only structural negation pairs
+fire. Anything that requires SAT-style reasoning over <code>all(...)</code> /
+<code>any(...)</code> combinations is out of scope for v0.</p>
+<h2 id="examples-that-fire"><a class="header" href="#examples-that-fire">Examples that fire</a></h2>
+<ul>
+<li><code>#[cfg(unix)]</code> + <code>#[cfg(not(unix))]</code> on the same struct.</li>
+<li><code>#[cfg(all(unix, x))]</code> + <code>#[cfg(not(all(unix, x)))]</code> — the inner
+predicates are byte-equal after canonicalisation.</li>
+<li>Three attributes <code>P</code>, <code>not(P)</code>, <code>not(P)</code> — one finding;
+<code>evidence.raw.additional_pairs</code> records the extras.</li>
+</ul>
+<h2 id="examples-that-do-not-fire"><a class="header" href="#examples-that-do-not-fire">Examples that do not fire</a></h2>
+<ul>
+<li><code>#[cfg(feature = "a")]</code> + <code>#[cfg(feature = "b")]</code> — no <code>not(...)</code>.</li>
+<li><code>#[cfg(unix)]</code> + <code>#[cfg(not(windows))]</code> — different inner predicates.</li>
+<li><code>#[cfg_attr(test, cfg(not(unix)))]</code> — <code>cfg_attr</code> is out of scope at
+v0.</li>
+<li>A single <code>#[cfg(unix)]</code> on its own — no pair.</li>
+</ul>
+<h2 id="language-coverage-2"><a class="header" href="#language-coverage-2">Language coverage</a></h2>
+<p>Rust-only at v0. Python’s <code>if sys.version_info</code> / typing-style
+version guards have no AST-level analogue to <code>#[cfg]</code>, so the
+detector does not extend cross-language.</p>
+<p>Citations:</p>
+<ul>
+<li><code>tartler-eurosys-2011</code> — Tartler, Lohmann, Sincero,
+Schröder-Preikschat. EuroSys 2011. The canonical reference for the
+feature-consistency anomaly family this detector targets.</li>
+<li><code>nadi-icse-2014</code> — Nadi, Berger, Kästner, Czarnecki. ICSE 2014.
+Empirical evidence that contradictory <code>cfg</code> predicates recur in
+long-lived codebases.</li>
+</ul>
+<p>Both citation keys appear on every finding.</p>
+<h2 id="configuration-3"><a class="header" href="#configuration-3">Configuration</a></h2>
+<pre><code class="language-toml">[detectors.config-interaction]
+enabled = false
+</code></pre>
+<p>Per-item suppression:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cntrdct::allow(config-interaction)]
+#[cfg(feature = "x")]
+#[cfg(not(feature = "x"))]
+fn intentionally_unbuildable() {}
+<span class="boring">}</span></code></pre>
+<h2 id="limitations"><a class="header" href="#limitations">Limitations</a></h2>
+<ul>
+<li>No SAT solver — the v0 check is structural.</li>
+<li><code>cfg_attr</code> is not unwrapped.</li>
+<li>Predicates that differ only in whitespace inside comments are not
+unified (the canonicaliser collapses runs of whitespace but does
+not strip embedded comments).</li>
+<li>Build-system files (<code>Cargo.toml</code>, <code>build.rs</code>) are out of scope; this
+detector only walks Rust source.</li>
+</ul>
+<h2 id="related-3"><a class="header" href="#related-3">Related</a></h2>
+<ul>
+<li><a href="#four-layer-architecture">Four-layer architecture</a></li>
+<li><a href="#severity-and-anomaly-classes-p5">Severity and anomaly classes (P5)</a> — Logic
+anomaly class.</li>
+<li><a href="#unreachable-after-terminator">unreachable-after-terminator</a> —
+the F4b cfg-gated terminator suppression interacts with the same
+attribute family from the opposite side (suppressing false
+positives on the canonical <code>#[cfg(X)] return ...; #[cfg(not(X))] return ...</code> idiom).</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pr-miner"><a class="header" href="#pr-miner">pr-miner</a></h1>
+<p>Mines implicit programming rules via Apriori frequent-itemset
+analysis over per-function call-site transactions, then flags
+function bodies that violate the mined rule. The contradiction is
+between a statistically-supported pairing (e.g. <code>lock</code> → <code>unlock</code>)
+and a single function that calls one without the other.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Property</th><th>Value</th></tr>
+</thead>
+<tbody>
+<tr><td>Detector ID</td><td><code>pr-miner</code></td></tr>
+<tr><td>Languages</td><td>Rust, Python</td></tr>
+<tr><td>IEEE 1044-2009 class</td><td>Logic</td></tr>
+<tr><td>Default severity</td><td>Warning</td></tr>
+<tr><td>Spec</td><td><a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/pr-miner-v0.md"><code>docs/spec/pr-miner-v0.md</code></a></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
+<ol>
+<li>Each top-level function in the scan becomes one <em>transaction</em> whose
+<em>items</em> are the distinct call-site names inside its body.</li>
+<li>Apriori mines association rules <code>{a} → {b}</code> with <code>support ≥ MIN_SUPPORT = 0.05</code> and <code>confidence ≥ MIN_CONFIDENCE = 0.85</code>.</li>
+<li>Any function whose body contains <code>a</code> but never <code>b</code> is a
+<em>violator</em> and receives one Finding.</li>
+<li><code>Finding.related</code> lists every function in the database that
+satisfies the rule (capped at <code>MAX_RELATED = 32</code>).</li>
+</ol>
+<p><code>MAX_ITEMSET_SIZE = 2</code> keeps the algorithm to pairs in v0. Lifting
+to FP-growth and N &gt; 2 itemsets is tracked under Future Q-series
+candidates in the roadmap.</p>
+<h2 id="what-it-flags-3"><a class="header" href="#what-it-flags-3">What it flags</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn handle_request(conn: &amp;Mutex&lt;Conn&gt;) -&gt; Result&lt;()&gt; {
+    let guard = lock(conn);
+    process(&amp;guard);
+    // &lt;- flagged: 9 of 10 functions that call lock(...) also call unlock(...)
+    Ok(())
+}
+<span class="boring">}</span></code></pre>
+<p>The message format is:</p>
+<pre><code class="language-text">function calls lock but never unlock; 9 of 10 similar functions (90%) call both
+</code></pre>
+<p>The N / M / percent figures come straight from the rule’s
+support and confidence numbers; the <code>evidence.raw</code> payload carries
+the full <code>rule_lhs</code>, <code>rule_rhs</code>, <code>support</code>, <code>confidence</code>,
+<code>transaction_count</code>, and <code>related_capped</code> fields so a reviewer can
+audit the inference without re-running the miner.</p>
+<h2 id="what-it-does-not-flag-2"><a class="header" href="#what-it-does-not-flag-2">What it does not flag</a></h2>
+<ul>
+<li>Closures, dynamic dispatch (<code>obj[i]()</code>), and other non-identifier
+call heads. The extractor only sees <code>call_expression</code> /
+<code>call</code> nodes whose head is a <code>path</code> / <code>identifier</code> /
+<code>attribute</code>.</li>
+<li>Functions with fewer than <code>MIN_TRANSACTION_ITEMS = 2</code> distinct
+call items. Single-call bodies have no signal.</li>
+<li>Any rule when the transaction database is smaller than
+<code>MIN_DATABASE_SIZE = 20</code>. Apriori on tiny corpora is too noisy to
+act on.</li>
+<li>Inter-procedural rules (lock acquired in <code>f</code>, released in <code>g</code>).</li>
+</ul>
+<h2 id="language-coverage-3"><a class="header" href="#language-coverage-3">Language coverage</a></h2>
+<ul>
+<li>Rust: <code>li-zhou-fse-2005</code> is grandfathered as a confirmed citation
+per
+<a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/citations-policy.md"><code>docs/spec/citations-policy.md</code></a>.</li>
+<li>Python: unconfirmed citation per
+<a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/surveys/pr-miner-python-2026-05.md"><code>docs/surveys/pr-miner-python-2026-05.md</code></a>.
+P1 is satisfied by the Rust citation as a cross-language extension.</li>
+</ul>
+<h2 id="empirical-fp-profile"><a class="header" href="#empirical-fp-profile">Empirical FP profile</a></h2>
+<p>The v0.1 calibration labels 16 TP / 22 FP across the seed and wild
+corpora (<code>posterior_tp ≈ 0.43</code>). The dominant failure mode (21 / 22
+FPs) is stdlib-constructor co-occurrence: <code>Err(...)</code> and <code>Ok(...)</code>
+both reduce to the items <code>Err</code> / <code>Ok</code> under the last-segment rule,
+so Apriori mines them as a paired API even though no contract is
+being violated. The spec’s “v1 mitigations under consideration”
+section discusses three tightening options (stop-list, fully-
+qualified paths, cardinality post-filter); none are shipped yet, and
+the Layer 2 ranker is what currently keeps these false positives
+near the bottom of the output.</p>
+<p>The Q-14 recall audit closed <code>pr-miner</code> at 2/0/1.00 against the
+Semgrep <code>open-never-closed</code> rule on the audit corpus — the
+narrow-but-clean recall signal complements the wild-corpus FP
+picture.</p>
+<h2 id="configuration-4"><a class="header" href="#configuration-4">Configuration</a></h2>
+<pre><code class="language-toml">[detectors.pr-miner]
+enabled = false
+</code></pre>
+<p>Per-language disable:</p>
+<pre><code class="language-toml">[languages.python]
+suppress = ["pr-miner"]
+</code></pre>
+<p>In-source: <code>#[cntrdct::allow(pr-miner)]</code> (Rust) or
+<code># cntrdct: allow(pr-miner)</code> (Python).</p>
+<h2 id="related-4"><a class="header" href="#related-4">Related</a></h2>
+<ul>
+<li><a href="#arg-swap">arg-swap</a> — different family of same-file API-
+contract violations.</li>
+<li><a href="#statistical-priors-p4">Statistical priors (P4)</a> — pr-miner is the
+only shipped detector at v0.4.3 carrying <code>prior_method = "wilson"</code>
+(n = 38, above the Q-11 <code>SMALL_SAMPLE_THRESHOLD = 30</code> switch).</li>
+<li><a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/sota-baselines-v0.md">SOTA baselines</a>
+— PyBugLab pairs naturally with the arg-swap-style violations
+pr-miner surfaces on Python.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="unreachable-after-terminator"><a class="header" href="#unreachable-after-terminator">unreachable-after-terminator</a></h1>
+<p>Flags a statement that follows an unconditional terminator within the
+same block. The contradiction is between the program’s static
+control-flow graph and the textual layout of the source.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Property</th><th>Value</th></tr>
+</thead>
+<tbody>
+<tr><td>Detector ID</td><td><code>unreachable-after-terminator</code></td></tr>
+<tr><td>Languages</td><td>Rust, Python</td></tr>
+<tr><td>IEEE 1044-2009 class</td><td>Logic</td></tr>
+<tr><td>Default severity</td><td>Warning</td></tr>
+<tr><td>Spec</td><td><a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/unreachable-after-terminator-v0.md"><code>docs/spec/unreachable-after-terminator-v0.md</code></a></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="terminator-sets"><a class="header" href="#terminator-sets">Terminator sets</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Language</th><th>Terminators</th></tr>
+</thead>
+<tbody>
+<tr><td>Rust</td><td><code>return</code>, <code>break</code>, <code>continue</code>, plus macro terminators <code>panic!</code>, <code>unreachable!</code>, <code>todo!</code>, <code>unimplemented!</code>, <code>abort!</code>, <code>exit!</code></td></tr>
+<tr><td>Python</td><td><code>raise</code>, <code>sys.exit(...)</code>, <code>os._exit(...)</code>, <code>assert False</code>, trailing <code>return</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="what-it-flags-4"><a class="header" href="#what-it-flags-4">What it flags</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn lookup(name: &amp;str) -&gt; Option&lt;u32&gt; {
+    return cache_lookup(name);
+    log::info!("lookup {}", name);   // &lt;- flagged
+}
+<span class="boring">}</span></code></pre>
+<p>For each block, the detector classifies statements as terminators or
+non-terminators, walks the block in order, and emits one Finding
+pointing at the <em>first</em> statement after a terminator. Subsequent
+statements in the same block are silent to avoid duplicate noise on
+a single contradiction site (<code>evidence.raw.following_count</code> records
+how many statements were rendered unreachable).</p>
+<h2 id="what-it-does-not-flag-by-design"><a class="header" href="#what-it-does-not-flag-by-design">What it does not flag (by design)</a></h2>
+<p>The wild β corpus exposed two systematic false-positive patterns that
+the spec closes via F4b and F4c:</p>
+<ul>
+<li>
+<p>F4b — cfg-gated terminators. The canonical cross-platform return
+idiom</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cfg(feature = "x")]
+return foo();
+#[cfg(not(feature = "x"))]
+return bar();
+<span class="boring">}</span></code></pre>
+<p>has exactly one terminator active per cfg evaluation; treating
+them as sequential statements produced 10 / 10 false positives on
+the wild Rust β corpus. F4b suppresses the terminator side; a
+terminator followed by a cfg-gated <em>follower</em> still fires (T34).</p>
+</li>
+<li>
+<p>F4c — hoisted item suppression. <code>fn</code> / <code>const</code> / <code>static</code> / <code>use</code>
+/ <code>struct</code> / <code>enum</code> / <code>type</code> / <code>mod</code> / <code>impl</code> / <code>trait</code> items are
+hoisted by the Rust compiler; their textual position carries no
+runtime ordering. They are filtered out of the block’s statement
+list before terminator analysis runs. An executable statement
+<em>after</em> the items still fires (T37).</p>
+</li>
+</ul>
+<p>Additional non-goals:</p>
+<ul>
+<li>Inter-procedural reachability (a helper that always panics).</li>
+<li>Branch-merging analysis (<code>if cond { return 1 } else { return 2 } bar();</code> requires dataflow, out of v0 scope).</li>
+<li><code>loop { ... }</code> without <code>break</code>.</li>
+<li><code>match</code> arms whose every branch diverges.</li>
+</ul>
+<h2 id="language-coverage-4"><a class="header" href="#language-coverage-4">Language coverage</a></h2>
+<ul>
+<li>Rust: grandfathered citations. Hovemeyer &amp; Pugh OOPSLA 2004 defines
+the “UR — Unreachable code” bug pattern; Engler et al. SOSP 2001
+establishes the broader “Bugs as Deviant Behavior” framing.</li>
+<li>Python: unconfirmed citation per
+<a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/surveys/unreachable-after-terminator-python-2026-05.md"><code>docs/surveys/unreachable-after-terminator-python-2026-05.md</code></a>;
+P1 is satisfied by the two grandfathered Rust citations.</li>
+</ul>
+<h2 id="interaction-with-allowunreachable_code"><a class="header" href="#interaction-with-allowunreachable_code">Interaction with <code>#[allow(unreachable_code)]</code></a></h2>
+<p>The detector treats <code>#[allow(unreachable_code)]</code> on any ancestor
+function or block (and the <code>#![allow(unreachable_code)]</code> inner-
+attribute form) as a suppression. The match is by textual substring
+on the attribute source — robust attribute parsing is out of v0
+scope and unnecessary for the high-precision common case.</p>
+<h2 id="configuration-5"><a class="header" href="#configuration-5">Configuration</a></h2>
+<pre><code class="language-toml">[detectors.unreachable-after-terminator]
+enabled = true
+severity = "Warning"
+</code></pre>
+<p>In-source:</p>
+<ul>
+<li>Rust: <code>#[cntrdct::allow(unreachable-after-terminator)]</code> on the
+containing function, or the bare <code>#[allow(unreachable_code)]</code> form
+which the detector already respects.</li>
+<li>Python: <code># cntrdct: allow(unreachable-after-terminator)</code> (Q-9).</li>
+</ul>
+<h2 id="related-5"><a class="header" href="#related-5">Related</a></h2>
+<ul>
+<li><a href="#config-interaction">config-interaction</a> — the cfg attribute
+family interacts with both detectors from opposite sides.</li>
+<li><a href="#severity-and-anomaly-classes-p5">Severity and anomaly classes (P5)</a> —
+Logic anomaly class.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="cntrdcttoml-reference"><a class="header" href="#cntrdcttoml-reference">cntrdct.toml reference</a></h1>
+<p>A <code>cntrdct.toml</code> placed at the scan root tunes per-detector behaviour,
+filters by path, and controls per-language enablement. The file is
+optional — a missing <code>cntrdct.toml</code> is silently treated as the empty
+config (every detector on, every language on, no suppression). The
+file location can be overridden with <code>cntrdct scan --config &lt;PATH&gt;</code>.</p>
+<p>The full schema lives in <code>src/config.rs</code> and is enforced via
+<code>serde(deny_unknown_fields)</code>, so a typo in a section name is a hard
+parse error rather than a silent skip.</p>
+<h2 id="top-level-shape"><a class="header" href="#top-level-shape">Top-level shape</a></h2>
+<pre><code class="language-toml">[detectors.&lt;id&gt;]      # per-detector overrides (enabled, severity)
+[paths]               # include / exclude globs
+[languages.&lt;canonical&gt;]  # per-language overrides (enabled, suppress)
+</code></pre>
+<h2 id="detectorsid"><a class="header" href="#detectorsid"><code>[detectors.&lt;id&gt;]</code></a></h2>
+<pre><code class="language-toml">[detectors.clone-drift]
+enabled = false                # drop every clone-drift finding
+
+[detectors.arg-swap]
+severity = "error"             # remap raw severity
+
+[detectors.unreachable-after-terminator]
+enabled = true
+severity = "note"
+</code></pre>
+<p><code>enabled</code> accepts <code>true</code> or <code>false</code> (default <code>true</code>). <code>severity</code>
+accepts the lowercase strings <code>"info"</code>, <code>"note"</code>, <code>"warning"</code>,
+<code>"error"</code>; the value replaces the detector’s <code>raw_severity</code> on every
+finding before SARIF emission applies the IEEE 1044-2009 mapping
+(<a href="#severity-and-anomaly-classes-p5">Severity and anomaly classes (P5)</a>).</p>
+<p><code>&lt;id&gt;</code> values are exactly the strings in
+<code>cntrdct::ALL_DETECTOR_IDS</code> — i.e. <code>arg-swap</code>, <code>clone-drift</code>,
+<code>comment-code</code>, <code>config-interaction</code>, <code>pr-miner</code>,
+<code>unreachable-after-terminator</code>. Unknown IDs are accepted but
+ineffective; consider running <code>cntrdct scan</code> and checking findings
+to confirm the section is wired.</p>
+<h2 id="paths"><a class="header" href="#paths"><code>[paths]</code></a></h2>
+<pre><code class="language-toml">[paths]
+exclude = ["vendor/**", "**/generated/*.rs"]
+include = ["src/**", "lib/**"]
+</code></pre>
+<p>Both fields are lists of <code>globset</code>-compatible patterns evaluated
+against the finding’s <em>primary</em> file (relative to the scan root).
+The semantics are:</p>
+<ul>
+<li><code>exclude</code> always wins. Any finding whose primary file matches an
+exclude glob is dropped.</li>
+<li><code>include</code> is “allowlist mode” when non-empty: a finding survives
+only if its primary file matches at least one include glob.</li>
+<li>Both empty (or absent) is the default: every file is in scope.</li>
+</ul>
+<p>Path filtering happens at the apply stage, not at file discovery, so
+exclusion does not save scan time — it filters the output. To skip a
+directory at discovery time, use a per-language disable (<code>[languages.&lt;x&gt;] enabled = false</code>) or invoke cntrdct against a narrower path.</p>
+<h2 id="languagescanonical"><a class="header" href="#languagescanonical"><code>[languages.&lt;canonical&gt;]</code></a></h2>
+<pre><code class="language-toml">[languages.rust]
+enabled = true
+
+[languages.python]
+enabled = true
+suppress = ["pr-miner", "comment-code"]
+</code></pre>
+<p>Two effects:</p>
+<ul>
+<li><code>enabled = false</code> causes the file walker to skip files of that
+language at discovery time. This is the right knob to turn off an
+entire language family.</li>
+<li><code>suppress = ["&lt;id&gt;", ...]</code> drops findings whose primary file is in
+that language and whose <code>detector_id</code> is in the list. Equivalent in
+spirit to <code>[detectors.&lt;id&gt;] enabled = false</code>, but scoped to one
+language so a detector can stay on for Rust while being silenced on
+Python (or vice versa).</li>
+</ul>
+<p>Canonical language names are <code>rust</code> and <code>python</code> at v0.4.3. Unknown
+keys (<code>[languages.ruby]</code> etc.) are accepted but ineffective.</p>
+<h2 id="precedence"><a class="header" href="#precedence">Precedence</a></h2>
+<p>When multiple knobs apply to the same finding, the apply order is:</p>
+<ol>
+<li>Language enablement (<code>[languages.&lt;x&gt;] enabled = false</code> removes the
+file from the scan).</li>
+<li>Path filter (<code>[paths]</code> <code>exclude</code> then <code>include</code>).</li>
+<li>Per-detector enablement (<code>[detectors.&lt;id&gt;] enabled = false</code>).</li>
+<li>Per-language suppression (<code>[languages.&lt;x&gt;] suppress</code>).</li>
+<li>In-source attributes (<a href="#in-source-suppressions">In-source suppressions</a>).</li>
+<li>Per-detector severity remap (<code>[detectors.&lt;id&gt;] severity = "..."</code>).</li>
+</ol>
+<p>Any single drop in steps 1–5 short-circuits the finding before SARIF
+emission. Severity remap (step 6) only fires on findings that survive
+the drops.</p>
+<h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
+<ul>
+<li><a href="#in-source-suppressions">In-source suppressions</a> — <code>#[cntrdct::allow(...)]</code>
+attribute and <code># cntrdct: allow(...)</code> comment forms.</li>
+<li><a href="#severity-and-anomaly-classes-p5">Severity and anomaly classes (P5)</a> — what
+remapping <code>severity</code> actually changes downstream.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="in-source-suppressions"><a class="header" href="#in-source-suppressions">In-source suppressions</a></h1>
+<p>Findings can be suppressed at the call site without editing
+<code>cntrdct.toml</code>. Two equivalent surfaces ship: a Rust attribute and a
+Python line comment. Both are recognised by the Q-9 / Q-10 tree-
+sitter parser seam and apply at the apply stage after Layer 1
+finishes — the detector still runs, but the matching findings are
+filtered before they reach SARIF emission.</p>
+<h2 id="rust--cntrdctallow"><a class="header" href="#rust--cntrdctallow">Rust — <code>#[cntrdct::allow(...)]</code></a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cntrdct::allow(clone-drift)]
+fn looks_like_a_drifted_clone_but_is_intentional() { /* ... */ }
+<span class="boring">}</span></code></pre>
+<p>The attribute precedes the item it suppresses. The argument list
+takes one or more detector IDs; multiple IDs in a single attribute
+are equivalent to stacking multiple attributes.</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cntrdct::allow(clone-drift, unreachable-after-terminator)]
+fn double_suppressed() { /* ... */ }
+<span class="boring">}</span></code></pre>
+<p>Empty argument list is the catch-all: every detector is silenced on
+that item.</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[cntrdct::allow()]
+fn silence_everything_on_this_function() { /* ... */ }
+<span class="boring">}</span></code></pre>
+<p>Recognised attribute scopes:</p>
+<ul>
+<li><code>function_item</code> — the most common case.</li>
+<li><code>struct_item</code>, <code>enum_item</code>, <code>impl_item</code>, <code>mod_item</code>,
+<code>static_item</code>, <code>const_item</code>, <code>trait_item</code>, <code>type_item</code>,
+<code>union_item</code> — anywhere a Rust outer attribute attaches.</li>
+<li>Block-level inner attributes (<code>#![cntrdct::allow(...)]</code>) suppress
+the enclosing block.</li>
+</ul>
+<p>The suppression range covers the entire item span, so a finding
+anywhere inside the function — primary or related — is dropped.</p>
+<h2 id="python---cntrdct-allow"><a class="header" href="#python---cntrdct-allow">Python — <code># cntrdct: allow(...)</code></a></h2>
+<p>The Q-9 tree-sitter-python suppression scanner recognises two
+positions for the comment:</p>
+<h3 id="trailing-form"><a class="header" href="#trailing-form">Trailing form</a></h3>
+<pre><code class="language-python">do_something(b, a)  # cntrdct: allow(arg-swap)
+</code></pre>
+<p>Suppresses findings whose <code>primary.start_line</code> equals the comment
+line. Use this for narrow, in-line suppression.</p>
+<h3 id="standalone-whole-line-form"><a class="header" href="#standalone-whole-line-form">Standalone (whole-line) form</a></h3>
+<pre><code class="language-python"># cntrdct: allow(arg-swap)
+def looks_like_a_swap_but_intentional(b, a):
+    do_something(b, a)
+</code></pre>
+<p>Suppresses findings whose <code>primary</code> falls anywhere inside the next
+non-comment named sibling — function, class, or top-level statement
+— mirroring the Rust attribute-precedes-item shape at line
+granularity.</p>
+<h3 id="catch-all"><a class="header" href="#catch-all">Catch-all</a></h3>
+<pre><code class="language-python"># cntrdct: allow()
+def silence_everything():
+    ...
+</code></pre>
+<p>Both forms accept the empty argument list as the catch-all.</p>
+<h2 id="what-gets-matched"><a class="header" href="#what-gets-matched">What gets matched</a></h2>
+<p>The argument tokens between the parentheses are split on commas and
+trimmed; each must be a detector ID from <code>cntrdct::ALL_DETECTOR_IDS</code>.
+Whitespace inside the parentheses is irrelevant. Unknown IDs are
+accepted at parse time but have no effect — they simply do not match
+any finding.</p>
+<p>Test coverage lives in <code>tests/multilang_config.rs</code>
+(<code>python_attribute_allow_*</code> cases) and <code>tests/suppression.rs</code> for the
+Rust attribute paths. All three surfaces (Rust attribute, Python
+standalone, Python trailing) round-trip through the same apply
+helper, so the precedence rules in <a href="#cntrdcttoml-reference">cntrdct.toml
+reference</a> apply uniformly.</p>
+<h2 id="when-to-use-which-surface"><a class="header" href="#when-to-use-which-surface">When to use which surface</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Scenario</th><th>Surface</th></tr>
+</thead>
+<tbody>
+<tr><td>One specific call site / function known to be a false positive</td><td>In-source comment / attribute. Document the reason inline.</td></tr>
+<tr><td>Wholesale silencing of a detector for a vendored directory</td><td><code>cntrdct.toml</code> <code>[paths] exclude</code></td></tr>
+<tr><td>Silencing a detector for an entire language</td><td><code>cntrdct.toml</code> <code>[languages.&lt;x&gt;] suppress</code></td></tr>
+<tr><td>Disabling a detector globally</td><td><code>cntrdct.toml</code> <code>[detectors.&lt;id&gt;] enabled = false</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>In-source suppressions are preferred for narrow, justified
+exceptions because they keep the rationale next to the code. Bulk
+silencing belongs in <code>cntrdct.toml</code> where it can be reviewed in one
+place.</p>
+<h2 id="see-also-1"><a class="header" href="#see-also-1">See also</a></h2>
+<ul>
+<li><a href="#cntrdcttoml-reference">cntrdct.toml reference</a> — config-file
+precedence and per-path / per-language knobs.</li>
+<li><a href="#citation-policy-p1">Citation policy (P1)</a> — every
+suppression is a claim that the citing paper’s prior art does not
+apply to that code; keep the comment alongside the suppression
+honest.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="scan"><a class="header" href="#scan">scan</a></h1>
+<p><code>cntrdct scan &lt;PATH&gt;</code> is the primary entry point. It walks a directory
+or file, parses each supported-language source through tree-sitter,
+runs all six Layer 1 detectors, applies the Layer 2 ranker, optionally
+routes the top-N findings through the Layer 3 LLM adjudicator, and
+emits the result as JSON or SARIF 2.1.0.</p>
+<h2 id="synopsis"><a class="header" href="#synopsis">Synopsis</a></h2>
+<pre><code class="language-sh">cntrdct scan ./src                              # JSON to stdout
+cntrdct scan ./src --format sarif &gt; out.sarif   # SARIF to file
+cargo cntrdct scan ./src                        # cargo subcommand shim
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Default</th><th>Effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--format &lt;json|sarif&gt;</code></td><td><code>json</code></td><td>Output format. JSON pretty-prints <code>Vec&lt;RankedFinding&gt;</code> (carries <code>rank_score</code>, <code>posterior_tp</code>, <code>wilson_lower</code>). SARIF emits OASIS 2.1.0 ordered by descending <code>rank_score</code>.</td></tr>
+<tr><td><code>--config &lt;PATH&gt;</code></td><td>scan-root <code>cntrdct.toml</code></td><td>Override the project config. Missing file is silently treated as an empty config.</td></tr>
+<tr><td><code>--priors &lt;PATH&gt;</code></td><td>per-user cache → embedded</td><td>Override the Layer 2 priors JSON. The full fallback chain is <code>--priors</code> → <code>&lt;cache_dir&gt;/cntrdct/priors.json</code> → embedded default → uncalibrated.</td></tr>
+<tr><td><code>--no-calibration</code></td><td>off</td><td>Force the uncalibrated ranker (sibling-count ordering) regardless of priors availability.</td></tr>
+<tr><td><code>--adjudicate</code></td><td>off</td><td>Route the top-N findings through Layer 3 LLM. Requires <code>ANTHROPIC_API_KEY</code>. Absence of the key prints a stderr note and continues without adjudication.</td></tr>
+<tr><td><code>--adjudicate-top &lt;N&gt;</code></td><td><code>5</code></td><td>Number of top-ranked findings to send to the adjudicator.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="output-shapes"><a class="header" href="#output-shapes">Output shapes</a></h2>
+<p>JSON is the default. Each <code>RankedFinding</code> carries:</p>
+<ul>
+<li><code>detector_id</code>, <code>primary</code>, <code>related</code>, <code>message</code>, <code>severity</code>,
+<code>anomaly_class</code>, <code>evidence</code> (verbatim from Layer 1).</li>
+<li><code>rank_score</code> (Wilson / Jeffreys precision × log-sibling-count),
+<code>prior_method</code> (<code>"wilson"</code> or <code>"jeffreys"</code>), <code>posterior_tp</code>, and
+<code>wilson_lower</code> (Layer 2).</li>
+<li><code>adjudication</code> (verdict, raw confidence, optional Platt-calibrated
+confidence, calibration_tag) when <code>--adjudicate</code> ran.</li>
+</ul>
+<p>SARIF emission is validated against the OASIS 2.1.0 schema on every
+CI run; <code>tool.driver.rules</code> carries one entry per detector ID per the
+<code>cntrdct::ALL_DETECTOR_IDS</code> single source of truth (Q-4).</p>
+<h2 id="exit-codes"><a class="header" href="#exit-codes">Exit codes</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Code</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td>0</td><td>Scan completed successfully (regardless of finding count).</td></tr>
+<tr><td>1</td><td>Invalid arguments, path not found, or any <code>ScanError</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>scan</code> never panics on bad input; parse failures inside a single file
+are logged to stderr and the file is skipped silently.</p>
+<h2 id="network-boundary"><a class="header" href="#network-boundary">Network boundary</a></h2>
+<p><code>scan</code> itself is fully offline. Only the optional <code>--adjudicate</code> flag
+opens a socket — and even then, only from
+<code>src/adjudicator.rs::ReqwestClient</code>. The CI <code>network-isolation</code> job
+runs <code>cntrdct scan</code> inside a Linux network namespace
+(<code>sudo unshare --net</code>) on every push and PR; any unintended socket
+open fails the job with <code>ENETUNREACH</code> / <code>EAI_*</code>. See
+<a href="#network-access-policy-p3">Network access policy (P3)</a> for the full
+enforcement story.</p>
+<h2 id="worked-example"><a class="header" href="#worked-example">Worked example</a></h2>
+<pre><code class="language-sh">$ cntrdct scan ./src --format json | jq '.[0]'
+{
+  "detector_id": "comment-code",
+  "primary": { "file": "src/parser.rs", "start_line": 42, ... },
+  "message": "doc comment claims 'panics' but implementation does not match",
+  "severity": "Note",
+  "anomaly_class": "Documentation",
+  "rank_score": 0.657,
+  "prior_method": "jeffreys",
+  "posterior_tp": 0.71,
+  "evidence": { "raw": { "pattern": "B", "trigger": "panics" }, ... }
+}
+</code></pre>
+<h2 id="see-also-2"><a class="header" href="#see-also-2">See also</a></h2>
+<ul>
+<li><a href="#calibrate">calibrate</a> — rebuild the Layer 2 priors against
+your own labelled corpus.</li>
+<li><a href="#eval">eval</a> — precision / recall / F1 reports.</li>
+<li><a href="#sarif-output">SARIF output</a> — how to wire the SARIF
+emission into GitHub Code Scanning.</li>
+<li>Spec:
+<a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/cli-v0.md"><code>docs/spec/cli-v0.md</code></a>.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="calibrate"><a class="header" href="#calibrate">calibrate</a></h1>
+<p><code>cntrdct calibrate</code> fits statistical artefacts against a labelled
+corpus. It has three modes, all behind the same subcommand:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Mode</th><th>Flag</th><th>Spec</th></tr>
+</thead>
+<tbody>
+<tr><td>Detector priors (default)</td><td>none</td><td><a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/ranker-v1.md"><code>ranker-v1.md</code></a></td></tr>
+<tr><td>LLM-confidence Platt fit</td><td><code>--fit-platt</code></td><td><a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/llm-calibration-v0.md"><code>llm-calibration-v0.md</code></a></td></tr>
+<tr><td>Recall audit</td><td><code>--audit-recall</code></td><td><a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/recall-audit-v0.md"><code>recall-audit-v0.md</code></a></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="default-mode--detector-priors-p4"><a class="header" href="#default-mode--detector-priors-p4">Default mode — detector priors (P4)</a></h2>
+<pre><code class="language-sh">cntrdct calibrate benchmarks/labelled-findings.jsonl \
+    --output benchmarks/priors-default.json
+</code></pre>
+<p>Reads a JSONL of labelled findings (each row carries
+<code>detector_id</code>, <code>is_true_positive</code>, optionally <code>anomaly_class</code> and
+<code>evidence</code>) and writes one prior per detector. The Q-11 small-N
+switch picks the lower-bound method automatically:</p>
+<ul>
+<li><code>tp + fp ≥ 30</code>: Wilson 95% lower bound (<code>prior_method = "wilson"</code>).</li>
+<li><code>tp + fp &lt; 30</code>: Beta(1, 1) Bayes-Laplace 2.5% lower bound
+(<code>prior_method = "jeffreys"</code>), with the BCD 2001 §4 boundary
+modification at <code>tp = 0</code>.</li>
+</ul>
+<p>Default <code>--output</code> is <code>&lt;cache_dir&gt;/cntrdct/priors.json</code> (the per-user
+cache). The shipped binary embeds <code>benchmarks/priors-default.json</code>
+via <code>include_str!</code>, so a fresh <code>cargo install cntrdct</code> carries
+calibrated priors out of the box. The fallback chain at scan time is
+<code>--priors</code> → per-user cache → embedded default → uncalibrated.</p>
+<h2 id="--fit-platt-mode--llm-confidence-calibration-q-12"><a class="header" href="#--fit-platt-mode--llm-confidence-calibration-q-12"><code>--fit-platt</code> mode — LLM-confidence calibration (Q-12)</a></h2>
+<pre><code class="language-sh">cntrdct calibrate --fit-platt llm-confidence.jsonl \
+    --output benchmarks/llm-calibration/platt-default.json
+</code></pre>
+<p>Fits post-hoc Platt scaling parameters <code>(a, b)</code> per
+<code>(detector_id, anomaly_class)</code> cell from a JSONL of
+<code>LabelledLlmConfidence</code> rows (<code>raw_confidence</code>, <code>is_correct</code>,
+<code>detector_id</code>, <code>anomaly_class</code>). The fitted registry is consumed by
+the in-binary helper <code>apply_llm_calibration</code>, which populates
+<code>AdjudicationResult.calibrated_confidence</code> and the SARIF
+<code>result.properties.adjudication.calibrated_confidence</code> field.</p>
+<p>v0 ships an empty registry; the helper is a no-op fallback until a
+real labelled adjudication corpus is fit. On the constructed
+pathology fixture under <code>tests/calibration_ece.rs</code> (over-confidence
+at 0.95 / 0.85 / 0.75 raw with empirical accuracy ≈ 0.5), raw ECE
+0.256 drops to ≈ 0.001 after Platt.</p>
+<h2 id="--audit-recall-mode--q-14-recall-audit"><a class="header" href="#--audit-recall-mode--q-14-recall-audit"><code>--audit-recall</code> mode — Q-14 recall audit</a></h2>
+<pre><code class="language-sh">cntrdct calibrate --audit-recall benchmarks/audit-corpus
+</code></pre>
+<p>The positional argument is a <em>directory</em> in this mode (not a JSONL
+file). The directory must contain a <code>manifest.jsonl</code> listing
+expected findings sourced from external bug catalogues (NVD / OSV /
+Semgrep / CodeQL / Clippy / rustc lint testset / paper-appendix /
+upstream bug-fix commits). Output defaults to stdout; pass
+<code>--output &lt;PATH&gt;</code> to write to disk.</p>
+<p>The audit is recall-bias-counter-selected per Heckman &amp; Williams
+(IST 2011), sitting alongside the self-selected
+<code>benchmarks/wild-corpus/</code> whose provenance measures the false-
+positive rate. The v0.4.3 audit closed at overall recall_upper_bound
+0.66 raw 0.6557, with <code>comment-code</code> saturating all three Tan SOSP
+2007 patterns at 34 / 0 / 1.00 across twenty-three permissive-
+licensed upstreams. Per <code>CLAUDE.md</code>’s release procedure, re-running
+this audit at every release tag is good hygiene when detector logic
+has changed.</p>
+<h2 id="exit-codes-1"><a class="header" href="#exit-codes-1">Exit codes</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Code</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td>0</td><td>Calibration completed; output written.</td></tr>
+<tr><td>1</td><td>Invalid arguments, missing corpus / manifest, or fit failure.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="see-also-3"><a class="header" href="#see-also-3">See also</a></h2>
+<ul>
+<li><a href="#scan">scan</a> — consumes the priors at runtime via the
+fallback chain.</li>
+<li><a href="#statistical-priors-p4">Statistical priors (P4)</a> — concepts-level
+explainer of what the calibrator produces and why.</li>
+<li><a href="#eval">eval</a> — for measuring detector quality against a
+labelled corpus without rebuilding priors.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="eval"><a class="header" href="#eval">eval</a></h1>
+<p><code>cntrdct eval &lt;CORPUS_DIR&gt;</code> runs the full scan pipeline against a
+labelled corpus and reports precision, recall, and F1 — both per
+detector and overall. It is the routine measurement workflow for
+“did detector quality move when I changed the code?”.</p>
+<h2 id="synopsis-1"><a class="header" href="#synopsis-1">Synopsis</a></h2>
+<pre><code class="language-sh">cntrdct eval benchmarks/wild-corpus-python              # JSON to stdout
+cntrdct eval benchmarks/audit-corpus \
+    --baseline sourcerercc,pybuglab \
+    --baselines-out baseline-comparison.json
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Default</th><th>Effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--manifest &lt;PATH&gt;</code></td><td><code>&lt;corpus&gt;/manifest.jsonl</code></td><td>Override the labelled manifest.</td></tr>
+<tr><td><code>--baseline &lt;NAMES&gt;</code></td><td>unset</td><td>Q-15: comma-separated baseline names (currently <code>sourcerercc</code>, <code>pybuglab</code>). Triggers side-by-side comparison.</td></tr>
+<tr><td><code>--baselines-out &lt;PATH&gt;</code></td><td>stdout</td><td>Write the <code>BaselineComparisonReport</code> JSON to disk. Without this flag the report follows the <code>EvalReport</code> on stdout.</td></tr>
+<tr><td><code>--baselines-skip-run</code></td><td>off</td><td>Read pre-cached baseline JSONL under <code>&lt;corpus&gt;/../baselines/v&lt;release&gt;/&lt;name&gt;.jsonl</code> instead of invoking Docker.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="manifest-shape"><a class="header" href="#manifest-shape">Manifest shape</a></h2>
+<p>Each row of <code>manifest.jsonl</code> declares one source file and the
+findings expected from it:</p>
+<pre><code class="language-jsonl">{"path": "files/quiet_a.rs", "expected": [
+  {"detector_id": "clone-drift", "start_line": 42},
+  {"detector_id": "comment-code", "start_line": 87}
+]}
+</code></pre>
+<p><code>ManifestEntry</code> carries optional <code>source</code>, <code>license</code>, and <code>sha256</code>
+fields (M-4) so wild-corpus rows can pin the upstream provenance.</p>
+<h2 id="baseline-comparison-q-15"><a class="header" href="#baseline-comparison-q-15">Baseline comparison (Q-15)</a></h2>
+<p>The <code>--baseline</code> flag runs cntrdct alongside a pinned external
+comparator and reports side-by-side precision / recall / F1 on the
+same corpus. Baselines ship as digest-pinned Docker images invoked
+with <code>docker run --network=none --rm --read-only</code> so the comparison
+is reproducible from a clean environment.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Baseline</th><th>Detector</th><th>Image</th></tr>
+</thead>
+<tbody>
+<tr><td><code>sourcerercc</code></td><td><code>clone-drift</code></td><td><code>baselines/sourcerercc/Dockerfile</code></td></tr>
+<tr><td><code>pybuglab</code></td><td><code>arg-swap</code> (Python)</td><td><code>baselines/pybuglab/Dockerfile</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>The release-time path is:</p>
+<ol>
+<li>Run Docker locally on the maintainer’s workstation against the
+audit + wild corpora.</li>
+<li>Commit the resulting JSONL under
+<code>benchmarks/baselines/v&lt;release&gt;/&lt;name&gt;.jsonl</code>.</li>
+<li>Re-run with <code>--baselines-skip-run</code> to regenerate the report from
+the committed artefact in CI.</li>
+</ol>
+<p><code>BaselineComparisonReport.priors_default_sha256</code> records the SHA-256
+of the priors file the comparison ran against so the numbers can be
+re-derived from a known-good binary state.</p>
+<p>Phase D — live Docker runs against real corpora and populated
+README numbers — is pending on the maintainer workstation as of
+v0.4.3.</p>
+<h2 id="exit-codes-2"><a class="header" href="#exit-codes-2">Exit codes</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Code</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td>0</td><td>Eval completed; report written.</td></tr>
+<tr><td>1</td><td>Invalid arguments, missing corpus / manifest, baseline misconfig.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="see-also-4"><a class="header" href="#see-also-4">See also</a></h2>
+<ul>
+<li><a href="#calibrate">calibrate</a> — <code>--audit-recall</code> mode also operates
+on a corpus directory and is a complementary measurement axis
+(recall against externally-sourced ground truth).</li>
+<li><a href="#scan">scan</a> — eval reuses the scan pipeline internally; any
+change that affects scan output reflects in eval numbers.</li>
+<li>Spec:
+<a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/eval-v0.md"><code>docs/spec/eval-v0.md</code></a>,
+<a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/sota-baselines-v0.md"><code>docs/spec/sota-baselines-v0.md</code></a>.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="cross-model-kappa"><a class="header" href="#cross-model-kappa">cross-model-kappa</a></h1>
+<p><code>cntrdct cross-model-kappa &lt;CORPUS&gt;</code> (Q-13) routes the same finding
+set through Claude Code’s <code>claude --print</code> and the Gemini CLI’s
+<code>gemini -p</code>, then reports pairwise Cohen’s κ per
+<code>(detector_id, anomaly_class)</code> cell. It is the on-demand audit that
+measures inter-judge reliability of the Layer 3 adjudicator.</p>
+<h2 id="synopsis-2"><a class="header" href="#synopsis-2">Synopsis</a></h2>
+<pre><code class="language-sh">cntrdct cross-model-kappa findings.jsonl
+cntrdct cross-model-kappa findings.json --output audit.json
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Default</th><th>Effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--output &lt;PATH&gt;</code></td><td>stdout</td><td>Write the audit JSON to disk. With this flag a one-line summary is also printed to stderr.</td></tr>
+</tbody>
+</table>
+</div>
+<p>The positional argument accepts either a JSONL of <code>RankedFinding</code>
+rows or a JSON array — exactly the shape <code>cntrdct scan --format json</code> emits, so the round-trip <code>scan | cross-model-kappa</code> composes
+cleanly.</p>
+<h2 id="interpreting-κ"><a class="header" href="#interpreting-κ">Interpreting κ</a></h2>
+<p>κ is reported per <code>(detector_id, anomaly_class)</code> cell using the
+Landis &amp; Koch (1977) substantial-agreement floor:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Range</th><th>Interpretation</th></tr>
+</thead>
+<tbody>
+<tr><td>κ &lt; 0.0</td><td>Worse than chance — judge disagreement systematic.</td></tr>
+<tr><td>0.0 – 0.20</td><td>Slight agreement.</td></tr>
+<tr><td>0.21 – 0.40</td><td>Fair agreement.</td></tr>
+<tr><td>0.41 – 0.60</td><td>Moderate agreement.</td></tr>
+<tr><td>0.61 – 0.80</td><td>Substantial agreement (the actionable floor).</td></tr>
+<tr><td>0.81 – 1.00</td><td>Almost perfect agreement.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Cells below 0.6 are flagged as low-reliability adjudication regions
+and indicate the judges disagree often enough that downstream
+consumers should treat the verdict as advisory rather than load-
+bearing.</p>
+<h2 id="auth-model"><a class="header" href="#auth-model">Auth model</a></h2>
+<p>cntrdct does not read API keys for this subcommand. Both CLIs handle
+their own auth via subscription / OAuth (<code>claude /login</code>, <code>gemini auth</code>). At least two live providers are required to compute κ; a
+missing or unauthenticated CLI surfaces as a <code>skipped</code> provider in
+the audit JSON.</p>
+<p>The CLI providers are spawned with <code>current_dir = &lt;tempdir&gt;</code> so
+<code>CLAUDE.md</code> / <code>GEMINI.md</code> auto-discovery does not interfere, and the
+agentic persona is stripped:</p>
+<ul>
+<li><code>claude --print</code> is invoked with <code>--system-prompt</code> + <code>--tools ""</code>
+<ul>
+<li><code>--strict-mcp-config</code> + <code>--no-session-persistence</code> +
+<code>--output-format json</code>.</li>
+</ul>
+</li>
+<li><code>gemini -p</code> is invoked with the <code>GEMINI_SYSTEM_MD</code> env override
+pointing at a temp file and <code>--output-format json</code>.</li>
+</ul>
+<h2 id="network-boundary-p3"><a class="header" href="#network-boundary-p3">Network boundary (P3)</a></h2>
+<p><code>cross-model-kappa</code> is the one subcommand excluded from the
+<code>network-isolation</code> CI gate. It does not open sockets <em>from</em>
+cntrdct — it shells out to subprocesses that themselves talk to the
+network. Same shape as <code>scan --adjudicate</code>. See
+<a href="#network-access-policy-p3">Network access policy (P3)</a>.</p>
+<h2 id="why-on-demand-not-nightly"><a class="header" href="#why-on-demand-not-nightly">Why on-demand, not nightly</a></h2>
+<p>Continuous monitoring was dropped for measurement-stationarity
+reasons. Commercial LLMs version-bump silently; sampler
+stochasticity at temperature 0 still produces variance; and the
+time-series κ would have captured noise more than any cntrdct-side
+property. The audit ships as an on-demand snapshot only. The full
+design rationale lives in
+<a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/cross-model-kappa-v0.md"><code>docs/spec/cross-model-kappa-v0.md</code></a>
+“Design rationale”.</p>
+<h2 id="exit-codes-3"><a class="header" href="#exit-codes-3">Exit codes</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Code</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td>0</td><td>Audit completed; report written.</td></tr>
+<tr><td>1</td><td>Invalid arguments, fewer than two live providers, corpus parse error.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="see-also-5"><a class="header" href="#see-also-5">See also</a></h2>
+<ul>
+<li><a href="#scan">scan</a> — produces input findings for the audit when
+combined with <code>--format json</code>.</li>
+<li><a href="#calibrate">calibrate</a> <code>--fit-platt</code> — the Q-12 LLM-
+confidence calibration is downstream of this κ audit (the audit
+measures reliability; the calibration corrects systematic
+miscalibration).</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="github-action"><a class="header" href="#github-action">GitHub Action</a></h1>
+<p>The reusable GitHub Action (T2-9) consumes the pre-built <code>cntrdct</code>
+binary and surfaces findings as PR comments matching the GitHub
+Annotations convention.</p>
+<p>A working sample workflow lives at
+<a href="https://github.com/ktrysmt/cntrdct/blob/master/examples/github-action-usage.yml"><code>examples/github-action-usage.yml</code></a>.
+The mixed Rust + Python SARIF path is verified end-to-end by
+<code>tests/multilang_config.rs</code> so the action emits a single combined
+SARIF document for repositories that span both languages.</p>
+<h2 id="paths-filter"><a class="header" href="#paths-filter">paths filter</a></h2>
+<p>The <code>paths:</code> input accepts <code>&lt;path&gt;:&lt;lang_csv&gt;</code> per-line entries, e.g.</p>
+<pre><code class="language-yaml">paths: |
+  src/:rust
+  scripts/:python
+  tests/:rust,python
+</code></pre>
+<p><code>prepare_config.py</code>, <code>merge_json.py</code>, and <code>merge_sarif.py</code> (shipped
+under <code>examples/</code>) implement the filter and the multi-language merge.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="language-server-lsp"><a class="header" href="#language-server-lsp">Language Server (LSP)</a></h1>
+<p><code>cntrdct-lsp</code> exposes findings to IDEs via the Language Server
+Protocol. The binary ships behind the optional <code>lsp</code> Cargo feature:</p>
+<pre><code class="language-sh">cargo install cntrdct --features lsp
+</code></pre>
+<h2 id="phase-status-t3-12"><a class="header" href="#phase-status-t3-12">Phase status (T3-12)</a></h2>
+<ul>
+<li>Phase 1 — server scaffolding, lifecycle methods, log routing.
+Landed 2026-05-08.</li>
+<li>Phase 1.b — <code>textDocument/{didOpen,didChange,didSave,didClose}</code> →
+<code>textDocument/publishDiagnostics</code>. Severity, code, source, message,
+range, <code>relatedInformation</code>, and <code>data</code> mapping per the spec.
+Landed 2026-05-08.</li>
+<li>Phase 1.c — per-URI 250 ms debouncing on <code>didChange</code>. Landed
+2026-05-09.</li>
+<li>Phase 1.c+ — per-URI generation counter so a fresher event overtaking
+a still-running scan suppresses the stale publish. Landed 2026-05-09.</li>
+<li>Phase 2 — <code>vscode-cntrdct</code> extension scaffolding (TypeScript / pnpm),
+bundling the LSP binary auto-downloaded from GitHub Releases. Pending.</li>
+<li>Phase 3 — VS Code Marketplace listing + announcement. Pending.</li>
+</ul>
+<p>Spec:
+<a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/lsp-v0.md"><code>docs/spec/lsp-v0.md</code></a>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="sarif-output"><a class="header" href="#sarif-output">SARIF output</a></h1>
+<p><code>cntrdct scan --format sarif</code> emits SARIF 2.1.0 compatible with
+GitHub Code Scanning and any other OASIS-conformant consumer. Every
+CI run validates the emission against the official OASIS schema via
+<code>Sarif.Multitool validate</code> (<code>.github/workflows/ci.yml</code>).</p>
+<h2 id="mapping-table"><a class="header" href="#mapping-table">Mapping table</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>cntrdct concept</th><th>SARIF location</th></tr>
+</thead>
+<tbody>
+<tr><td><code>detector_id</code></td><td><code>result.ruleId</code> and <code>tool.driver.rules[].id</code></td></tr>
+<tr><td><code>severity</code></td><td><code>result.level</code> (Error / Warning / Note → error / warning / note; Info → none — see <a href="#severity-and-anomaly-classes-p5">Severity</a>)</td></tr>
+<tr><td>IEEE 1044-2009 anomaly class</td><td><code>result.properties.anomalyClass</code></td></tr>
+<tr><td><code>prior_method</code></td><td><code>result.properties.priorMethod</code> (<code>wilson</code> or <code>jeffreys</code>)</td></tr>
+<tr><td>Citations</td><td><code>result.relatedInformation[]</code> (one entry per citation key)</td></tr>
+<tr><td>Adjudicator verdict</td><td><code>result.properties.adjudication.*</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>The rules taxonomy under <code>tool.driver.rules[]</code> is pinned by
+<code>tests/wiring_consistency.rs</code> against
+<code>cntrdct::ALL_DETECTOR_IDS</code> — adding a detector without registering it
+in both the construction path and the SARIF emitter fails CI.</p>
+<p>Spec:
+<a href="https://github.com/ktrysmt/cntrdct/blob/master/docs/spec/sarif-v0.md"><code>docs/spec/sarif-v0.md</code></a>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="claude-code-skill"><a class="header" href="#claude-code-skill">Claude Code skill</a></h1>
+<p>With the <code>cntrdct</code> binary on <code>PATH</code>, Claude Code users can invoke
+<code>/cntrdct</code> to run a scan and have the top findings summarised in
+chat. The skill definition lives under
+<a href="https://github.com/ktrysmt/cntrdct/tree/master/.claude/skills/cntrdct"><code>.claude/skills/cntrdct/</code></a>
+in the repo.</p>
+<p>The skill is purely a thin wrapper around the same <code>cntrdct scan</code>
+pipeline a CLI user would invoke. It does not enable adjudication by
+default; pass <code>--adjudicate</code> explicitly if an <code>ANTHROPIC_API_KEY</code> is
+present in the shell environment Claude Code inherits.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="faq"><a class="header" href="#faq">FAQ</a></h1>
+<h2 id="does-cntrdct-send-my-code-anywhere-by-default"><a class="header" href="#does-cntrdct-send-my-code-anywhere-by-default">Does cntrdct send my code anywhere by default?</a></h2>
+<p>No. The default <code>scan</code> runs entirely offline. Only two opt-in flows
+talk to the network: <code>scan --adjudicate</code> (Anthropic Messages API,
+gated behind <code>ANTHROPIC_API_KEY</code>) and <code>cross-model-kappa</code> (shells out
+to <code>claude --print</code> and <code>gemini -p</code>, which handle their own auth).
+The <code>network-isolation</code> CI job enforces the property structurally on
+every push and pull request. See
+<a href="#network-access-policy-p3">Network access policy</a>.</p>
+<h2 id="why-does-every-detector-cite-a-paper"><a class="header" href="#why-does-every-detector-cite-a-paper">Why does every detector cite a paper?</a></h2>
+<p>cntrdct’s value proposition is evidence-grounded findings: a reviewer
+can follow each finding back to the peer-reviewed work that justifies
+the detection rule. The constraint is enforced at registration time
+and in CI (<code>tests/citations_consistency.rs</code>). See
+<a href="#citation-policy-p1">Citation policy (P1)</a>.</p>
+<h2 id="can-i-run-cntrdct-on-python-only-repositories"><a class="header" href="#can-i-run-cntrdct-on-python-only-repositories">Can I run cntrdct on Python-only repositories?</a></h2>
+<p>Yes. Five of the six Layer 1 detectors support Python
+(<code>unreachable-after-terminator</code>, <code>clone-drift</code>, <code>arg-swap</code>,
+<code>comment-code</code>, <code>pr-miner</code>); <code>config-interaction</code> is Rust-only because
+Python lacks a semantic analogue to <code>#[cfg(...)]</code>. See
+<a href="#cntrdcttoml-reference">Configuration</a> for
+<code>[languages.python]</code> enablement.</p>
+<h2 id="why-are-some-python-citations-marked-unconfirmed"><a class="header" href="#why-are-some-python-citations-marked-unconfirmed">Why are some Python citations marked Unconfirmed?</a></h2>
+<p>The citation-policy spec (<code>docs/spec/citations-policy.md</code>) requires at
+least one citation grounded in empirical work on the target language.
+Three detectors (<code>comment-code</code>, <code>pr-miner</code>,
+<code>unreachable-after-terminator</code>) cite Rust empirical work under a
+grandfather clause until a confirmed Python citation is identified.
+See the per-detector pages for status.</p>
+<h2 id="how-do-i-report-a-false-positive"><a class="header" href="#how-do-i-report-a-false-positive">How do I report a false positive?</a></h2>
+<p>File an issue using the
+<a href="https://github.com/ktrysmt/cntrdct/issues/new?template=bug_report.md">bug report template</a>.
+Include the source snippet, the SARIF result block (or JSON finding),
+and the cntrdct version. If the false positive reflects a corpus gap,
+contributing a labelled negative under <code>benchmarks/</code> is the most
+direct fix path.</p>
+<h2 id="is-there-a-paid--hosted-version"><a class="header" href="#is-there-a-paid--hosted-version">Is there a paid / hosted version?</a></h2>
+<p>No. cntrdct is MIT-licensed and runs locally.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="releases-and-versioning"><a class="header" href="#releases-and-versioning">Releases and versioning</a></h1>
+<p>cntrdct follows <a href="https://semver.org/">Semantic Versioning</a> on the
+<code>cntrdct</code> crate. Detector identifiers, the SARIF schema mapping, the
+ranker prior-shape contract, and the <code>cntrdct.toml</code> schema are all
+covered by SemVer. Internal modules under <code>src/detectors/</code> are not
+public API and can change between minor versions.</p>
+<h2 id="where-releases-live"><a class="header" href="#where-releases-live">Where releases live</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Surface</th><th>Location</th></tr>
+</thead>
+<tbody>
+<tr><td>Source archive + checksums</td><td><a href="https://github.com/ktrysmt/cntrdct/releases">GitHub Releases</a></td></tr>
+<tr><td>Crate</td><td><a href="https://crates.io/crates/cntrdct">crates.io/crates/cntrdct</a></td></tr>
+<tr><td>Homebrew tap</td><td><a href="https://github.com/ktrysmt/homebrew-cntrdct">ktrysmt/homebrew-cntrdct</a></td></tr>
+<tr><td>Pre-built binaries (Linux x86_64/aarch64, macOS aarch64, Windows x86_64)</td><td>GitHub Releases archives</td></tr>
+<tr><td>Per-release notes</td><td>GitHub Release body (auto-generated from Conventional Commits)</td></tr>
+<tr><td>Cumulative changelog</td><td><a href="https://github.com/ktrysmt/cntrdct/blob/master/CHANGELOG.md"><code>CHANGELOG.md</code></a> at repo root</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="installing-a-specific-version"><a class="header" href="#installing-a-specific-version">Installing a specific version</a></h2>
+<pre><code class="language-sh"># crates.io stable
+cargo install cntrdct --version 0.4.2 --locked
+
+# Pre-release versions (cargo install ignores them by default —
+# the explicit --version qualifier is required)
+cargo install cntrdct --version 0.2.0-rc.1 --locked
+
+# Homebrew tap (always tracks the latest non-pre-release tag)
+brew install ktrysmt/cntrdct/cntrdct
+
+# Pre-built archive (no compile)
+cargo binstall cntrdct
+</code></pre>
+<h2 id="release-notes-vs-changelogmd"><a class="header" href="#release-notes-vs-changelogmd">Release notes vs. CHANGELOG.md</a></h2>
+<p>Two surfaces are generated by <code>git-cliff</code> from <code>cliff.toml</code> on every
+<code>v*</code> tag push:</p>
+<ul>
+<li>The <strong>GitHub Release body</strong> is <code>--latest --strip header</code> — only the
+commits since the previous tag, grouped by Conventional Commits
+prefix (Features, Bug Fixes, Performance, Refactor, Promotions,
+Documentation, Tests, CI, Chores). This is what <code>gh release view</code>
+and the Releases page show.</li>
+<li>The <strong><code>CHANGELOG.md</code> file</strong> at the repo root is the full cumulative
+history across every release, regenerated and committed back to
+<code>master</code> after the GitHub Release publishes. The commit lands as
+<code>chore(changelog): update for vX.Y.Z</code> and the parser skips that
+prefix so the bot commit stays out of subsequent release notes.</li>
+</ul>
+<p>If both surfaces drift (e.g. a tag was force-recreated), regenerate
+locally with:</p>
+<pre><code class="language-sh">git cliff --config cliff.toml --output CHANGELOG.md
+</code></pre>
+<h2 id="pre-release-suffixes"><a class="header" href="#pre-release-suffixes">Pre-release suffixes</a></h2>
+<p>Pre-release tags follow <code>X.Y.Z-(alpha|beta|rc).N</code>. Three operational
+notes:</p>
+<ul>
+<li><code>cargo install cntrdct</code> ignores pre-releases unless <code>--version X.Y.Z-suffix</code> is supplied explicitly.</li>
+<li>The Homebrew tap formula is bumped only on non-pre-release tags, so
+<code>brew install ktrysmt/cntrdct/cntrdct</code> always points at the latest
+stable line.</li>
+<li>The CI verify step strips the leading <code>v</code> and demands an exact
+match against <code>Cargo.toml</code>’s <code>version</code>, so the pre-release suffix
+in the tag and the manifest must agree byte for byte.</li>
+</ul>
+<h2 id="what-is-not-versioned"><a class="header" href="#what-is-not-versioned">What is not versioned</a></h2>
+<p>Two surfaces ship under explicit “not SemVer” labels:</p>
+<ul>
+<li>The research workspace (<code>research/cntrdct-research</code>) has its own
+version cycle and is not released through this procedure. It is not
+a public consumer surface.</li>
+<li>Embedded priors (<code>benchmarks/priors-default.json</code>) and the LLM
+Platt registry (<code>benchmarks/llm-calibration/platt-default.json</code>)
+are data, not code; both are regenerated by <code>cntrdct calibrate</code>
+against the labelled corpora and embedded into the binary via
+<code>include_str!</code>. Changing these does not bump major.</li>
+</ul>
+<p>See also: <a href="https://github.com/ktrysmt/cntrdct/tree/master/docs/spec"><code>docs/spec/</code></a>
+for per-feature contracts, and
+<a href="https://github.com/ktrysmt/cntrdct/blob/master/ROADMAP.md"><code>ROADMAP.md</code></a>
+for the engineering schedule.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-a0b12cfe.js"></script>
+
+        <!-- Custom JS scripts -->
+
+        <script>
+        window.addEventListener('load', function() {
+            window.setTimeout(window.print, 100);
+        });
+        </script>
+
+
+    </div>
+    </body>
+</html>

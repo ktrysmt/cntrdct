@@ -9,5 +9,3 @@
 # Q-16 cargo-mutants output (per-mutant logs, outcomes, locks)
 /mutants.out/
 /mutants.out.old/
-# T3-13 mdBook build output (book.toml's default --dest-dir)
-/book/book/
