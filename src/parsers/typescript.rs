@@ -10,9 +10,12 @@
 //! [`crate::ir::IrExprKind::Other`] with the tree-sitter `Node::kind()`
 //! discriminator + a [`NodeRef`] for raw-tree recovery.
 //!
-//! Scope: the `language_typescript()` grammar covers `.ts` / `.mts` /
-//! `.cts`. JSX-bearing `.tsx` is out of scope for v0 (see
-//! [`Language::TypeScript`] docs for the grammar-ambiguity rationale).
+//! Scope: [`TypeScriptParserProvider`] uses the `language_typescript()`
+//! grammar for `.ts` / `.mts` / `.cts`; [`TsxParserProvider`] uses the
+//! `language_tsx()` grammar for `.tsx`. Both share the converter below —
+//! TSX is a syntactic superset, and JSX-only nodes fall through to the
+//! `Other` total-conversion contract. See the [`Language::TypeScript`] /
+//! [`Language::Tsx`] docs for the `<T>expr` grammar-ambiguity rationale.
 //!
 //! v0 modelling notes (documented limitations, all safe under the
 //! "unknown shape → Other" total-conversion contract):
@@ -41,7 +44,8 @@ use crate::ir::{
     NormalisedToken, ParamKind,
 };
 
-/// Provider for TypeScript source (`*.ts`, `*.mts`, `*.cts`).
+/// Provider for TypeScript source (`*.ts`, `*.mts`, `*.cts`), parsed
+/// with the `language_typescript()` grammar.
 pub struct TypeScriptParserProvider;
 
 impl ParserProvider for TypeScriptParserProvider {
@@ -59,24 +63,65 @@ impl ParserProvider for TypeScriptParserProvider {
         source: Arc<str>,
         path: PathBuf,
     ) -> Result<IrFile, IrConvertError> {
-        let mut shell = build_ir_shell(self, &tree, source, path)?;
-        // One `Arc<Path>` per file, shared by reference into every node's
-        // `Location` (R-1.c'' path (a)): clone the Arc (refcount bump)
-        // instead of deep-copying the path string per node.
-        let path_arc: Arc<Path> = Arc::from(shell.path.as_path());
-        let (fns, top_level_comments) = {
-            let cv = Converter {
-                source: shell.source.as_ref(),
-                path: &path_arc,
-            };
-            cv.convert_root(tree.root_node())?
-        };
-        shell.fns = fns;
-        shell.top_level_comments = top_level_comments;
-        // `tree` drops here — IrFile keeps no reference to it. R1
-        // mitigation: detectors reparse via IrFile::raw_tree on demand.
-        Ok(shell)
+        typescript_to_ir(self, tree, source, path)
     }
+}
+
+/// Provider for TypeScript + JSX source (`*.tsx`), parsed with the
+/// `language_tsx()` grammar. The IR conversion is byte-for-byte the same
+/// as [`TypeScriptParserProvider`] — TSX is a syntactic superset, and
+/// JSX-only node kinds (`jsx_element`, `jsx_expression`, …) fall through
+/// to the `IrStmtKind::Other` / `IrExprKind::Other` total-conversion
+/// contract. The only difference is the grammar object, which resolves
+/// `<T>expr` toward JSX rather than a type-assertion cast.
+pub struct TsxParserProvider;
+
+impl ParserProvider for TsxParserProvider {
+    fn language(&self) -> Language {
+        Language::Tsx
+    }
+
+    fn ts_language(&self) -> tree_sitter::Language {
+        tree_sitter_typescript::language_tsx()
+    }
+
+    fn to_ir(
+        &self,
+        tree: tree_sitter::Tree,
+        source: Arc<str>,
+        path: PathBuf,
+    ) -> Result<IrFile, IrConvertError> {
+        typescript_to_ir(self, tree, source, path)
+    }
+}
+
+/// Shared `to_ir` body for the `.ts` and `.tsx` providers. Generic over
+/// the provider so `build_ir_shell`'s language / grammar mismatch guard
+/// checks against whichever grammar (`language_typescript()` /
+/// `language_tsx()`) parsed the tree.
+fn typescript_to_ir<P: ParserProvider + ?Sized>(
+    provider: &P,
+    tree: tree_sitter::Tree,
+    source: Arc<str>,
+    path: PathBuf,
+) -> Result<IrFile, IrConvertError> {
+    let mut shell = build_ir_shell(provider, &tree, source, path)?;
+    // One `Arc<Path>` per file, shared by reference into every node's
+    // `Location` (R-1.c'' path (a)): clone the Arc (refcount bump)
+    // instead of deep-copying the path string per node.
+    let path_arc: Arc<Path> = Arc::from(shell.path.as_path());
+    let (fns, top_level_comments) = {
+        let cv = Converter {
+            source: shell.source.as_ref(),
+            path: &path_arc,
+        };
+        cv.convert_root(tree.root_node())?
+    };
+    shell.fns = fns;
+    shell.top_level_comments = top_level_comments;
+    // `tree` drops here — IrFile keeps no reference to it. R1
+    // mitigation: detectors reparse via IrFile::raw_tree on demand.
+    Ok(shell)
 }
 
 // ---------- TypeScript divergent-call classification ----------

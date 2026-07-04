@@ -1007,6 +1007,47 @@ function f(x: number): number {
     );
 }
 
+// ---------- .tsx (JSX-bearing TypeScript) ----------
+
+fn parsed_tsx(name: &str, src: &str) -> IrFile {
+    cntrdct::ir_from_source(&PathBuf::from(name), Language::Tsx, src.to_string())
+        .expect("ir_from_source")
+}
+
+#[test]
+fn t_tsx_unreachable_after_return_in_jsx_component() {
+    // The `.tsx` grammar parses the JSX return; the shared TypeScript
+    // converter still surfaces the trailing unreachable statement.
+    let src = r#"
+function Component(x: number) {
+    return <div>{x}</div>;
+    console.log("dead");
+}
+"#;
+    let findings = run(vec![parsed_tsx("Component.tsx", src)]);
+    assert_eq!(findings.len(), 1, "expected 1 finding, got {findings:#?}");
+    assert_eq!(findings[0].detector_id, "unreachable-after-terminator");
+    assert_eq!(
+        findings[0].evidence.language_citation_status,
+        LanguageCitationStatus::Unconfirmed
+    );
+}
+
+#[test]
+fn t_tsx_reachable_jsx_has_no_finding() {
+    let src = r#"
+function Component(x: number) {
+    const cls = x > 0 ? "pos" : "neg";
+    return <div className={cls}>{x}</div>;
+}
+"#;
+    let findings = run(vec![parsed_tsx("Component.tsx", src)]);
+    assert!(
+        findings.is_empty(),
+        "no unreachable code, got {findings:#?}"
+    );
+}
+
 // ---------- R-3.d: Go ----------
 
 fn parsed_go(name: &str, src: &str) -> IrFile {

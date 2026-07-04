@@ -181,6 +181,7 @@ impl Detector for CloneDrift {
             Language::Rust,
             Language::Python,
             Language::TypeScript,
+            Language::Tsx,
             Language::Go,
         ]
     }
@@ -216,6 +217,19 @@ impl Detector for CloneDrift {
         findings.extend(run_detect_for_language(
             ctx,
             Language::TypeScript,
+            LanguageCitationStatus::Unconfirmed,
+            &[
+                "cordy-roy-icpc-2008",
+                "bettenburg-msr-2009",
+                "krinke-icsm-2007",
+            ],
+        ));
+        // `.tsx` reuses the TypeScript function-level pipeline verbatim
+        // (the IR `normalised_tokens` are grammar-agnostic). Unconfirmed
+        // for the same reason as `.ts`.
+        findings.extend(run_detect_for_language(
+            ctx,
+            Language::Tsx,
             LanguageCitationStatus::Unconfirmed,
             &[
                 "cordy-roy-icpc-2008",

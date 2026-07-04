@@ -25,6 +25,12 @@
 //!   sibling statement / definition's full span — mirroring the Rust
 //!   attribute-precedes-item shape at line granularity. `# cntrdct: allow()`
 //!   is the Python catch-all.
+//! - TypeScript / `.tsx` and Go: `// cntrdct: allow(detector_id, …)` line
+//!   comment (block `/* cntrdct: allow(…) */` form also accepted). Same
+//!   trailing / standalone / empty-catch-all semantics as Python; the
+//!   parsing differs only in stripping `//` (or `/* … */`) instead of `#`.
+//!   Directive comments (`//go:build`, `/// <reference … />`) never parse
+//!   as an allow payload and stay inert.
 
 #![deny(missing_docs)]
 
@@ -241,16 +247,19 @@ pub struct AttributeSuppression {
 /// - [`Language::Python`]: collect `# cntrdct: allow(...)` line
 ///   comments. See module-level docs for the trailing / standalone
 ///   semantics.
+/// - [`Language::TypeScript`] / [`Language::Tsx`] / [`Language::Go`]:
+///   collect `// cntrdct: allow(...)` line comments (block `/* ... */`
+///   form also accepted), with the same trailing / standalone semantics
+///   as Python.
 pub fn collect_attribute_suppressions(file: &IrFile) -> Vec<AttributeSuppression> {
     match file.language {
         Language::Rust => collect_rust_suppressions(file),
         Language::Python => collect_python_suppressions(file),
-        // TypeScript suppression syntax (R-2.d) is not yet modelled;
-        // no attribute-based suppressions are collected for TS files.
-        Language::TypeScript => Vec::new(),
-        // Go suppression syntax is not yet modelled (R-3); no
-        // attribute-based suppressions are collected for Go files.
-        Language::Go => Vec::new(),
+        // TypeScript / `.tsx` and Go both use `// cntrdct: allow(...)`
+        // line comments (`/* ... */` block form also accepted), collected
+        // by the shared comment-based machinery below.
+        Language::TypeScript | Language::Tsx => collect_typescript_suppressions(file),
+        Language::Go => collect_go_suppressions(file),
     }
 }
 
@@ -303,28 +312,57 @@ fn collect_rust_suppressions(file: &IrFile) -> Vec<AttributeSuppression> {
 /// suppresses every detector on the suppression range, matching the
 /// Rust attribute's empty-form semantics.
 fn collect_python_suppressions(file: &IrFile) -> Vec<AttributeSuppression> {
+    // Python `# cntrdct: allow(...)` comments. Unlike Rust's hard
+    // `has_error` bail, Python source with a single misindented stretch
+    // can still carry well-formed suppression comments earlier in the
+    // file — tree-sitter recovers locally, so the shared collector walks
+    // the (possibly partial) tree rather than bailing.
+    collect_comment_suppressions(file, parse_python_allow_comment)
+}
+
+/// R-2.d / R-3: TypeScript and `.tsx` spell in-source suppression as
+/// `// cntrdct: allow(<id>)` (block `/* ... */` form also accepted),
+/// with the same trailing / standalone semantics as Python.
+fn collect_typescript_suppressions(file: &IrFile) -> Vec<AttributeSuppression> {
+    collect_comment_suppressions(file, parse_slash_allow_comment)
+}
+
+/// Go uses the identical `// cntrdct: allow(<id>)` line-comment form.
+/// `//go:build` and other directive comments never parse as an allow
+/// payload, so they are inert here.
+fn collect_go_suppressions(file: &IrFile) -> Vec<AttributeSuppression> {
+    collect_comment_suppressions(file, parse_slash_allow_comment)
+}
+
+/// Shared comment-based suppression collector for languages whose
+/// suppression syntax is a line / block comment (Python `#`, TS / Go
+/// `//`). `parse` extracts the `allow(...)` payload from one comment
+/// node's raw text; the trailing-vs-standalone range logic below is
+/// language-agnostic. A comment that shares its line with code
+/// suppresses that single line; a standalone comment suppresses the next
+/// named sibling (stacking across intervening blank / allow lines).
+fn collect_comment_suppressions(
+    file: &IrFile,
+    parse: impl Fn(&tree_sitter::Node, &str) -> Option<ParsedAllow>,
+) -> Vec<AttributeSuppression> {
     let raw_tree = file.raw_tree();
     let root = raw_tree.root_node();
-    // Unlike Rust's hard `has_error` bail, Python source with a single
-    // misindented stretch can still carry well-formed suppression
-    // comments earlier in the file. tree-sitter recovers locally;
-    // walking the tree and collecting comment nodes is safe even with
-    // partial errors. We only bail when no tree was returned at all.
     let mut comments: Vec<tree_sitter::Node> = Vec::new();
-    collect_python_comment_nodes(root, &mut comments);
+    collect_comment_nodes(root, &mut comments);
 
     let mut out = Vec::new();
     for comment in comments {
-        let Some(parsed) = parse_python_allow_comment(&comment, &file.source) else {
+        let Some(parsed) = parse(&comment, &file.source) else {
             continue;
         };
-        if is_python_trailing_comment(&comment, &file.source) {
+        let detector_ids = match parsed {
+            ParsedAllow::All => None,
+            ParsedAllow::List(ids) => Some(ids),
+        };
+        if is_trailing_comment(&comment, &file.source) {
             let line = comment.start_position().row as u32 + 1;
             out.push(AttributeSuppression {
-                detector_ids: match parsed {
-                    ParsedAllow::All => None,
-                    ParsedAllow::List(ids) => Some(ids),
-                },
+                detector_ids,
                 start_line: line,
                 end_line: line,
             });
@@ -332,10 +370,7 @@ fn collect_python_suppressions(file: &IrFile) -> Vec<AttributeSuppression> {
             let start = target.start_position().row as u32 + 1;
             let end = target.end_position().row as u32 + 1;
             out.push(AttributeSuppression {
-                detector_ids: match parsed {
-                    ParsedAllow::All => None,
-                    ParsedAllow::List(ids) => Some(ids),
-                },
+                detector_ids,
                 start_line: start,
                 end_line: end,
             });
@@ -345,21 +380,18 @@ fn collect_python_suppressions(file: &IrFile) -> Vec<AttributeSuppression> {
     out
 }
 
-fn collect_python_comment_nodes<'a>(
-    node: tree_sitter::Node<'a>,
-    out: &mut Vec<tree_sitter::Node<'a>>,
-) {
+fn collect_comment_nodes<'a>(node: tree_sitter::Node<'a>, out: &mut Vec<tree_sitter::Node<'a>>) {
     if node.kind() == "comment" {
         out.push(node);
         return;
     }
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        collect_python_comment_nodes(child, out);
+        collect_comment_nodes(child, out);
     }
 }
 
-fn is_python_trailing_comment(comment: &tree_sitter::Node, source: &str) -> bool {
+fn is_trailing_comment(comment: &tree_sitter::Node, source: &str) -> bool {
     let bytes = source.as_bytes();
     let comment_start = comment.start_byte();
     // Walk back to the start of the line.
@@ -389,6 +421,43 @@ fn parse_python_allow_comment(node: &tree_sitter::Node, source: &str) -> Option<
     // shebang-ish forms by collapsing extra `#` characters.
     let body = text.trim_start_matches('#').trim();
     // Accept either `cntrdct: allow(...)` or `cntrdct:allow(...)`.
+    let body = body.strip_prefix("cntrdct:")?.trim_start();
+    let body = body.strip_prefix("allow")?.trim_start();
+    let body = body.strip_prefix('(')?;
+    let close = body.find(')')?;
+    let args = body[..close].trim();
+
+    if args.is_empty() {
+        return Some(ParsedAllow::All);
+    }
+
+    let ids: Vec<String> = args
+        .split(',')
+        .map(|s| s.trim().trim_matches('"').to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if ids.is_empty() {
+        Some(ParsedAllow::All)
+    } else {
+        Some(ParsedAllow::List(ids))
+    }
+}
+
+/// Parse a `// cntrdct: allow(<ids>)` (or block `/* cntrdct: allow(...) */`)
+/// comment used by TypeScript, `.tsx`, and Go. Mirrors
+/// [`parse_python_allow_comment`] but strips slash-style comment markers
+/// instead of `#`. Accepts `cntrdct: allow` and `cntrdct:allow`; an empty
+/// argument list is the catch-all that suppresses every detector.
+fn parse_slash_allow_comment(node: &tree_sitter::Node, source: &str) -> Option<ParsedAllow> {
+    let text = node_text(node, source);
+    // Strip a line-comment (`//`) or block-comment (`/* ... */`) frame.
+    let trimmed = text.trim();
+    let body = match trimmed.strip_prefix("/*") {
+        Some(inner) => inner.trim_end_matches("*/"),
+        None => trimmed.trim_start_matches('/'),
+    }
+    .trim();
     let body = body.strip_prefix("cntrdct:")?.trim_start();
     let body = body.strip_prefix("allow")?.trim_start();
     let body = body.strip_prefix('(')?;
@@ -658,6 +727,12 @@ mod tests {
     fn parsed_python(name: &str, body: &str) -> IrFile {
         build_ir_for_test(name, Language::Python, body)
     }
+    fn parsed_typescript(name: &str, body: &str) -> IrFile {
+        build_ir_for_test(name, Language::TypeScript, body)
+    }
+    fn parsed_go(name: &str, body: &str) -> IrFile {
+        build_ir_for_test(name, Language::Go, body)
+    }
 
     fn build_ir_for_test(name: &str, lang: Language, body: &str) -> IrFile {
         use std::sync::Arc;
@@ -683,7 +758,7 @@ mod tests {
                 let placeholder = match lang {
                     Language::Rust => "fn _x() {}\n",
                     Language::Python => "def _x():\n    pass\n",
-                    Language::TypeScript => "function _x() {}\n",
+                    Language::TypeScript | Language::Tsx => "function _x() {}\n",
                     Language::Go => "package main\nfunc _x() {}\n",
                 };
                 let source_for_ir: Arc<str> = if body.trim().is_empty() {
@@ -904,6 +979,135 @@ def helper():
         assert!(
             sups.is_empty(),
             "regular comments must not register as suppressions"
+        );
+    }
+
+    // ---------- TypeScript / Go: `// cntrdct: allow(...)` suppression ----------
+
+    #[test]
+    fn typescript_trailing_allow_suppresses_finding_on_same_line() {
+        let body = "const x = copy(src, dst); // cntrdct: allow(arg-swap)\n";
+        let pf = parsed_typescript("a.ts", body);
+        let sups = collect_attribute_suppressions(&pf);
+        assert_eq!(sups.len(), 1, "expected one suppression; got {:?}", sups);
+        assert_eq!(sups[0].start_line, 1);
+        assert_eq!(sups[0].end_line, 1);
+        assert_eq!(
+            sups[0].detector_ids.as_deref(),
+            Some(&["arg-swap".to_string()][..])
+        );
+
+        let f = finding_at("arg-swap", "a.ts", 1);
+        let out = apply(&Config::default(), &[pf], vec![f]).unwrap();
+        assert!(
+            out.is_empty(),
+            "trailing // comment must drop same-line finding"
+        );
+    }
+
+    #[test]
+    fn typescript_standalone_allow_covers_following_fn_span() {
+        let body = "\
+// cntrdct: allow(unreachable-after-terminator)
+function dead() {
+  return 1;
+  console.log(\"unreachable\");
+}
+";
+        let pf = parsed_typescript("a.ts", body);
+        let sups = collect_attribute_suppressions(&pf);
+        assert_eq!(sups.len(), 1, "expected one suppression; got {:?}", sups);
+        assert_eq!(sups[0].start_line, 2);
+        assert!(sups[0].end_line >= 4);
+
+        let f = finding_at("unreachable-after-terminator", "a.ts", 4);
+        let out = apply(&Config::default(), &[pf], vec![f]).unwrap();
+        assert!(
+            out.is_empty(),
+            "standalone // comment must cover the fn body"
+        );
+    }
+
+    #[test]
+    fn typescript_block_comment_allow_is_accepted() {
+        let body = "const x = copy(src, dst); /* cntrdct: allow(arg-swap) */\n";
+        let pf = parsed_typescript("a.ts", body);
+        let sups = collect_attribute_suppressions(&pf);
+        assert_eq!(
+            sups.len(),
+            1,
+            "block-comment form must parse; got {:?}",
+            sups
+        );
+        assert_eq!(
+            sups[0].detector_ids.as_deref(),
+            Some(&["arg-swap".to_string()][..])
+        );
+    }
+
+    #[test]
+    fn typescript_empty_form_is_catch_all() {
+        let body = "\
+// cntrdct: allow()
+function anything() {
+  return 1;
+}
+";
+        let pf = parsed_typescript("a.ts", body);
+        let sups = collect_attribute_suppressions(&pf);
+        assert_eq!(sups.len(), 1);
+        assert!(
+            sups[0].detector_ids.is_none(),
+            "empty form means all detectors"
+        );
+    }
+
+    #[test]
+    fn typescript_directive_comment_is_not_a_suppression() {
+        // A triple-slash reference directive must never register as an
+        // allow payload.
+        let body = "/// <reference types=\"node\" />\nfunction f() {}\n";
+        let pf = parsed_typescript("a.ts", body);
+        let sups = collect_attribute_suppressions(&pf);
+        assert!(sups.is_empty(), "directive comments must not suppress");
+    }
+
+    #[test]
+    fn go_trailing_allow_suppresses_finding_on_same_line() {
+        let body = "\
+package main
+
+func a() int {
+\treturn 1
+\tprintln(\"dead\") // cntrdct: allow(unreachable-after-terminator)
+}
+";
+        let pf = parsed_go("a.go", body);
+        let sups = collect_attribute_suppressions(&pf);
+        assert_eq!(sups.len(), 1, "expected one suppression; got {:?}", sups);
+        assert_eq!(sups[0].start_line, 5);
+        assert_eq!(
+            sups[0].detector_ids.as_deref(),
+            Some(&["unreachable-after-terminator".to_string()][..])
+        );
+
+        let f = finding_at("unreachable-after-terminator", "a.go", 5);
+        let out = apply(&Config::default(), &[pf], vec![f]).unwrap();
+        assert!(
+            out.is_empty(),
+            "trailing // comment must drop same-line finding"
+        );
+    }
+
+    #[test]
+    fn go_build_directive_is_not_a_suppression() {
+        // `//go:build` and similar directives must be inert.
+        let body = "//go:build linux\n\npackage main\n";
+        let pf = parsed_go("a.go", body);
+        let sups = collect_attribute_suppressions(&pf);
+        assert!(
+            sups.is_empty(),
+            "//go:build must not register as a suppression"
         );
     }
 

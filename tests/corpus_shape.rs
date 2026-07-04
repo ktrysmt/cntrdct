@@ -171,10 +171,14 @@ fn pr_miner_corpus_meets_per_language_positives() {
     let supported = pr_miner.supported_languages();
     let mut shortfalls: Vec<String> = Vec::new();
     for language in supported {
+        // `.tsx` rides on the TypeScript corpus (and TypeScript's
+        // citation grounding): it is the same language plus JSX, not a
+        // separately-labelled corpus language, so both map to the `ts`
+        // token rather than demanding a distinct `tsx` positive set.
         let lang_token = match language.canonical_name() {
             "rust" => "rs",
             "python" => "py",
-            "typescript" => "ts",
+            "typescript" | "tsx" => "ts",
             "go" => "go",
             other => panic!(
                 "pr-miner declares unsupported language token `{}` — extend file_language_token()",

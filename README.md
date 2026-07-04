@@ -5,8 +5,8 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Evidence-based linter for logical contradictions and technical
-inconsistencies in Rust and Python code. Every finding cites the
-peer-reviewed paper that justifies the detection. Alpha; runs
+inconsistencies in Rust, Python, TypeScript, and Go code. Every finding
+cites the peer-reviewed paper that justifies the detection. Alpha; runs
 entirely offline by default.
 
 ## Install
@@ -53,9 +53,37 @@ examples live under [`examples/`](examples/).
 | `unreachable-after-terminator` | a statement following `return` / `panic!()` / `unreachable!()` / `todo!()` / `break` / `continue` within the same block |
 | `config-interaction` | a top-level item bears two `#[cfg(...)]` attributes whose predicates are structurally negations of each other |
 | `pr-miner` | a call site violating an implicit programming rule mined via frequent-itemset analysis |
+| `python-unreachable-except` | a Python `except` handler shadowed by an earlier handler for a superclass exception |
+| `build-tag-interaction-go` | a Go file carries two `//go:build` constraints whose predicates are structurally negations of each other |
 
 See [`CITATIONS.md`](CITATIONS.md) for the bibliography behind each
 detector.
+
+## Language support
+
+Detectors are selected per file by extension: `.rs` (Rust), `.py` /
+`.pyi` (Python), `.ts` / `.mts` / `.cts` (TypeScript), `.tsx` (TypeScript
++ JSX, parsed with the TSX grammar), `.go` (Go). There is no
+`--language` flag — a scan root may mix languages and each file is
+routed to its own parser; unrecognised extensions are skipped.
+
+| detector | Rust | Python | TypeScript | Go |
+|---|:---:|:---:|:---:|:---:|
+| `clone-drift` | yes | yes | yes | yes |
+| `arg-swap` | yes | yes | yes | yes |
+| `comment-code` | yes | yes | yes | yes |
+| `unreachable-after-terminator` | yes | yes | yes | yes |
+| `pr-miner` | yes | yes | yes | yes |
+| `config-interaction` | yes | — | — | — |
+| `python-unreachable-except` | — | yes | — | — |
+| `build-tag-interaction-go` | — | — | — | yes |
+
+Rust is the primary, fully-grounded target. For Python, TypeScript, and
+Go the cross-cutting detectors carry `languageCitationStatus:
+unconfirmed` in their SARIF output: the detection concept transfers but
+no language-specific peer-reviewed citation has been confirmed yet (see
+[`CITATIONS.md`](CITATIONS.md) and `docs/surveys/`). `.tsx` shares
+TypeScript's detectors, citation grounding, and corpus.
 
 ## Configuration
 
@@ -71,6 +99,16 @@ fn looks_like_a_drifted_clone_but_is_intentional() { /* ... */ }
 # cntrdct: allow(arg-swap)
 do_something(b, a)
 ```
+
+TypeScript, `.tsx`, and Go use a `//` line comment (block `/* ... */`
+form also works), with the same trailing / standalone semantics:
+
+```typescript
+doSomething(b, a); // cntrdct: allow(arg-swap)
+```
+
+An empty argument list (`cntrdct::allow()` / `cntrdct: allow()`) is the
+catch-all that suppresses every detector for that item.
 
 ## Network access
 

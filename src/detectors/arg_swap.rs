@@ -139,6 +139,7 @@ impl Detector for ArgSwap {
             Language::Rust,
             Language::Python,
             Language::TypeScript,
+            Language::Tsx,
             Language::Go,
         ]
     }
@@ -171,6 +172,18 @@ impl Detector for ArgSwap {
         findings.extend(run_pipeline(
             ctx,
             Language::TypeScript,
+            extract_typescript_fn_defs,
+            extract_typescript_call_sites,
+            LanguageCitationStatus::Unconfirmed,
+            &["li-zhou-fse-2005", "rice-icse-2017"],
+        ));
+        // `.tsx` reuses the TypeScript pipeline unchanged — the TSX
+        // grammar is a superset, so the same IR definition extraction and
+        // raw-tree call walk apply. Unconfirmed for the same reason as
+        // `.ts`.
+        findings.extend(run_pipeline(
+            ctx,
+            Language::Tsx,
             extract_typescript_fn_defs,
             extract_typescript_call_sites,
             LanguageCitationStatus::Unconfirmed,
@@ -342,7 +355,7 @@ pub(crate) fn extract_call_sites(file: &IrFile) -> Option<Vec<CallSite>> {
     match file.language {
         Language::Rust => extract_rust_call_sites(file),
         Language::Python => extract_python_call_sites(file),
-        Language::TypeScript => extract_typescript_call_sites(file),
+        Language::TypeScript | Language::Tsx => extract_typescript_call_sites(file),
         Language::Go => extract_go_call_sites(file),
     }
 }
@@ -354,7 +367,7 @@ pub(crate) fn extract_fn_defs(file: &IrFile) -> Option<Vec<(String, FnDef)>> {
     match file.language {
         Language::Rust => extract_rust_fn_defs(file),
         Language::Python => extract_python_fn_defs(file),
-        Language::TypeScript => extract_typescript_fn_defs(file),
+        Language::TypeScript | Language::Tsx => extract_typescript_fn_defs(file),
         Language::Go => extract_go_fn_defs(file),
     }
 }

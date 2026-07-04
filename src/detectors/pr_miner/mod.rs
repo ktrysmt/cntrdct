@@ -1,8 +1,10 @@
 //! pr-miner detector — frequent-itemset rule violations (PR-Miner).
 //!
 //! Spec: `cntrdct/docs/spec/pr-miner-v0.md`.
-//! Multi-language: `cntrdct/docs/spec/multilang-v0.md` (Pattern A). v0.0
-//! supports Rust only; Python widens `supported_languages()` in v0.1.
+//! Multi-language: `cntrdct/docs/spec/multilang-v0.md` (Pattern A).
+//! `supported_languages()` covers Rust, Python, TypeScript, `.tsx`, and
+//! Go; the non-Rust findings carry `LanguageCitationStatus::Unconfirmed`
+//! per the per-language surveys (`docs/surveys/pr-miner-*.md`).
 //!
 //! Algorithm:
 //! 1. Extract one `Transaction` per top-level function in each supported-
@@ -243,14 +245,15 @@ impl Detector for PrMinerDetector {
     }
 
     fn supported_languages(&self) -> &'static [Language] {
-        // Rust + Python + TypeScript + Go. Python, TypeScript, and Go
-        // findings carry LanguageCitationStatus::Unconfirmed per the
-        // per-language surveys
+        // Rust + Python + TypeScript (+ TSX) + Go. Python, TypeScript,
+        // and Go findings carry LanguageCitationStatus::Unconfirmed per
+        // the per-language surveys
         // (docs/surveys/pr-miner-{python,typescript,go}-*.md).
         &[
             Language::Rust,
             Language::Python,
             Language::TypeScript,
+            Language::Tsx,
             Language::Go,
         ]
     }
@@ -262,7 +265,9 @@ impl Detector for PrMinerDetector {
             match file.language {
                 Language::Rust => all_txns.extend(extract_rust::extract(file)),
                 Language::Python => all_txns.extend(extract_python::extract(file)),
-                Language::TypeScript => all_txns.extend(extract_typescript::extract(file)),
+                Language::TypeScript | Language::Tsx => {
+                    all_txns.extend(extract_typescript::extract(file))
+                }
                 Language::Go => all_txns.extend(extract_go::extract(file)),
             }
         }
@@ -423,7 +428,7 @@ fn stoplist_for(language: Language) -> &'static [&'static str] {
     match language {
         Language::Rust => RUST_STOPLIST,
         Language::Python => PYTHON_STOPLIST,
-        Language::TypeScript => TYPESCRIPT_STOPLIST,
+        Language::TypeScript | Language::Tsx => TYPESCRIPT_STOPLIST,
         Language::Go => GO_STOPLIST,
     }
 }

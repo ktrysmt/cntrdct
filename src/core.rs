@@ -73,12 +73,20 @@ pub enum Language {
     Rust,
     /// Python source (`.py`, `.pyi`).
     Python,
-    /// TypeScript source (`.ts`, `.mts`, `.cts`). JSX-bearing `.tsx`
-    /// is intentionally out of scope for v0: the `language_tsx()`
-    /// grammar resolves `<T>expr` toward JSX, which would misparse
-    /// TypeScript type-assertion casts in `.ts` files — a future
-    /// language variant owns `.tsx`.
+    /// TypeScript source (`.ts`, `.mts`, `.cts`), parsed with the
+    /// `language_typescript()` grammar. JSX-bearing `.tsx` is a
+    /// separate variant ([`Language::Tsx`]) because the two grammars
+    /// disagree on `<T>expr`: `language_typescript()` reads it as a
+    /// type-assertion cast, `language_tsx()` reads it as JSX. Each
+    /// extension gets the grammar that parses it correctly.
     TypeScript,
+    /// TypeScript + JSX source (`.tsx`), parsed with the
+    /// `language_tsx()` grammar. Shares TypeScript's IR converter and
+    /// detector logic (TSX is a syntactic superset; JSX-only nodes fall
+    /// through to the `Other` total-conversion contract). Per-language
+    /// citation grounding is identical to [`Language::TypeScript`]:
+    /// findings emit `LanguageCitationStatus::Unconfirmed`.
+    Tsx,
     /// Go source (`.go`). The R-3 pilot covers the five cross-cutting
     /// detectors; Go build-tag interaction (the `//go:build` analogue of
     /// the Rust `#[cfg]` detector) is a future language-specific detector
@@ -93,6 +101,7 @@ impl Language {
             Language::Rust,
             Language::Python,
             Language::TypeScript,
+            Language::Tsx,
             Language::Go,
         ]
     }
@@ -104,6 +113,7 @@ impl Language {
             Language::Rust => "rust",
             Language::Python => "python",
             Language::TypeScript => "typescript",
+            Language::Tsx => "tsx",
             Language::Go => "go",
         }
     }
@@ -116,6 +126,7 @@ impl Language {
             "rust" => Some(Language::Rust),
             "python" => Some(Language::Python),
             "typescript" => Some(Language::TypeScript),
+            "tsx" => Some(Language::Tsx),
             "go" => Some(Language::Go),
             _ => None,
         }

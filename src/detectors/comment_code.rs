@@ -110,6 +110,7 @@ impl Detector for CommentCode {
             Language::Rust,
             Language::Python,
             Language::TypeScript,
+            Language::Tsx,
             Language::Go,
         ]
     }
@@ -121,7 +122,11 @@ impl Detector for CommentCode {
             .filter(|f| {
                 matches!(
                     f.language,
-                    Language::Rust | Language::Python | Language::TypeScript | Language::Go
+                    Language::Rust
+                        | Language::Python
+                        | Language::TypeScript
+                        | Language::Tsx
+                        | Language::Go
                 )
             })
             .flat_map_iter(|file| {
@@ -132,7 +137,9 @@ impl Detector for CommentCode {
                 match file.language {
                     Language::Rust => collect_rust_findings(file, &mut local),
                     Language::Python => collect_python_findings(file, &mut local),
-                    Language::TypeScript => collect_typescript_findings(file, &mut local),
+                    Language::TypeScript | Language::Tsx => {
+                        collect_typescript_findings(file, &mut local)
+                    }
                     Language::Go => collect_go_findings(file, &mut local),
                 }
                 local

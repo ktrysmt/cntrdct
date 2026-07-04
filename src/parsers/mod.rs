@@ -42,7 +42,7 @@ pub mod typescript;
 pub use go::GoParserProvider;
 pub use python::PythonParserProvider;
 pub use rust::RustParserProvider;
-pub use typescript::TypeScriptParserProvider;
+pub use typescript::{TsxParserProvider, TypeScriptParserProvider};
 
 /// Map a path's extension to a [`Language`]. Returns `None` for
 /// extensions cntrdct does not analyse, including extension-less
@@ -54,6 +54,7 @@ pub fn detect_language(path: &Path) -> Option<Language> {
         "rs" => Some(Language::Rust),
         "py" | "pyi" => Some(Language::Python),
         "ts" | "mts" | "cts" => Some(Language::TypeScript),
+        "tsx" => Some(Language::Tsx),
         "go" => Some(Language::Go),
         _ => None,
     }
@@ -100,11 +101,9 @@ pub trait ParserProvider: Send + Sync {
 }
 
 /// Build an [`IrFile`] shell with the language / source / tree
-/// metadata populated. Used by per-language providers as the prelude
-/// to any structural conversion. R-1.b ships this stub; the
-/// per-language structural conversion lands in later R-1.b phases
-/// (Rust and Python) and fills `fns` / `top_level_comments` in
-/// place.
+/// metadata populated. Used by every per-language provider (Rust,
+/// Python, TypeScript, `.tsx`, Go) as the prelude to structural
+/// conversion, which fills `fns` / `top_level_comments` in place.
 pub(crate) fn build_ir_shell<P: ParserProvider + ?Sized>(
     provider: &P,
     tree: &tree_sitter::Tree,
@@ -151,6 +150,7 @@ pub fn parser_for(lang: Language) -> Box<dyn ParserProvider> {
         Language::Rust => Box::new(RustParserProvider),
         Language::Python => Box::new(PythonParserProvider),
         Language::TypeScript => Box::new(TypeScriptParserProvider),
+        Language::Tsx => Box::new(TsxParserProvider),
         Language::Go => Box::new(GoParserProvider),
     }
 }
@@ -236,6 +236,7 @@ mod tests {
                 Language::Rust => "fn main() {}\n",
                 Language::Python => "def main():\n    pass\n",
                 Language::TypeScript => "function main() {}\n",
+                Language::Tsx => "const app = () => <div>{main()}</div>;\n",
                 Language::Go => "package main\nfunc main() {}\n",
             };
             let tree = parse_with(lang, source);

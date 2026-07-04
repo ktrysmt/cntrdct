@@ -97,6 +97,7 @@ impl Detector for UnreachableAfterTerminator {
             Language::Rust,
             Language::Python,
             Language::TypeScript,
+            Language::Tsx,
             Language::Go,
         ]
     }
@@ -108,7 +109,11 @@ impl Detector for UnreachableAfterTerminator {
             .filter(|f| {
                 matches!(
                     f.language,
-                    Language::Rust | Language::Python | Language::TypeScript | Language::Go
+                    Language::Rust
+                        | Language::Python
+                        | Language::TypeScript
+                        | Language::Tsx
+                        | Language::Go
                 )
             })
             .flat_map_iter(|file| {
@@ -117,7 +122,7 @@ impl Detector for UnreachableAfterTerminator {
                     match file.language {
                         Language::Rust => scan_rust(file, &mut local),
                         Language::Python => scan_python(file, &mut local),
-                        Language::TypeScript => scan_typescript(file, &mut local),
+                        Language::TypeScript | Language::Tsx => scan_typescript(file, &mut local),
                         Language::Go => scan_go(file, &mut local),
                     }
                 }
