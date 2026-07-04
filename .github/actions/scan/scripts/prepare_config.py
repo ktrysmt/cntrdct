@@ -8,8 +8,10 @@ Inputs:
   argv[2]: output path for the synthesized config.
 
 The known-language universe is intentionally hard-coded here to match
-`cntrdct-parsers::Language::all()` at the time of writing. New languages
-need a one-line update here in lockstep with the parser crate.
+`cntrdct-parsers::Language::all()`. New languages need a one-line update
+to `KNOWN_LANGUAGES` below in lockstep with the parser crate; the
+`action_language_universe_matches_all` integration test
+(`tests/action_language_lockstep.rs`) fails the build if the two drift.
 
 By design this script does not merge with a user-supplied `cntrdct.toml`:
 the action wrapper rejects the combination of `config:` and a per-path
@@ -20,7 +22,7 @@ scan sees. That keeps the script free of any TOML parser dependency.
 import sys
 from typing import List
 
-KNOWN_LANGUAGES: List[str] = ["rust", "python"]
+KNOWN_LANGUAGES: List[str] = ["rust", "python", "typescript", "tsx", "go"]
 
 
 def main(argv: List[str]) -> int:

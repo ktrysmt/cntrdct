@@ -20,7 +20,8 @@ inputs:
       Multi-line list of paths to scan. Each line is `<path>` or
       `<path>:<lang_csv>` where the optional `:<lang_csv>` restricts the
       scan of THAT path to the listed languages (canonical names; current
-      universe: `rust`, `python`).  When `paths` is set, `path` is ignored
+      universe: `rust`, `python`, `typescript`, `tsx`, `go`).  When `paths`
+      is set, `path` is ignored
       and `config:` must NOT be set together with any per-path language
       hint — the per-path hint is implemented by synthesising a temporary
       `cntrdct.toml` for that scan, so a user-supplied config would
