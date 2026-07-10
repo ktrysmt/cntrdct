@@ -32,15 +32,27 @@ curl -fsSL https://raw.githubusercontent.com/ktrysmt/cntrdct/main/scripts/instal
 cntrdct scan ./src                    # JSON to stdout (default)
 cntrdct scan ./src --format sarif     # SARIF 2.1.0 for code-scanning tools
 cargo cntrdct scan ./src              # via cargo subcommand
+cntrdct scan ./src --fail-on warning  # exit 3 when findings warrant action
 
 # Optional Layer 3 LLM adjudication on the top-N findings. Off by
 # default; see "Network access" below for the backends.
 cntrdct scan ./src --adjudicate
 ```
 
+Every scan also prints a summary to stderr (stdout stays clean JSON /
+SARIF): per-detector finding counts plus the estimated precision of
+that detector, measured on the labelled calibration corpus that ranks
+the findings — so you can see at a glance how much to trust each line:
+
+```
+scan summary: 3 finding(s) across 2 detector(s) in 450 file(s)
+  arg-swap                        2  est. precision >= 0.79 (jeffreys lower bound, n=17 labelled)
+  clone-drift                     1  est. precision >= 0.78 (jeffreys lower bound, n=16 labelled)
+```
+
 `cntrdct --help` lists `calibrate` (recalibrate ranker priors, or fit
 LLM-confidence Platt parameters with `--fit-platt`) and `eval`
-(precision / recall on a labelled corpus). Three runnable end-to-end
+(precision / recall on a labelled corpus). Four runnable end-to-end
 examples live under [`examples/`](examples/).
 
 ## Detectors
@@ -109,6 +121,74 @@ doSomething(b, a); // cntrdct: allow(arg-swap)
 
 An empty argument list (`cntrdct::allow()` / `cntrdct: allow()`) is the
 catch-all that suppresses every detector for that item.
+
+## Adopting in an existing codebase (baseline)
+
+Introducing any linter into a large codebase drowns the first run in
+pre-existing findings. The baseline ratchet makes adoption free: record
+today's findings once, then every later scan reports only NEW findings.
+
+```sh
+# once, at adoption time
+cntrdct scan . --write-baseline cntrdct-baseline.json
+git add cntrdct-baseline.json
+
+# every run afterwards (local, pre-commit, CI)
+cntrdct scan . --baseline cntrdct-baseline.json --fail-on warning
+
+# after fixing old findings (or accepting new ones), re-ratchet
+cntrdct scan . --write-baseline cntrdct-baseline.json
+```
+
+Baseline fingerprints are line-shift tolerant (moving code around does
+not resurrect known findings) and the file is plain, reviewable JSON.
+With `--adjudicate`, known findings are filtered before adjudication,
+so the LLM budget is spent on new findings only. Details:
+[`docs/spec/baseline-v0.md`](docs/spec/baseline-v0.md).
+
+### Exit codes
+
+| code | meaning |
+|---|---|
+| 0 | scan succeeded; nothing at/above the `--fail-on` threshold |
+| 1 | operational error (bad path, unreadable baseline, config error) |
+| 2 | CLI usage error |
+| 3 | `--fail-on {error,warning}` threshold met by a reported finding |
+
+The default is `--fail-on never`: without the flag, a successful scan
+always exits 0 regardless of findings.
+
+## pre-commit
+
+With the [pre-commit](https://pre-commit.com/) framework, add to your
+`.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/ktrysmt/cntrdct
+    # pin any release tag that ships .pre-commit-hooks.yaml
+    # (i.e. any tag newer than v0.13.1)
+    rev: vX.Y.Z
+    hooks:
+      - id: cntrdct
+        # defaults to: scan . --fail-on warning
+        # ratchet variant:
+        # args: [scan, ., --baseline, cntrdct-baseline.json, --fail-on, warning]
+```
+
+The hook scans the whole tree rather than staged files only, because
+several detectors (clone-drift, pr-miner) need cross-file context.
+Pair it with a baseline to keep commits fast to review in large repos.
+
+## Docker
+
+```sh
+docker build -t cntrdct https://github.com/ktrysmt/cntrdct.git
+docker run --rm -v "$PWD:/work" cntrdct scan .
+```
+
+The image contains only the `cntrdct` binary; `scan` runs fully
+offline inside the container.
 
 ## Network access
 

@@ -1,0 +1,29 @@
+# pre-commit hook definitions for cntrdct.
+# https://pre-commit.com/
+#
+# Usage (in a downstream repo's .pre-commit-config.yaml):
+#
+#   repos:
+#     - repo: https://github.com/ktrysmt/cntrdct
+#       # rev: any release tag that ships this file (newer than v0.13.1)
+#       rev: vX.Y.Z
+#       hooks:
+#         - id: cntrdct
+#           # optional: ratchet against a committed baseline
+#           # args: [scan, ., --baseline, cntrdct-baseline.json, --fail-on, warning]
+#
+# The hook builds the cntrdct binary from this repository via cargo
+# (pre-commit's `rust` language), then scans the whole tree. Whole-tree
+# scanning (pass_filenames: false) is deliberate: several detectors
+# (clone-drift, pr-miner) need cross-file context, so a staged-files-only
+# scan would silently miss findings. Use a baseline (see
+# docs/spec/baseline-v0.md) to keep whole-tree scans quiet in large repos.
+- id: cntrdct
+  name: cntrdct
+  description: Evidence-based contradiction linter (whole-tree scan).
+  entry: cntrdct
+  args: [scan, ., --fail-on, warning]
+  language: rust
+  pass_filenames: false
+  types_or: [rust, python, ts, tsx, go]
+  minimum_pre_commit_version: "2.9.2"

@@ -1,0 +1,29 @@
+# Keep the docker build context minimal: the release build needs
+# src/, Cargo.{toml,lock}, and the include_str! payloads
+# (benchmarks/priors-default.json,
+# benchmarks/llm-calibration/platt-default.json,
+# data/python-builtin-exceptions.json).
+.git
+target
+book
+data
+!data/python-builtin-exceptions.json
+docs
+tests
+fixtures
+examples
+scripts
+benchmarks/wild-corpus
+benchmarks/wild-corpus-go
+benchmarks/wild-corpus-python
+benchmarks/wild-corpus-typescript
+benchmarks/audit-corpus
+benchmarks/corpus
+benchmarks/cross-model-kappa
+benchmarks/retraction-watch
+benchmarks/self-replication
+benchmarks/labelled-findings.jsonl
+Dockerfile
+.dockerignore
+.github
+.claude
