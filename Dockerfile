@@ -17,6 +17,9 @@ COPY . .
 RUN cargo build --release --locked --bin cntrdct
 
 FROM debian:bookworm-slim
+LABEL org.opencontainers.image.source="https://github.com/ktrysmt/cntrdct"
+LABEL org.opencontainers.image.description="Evidence-based contradiction linter for Rust, Python, TypeScript, and Go."
+LABEL org.opencontainers.image.licenses="MIT"
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*

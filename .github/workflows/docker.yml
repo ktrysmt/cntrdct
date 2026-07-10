@@ -1,0 +1,90 @@
+# Publish the cntrdct container image to GitHub Packages (ghcr.io).
+#
+# Triggers on every `v*` tag push (alongside release.yml) and on manual
+# dispatch so an already-cut release can be (re)published. The image is
+# built straight from the repo's Dockerfile with the plain docker CLI —
+# no third-party build actions, so nothing here needs SHA pinning beyond
+# actions/checkout.
+#
+# Published tags:
+#   ghcr.io/ktrysmt/cntrdct:X.Y.Z   (always)
+#   ghcr.io/ktrysmt/cntrdct:latest  (only for non-prerelease versions)
+#
+# v0 builds linux/amd64 only (native on the runner, no QEMU). arm64 is a
+# follow-up; Docker Desktop on Apple Silicon runs the amd64 image under
+# emulation in the meantime.
+name: Publish Docker image
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v0.14.0). Required for manual runs."
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: build and push to ghcr.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+
+      - name: Resolve version
+        id: ver
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          if [[ -z "${version}" ]]; then
+            echo "::error::could not resolve version from tag '${TAG}'"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          # Tag :latest only for a final release (no pre-release suffix).
+          if [[ "${version}" == *-* ]]; then
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to ghcr.io
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          echo "${GHCR_TOKEN}" \
+            | docker login ghcr.io -u "${ACTOR}" --password-stdin
+
+      - name: Build and push
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          PUSH_LATEST: ${{ steps.ver.outputs.latest }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Lowercase the image ref (ghcr requires it; the owner/name can
+          # carry uppercase).
+          image="ghcr.io/$(echo "${REPO}" | tr '[:upper:]' '[:lower:]')"
+
+          tags=(-t "${image}:${VERSION}")
+          if [[ "${PUSH_LATEST}" == "true" ]]; then
+            tags+=(-t "${image}:latest")
+          fi
+
+          docker build "${tags[@]}" .
+          docker push "${image}:${VERSION}"
+          if [[ "${PUSH_LATEST}" == "true" ]]; then
+            docker push "${image}:latest"
+          fi
+
+          echo "Published ${image}:${VERSION}$( [[ "${PUSH_LATEST}" == "true" ]] && echo ' and :latest' )" >> "$GITHUB_STEP_SUMMARY"
