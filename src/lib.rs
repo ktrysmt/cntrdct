@@ -89,11 +89,11 @@ use crate::llm_calibration::{
 use crate::parsers::{detect_language, Language};
 use crate::ranker::{CalibratedRanker, UncalibratedRanker};
 use crate::recall_audit::{audit_recall, load_audit_manifest, RecallAuditError, RecallAuditReport};
+use ignore::WalkBuilder;
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
-use walkdir::WalkDir;
 
 #[derive(Debug, Error)]
 pub enum ScanError {
@@ -163,6 +163,20 @@ pub fn scan_full(path: &Path) -> Result<(Vec<Finding>, Vec<IrFile>), ScanError> 
 /// every other language stays enabled. Spec: M-5
 /// (`docs/spec/multilang-v0.md`).
 ///
+/// File discovery uses the default [`WalkOptions`] — ignore files are
+/// respected (I-1, `docs/spec/scan-ignore-v0.md`); use
+/// [`scan_full_with_options`] to opt out (`--no-ignore`).
+pub fn scan_full_with_config(
+    path: &Path,
+    config: &crate::config::Config,
+) -> Result<(Vec<Finding>, Vec<IrFile>), ScanError> {
+    scan_full_with_options(path, config, WalkOptions::default())
+}
+
+/// Like [`scan_full_with_config`] but with explicit file-discovery
+/// [`WalkOptions`] (I-1: `scan --no-ignore`). Spec:
+/// `docs/spec/scan-ignore-v0.md`.
+///
 /// R-1 (ir-v0.md §F2): each file is parsed once via
 /// [`ParserProvider::to_ir`] and the resulting [`IrFile`] flows through
 /// every detector. Files whose conversion returns
@@ -170,15 +184,16 @@ pub fn scan_full(path: &Path) -> Result<(Vec<Finding>, Vec<IrFile>), ScanError> 
 /// production-runtime contract — `EmptySource` swallows the file with
 /// no log; `LanguageMismatch` / `StructuralInvariant` skip and continue
 /// so a single pathological file does not abort the scan.
-pub fn scan_full_with_config(
+pub fn scan_full_with_options(
     path: &Path,
     config: &crate::config::Config,
+    walk: WalkOptions,
 ) -> Result<(Vec<Finding>, Vec<IrFile>), ScanError> {
     if !path.exists() {
         return Err(ScanError::PathNotFound(path.to_path_buf()));
     }
 
-    let source_paths: Vec<(PathBuf, Language)> = collect_supported_files(path)
+    let source_paths: Vec<(PathBuf, Language)> = collect_supported_files(path, walk)
         .into_iter()
         .filter(|(_, lang)| config.language_enabled(*lang))
         .collect();
@@ -909,9 +924,14 @@ pub fn calibrate(corpus_path: &Path, output_path: &Path) -> Result<usize, Calibr
 
 // ---------- Eval subcommand ----------
 
-/// Load a manifest, run `scan` over the corpus directory, and compute the
-/// `EvalReport`. Spec: `docs/spec/eval-v0.md` F7. Pure orchestration —
-/// matching and metric arithmetic live in `cntrdct-eval`.
+/// Load a manifest, run a full walk + scan over the corpus directory, and
+/// compute the `EvalReport`. Spec: `docs/spec/eval-v0.md` F7. Pure
+/// orchestration — matching and metric arithmetic live in `cntrdct-eval`.
+///
+/// I-1: the walk deliberately uses `no_ignore` semantics. A corpus
+/// directory is an explicit input, and scratch corpora are commonly
+/// gitignored; letting ignore rules empty the walk would silently
+/// score every manifest entry as a miss.
 pub fn run_eval(corpus_dir: &Path, manifest_path: &Path) -> Result<EvalReport, EvalRunError> {
     let manifest = load_manifest(manifest_path)?;
     for entry in &manifest.entries {
@@ -920,7 +940,11 @@ pub fn run_eval(corpus_dir: &Path, manifest_path: &Path) -> Result<EvalReport, E
             return Err(EvalRunError::Eval(EvalError::MissingSource(abs)));
         }
     }
-    let findings = scan(corpus_dir)?;
+    let (findings, _) = scan_full_with_options(
+        corpus_dir,
+        &crate::config::Config::default(),
+        WalkOptions { no_ignore: true },
+    )?;
     Ok(evaluate(&manifest, &findings, corpus_dir))
 }
 
@@ -946,17 +970,44 @@ pub fn run_recall_audit(
             )));
         }
     }
-    let findings = scan(corpus_dir)?;
+    // I-1: same no-ignore rationale as `run_eval` — an ignored corpus
+    // directory must not silently produce an all-miss recall report.
+    let (findings, _) = scan_full_with_options(
+        corpus_dir,
+        &crate::config::Config::default(),
+        WalkOptions { no_ignore: true },
+    )?;
     Ok(audit_recall(&manifest, &findings, corpus_dir))
 }
 
 // ---------- File discovery ----------
 
+/// File-discovery options for [`scan_full_with_options`] (I-1). Spec:
+/// `docs/spec/scan-ignore-v0.md`.
+///
+/// The default walk respects ignore files the way ripgrep does:
+/// `.gitignore` / `.ignore` / `.git/info/exclude` / the global git
+/// excludes, with git-derived rules applying only inside a git
+/// repository (`require_git`), plus parent-directory ignore discovery.
+/// Hidden files and directories (dotfiles, including `.git/`) are
+/// skipped in BOTH modes, so `.git/` internals are never scanned.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct WalkOptions {
+    /// `scan --no-ignore`: disable the ignore-file semantics
+    /// (`.gitignore`, `.ignore`, global/exclude, parent discovery) and
+    /// walk everything except hidden files.
+    pub no_ignore: bool,
+}
+
 /// Walk `path` and return every file whose extension maps to a supported
 /// `Language` per `crate::parsers::detect_language`. Files with unknown
 /// extensions are silently dropped, mirroring the previous `.rs`-only
-/// behaviour. Spec: `multilang-v0.md` F5.
-fn collect_supported_files(path: &Path) -> Vec<(PathBuf, Language)> {
+/// behaviour (`multilang-v0.md` F5). Traversal respects ignore files
+/// per [`WalkOptions`] (I-1, `docs/spec/scan-ignore-v0.md`); a
+/// single-FILE `path` bypasses the walker entirely and is always
+/// scanned, ignored or not. The `ignore` crate is filesystem-only, so
+/// the P3 network-isolation contract on `scan` is unaffected.
+fn collect_supported_files(path: &Path, walk: WalkOptions) -> Vec<(PathBuf, Language)> {
     let mut paths: Vec<(PathBuf, Language)> = Vec::new();
 
     if path.is_file() {
@@ -966,12 +1017,28 @@ fn collect_supported_files(path: &Path) -> Vec<(PathBuf, Language)> {
         return paths;
     }
 
-    for entry in WalkDir::new(path).sort_by_file_name() {
+    let mut builder = WalkBuilder::new(path);
+    // Deterministic input order: the ranker and the snapshot tests
+    // depend on stable per-directory file-name ordering (the walkdir
+    // `sort_by_file_name()` contract this walker replaced).
+    builder.sort_by_file_name(|a, b| a.cmp(b));
+    if walk.no_ignore {
+        // Keep the hidden filter: `.git/` internals stay out of the
+        // scan even under --no-ignore (ripgrep treats --no-ignore and
+        // --hidden as independent axes; v0 ships only the former).
+        builder
+            .ignore(false)
+            .git_ignore(false)
+            .git_global(false)
+            .git_exclude(false)
+            .parents(false);
+    }
+    for entry in builder.build() {
         let entry = match entry {
             Ok(e) => e,
             Err(_) => continue,
         };
-        if !entry.file_type().is_file() {
+        if !entry.file_type().is_some_and(|t| t.is_file()) {
             continue;
         }
         if let Some(lang) = detect_language(entry.path()) {

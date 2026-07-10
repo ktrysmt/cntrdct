@@ -25,7 +25,10 @@ package at the repo root. Read this file before editing or running gates.
 - Binaries: `cntrdct` (main) and `cargo-cntrdct` (shim that lets
   `cargo cntrdct ...` work; same code path as `cntrdct ...`).
 - Subcommands: `scan` (B-1 flags `--baseline` / `--write-baseline` /
-  `--fail-on` with exit code 3 on threshold, S-1 stderr summary),
+  `--fail-on` with exit code 3 on threshold, S-1 stderr summary; I-1
+  file discovery respects `.gitignore` / `.ignore` via the FS-only
+  `ignore` crate — `--no-ignore` opts out, hidden files incl. `.git/`
+  are skipped in both modes, spec `docs/spec/scan-ignore-v0.md`),
   `calibrate` (`--fit-platt` switches it to
   Q-12 LLM-confidence calibration mode; default mode produces P-4
   detector priors), `eval`, `cross-model-kappa` (Q-13: shells out to

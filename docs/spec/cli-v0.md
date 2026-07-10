@@ -22,6 +22,10 @@ entry point. The binary is a thin wrapper that calls it and serializes the resul
 
 ### F3 — File collection
 
+> Superseded: extension routing generalised by `multilang-v0.md` F5;
+> directory traversal now respects ignore files per
+> `scan-ignore-v0.md` (I-1).
+
 - If `PATH` is a file with extension `.rs`, process that single file.
 - If `PATH` is a file without `.rs`, return empty Vec (skip silently).
 - If `PATH` is a directory, walk recursively and collect all `*.rs` files.
@@ -96,5 +100,6 @@ of scope for v0.
 ## Dependencies
 
 - `clap` (subcommand parsing)
-- `walkdir` (recursive traversal with deterministic sort)
+- `walkdir` (recursive traversal with deterministic sort; replaced by
+  the `ignore` crate in I-1, `scan-ignore-v0.md`)
 - `tempfile` (test only)
