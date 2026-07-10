@@ -77,6 +77,23 @@ inputs:
     description: "When 'true', force the uncalibrated ranker."
     required: false
     default: "false"
+  baseline:
+    description: >
+      Path to a committed baseline file (see `docs/spec/baseline-v0.md`).
+      When set, each scan is run with `--baseline <file>` so only findings
+      NOT in the baseline are reported — annotations, SARIF, the
+      finding-count output, and the `fail-on` gate then all act on NEW
+      findings only. A missing / malformed file fails the run.
+
+      The baseline is generated LOCALLY, not in CI: run
+      `cntrdct scan <path> --write-baseline <file>` and commit the result.
+      Fingerprints use paths relative to the scan root, so generate the
+      baseline against the SAME path(s) the action scans (e.g.
+      `cntrdct scan src --write-baseline cntrdct-baseline.json` for
+      `path: src`). One baseline file may cover a multi-path scan as long
+      as each path's entries were recorded against that same path.
+    required: false
+    default: ""
 
 outputs:
   sarif-file:
@@ -139,6 +156,7 @@ runs:
         ADJUDICATE: ${{ inputs.adjudicate }}
         ADJUDICATE_TOP: ${{ inputs.adjudicate-top }}
         NO_CALIBRATION: ${{ inputs.no-calibration }}
+        BASELINE: ${{ inputs.baseline }}
         ACTION_DIR: ${{ github.action_path }}
       run: |
         set -euo pipefail
@@ -189,6 +207,12 @@ runs:
           args=(scan "${scan_path}")
           if [[ "${NO_CALIBRATION}" == "true" ]]; then
             args+=(--no-calibration)
+          fi
+          if [[ -n "${BASELINE}" ]]; then
+            # Filter known findings before output/adjudication. Applied per
+            # scan invocation so it also covers the separate SARIF pass
+            # below (args is reused). A missing file fails the scan (exit 1).
+            args+=(--baseline "${BASELINE}")
           fi
           if [[ "${ADJUDICATE}" == "true" ]]; then
             args+=(--adjudicate --adjudicate-top "${ADJUDICATE_TOP}")

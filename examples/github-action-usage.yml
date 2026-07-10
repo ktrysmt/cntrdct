@@ -2,12 +2,14 @@
 # on every PR. Drop a copy of this file into
 # `.github/workflows/cntrdct.yml` in your own repo.
 #
-# Three commonly-useful jobs:
+# Four commonly-useful jobs:
 # - `inline-annotations`: surface findings as inline diff comments on the PR.
 # - `sarif-upload`: upload SARIF for the GitHub code-scanning tab so issues
 #   show up in Security > Code scanning.
 # - `mixed-rust-python`: scan a multi-language repo with per-path language
 #   hints (M-5 surface).
+# - `ratchet-baseline`: adopt on an existing codebase — annotate/fail only on
+#   findings NOT in a committed baseline (B-1 surface).
 #
 # All run on ubuntu-latest. The action installs the matching pre-built
 # binary from the latest cntrdct release; pin `version: vX.Y.Z` for
@@ -69,5 +71,24 @@ jobs:
             crates
             python-sdk:python
             shared:rust,python
+          output: annotations
+          fail-on: warning
+
+  ratchet-baseline:
+    name: cntrdct (baseline ratchet)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Generate the baseline once, locally, and commit it:
+      #   cntrdct scan src --write-baseline cntrdct-baseline.json
+      # Thereafter this job annotates / fails ONLY on findings that are
+      # not already in the baseline, so a pre-existing backlog does not
+      # block PRs. Regenerate the file to accept new findings or after
+      # clearing old ones. Generate it against the same path you scan
+      # here (`src`), since fingerprints are relative to the scan root.
+      - uses: ktrysmt/cntrdct/.github/actions/scan@main
+        with:
+          path: src
+          baseline: cntrdct-baseline.json
           output: annotations
           fail-on: warning
