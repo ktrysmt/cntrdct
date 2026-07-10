@@ -200,8 +200,16 @@ cargo update -p cntrdct                            # sync Cargo.lock
 git add Cargo.toml Cargo.lock
 git commit -m "chore(release): bump version to X.Y.Z"
 git tag -a vX.Y.Z -m "release vX.Y.Z"              # MUST be annotated
-git push --follow-tags
+git push origin master                             # push commits first
+git push origin vX.Y.Z                             # then the ONE new tag
 ```
+
+Push the single intended tag by name — NOT `git push --follow-tags`.
+`--follow-tags` pushes every annotated tag reachable from `master` that
+origin lacks, so any stray unpushed local tag (e.g. a bumped-then-
+superseded `vA.B.0`) starts its OWN release run and can publish an
+unintended crate. Before pushing, audit for strays:
+`comm -23 <(git tag | sort) <(git ls-remote --tags origin | sed 's#.*refs/tags/##;s/\^{}//' | sort -u)`.
 
 No per-release fixture rename is required: the Q-15 `tests/baselines.rs`
 pin was retired, and the self-replication ledger
@@ -213,9 +221,10 @@ test on master.
 
 Non-negotiable details:
 
-- Tag MUST be annotated (`git tag -a` or `-s`). `git push --follow-tags`
-  silently skips lightweight tags, so a plain `git tag vX.Y.Z` will not
-  trigger CI.
+- Tag MUST be annotated (`git tag -a` or `-s`). A plain lightweight
+  `git tag vX.Y.Z` will not trigger the release workflow. Push it by
+  name (`git push origin vX.Y.Z`), never with `--follow-tags` (see the
+  stray-tag hazard above).
 - Tag name MUST be `v` + the exact `Cargo.toml` version, including any
   pre-release suffix (e.g. `v0.3.0`, or `v0.4.0-rc.1` if a future cycle
   re-introduces pre-releases). The CI verify step strips the leading
