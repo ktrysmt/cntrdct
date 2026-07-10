@@ -17,6 +17,12 @@
 # (clone-drift, pr-miner) need cross-file context, so a staged-files-only
 # scan would silently miss findings. Use a baseline (see
 # docs/spec/baseline-v0.md) to keep whole-tree scans quiet in large repos.
+#
+# The hook triggers when a staged file matches one of cntrdct's supported
+# extensions. A `files` regex is used rather than `types_or` tags so the
+# trigger set is pinned to the exact extensions cntrdct routes to a parser
+# (see README "Language support"), independent of the pre-commit `identify`
+# tag vocabulary.
 - id: cntrdct
   name: cntrdct
   description: Evidence-based contradiction linter (whole-tree scan).
@@ -24,5 +30,5 @@
   args: [scan, ., --fail-on, warning]
   language: rust
   pass_filenames: false
-  types_or: [rust, python, ts, tsx, go]
+  files: '\.(rs|py|pyi|ts|mts|cts|tsx|go)$'
   minimum_pre_commit_version: "2.9.2"
