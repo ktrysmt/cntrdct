@@ -97,6 +97,7 @@ jobs:
           ./examples/01_scan.sh > /dev/null
           ./examples/02_calibrate.sh > /dev/null
           ./examples/03_adjudicate_mock.sh > /dev/null
+          ./examples/04_baseline.sh > /dev/null
 
   licenses:
     name: cargo-deny licenses

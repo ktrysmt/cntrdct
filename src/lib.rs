@@ -20,6 +20,7 @@
 //!   otherwise).
 
 pub mod adjudicator;
+pub mod baseline;
 pub mod calibration;
 pub mod candidate_llm;
 pub mod config;
@@ -398,34 +399,36 @@ fn embedded_priors() -> Option<HashMap<String, DetectorPrior>> {
     Some(parsed)
 }
 
-/// Build the appropriate ranker according to caller intent.
+/// Resolve the priors the ranker (and the scan summary) will use.
 ///
 /// Lookup order, first hit wins:
-/// 1. `force_uncalibrated == true` → always [`UncalibratedRanker`].
+/// 1. `force_uncalibrated == true` → `None` (always uncalibrated).
 /// 2. `priors_override` is `Some` → load from there. If the path does
-///    NOT exist, fall back to [`UncalibratedRanker`] (preserves the
-///    pre-P-4 silent-fallback contract for explicit overrides — a user
+///    NOT exist, resolve to `None` (preserves the pre-P-4
+///    silent-fallback contract for explicit overrides — a user
 ///    pointing at a missing file is almost certainly debugging and
 ///    expects to NOT silently get embedded priors).
 /// 3. `default_priors_path()` (per-user cache) exists → load it.
 /// 4. [`EMBEDDED_PRIORS_JSON`] non-empty → load embedded priors. This
 ///    is the P-4 deliverable: a fresh `cargo install cntrdct` ships
 ///    with calibrated rankings out of the box.
-/// 5. [`UncalibratedRanker`] (final fallback).
-pub fn pick_ranker(
+/// 5. `None` (final fallback → uncalibrated ranker).
+///
+/// Pulled out of [`pick_ranker`] so `main.rs` can resolve the priors
+/// exactly once and feed the same map to BOTH the ranker and the
+/// scan-summary renderer ([`render_scan_summary`]) — guaranteeing the
+/// precision numbers shown to the user are the ones that ranked the
+/// findings (P4: corpus-derived, never re-derived ad hoc).
+pub fn resolve_priors(
     force_uncalibrated: bool,
     priors_override: Option<&Path>,
-) -> Result<Box<dyn Ranker>, CalibrateError> {
+) -> Result<Option<HashMap<String, DetectorPrior>>, CalibrateError> {
     if force_uncalibrated {
-        return Ok(Box::new(UncalibratedRanker::new()));
+        return Ok(None);
     }
 
     if let Some(p) = priors_override {
-        let chosen = try_load_priors(p)?;
-        return Ok(match chosen {
-            Some(priors) => Box::new(CalibratedRanker::new(priors)),
-            None => Box::new(UncalibratedRanker::new()),
-        });
+        return try_load_priors(p);
     }
 
     let from_cache: Option<HashMap<String, DetectorPrior>> = match default_priors_path() {
@@ -433,12 +436,28 @@ pub fn pick_ranker(
         None => None,
     };
 
-    let chosen = from_cache.or_else(embedded_priors);
+    Ok(from_cache.or_else(embedded_priors))
+}
 
-    Ok(match chosen {
-        Some(priors) => Box::new(CalibratedRanker::new(priors)),
+/// Build a ranker from already-resolved priors: calibrated when
+/// `Some`, uncalibrated when `None`.
+pub fn ranker_from_priors(priors: Option<HashMap<String, DetectorPrior>>) -> Box<dyn Ranker> {
+    match priors {
+        Some(p) => Box::new(CalibratedRanker::new(p)),
         None => Box::new(UncalibratedRanker::new()),
-    })
+    }
+}
+
+/// Build the appropriate ranker according to caller intent. See
+/// [`resolve_priors`] for the lookup order.
+pub fn pick_ranker(
+    force_uncalibrated: bool,
+    priors_override: Option<&Path>,
+) -> Result<Box<dyn Ranker>, CalibrateError> {
+    Ok(ranker_from_priors(resolve_priors(
+        force_uncalibrated,
+        priors_override,
+    )?))
 }
 
 /// One-shot helper: rank `findings` according to calibration discovery rules.
@@ -449,6 +468,84 @@ pub fn rank_with_calibration(
 ) -> Result<Vec<RankedFinding>, CalibrateError> {
     let ranker = pick_ranker(force_uncalibrated, priors_override)?;
     Ok(ranker.rank(findings))
+}
+
+// ---------- Scan summary (S-1) ----------
+
+/// Render the per-detector scan summary printed to stderr by
+/// `cntrdct scan`. Spec: `docs/spec/scan-summary-v0.md`.
+///
+/// The summary shows, per detector with at least one finding, the
+/// finding count and the labelled-corpus precision lower bound that
+/// Layer 2 used to rank them. Per design constraint P4 the precision
+/// column is read verbatim from the resolved [`DetectorPrior`] map
+/// (the same map handed to the ranker) — this function never derives
+/// or hardcodes a probability. Detectors without a prior render
+/// `(no calibration data)`.
+///
+/// `baseline_suppressed` is `Some(n)` when `--baseline` filtered the
+/// output; the summary then reports how many known findings were
+/// suppressed so "0 findings" cannot be misread as "clean codebase".
+pub fn render_scan_summary(
+    ranked: &[RankedFinding],
+    priors: Option<&HashMap<String, DetectorPrior>>,
+    files_scanned: usize,
+    baseline_suppressed: Option<usize>,
+) -> String {
+    use std::collections::BTreeMap;
+    use std::fmt::Write as _;
+
+    let mut per_detector: BTreeMap<&str, usize> = BTreeMap::new();
+    for rf in ranked {
+        *per_detector
+            .entry(rf.finding.detector_id.as_str())
+            .or_insert(0) += 1;
+    }
+
+    let mut out = String::new();
+    let _ = write!(
+        out,
+        "scan summary: {} finding(s) across {} detector(s) in {} file(s)",
+        ranked.len(),
+        per_detector.len(),
+        files_scanned
+    );
+    if let Some(suppressed) = baseline_suppressed {
+        let _ = write!(
+            out,
+            "\nbaseline: {} known finding(s) suppressed; {} new",
+            suppressed,
+            ranked.len()
+        );
+    }
+    for (detector_id, count) in &per_detector {
+        let prior = priors.and_then(|m| m.get(*detector_id));
+        match prior {
+            Some(p) => {
+                let method = match p.prior_method {
+                    crate::calibration::PriorMethod::Wilson => "wilson 95% lower bound",
+                    crate::calibration::PriorMethod::Jeffreys => "jeffreys lower bound",
+                };
+                let _ = write!(
+                    out,
+                    "\n  {:<28} {:>4}  est. precision >= {:.2} ({}, n={} labelled)",
+                    detector_id,
+                    count,
+                    p.wilson_lower_95,
+                    method,
+                    p.tp + p.fp
+                );
+            }
+            None => {
+                let _ = write!(
+                    out,
+                    "\n  {:<28} {:>4}  (no calibration data)",
+                    detector_id, count
+                );
+            }
+        }
+    }
+    out
 }
 
 // ---------- Adjudication orchestration (Layer 3) ----------
@@ -882,4 +979,101 @@ fn collect_supported_files(path: &Path) -> Vec<(PathBuf, Language)> {
         }
     }
     paths
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::calibration::PriorMethod;
+    use crate::core::{AnomalyClass, Evidence, LanguageCitationStatus, Location, Severity};
+
+    fn ranked(detector_id: &str) -> RankedFinding {
+        RankedFinding {
+            finding: Finding {
+                detector_id: detector_id.to_string(),
+                primary: Location {
+                    file: PathBuf::from("a.rs"),
+                    start_line: 1,
+                    start_col: 1,
+                    end_line: 1,
+                    end_col: 2,
+                },
+                related: vec![],
+                message: "m".to_string(),
+                raw_severity: Severity::Warning,
+                anomaly_class: AnomalyClass::Logic,
+                evidence: Evidence {
+                    citation_keys: vec!["test-2026"],
+                    raw: serde_json::Value::Null,
+                    language_citation_status: LanguageCitationStatus::Confirmed,
+                },
+                origin: Default::default(),
+            },
+            posterior_tp: None,
+            wilson_lower: None,
+            prior_method: None,
+            rank_score: 1.0,
+            adjudication: None,
+        }
+    }
+
+    #[test]
+    fn summary_shows_corpus_derived_precision_per_detector() {
+        let mut priors = HashMap::new();
+        priors.insert(
+            "arg-swap".to_string(),
+            DetectorPrior {
+                tp: 15,
+                fp: 2,
+                posterior_tp: 0.84,
+                wilson_lower_95: 0.65,
+                prior_method: PriorMethod::Jeffreys,
+            },
+        );
+        let out = render_scan_summary(
+            &[
+                ranked("arg-swap"),
+                ranked("arg-swap"),
+                ranked("clone-drift"),
+            ],
+            Some(&priors),
+            7,
+            None,
+        );
+        assert!(
+            out.starts_with("scan summary: 3 finding(s) across 2 detector(s) in 7 file(s)"),
+            "got: {}",
+            out
+        );
+        assert!(
+            out.contains("est. precision >= 0.65 (jeffreys lower bound, n=17 labelled)"),
+            "precision must come from the prior verbatim (P4); got: {}",
+            out
+        );
+        assert!(
+            out.contains("clone-drift") && out.contains("(no calibration data)"),
+            "detector without a prior must say so; got: {}",
+            out
+        );
+        assert!(!out.contains("baseline:"), "got: {}", out);
+    }
+
+    #[test]
+    fn summary_reports_baseline_suppression() {
+        let out = render_scan_summary(&[ranked("arg-swap")], None, 3, Some(4));
+        assert!(
+            out.contains("baseline: 4 known finding(s) suppressed; 1 new"),
+            "got: {}",
+            out
+        );
+    }
+
+    #[test]
+    fn summary_handles_zero_findings() {
+        let out = render_scan_summary(&[], None, 12, None);
+        assert_eq!(
+            out,
+            "scan summary: 0 finding(s) across 0 detector(s) in 12 file(s)"
+        );
+    }
 }

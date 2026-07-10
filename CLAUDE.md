@@ -13,7 +13,9 @@ package at the repo root. Read this file before editing or running gates.
 - Source: `src/{lib.rs,main.rs,cargo_subcommand.rs}` plus modules
   `core`, `parsers`, `config`, `sarif`, `calibration`,
   `llm_calibration`, `cross_model_kappa`, `ranker`, `eval`,
-  `adjudicator`, and
+  `adjudicator`, `baseline` (B-1 ratchet:
+  `docs/spec/baseline-v0.md` — NOT the Q-15 release-fixture
+  "baselines" in `tests/baselines.rs`), and
   `detectors::{arg_swap,clone_drift,comment_code,config_interaction,
   pr_miner,unreachable_after_terminator}`.
 - Tests: `tests/*.rs` (one file per integration scope).
@@ -22,7 +24,9 @@ package at the repo root. Read this file before editing or running gates.
   calibration corpus).
 - Binaries: `cntrdct` (main) and `cargo-cntrdct` (shim that lets
   `cargo cntrdct ...` work; same code path as `cntrdct ...`).
-- Subcommands: `scan`, `calibrate` (`--fit-platt` switches it to
+- Subcommands: `scan` (B-1 flags `--baseline` / `--write-baseline` /
+  `--fail-on` with exit code 3 on threshold, S-1 stderr summary),
+  `calibrate` (`--fit-platt` switches it to
   Q-12 LLM-confidence calibration mode; default mode produces P-4
   detector priors), `eval`, `cross-model-kappa` (Q-13: shells out to
   `claude --print` and `agy -p` — Google Antigravity, a non-Anthropic

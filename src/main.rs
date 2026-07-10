@@ -100,6 +100,31 @@ enum Commands {
         /// (`wataoka-2024`). Pass this to proceed anyway.
         #[arg(long)]
         allow_self_preference: bool,
+        /// B-1: filter output through a baseline file — only findings
+        /// NOT recorded in the baseline are reported (ratchet mode for
+        /// adopting cntrdct in an existing codebase). The filter runs
+        /// after Layer 2 ranking and before Layer 3 adjudication, so
+        /// the opt-in LLM budget is spent on new findings only. A
+        /// missing or malformed baseline file is a hard error.
+        /// Spec: `docs/spec/baseline-v0.md`.
+        #[arg(long)]
+        baseline: Option<PathBuf>,
+        /// B-1: record the current finding set as a baseline file and
+        /// exit 0 (`--fail-on` is not enforced on the run that accepts
+        /// the findings). Mutually exclusive with `--baseline`; to
+        /// update a baseline, simply regenerate it.
+        /// Spec: `docs/spec/baseline-v0.md`.
+        #[arg(long, conflicts_with = "baseline")]
+        write_baseline: Option<PathBuf>,
+        /// B-1: exit-code policy. `error` exits 3 when any reported
+        /// finding has raw_severity Error; `warning` exits 3 on Error
+        /// or Warning; `never` (default) always exits 0 on a
+        /// successful scan. Applied AFTER baseline filtering, so with
+        /// `--baseline` only new findings can fail the run. Exit code
+        /// 3 is distinct from 1 (operational error) and 2 (usage
+        /// error). Spec: `docs/spec/baseline-v0.md`.
+        #[arg(long, value_enum, default_value_t = FailOn::Never)]
+        fail_on: FailOn,
     },
     /// Build calibration priors from a labelled JSONL corpus.
     ///
@@ -198,6 +223,21 @@ enum OutputFormat {
     Sarif,
 }
 
+/// B-1: exit-code policy for `scan`. Mirrors the `fail-on` input of the
+/// GitHub Action (`.github/actions/scan`), so local runs, pre-commit
+/// hooks, and CI can share one severity threshold vocabulary.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, ValueEnum)]
+enum FailOn {
+    /// Exit 3 when any reported finding has raw_severity Error.
+    Error,
+    /// Exit 3 when any reported finding has raw_severity Error or Warning.
+    Warning,
+    /// Always exit 0 on a successful scan (the default; preserves the
+    /// pre-B-1 behaviour).
+    #[default]
+    Never,
+}
+
 /// R-4: provider CLI backing the Layer 0 candidate generator. Both shell
 /// out via `PromptDispatch` (no `reqwest`); auth is delegated to each
 /// CLI's own login.
@@ -244,6 +284,9 @@ fn main() -> ExitCode {
             candidate_llm,
             candidate_llm_max_calls,
             allow_self_preference,
+            baseline,
+            write_baseline,
+            fail_on,
         } => {
             let cfg = match cntrdct::load_config(config.as_deref(), &path) {
                 Ok(c) => c,
@@ -349,17 +392,38 @@ fn main() -> ExitCode {
                         }
                     }
 
-                    let mut ranked = match cntrdct::rank_with_calibration(
-                        findings,
-                        no_calibration,
-                        priors.as_deref(),
-                    ) {
-                        Ok(r) => r,
-                        Err(e) => {
-                            eprintln!("error: {}", e);
-                            return ExitCode::from(1);
-                        }
-                    };
+                    // S-1: resolve the priors ONCE and hand the same map to
+                    // both the ranker and the scan summary, so the precision
+                    // numbers shown to the user are exactly the ones that
+                    // ranked the findings (P4).
+                    let resolved_priors =
+                        match cntrdct::resolve_priors(no_calibration, priors.as_deref()) {
+                            Ok(p) => p,
+                            Err(e) => {
+                                eprintln!("error: {}", e);
+                                return ExitCode::from(1);
+                            }
+                        };
+                    let mut ranked =
+                        cntrdct::ranker_from_priors(resolved_priors.clone()).rank(findings);
+
+                    // B-1: apply the baseline filter BEFORE Layer 3
+                    // adjudication so `--adjudicate-top` budget goes to new
+                    // findings, not to findings the project has already
+                    // accepted into the baseline.
+                    let mut baseline_suppressed: Option<usize> = None;
+                    if let Some(baseline_path) = baseline.as_deref() {
+                        let loaded = match cntrdct::baseline::load(baseline_path) {
+                            Ok(b) => b,
+                            Err(e) => {
+                                eprintln!("error: {}", e);
+                                return ExitCode::from(1);
+                            }
+                        };
+                        let outcome = cntrdct::baseline::filter_ranked(&loaded, ranked, &path);
+                        ranked = outcome.kept;
+                        baseline_suppressed = Some(outcome.suppressed);
+                    }
 
                     if adjudicate {
                         // Task 1: build the Layer 3 adjudicator per the
@@ -471,6 +535,37 @@ fn main() -> ExitCode {
                         }
                     }
 
+                    // B-1: record the baseline at the END of the pipeline so
+                    // it captures exactly the finding set this scan would
+                    // have reported (post-suppression, post-adjudication).
+                    if let Some(write_path) = write_baseline.as_deref() {
+                        let doc = cntrdct::baseline::build(&ranked, &path);
+                        if let Err(e) = cntrdct::baseline::save(write_path, &doc) {
+                            eprintln!("error: {}", e);
+                            return ExitCode::from(1);
+                        }
+                        eprintln!(
+                            "wrote baseline ({} entr{}, {} finding(s)) to {}",
+                            doc.entries.len(),
+                            if doc.entries.len() == 1 { "y" } else { "ies" },
+                            ranked.len(),
+                            write_path.display()
+                        );
+                    }
+
+                    // S-1: per-detector summary with the corpus-derived
+                    // precision the ranker used. Always on stderr so stdout
+                    // stays a clean JSON / SARIF document for pipes.
+                    eprintln!(
+                        "{}",
+                        cntrdct::render_scan_summary(
+                            &ranked,
+                            resolved_priors.as_ref(),
+                            parsed_files.len(),
+                            baseline_suppressed,
+                        )
+                    );
+
                     let output = match format {
                         OutputFormat::Json => serde_json::to_string_pretty(&ranked)
                             .expect("ranked findings serialize cleanly"),
@@ -501,6 +596,39 @@ fn main() -> ExitCode {
                         }
                     };
                     println!("{}", output);
+
+                    // B-1: exit-code policy, applied after baseline
+                    // filtering (only reported findings can fail the run).
+                    // The run that WRITES a baseline accepts its findings by
+                    // definition, so enforcement is skipped with a note.
+                    if write_baseline.is_some() {
+                        if fail_on != FailOn::Never {
+                            eprintln!(
+                                "note: --fail-on is not enforced on the run that writes the baseline"
+                            );
+                        }
+                        return ExitCode::SUCCESS;
+                    }
+                    let offenders = ranked
+                        .iter()
+                        .filter(|rf| match fail_on {
+                            FailOn::Never => false,
+                            FailOn::Error => {
+                                matches!(rf.finding.raw_severity, cntrdct::core::Severity::Error)
+                            }
+                            FailOn::Warning => matches!(
+                                rf.finding.raw_severity,
+                                cntrdct::core::Severity::Error | cntrdct::core::Severity::Warning
+                            ),
+                        })
+                        .count();
+                    if offenders > 0 {
+                        eprintln!(
+                            "fail-on: {} finding(s) at or above the configured severity",
+                            offenders
+                        );
+                        return ExitCode::from(3);
+                    }
                     ExitCode::SUCCESS
                 }
                 Err(e) => {
