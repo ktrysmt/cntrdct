@@ -170,6 +170,14 @@ it with a baseline to keep runs quiet in large repos.
 
 ## Docker
 
+A pre-built image is published to GitHub Packages per release:
+
+```sh
+docker run --rm -v "$PWD:/work" ghcr.io/ktrysmt/cntrdct:latest scan .
+```
+
+Or build from source:
+
 ```sh
 docker build -t cntrdct https://github.com/ktrysmt/cntrdct.git
 docker run --rm -v "$PWD:/work" cntrdct scan .
