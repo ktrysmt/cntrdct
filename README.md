@@ -39,10 +39,9 @@ cntrdct scan ./src --fail-on warning  # exit 3 when findings warrant action
 cntrdct scan ./src --adjudicate
 ```
 
-Every scan also prints a summary to stderr (stdout stays clean JSON /
-SARIF): per-detector finding counts plus the estimated precision of
-that detector, measured on the labelled calibration corpus that ranks
-the findings — so you can see at a glance how much to trust each line:
+Each scan also prints a per-detector summary to stderr — finding counts
+plus the detector's estimated precision on the labelled corpus that
+ranks findings — while stdout stays a clean JSON / SARIF document:
 
 ```
 scan summary: 3 finding(s) across 2 detector(s) in 450 file(s)
@@ -124,9 +123,9 @@ catch-all that suppresses every detector for that item.
 
 ## Adopting in an existing codebase (baseline)
 
-Introducing any linter into a large codebase drowns the first run in
-pre-existing findings. The baseline ratchet makes adoption free: record
-today's findings once, then every later scan reports only NEW findings.
+Introducing a linter into a large codebase drowns the first run in
+pre-existing findings. The baseline ratchet records today's findings
+once, so later scans report only NEW ones.
 
 ```sh
 # once, at adoption time
@@ -140,23 +139,14 @@ cntrdct scan . --baseline cntrdct-baseline.json --fail-on warning
 cntrdct scan . --write-baseline cntrdct-baseline.json
 ```
 
-Baseline fingerprints are line-shift tolerant (moving code around does
-not resurrect known findings) and the file is plain, reviewable JSON.
-With `--adjudicate`, known findings are filtered before adjudication,
-so the LLM budget is spent on new findings only. Details:
+Fingerprints are line-shift tolerant (moving code does not resurrect
+known findings) and the baseline is plain, reviewable JSON. Details:
 [`docs/spec/baseline-v0.md`](docs/spec/baseline-v0.md).
 
-### Exit codes
-
-| code | meaning |
-|---|---|
-| 0 | scan succeeded; nothing at/above the `--fail-on` threshold |
-| 1 | operational error (bad path, unreadable baseline, config error) |
-| 2 | CLI usage error |
-| 3 | `--fail-on {error,warning}` threshold met by a reported finding |
-
-The default is `--fail-on never`: without the flag, a successful scan
-always exits 0 regardless of findings.
+`--fail-on {error,warning,never}` sets the exit-code policy (default
+`never`, so a successful scan exits 0 regardless of findings): exit `3`
+when a reported finding meets the threshold, `1` on an operational
+error, `2` on a CLI usage error.
 
 ## pre-commit
 
@@ -166,9 +156,7 @@ With the [pre-commit](https://pre-commit.com/) framework, add to your
 ```yaml
 repos:
   - repo: https://github.com/ktrysmt/cntrdct
-    # pin any release tag that ships .pre-commit-hooks.yaml
-    # (i.e. any tag newer than v0.13.1)
-    rev: vX.Y.Z
+    rev: v0.14.0
     hooks:
       - id: cntrdct
         # defaults to: scan . --fail-on warning
@@ -176,9 +164,9 @@ repos:
         # args: [scan, ., --baseline, cntrdct-baseline.json, --fail-on, warning]
 ```
 
-The hook scans the whole tree rather than staged files only, because
-several detectors (clone-drift, pr-miner) need cross-file context.
-Pair it with a baseline to keep commits fast to review in large repos.
+The hook scans the whole tree, not just staged files, because
+detectors like clone-drift and pr-miner need cross-file context. Pair
+it with a baseline to keep runs quiet in large repos.
 
 ## Docker
 
