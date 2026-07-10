@@ -69,6 +69,16 @@ enum Commands {
         /// treated as an empty config.
         #[arg(long)]
         config: Option<PathBuf>,
+        /// I-1: also scan files that ignore files exclude. By default the
+        /// walker respects `.gitignore` / `.ignore` / `.git/info/exclude` /
+        /// the global git excludes the way ripgrep does (git-derived rules
+        /// apply inside a git repository), keeping `target/`,
+        /// `node_modules/`, and other ignored trees out of the findings.
+        /// Hidden files (including `.git/`) are skipped even with this
+        /// flag. A single-FILE path argument is always scanned. Spec:
+        /// `docs/spec/scan-ignore-v0.md`.
+        #[arg(long, default_value_t = false)]
+        no_ignore: bool,
         /// R-4: run the opt-in Layer 0 LLM candidate generator (arg-swap
         /// Bound B) before Layer 1. REQUIRES `--adjudicate`: candidates
         /// flow through Layer 3, and any candidate left unadjudicated is
@@ -281,6 +291,7 @@ fn main() -> ExitCode {
             adjudicate_top,
             adjudicate_via,
             config,
+            no_ignore,
             candidate_llm,
             candidate_llm_max_calls,
             allow_self_preference,
@@ -295,7 +306,7 @@ fn main() -> ExitCode {
                     return ExitCode::from(1);
                 }
             };
-            match cntrdct::scan_full_with_config(&path, &cfg) {
+            match cntrdct::scan_full_with_options(&path, &cfg, cntrdct::WalkOptions { no_ignore }) {
                 Ok((raw_findings, parsed_files)) => {
                     let mut findings =
                         match cntrdct::config::apply(&cfg, &parsed_files, raw_findings) {

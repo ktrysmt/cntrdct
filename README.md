@@ -33,11 +33,20 @@ cntrdct scan ./src                    # JSON to stdout (default)
 cntrdct scan ./src --format sarif     # SARIF 2.1.0 for code-scanning tools
 cargo cntrdct scan ./src              # via cargo subcommand
 cntrdct scan ./src --fail-on warning  # exit 3 when findings warrant action
+cntrdct scan . --no-ignore            # also scan gitignored files
 
 # Optional Layer 3 LLM adjudication on the top-N findings. Off by
 # default; see "Network access" below for the backends.
 cntrdct scan ./src --adjudicate
 ```
+
+`scan` respects `.gitignore` (plus `.ignore`, `.git/info/exclude`, and
+the global git excludes) the way ripgrep does, so `target/`,
+`node_modules/`, and other ignored trees stay out of the findings.
+Pass `--no-ignore` to scan ignored files too; hidden files (including
+`.git/`) are skipped either way, and a file named explicitly on the
+command line is always scanned (a directory argument is still walked
+with ignore rules).
 
 Each scan also prints a per-detector summary to stderr — finding counts
 plus the detector's estimated precision on the labelled corpus that
