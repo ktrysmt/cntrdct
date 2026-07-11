@@ -26,7 +26,7 @@ P3 as written (CLAUDE.md "Design constraints"; `adjudicator-v0.md`):
 > only the Layer 3 adjudicator may invoke an LLM. Layers 1, 2, and 4
 > are deterministic, including the Q-12 post-processing helper
 > `apply_llm_calibration`. `reqwest` is reachable only from
-> `src/adjudicator.rs::ReqwestClient` and the
+> `src/adjudicator/anthropic.rs::ReqwestClient` and the
 > `build_default_adjudicator` constructor in `src/lib.rs`.
 
 P3 is enforced three ways and the amendment must keep all three intact:
@@ -104,9 +104,9 @@ does not re-litigate them.
 Two ways to reach an LLM already ship in the repo:
 
 - HTTP via `reqwest` — `AnthropicAdjudicator` / `ReqwestClient`
-  (`src/adjudicator.rs`), used by `scan --adjudicate`. Opens a socket
-  from cntrdct itself; constrained to `adjudicator.rs` by the P3
-  reqwest-reachability rule.
+  (`src/adjudicator/anthropic.rs`), used by `scan --adjudicate`. Opens
+  a socket from cntrdct itself; constrained to `adjudicator/anthropic.rs`
+  by the P3 reqwest-reachability rule.
 - CLI shellout — `ClaudeCliAdjudicator` (`claude --print`) and
   `AgyCliAdjudicator` (`agy -p`, Antigravity — replaces the retired
   `gemini` shellout), the Q-13 cross-model-kappa providers. cntrdct
@@ -143,7 +143,7 @@ precision is a funnel, not a verdict.
 
 Reqwest-reachability is preserved by *construction discipline*, not by
 the type system: `AnthropicAdjudicator` (reqwest-backed) also
-implements `PromptDispatch` (`src/adjudicator.rs`), so a
+implements `PromptDispatch` (`src/adjudicator/`), so a
 `Box<dyn PromptDispatch>` could in principle carry the HTTP provider
 into the scan path. The Layer 0 driver (`src/candidate_llm.rs`, §4.3)
 MUST therefore construct *only* the CLI providers — the
@@ -153,7 +153,7 @@ pattern already used by Q-13 (`src/lib.rs`) — and MUST NOT reference
 structurally by a `fmt`-job grep guard in `.github/workflows/ci.yml`
 (the same shape as the existing `tree_sitter` / TBD greps) asserting
 `candidate_llm.rs` references neither symbol, so the reqwest-reachable
-set stays exactly `{adjudicator.rs::ReqwestClient,
+set stays exactly `{adjudicator/anthropic.rs::ReqwestClient,
 build_default_adjudicator}` (absorbed: review M1/§6 P3).
 
 ### 3.2 Default-on vs. opt-in
@@ -312,7 +312,7 @@ not a new subcommand.
   struct-literal construction, so adding the field touches every
   `Finding { … }` literal site (~19–35: the seven detectors under
   `src/detectors/`, `src/config.rs`, `src/recall_audit.rs`,
-  `src/adjudicator.rs`, `src/lsp.rs`, plus the test fixtures). The
+  `src/adjudicator/`, `src/lsp.rs`, plus the test fixtures). The
   implementation should add `origin: Origin::default()` at the
   Layer-1 sites (or introduce a `Finding::builder` / `..Default`
   shorthand) and `Origin::Layer0Llm` in `candidate_llm.rs` only. The
@@ -437,7 +437,7 @@ cannot implement `Detector` without contradicting that contract (and if
 it did, it would be wired into the deterministic `run_detectors_on`
 battery the netns gate guards). Layer 0 instead follows the Layer 3
 precedent: a static citations table (mirroring
-`adjudicator.rs::ADJUDICATOR_CITATIONS`) validated by a consistency
+`adjudicator/mod.rs::ADJUDICATOR_CITATIONS`) validated by a consistency
 test (mirroring `tests/citations_consistency.rs`'s adjudicator arm,
 `adjudicator-v0.md` F10) that resolves every Layer 0 key against
 `CITATIONS.md`. Per `citations-policy.md`, per-language coverage for
@@ -452,7 +452,7 @@ Concretely:
 
 - `reqwest` reachability is UNCHANGED — Layer 0 uses CLI shellout
   (`PromptDispatch` CLI providers), not `reqwest`. The
-  reqwest-reachable set stays `{adjudicator.rs::ReqwestClient,
+  reqwest-reachable set stays `{adjudicator/anthropic.rs::ReqwestClient,
   build_default_adjudicator}`, enforced by the §3.1 CI grep guard on
   `candidate_llm.rs` (not by the type system alone).
 - The `network-isolation` job continues to run unflagged `scan` and

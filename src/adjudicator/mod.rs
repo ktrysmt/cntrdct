@@ -5,14 +5,22 @@
 //! (Q-13 cross-model audit; CLI-shellout providers).
 //!
 //! Per design constraint P3 in `cntrdct-core`, this module is the SOLE
-//! component permitted to invoke an LLM. Three concrete providers ship:
-//! [`AnthropicAdjudicator`] (Anthropic Messages — the `--adjudicate`
-//! default, HTTP via `reqwest`), [`ClaudeCliAdjudicator`] (CLI shellout
-//! to `claude --print`), and [`AgyCliAdjudicator`] (CLI shellout to
-//! `agy -p`, Google Antigravity's multi-model CLI). The CLI providers do
-//! not introduce a new HTTP path on the cntrdct side — auth is delegated
-//! to each CLI's own login. Detector and Ranker modules remain
+//! component permitted to invoke an LLM. Three concrete providers ship,
+//! one per submodule: [`AnthropicAdjudicator`] (Anthropic Messages — the
+//! `--adjudicate` default, HTTP via `reqwest`; `anthropic.rs`),
+//! [`ClaudeCliAdjudicator`] (CLI shellout to `claude --print`;
+//! `claude_cli.rs`), and [`AgyCliAdjudicator`] (CLI shellout to `agy -p`,
+//! Google Antigravity's multi-model CLI; `agy_cli.rs`). The CLI providers
+//! do not introduce a new HTTP path on the cntrdct side — auth is
+//! delegated to each CLI's own login. Detector and Ranker modules remain
 //! network-free.
+//!
+//! This root module holds everything the providers share, so the policy
+//! lives in exactly one place: the provider-agnostic [`PromptDispatch`] /
+//! [`HttpClient`] seams, prompt construction ([`build_prompt`] and the
+//! agy-specific compact variant), the response-envelope parsers, the
+//! error type, the Layer 3 citations, and the usage-cap
+//! [`FallbackAdjudicator`]. The submodules contribute transport only.
 //!
 //! Antigravity (`agy`) replaces the retired `gemini` CLI shellout: the
 //! standalone Gemini CLI was folded into Antigravity upstream and is no
@@ -39,79 +47,32 @@
 //! - `zheng-neurips-2023` — L. Zheng et al., "Judging LLM-as-a-Judge with
 //!   MT-Bench and Chatbot Arena", NeurIPS 36, 46595–46623, 2023.
 
+mod agy_cli;
+mod anthropic;
+mod claude_cli;
+#[cfg(test)]
+pub(crate) mod test_support;
+
+pub use agy_cli::{
+    AgyCliAdjudicator, AGY_CLI_MODEL, AGY_CLI_PROGRAM, AGY_CLI_PROVIDER_ID, AGY_SYSTEM_PROMPT,
+};
+pub use anthropic::{
+    AnthropicAdjudicator, ReqwestClient, ANTHROPIC_API_URL, ANTHROPIC_PROVIDER_ID,
+    ANTHROPIC_VERSION, DEFAULT_MAX_TOKENS, DEFAULT_MODEL, DEFAULT_TEMPERATURE,
+};
+pub use claude_cli::{
+    ClaudeCliAdjudicator, CLAUDE_CLI_ADJUDICATE_MODEL, CLAUDE_CLI_MODEL, CLAUDE_CLI_PROGRAM,
+    CLAUDE_CLI_PROVIDER_ID, CLI_SYSTEM_PROMPT,
+};
+
 use std::collections::HashMap;
-use std::time::Duration;
 
 use crate::core::{
     AdjudicationResult, AdjudicationVerdict, Adjudicator, Citation, DetectorError, RankedFinding,
 };
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::Value;
 use thiserror::Error;
-
-// ---------- Constants ----------
-
-pub const DEFAULT_MODEL: &str = "claude-sonnet-4-6";
-pub const DEFAULT_TEMPERATURE: f64 = 0.0;
-pub const DEFAULT_MAX_TOKENS: u32 = 1024;
-pub const ANTHROPIC_API_URL: &str = "https://api.anthropic.com/v1/messages";
-pub const ANTHROPIC_VERSION: &str = "2023-06-01";
-
-/// Provider id surfaced for the existing `scan --adjudicate` HTTP
-/// path. Q-13's cross-model audit does not use this provider.
-pub const ANTHROPIC_PROVIDER_ID: &str = "anthropic";
-
-/// Q-13: default executable name for Claude Code's CLI.
-pub const CLAUDE_CLI_PROGRAM: &str = "claude";
-/// Default model for the `claude-cli` PROPOSER (Layer 0). Sonnet — semantic
-/// Bound-B swap generation needs the stronger model.
-pub const CLAUDE_CLI_MODEL: &str = "claude-sonnet-4-6";
-/// Default model for the `claude-cli` ADJUDICATOR (Layer 3,
-/// `scan --adjudicate-via=claude-cli`). Haiku — verdict is a binary
-/// classification, so the cheaper / faster model suffices and is the
-/// normal `claude -p` adjudication path. Overridable via
-/// `CLAUDE_CLI_ADJUDICATE_MODEL_OVERRIDE`.
-pub const CLAUDE_CLI_ADJUDICATE_MODEL: &str = "claude-haiku-4-5";
-/// Q-13: provider id surfaced in cross-model audit logs.
-pub const CLAUDE_CLI_PROVIDER_ID: &str = "claude-cli";
-
-/// Default executable name for Google Antigravity's CLI (replaces the
-/// retired `gemini` shellout).
-pub const AGY_CLI_PROGRAM: &str = "agy";
-/// Default model passed to `agy --model`. A Gemini model is forced so
-/// the provider stays non-Anthropic (cross-family vs the `claude-cli`
-/// proposer); the literal is the display-name form `agy models` lists.
-/// `Low` is the lightest variant — the gentlest on Antigravity's
-/// free-tier rate limits. Override with `AGY_CLI_MODEL_OVERRIDE` (e.g. a
-/// paid account bumping to `Gemini 3.5 Flash (Medium)`).
-pub const AGY_CLI_MODEL: &str = "Gemini 3.5 Flash (Low)";
-/// Provider id surfaced in cross-model audit logs.
-pub const AGY_CLI_PROVIDER_ID: &str = "agy-cli";
-
-/// Q-13: minimal system prompt installed for the `claude` CLI provider.
-/// The recipe assumes the CLI's default agentic persona is fully
-/// overridden so the model receives essentially the user prompt only.
-/// `claude --print` installs it via `--system-prompt`; `agy -p` has no
-/// such flag and runs a stickier agentic persona, so [`AgyCliAdjudicator`]
-/// uses the stronger [`AGY_SYSTEM_PROMPT`] instead.
-pub const CLI_SYSTEM_PROMPT: &str = "You are evaluating a static analysis finding from cntrdct. \
-     Respond only with the requested JSON object on a single line. \
-     Do not call tools, do not read files, do not produce additional \
-     prose.";
-
-/// Stronger closed-book directive prepended to the (flattened) prompt body
-/// for `agy -p`. `agy` lacks a `--system-prompt` flag AND runs an agentic
-/// persona: given a "review this finding" prompt it tries to *act*
-/// (investigate / use tools) and, in `--print` mode with no tools, hangs or
-/// returns an EMPTY response — the parse then fails and the verdict is
-/// dropped. Folding [`CLI_SYSTEM_PROMPT`] alone was empirically
-/// insufficient; this forceful closed-book prefix (plus single-line
-/// flattening in `dispatch`) makes `agy -p` emit the verdict envelope.
-/// Verified against `Gemini 3.5 Flash (Low)`.
-pub const AGY_SYSTEM_PROMPT: &str = "Output ONLY one line of valid JSON and nothing else. \
-     Do not investigate, do not use tools, do not read files, do not call any tool, do not \
-     produce prose, markdown, or explanation outside the JSON. This is a closed-book \
-     classification task: answer using only the information in the prompt below, then stop.";
 
 // ---------- Citations (Layer 3) ----------
 
@@ -213,101 +174,6 @@ pub trait HttpClient: Send + Sync {
     ) -> Result<Value, AdjudicatorError>;
 }
 
-// ---------- AnthropicAdjudicator ----------
-
-#[derive(Debug, Clone)]
-pub struct AnthropicAdjudicator<C: HttpClient> {
-    client: C,
-    api_key: String,
-    model: String,
-    temperature: f64,
-    max_tokens: u32,
-    url: String,
-}
-
-impl<C: HttpClient> AnthropicAdjudicator<C> {
-    /// Build an adjudicator with the supplied transport and API key.
-    ///
-    /// `api_key` is held in memory and forwarded to the HTTP layer via the
-    /// `x-api-key` header. It is NEVER logged and never appears in error
-    /// messages.
-    pub fn new(client: C, api_key: String) -> Self {
-        Self {
-            client,
-            api_key,
-            model: DEFAULT_MODEL.to_string(),
-            temperature: DEFAULT_TEMPERATURE,
-            max_tokens: DEFAULT_MAX_TOKENS,
-            url: ANTHROPIC_API_URL.to_string(),
-        }
-    }
-
-    pub fn with_model(mut self, model: impl Into<String>) -> Self {
-        self.model = model.into();
-        self
-    }
-
-    pub fn with_temperature(mut self, temperature: f64) -> Self {
-        self.temperature = temperature;
-        self
-    }
-
-    pub fn with_max_tokens(mut self, max_tokens: u32) -> Self {
-        self.max_tokens = max_tokens;
-        self
-    }
-
-    /// Override the API URL. Used by integration tests to point at a mock
-    /// HTTP server (mockito); production callers leave this at the default.
-    pub fn with_url(mut self, url: impl Into<String>) -> Self {
-        self.url = url.into();
-        self
-    }
-}
-
-impl<C: HttpClient> PromptDispatch for AnthropicAdjudicator<C> {
-    fn provider_id(&self) -> &'static str {
-        ANTHROPIC_PROVIDER_ID
-    }
-
-    fn model(&self) -> &str {
-        &self.model
-    }
-
-    fn dispatch(&self, prompt: &str) -> Result<AdjudicationResult, DetectorError> {
-        let body = json!({
-            "model": self.model,
-            "max_tokens": self.max_tokens,
-            "temperature": self.temperature,
-            "messages": [{"role": "user", "content": prompt}],
-        });
-
-        let headers = vec![
-            ("x-api-key".to_string(), self.api_key.clone()),
-            (
-                "anthropic-version".to_string(),
-                ANTHROPIC_VERSION.to_string(),
-            ),
-            ("content-type".to_string(), "application/json".to_string()),
-        ];
-
-        let raw = self
-            .client
-            .post_json(&self.url, &headers, &body)
-            .map_err(DetectorError::from)?;
-
-        let result = parse_response(&raw).map_err(DetectorError::from)?;
-        Ok(result)
-    }
-}
-
-impl<C: HttpClient> Adjudicator for AnthropicAdjudicator<C> {
-    fn adjudicate(&self, finding: &RankedFinding) -> Result<AdjudicationResult, DetectorError> {
-        let prompt = build_prompt(finding, &HashMap::new());
-        self.dispatch(&prompt)
-    }
-}
-
 // ---------- PromptDispatch trait (Q-13) ----------
 
 /// Lower-level dispatch surface used by the Q-13 cross-model audit. The
@@ -338,231 +204,6 @@ pub trait PromptDispatch: Send + Sync {
     /// provider-specific request body, headers, and response-envelope
     /// extraction; the inner JSON envelope is shared.
     fn dispatch(&self, prompt: &str) -> Result<AdjudicationResult, DetectorError>;
-}
-
-// ---------- ClaudeCliAdjudicator (Q-13) ----------
-
-/// Q-13: shells out to Claude Code's `claude --print` with the
-/// methodology-clean flag set documented in
-/// `docs/spec/cross-model-kappa-v0.md` F2.
-///
-/// Auth is delegated to the user's existing `claude` login (OAuth /
-/// subscription); the provider holds no API key. CLAUDE.md
-/// auto-discovery is suppressed by spawning the subprocess with
-/// `current_dir = <tempdir>`. The default flag set replaces Claude
-/// Code's agentic persona with a minimal system prompt, disables
-/// every built-in tool, and forces structured JSON output so the
-/// inner verdict envelope is parseable byte-for-byte the same as
-/// the HTTP path.
-pub struct ClaudeCliAdjudicator {
-    program: String,
-    model: String,
-    workdir: tempfile::TempDir,
-}
-
-impl ClaudeCliAdjudicator {
-    /// Build a CLI adjudicator with default `program = "claude"` and
-    /// `model = "claude-sonnet-4-6"`. Allocates a tempdir used as the
-    /// subprocess `cwd` so CLAUDE.md auto-discovery picks up no
-    /// project context.
-    pub fn new() -> std::io::Result<Self> {
-        let workdir = tempfile::tempdir()?;
-        Ok(Self {
-            program: CLAUDE_CLI_PROGRAM.to_string(),
-            model: CLAUDE_CLI_MODEL.to_string(),
-            workdir,
-        })
-    }
-
-    /// Override the executable name / path. Used by tests to point at
-    /// a stub script that emits a canned response envelope.
-    pub fn with_program(mut self, program: impl Into<String>) -> Self {
-        self.program = program.into();
-        self
-    }
-
-    /// Override the model passed to `claude --model`.
-    pub fn with_model(mut self, model: impl Into<String>) -> Self {
-        self.model = model.into();
-        self
-    }
-}
-
-impl PromptDispatch for ClaudeCliAdjudicator {
-    fn provider_id(&self) -> &'static str {
-        CLAUDE_CLI_PROVIDER_ID
-    }
-
-    fn model(&self) -> &str {
-        &self.model
-    }
-
-    fn dispatch(&self, prompt: &str) -> Result<AdjudicationResult, DetectorError> {
-        let output = std::process::Command::new(&self.program)
-            .current_dir(self.workdir.path())
-            .arg("--print")
-            .arg("--model")
-            .arg(&self.model)
-            .arg("--system-prompt")
-            .arg(CLI_SYSTEM_PROMPT)
-            .arg("--tools")
-            .arg("")
-            .arg("--strict-mcp-config")
-            .arg("--disable-slash-commands")
-            .arg("--no-session-persistence")
-            .arg("--output-format")
-            .arg("json")
-            .arg(prompt)
-            .output()
-            .map_err(|e| DetectorError::Config(format!("claude CLI invoke failed: {}", e)))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(DetectorError::Config(format!(
-                "claude --print exited with {}: {}",
-                output.status,
-                stderr.trim()
-            )));
-        }
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        parse_claude_cli_envelope(stdout.as_ref()).map_err(DetectorError::from)
-    }
-}
-
-impl Adjudicator for ClaudeCliAdjudicator {
-    /// Run Layer 3 over `claude --print` subscription auth (no
-    /// `ANTHROPIC_API_KEY`). Builds the standard finding prompt and routes
-    /// it through the same `dispatch` the cross-model audit uses, so the
-    /// verdict envelope is parsed identically to the HTTP path. Used by
-    /// `scan --adjudicate --adjudicate-via=claude-cli`.
-    fn adjudicate(&self, finding: &RankedFinding) -> Result<AdjudicationResult, DetectorError> {
-        let prompt = build_prompt(finding, &HashMap::new());
-        self.dispatch(&prompt)
-    }
-}
-
-// ---------- AgyCliAdjudicator ----------
-
-/// Shells out to Google Antigravity's `agy -p` (the multi-model CLI that
-/// replaced the retired standalone `gemini` binary).
-///
-/// Auth is delegated to the user's existing `agy` login; the provider
-/// holds no API key. Context auto-discovery (AGENTS.md / project memory)
-/// is suppressed by spawning the subprocess with `current_dir =
-/// <tempdir>`. Unlike `claude --print`, `agy -p` exposes neither
-/// `--output-format json` nor `--system-prompt`: it prints the model's
-/// raw text response to stdout, so [`Self::dispatch`] parses that text
-/// directly ([`parse_agy_cli_envelope`]) and prepends [`CLI_SYSTEM_PROMPT`]
-/// to the prompt body to stand in for the missing system-prompt flag.
-///
-/// `agy` is multi-model; the default [`AGY_CLI_MODEL`] forces a Gemini
-/// model so `candidate_llm::model_family` classifies the provider as
-/// `google` (non-Anthropic), keeping it a valid cross-family confirmer for
-/// a `claude-cli` proposer / Anthropic adjudicator.
-pub struct AgyCliAdjudicator {
-    program: String,
-    model: String,
-    workdir: tempfile::TempDir,
-}
-
-impl AgyCliAdjudicator {
-    /// Build a CLI adjudicator with default `program = "agy"` and the
-    /// forced-Gemini [`AGY_CLI_MODEL`]. Allocates a tempdir used as the
-    /// subprocess `cwd` so Antigravity picks up no project context.
-    pub fn new() -> std::io::Result<Self> {
-        let workdir = tempfile::tempdir()?;
-        Ok(Self {
-            program: AGY_CLI_PROGRAM.to_string(),
-            model: AGY_CLI_MODEL.to_string(),
-            workdir,
-        })
-    }
-
-    /// Override the executable name / path. Used by tests to point at
-    /// a stub script that emits a canned raw-text response.
-    pub fn with_program(mut self, program: impl Into<String>) -> Self {
-        self.program = program.into();
-        self
-    }
-
-    /// Override the model passed to `agy --model`.
-    pub fn with_model(mut self, model: impl Into<String>) -> Self {
-        self.model = model.into();
-        self
-    }
-}
-
-impl PromptDispatch for AgyCliAdjudicator {
-    fn provider_id(&self) -> &'static str {
-        AGY_CLI_PROVIDER_ID
-    }
-
-    fn model(&self) -> &str {
-        &self.model
-    }
-
-    fn dispatch(&self, prompt: &str) -> Result<AdjudicationResult, DetectorError> {
-        // No --system-prompt flag on `agy -p`; fold the persona-suppressing
-        // instruction into the prompt body so the model still receives it.
-        // Two empirically-required shapes for `agy -p` (verified against
-        // `Gemini 3.5 Flash (Low)`):
-        //  1. The forceful AGY_SYSTEM_PROMPT (not the weaker
-        //     CLI_SYSTEM_PROMPT) — a verbose "evaluate this finding" prompt
-        //     otherwise triggers agy's agentic persona, which hangs / returns
-        //     an empty -p response instead of the verdict.
-        //  2. A SINGLE-LINE prompt — a multi-line prompt (newlines in the
-        //     `build_prompt` template / nested EVIDENCE_RAW JSON) trips the
-        //     same agentic path. Collapsing all whitespace to single spaces
-        //     keeps the prompt one line; JSON is whitespace-insensitive so
-        //     the EVIDENCE_RAW block survives the flatten intact.
-        let flattened = prompt.split_whitespace().collect::<Vec<_>>().join(" ");
-        let full_prompt = format!("{AGY_SYSTEM_PROMPT} {flattened}");
-        // CRITICAL arg order: `agy`'s `--print` / `-p` takes the prompt as
-        // its VALUE (it is not a boolean flag). `--model` must therefore come
-        // FIRST, with the prompt as the token immediately after `--print` —
-        // `agy --print --model <m> <prompt>` makes `--print` swallow
-        // `"--model"` as the prompt and drops the real prompt as a stray
-        // positional, which is why agy returned chatty/empty non-JSON.
-        let output = std::process::Command::new(&self.program)
-            .current_dir(self.workdir.path())
-            .arg("--model")
-            .arg(&self.model)
-            .arg("--print")
-            .arg(&full_prompt)
-            .output()
-            .map_err(|e| DetectorError::Config(format!("agy CLI invoke failed: {}", e)))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(DetectorError::Config(format!(
-                "agy -p exited with {}: {}",
-                output.status,
-                stderr.trim()
-            )));
-        }
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        parse_agy_cli_envelope(stdout.as_ref()).map_err(DetectorError::from)
-    }
-}
-
-impl Adjudicator for AgyCliAdjudicator {
-    /// Run Layer 3 over `agy -p` subscription auth (no `ANTHROPIC_API_KEY`),
-    /// with a non-Anthropic Gemini model so the verdict carries no
-    /// self-preference bias against a `claude-cli` proposer. Used by
-    /// `scan --adjudicate --adjudicate-via=agy-cli`.
-    fn adjudicate(&self, finding: &RankedFinding) -> Result<AdjudicationResult, DetectorError> {
-        // agy gets a COMPACT prompt, not the verbose `build_prompt` template.
-        // The full template (labelled fields + a pretty-printed EVIDENCE_RAW
-        // JSON block) reliably trips agy's agentic persona even when
-        // flattened — agy hangs / returns empty. The compact form keeps the
-        // decisive content (detector / message / location / inline evidence)
-        // short enough that `agy -p` answers directly. Verified against
-        // `Gemini 3.5 Flash (Low)`.
-        let prompt = build_compact_prompt(finding);
-        self.dispatch(&prompt)
-    }
 }
 
 // ---------- FallbackAdjudicator ----------
@@ -869,68 +510,6 @@ fn strip_code_fence(s: &str) -> &str {
     trimmed.trim()
 }
 
-// ---------- ReqwestClient ----------
-
-/// Production HTTP client backed by `reqwest::blocking` with rustls.
-///
-/// Thin shim around `reqwest`; all decision logic (prompt assembly, response
-/// parsing, error mapping) lives in `AnthropicAdjudicator` and the pure
-/// helpers above so the only thing this struct contributes is wire transport.
-#[derive(Debug)]
-pub struct ReqwestClient {
-    inner: reqwest::blocking::Client,
-}
-
-impl ReqwestClient {
-    /// Build a new client with a 60-second total timeout. The Anthropic
-    /// Messages endpoint can take ~30s under load; 60s gives one round of
-    /// headroom without leaving the CLI hung indefinitely on a network blip.
-    pub fn new() -> Result<Self, AdjudicatorError> {
-        let inner = reqwest::blocking::Client::builder()
-            .timeout(Duration::from_secs(60))
-            .build()
-            .map_err(|e| AdjudicatorError::Http(e.to_string()))?;
-        Ok(Self { inner })
-    }
-}
-
-impl Default for ReqwestClient {
-    fn default() -> Self {
-        Self::new().expect("reqwest blocking client builds with default settings")
-    }
-}
-
-impl HttpClient for ReqwestClient {
-    fn post_json(
-        &self,
-        url: &str,
-        headers: &[(String, String)],
-        body: &Value,
-    ) -> Result<Value, AdjudicatorError> {
-        let mut req = self.inner.post(url).json(body);
-        for (k, v) in headers {
-            req = req.header(k, v);
-        }
-        let resp = req
-            .send()
-            .map_err(|e| AdjudicatorError::Http(e.to_string()))?;
-        let status = resp.status();
-        let body: Value = resp
-            .json()
-            .map_err(|e| AdjudicatorError::Http(e.to_string()))?;
-        if !status.is_success() {
-            // Deliberately do NOT include the API key (or any header value) in
-            // error messages. The body alone is sufficient to debug typical
-            // 4xx/5xx failures.
-            return Err(AdjudicatorError::Http(format!(
-                "status {}: {}",
-                status, body
-            )));
-        }
-        Ok(body)
-    }
-}
-
 // ---------- Test helpers ----------
 
 /// Mock HTTP client used by unit tests in this crate and by integration tests
@@ -945,123 +524,9 @@ pub struct MockResponse {
 
 #[cfg(test)]
 mod tests {
+    use super::test_support::{anthropic_response, make_ranked, write_stub_script, MockClient};
     use super::*;
-    use crate::core::{
-        AnomalyClass, Evidence, Finding, LanguageCitationStatus, Location, RankedFinding, Severity,
-    };
-    use std::path::PathBuf;
-    use std::sync::Mutex;
-
-    // ---- Mock client ----
-
-    struct MockClient {
-        response: Mutex<Result<Value, AdjudicatorError>>,
-        last_url: Mutex<Option<String>>,
-        last_headers: Mutex<Option<Vec<(String, String)>>>,
-        last_body: Mutex<Option<Value>>,
-    }
-
-    impl MockClient {
-        fn ok(v: Value) -> Self {
-            Self {
-                response: Mutex::new(Ok(v)),
-                last_url: Mutex::new(None),
-                last_headers: Mutex::new(None),
-                last_body: Mutex::new(None),
-            }
-        }
-
-        fn err(e: AdjudicatorError) -> Self {
-            Self {
-                response: Mutex::new(Err(e)),
-                last_url: Mutex::new(None),
-                last_headers: Mutex::new(None),
-                last_body: Mutex::new(None),
-            }
-        }
-    }
-
-    impl HttpClient for MockClient {
-        fn post_json(
-            &self,
-            url: &str,
-            headers: &[(String, String)],
-            body: &Value,
-        ) -> Result<Value, AdjudicatorError> {
-            *self.last_url.lock().unwrap() = Some(url.to_string());
-            *self.last_headers.lock().unwrap() = Some(headers.to_vec());
-            *self.last_body.lock().unwrap() = Some(body.clone());
-            // Return a clone of the canned response. The mock holds it in a
-            // Mutex so we don't need Sync-without-interior-mutability gymnastics
-            // for the trait object.
-            let guard = self.response.lock().unwrap();
-            match &*guard {
-                Ok(v) => Ok(v.clone()),
-                Err(e) => Err(AdjudicatorError::Http(e.to_string())),
-            }
-        }
-    }
-
-    // ---- Fixtures ----
-
-    fn make_finding() -> Finding {
-        Finding {
-            detector_id: "clone-drift".to_string(),
-            primary: Location {
-                file: PathBuf::from("src/foo.rs"),
-                start_line: 42,
-                start_col: 1,
-                end_line: 60,
-                end_col: 1,
-            },
-            related: vec![Location {
-                file: PathBuf::from("src/bar.rs"),
-                start_line: 7,
-                start_col: 1,
-                end_line: 25,
-                end_col: 1,
-            }],
-            message: "function diverged from 3 similar siblings".to_string(),
-            raw_severity: Severity::Warning,
-            anomaly_class: AnomalyClass::Logic,
-            evidence: Evidence {
-                citation_keys: vec!["cordy-roy-icpc-2008", "krinke-icsm-2007"],
-                raw: json!({"group_size": 4, "similarity_threshold": 0.5}),
-                language_citation_status: LanguageCitationStatus::Confirmed,
-            },
-            origin: Default::default(),
-        }
-    }
-
-    fn make_ranked(prior: Option<(f64, f64)>) -> RankedFinding {
-        let (posterior_tp, wilson_lower, prior_method) = match prior {
-            Some((p, w)) => (
-                Some(p),
-                Some(w),
-                Some(crate::calibration::PriorMethod::Wilson),
-            ),
-            None => (None, None, None),
-        };
-        RankedFinding {
-            finding: make_finding(),
-            posterior_tp,
-            wilson_lower,
-            prior_method,
-            rank_score: 1.0,
-            adjudication: None,
-        }
-    }
-
-    fn anthropic_response(text: &str) -> Value {
-        json!({
-            "id": "msg_test",
-            "type": "message",
-            "role": "assistant",
-            "model": DEFAULT_MODEL,
-            "content": [{"type": "text", "text": text}],
-            "stop_reason": "end_turn",
-        })
-    }
+    use serde_json::json;
 
     // ---- build_prompt tests ----
 
@@ -1230,91 +695,7 @@ mod tests {
         assert!(matches!(err, AdjudicatorError::InvalidVerdict(_)));
     }
 
-    // ---- adjudicate end-to-end with mock client ----
-
-    #[test]
-    fn adjudicate_happy_path_returns_verdict() {
-        let mock = MockClient::ok(anthropic_response(
-            "{\"verdict\":\"LikelyTruePositive\",\"confidence\":0.85,\"rationale\":\"matches drift\",\"calibration_tag\":\"T1.5\"}",
-        ));
-        let adj = AnthropicAdjudicator::new(mock, "test-key".to_string());
-        let res = adj.adjudicate(&make_ranked(Some((0.6, 0.4)))).unwrap();
-        assert!(matches!(
-            res.verdict,
-            AdjudicationVerdict::LikelyTruePositive
-        ));
-        assert_eq!(res.confidence, 0.85);
-        assert_eq!(res.rationale, "matches drift");
-        assert_eq!(res.calibration_tag.as_deref(), Some("T1.5"));
-    }
-
-    #[test]
-    fn adjudicate_sends_correct_headers_and_body() {
-        let mock = MockClient::ok(anthropic_response(
-            "{\"verdict\":\"Uncertain\",\"confidence\":0.5,\"rationale\":\"r\"}",
-        ));
-        let adj = AnthropicAdjudicator::new(mock, "secret-key".to_string())
-            .with_url("https://example.test/v1/messages");
-        adj.adjudicate(&make_ranked(None)).unwrap();
-
-        let url = adj.client.last_url.lock().unwrap().clone().unwrap();
-        assert_eq!(url, "https://example.test/v1/messages");
-
-        let headers = adj.client.last_headers.lock().unwrap().clone().unwrap();
-        let pairs: HashMap<String, String> = headers.into_iter().collect();
-        assert_eq!(
-            pairs.get("x-api-key").map(String::as_str),
-            Some("secret-key")
-        );
-        assert_eq!(
-            pairs.get("anthropic-version").map(String::as_str),
-            Some(ANTHROPIC_VERSION)
-        );
-        assert_eq!(
-            pairs.get("content-type").map(String::as_str),
-            Some("application/json")
-        );
-
-        let body = adj.client.last_body.lock().unwrap().clone().unwrap();
-        assert_eq!(body["model"], json!(DEFAULT_MODEL));
-        assert_eq!(body["temperature"], json!(DEFAULT_TEMPERATURE));
-        assert!(body["messages"][0]["content"]
-            .as_str()
-            .unwrap()
-            .contains("DETECTOR: clone-drift"));
-    }
-
-    #[test]
-    fn adjudicate_http_error_propagates() {
-        let mock = MockClient::err(AdjudicatorError::Http("503".to_string()));
-        let adj = AnthropicAdjudicator::new(mock, "k".to_string());
-        let err = adj.adjudicate(&make_ranked(None)).unwrap_err();
-        match err {
-            DetectorError::Config(msg) => assert!(msg.contains("http error")),
-            other => panic!("expected Config error, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn adjudicate_inner_json_malformed_errors() {
-        let mock = MockClient::ok(anthropic_response("garbage"));
-        let adj = AnthropicAdjudicator::new(mock, "k".to_string());
-        let err = adj.adjudicate(&make_ranked(None)).unwrap_err();
-        match err {
-            DetectorError::Config(msg) => assert!(msg.contains("inner json")),
-            other => panic!("expected Config error, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn api_key_never_appears_in_error_messages() {
-        let secret = "sk-ant-XXXX-do-not-leak-XXXX";
-        let mock = MockClient::err(AdjudicatorError::Http("boom".to_string()));
-        let adj = AnthropicAdjudicator::new(mock, secret.to_string());
-        let err = adj.adjudicate(&make_ranked(None)).unwrap_err();
-        let msg = format!("{}", err);
-        assert!(!msg.contains(secret), "API key leaked in error: {}", msg);
-    }
+    // ---- citations ----
 
     #[test]
     fn adjudicator_citations_lists_spiess() {
@@ -1390,133 +771,7 @@ mod tests {
         assert!(matches!(res.verdict, AdjudicationVerdict::Uncertain));
     }
 
-    // ---- ClaudeCliAdjudicator / AgyCliAdjudicator dispatch via stub
-    // bash scripts. The stub captures argv into a sidecar file the
-    // assertions read so we can pin the methodology-clean flag set
-    // structurally. ----
-
-    fn write_stub_script(dir: &std::path::Path, name: &str, body: &str) -> std::path::PathBuf {
-        let path = dir.join(name);
-        std::fs::write(&path, body).expect("write stub");
-        let mut perms = std::fs::metadata(&path).unwrap().permissions();
-        use std::os::unix::fs::PermissionsExt;
-        perms.set_mode(0o755);
-        std::fs::set_permissions(&path, perms).unwrap();
-        path
-    }
-
-    #[test]
-    fn claude_cli_dispatch_passes_methodology_clean_flags() {
-        let tmp = tempfile::tempdir().unwrap();
-        let argv_log = tmp.path().join("argv.log");
-        let stub_body = format!(
-            "#!/bin/sh\nprintf '%s\\n' \"$@\" > {}\ncat <<'EOF'\n{{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"duration_ms\":1,\"result\":\"{{\\\"verdict\\\":\\\"Uncertain\\\",\\\"confidence\\\":0.5,\\\"rationale\\\":\\\"r\\\"}}\",\"session_id\":\"s\"}}\nEOF\n",
-            argv_log.display()
-        );
-        let stub = write_stub_script(tmp.path(), "claude-stub", &stub_body);
-
-        let adj = ClaudeCliAdjudicator::new()
-            .unwrap()
-            .with_program(stub.to_string_lossy().into_owned());
-        let res = adj.dispatch("PROMPT-BODY").unwrap();
-        assert!(matches!(res.verdict, AdjudicationVerdict::Uncertain));
-
-        let argv = std::fs::read_to_string(&argv_log).unwrap();
-        // Pin every methodology-clean flag from the spec (F2).
-        for flag in [
-            "--print",
-            "--model",
-            CLAUDE_CLI_MODEL,
-            "--system-prompt",
-            CLI_SYSTEM_PROMPT,
-            "--tools",
-            "--strict-mcp-config",
-            "--disable-slash-commands",
-            "--no-session-persistence",
-            "--output-format",
-            "json",
-            "PROMPT-BODY",
-        ] {
-            assert!(
-                argv.lines().any(|l| l == flag),
-                "claude argv missing {}: got\n{}",
-                flag,
-                argv
-            );
-        }
-    }
-
-    #[test]
-    fn agy_cli_dispatch_uses_print_model_flags_and_prepends_system_prompt() {
-        let tmp = tempfile::tempdir().unwrap();
-        let argv_log = tmp.path().join("argv.log");
-        // agy prints the raw text response (no JSON envelope).
-        let stub_body = format!(
-            "#!/bin/sh\nprintf '%s\\n' \"$@\" > {}\ncat <<'EOF'\n{{\"verdict\":\"LikelyTruePositive\",\"confidence\":0.8,\"rationale\":\"r\"}}\nEOF\n",
-            argv_log.display(),
-        );
-        let stub = write_stub_script(tmp.path(), "agy-stub", &stub_body);
-
-        let adj = AgyCliAdjudicator::new()
-            .unwrap()
-            .with_program(stub.to_string_lossy().into_owned());
-        let res = adj.dispatch("PROMPT-BODY").unwrap();
-        assert!(matches!(
-            res.verdict,
-            AdjudicationVerdict::LikelyTruePositive
-        ));
-
-        let argv = std::fs::read_to_string(&argv_log).unwrap();
-        let lines: Vec<&str> = argv.lines().collect();
-        for flag in ["--print", "--model", AGY_CLI_MODEL] {
-            assert!(
-                lines.contains(&flag),
-                "agy argv missing {}: got\n{}",
-                flag,
-                argv
-            );
-        }
-        // LOAD-BEARING arg order: `--print` takes the prompt as its VALUE,
-        // so `--model <m>` MUST come before `--print`, and the prompt MUST be
-        // the token immediately after `--print`. Pinning this prevents the
-        // regression where `--print` swallowed `--model` as the prompt and
-        // agy returned chatty/empty non-JSON.
-        let model_pos = lines.iter().position(|l| *l == AGY_CLI_MODEL).unwrap();
-        let print_pos = lines.iter().position(|l| *l == "--print").unwrap();
-        assert!(
-            model_pos < print_pos,
-            "agy --model must precede --print: got\n{}",
-            argv
-        );
-        // The prompt (carrying the folded system prompt + body) is the arg
-        // right after --print.
-        let prompt_arg = lines[print_pos + 1];
-        assert!(
-            prompt_arg.contains(AGY_SYSTEM_PROMPT) && prompt_arg.contains("PROMPT-BODY"),
-            "agy prompt (folded system prompt + body) must immediately follow --print: got\n{}",
-            argv
-        );
-    }
-
-    #[test]
-    fn claude_cli_provider_id_is_claude_cli() {
-        let adj = ClaudeCliAdjudicator::new().unwrap();
-        assert_eq!(
-            <ClaudeCliAdjudicator as PromptDispatch>::provider_id(&adj),
-            "claude-cli"
-        );
-        assert_eq!(adj.model(), CLAUDE_CLI_MODEL);
-    }
-
-    #[test]
-    fn agy_cli_provider_id_is_agy_cli() {
-        let adj = AgyCliAdjudicator::new().unwrap();
-        assert_eq!(
-            <AgyCliAdjudicator as PromptDispatch>::provider_id(&adj),
-            "agy-cli"
-        );
-        assert_eq!(adj.model(), AGY_CLI_MODEL);
-    }
+    // ---- cross-provider integration ----
 
     #[test]
     fn cli_providers_implement_adjudicator_via_stub() {
@@ -1638,27 +893,6 @@ mod tests {
             Box::new(CannedAdj::Ok(AdjudicationVerdict::LikelyFalsePositive)),
         );
         assert!(fb.adjudicate(&rf).is_err());
-    }
-
-    #[test]
-    fn cli_dispatch_surfaces_nonzero_exit_as_config_error() {
-        let tmp = tempfile::tempdir().unwrap();
-        let stub = write_stub_script(
-            tmp.path(),
-            "fail-stub",
-            "#!/bin/sh\necho 'auth required' >&2\nexit 1\n",
-        );
-        let adj = ClaudeCliAdjudicator::new()
-            .unwrap()
-            .with_program(stub.to_string_lossy().into_owned());
-        let err = adj.dispatch("p").unwrap_err();
-        match err {
-            DetectorError::Config(msg) => {
-                assert!(msg.contains("claude --print exited"), "got: {}", msg);
-                assert!(msg.contains("auth required"), "stderr propagated: {}", msg);
-            }
-            other => panic!("expected Config error, got {:?}", other),
-        }
     }
 
     // ---- PromptDispatch object-safety (Q-13) ----

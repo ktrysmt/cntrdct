@@ -54,7 +54,7 @@ In scope:
 
 - A new `PromptDispatch` trait shared with the existing
   `AnthropicAdjudicator` (HTTP, used by `scan --adjudicate`).
-- Two CLI-shellout providers under `src/adjudicator.rs`:
+- Two CLI-shellout providers under `src/adjudicator/`:
   - `ClaudeCliAdjudicator` — invokes `claude --print` with the
     methodology-clean flag set documented below.
   - `AgyCliAdjudicator` — invokes `agy -p` (Antigravity). `agy` has no
@@ -157,7 +157,7 @@ it takes the prompt as its value. `--model` must therefore come BEFORE
 The wrong order (`agy --print --model <m> <prompt>`) makes `--print`
 swallow the literal `"--model"` as the prompt and drops the real prompt
 as a stray positional; agy then replies chattily or emptily. Pinned by a
-regression assertion in the `adjudicator.rs` agy dispatch test.
+regression assertion in the `adjudicator/agy_cli.rs` agy dispatch test.
 
 The process is spawned with `current_dir = <tempdir>` so Antigravity's
 project-context auto-discovery (AGENTS.md / memory) picks up nothing.
@@ -258,7 +258,7 @@ Layer 3 of `CITATIONS.md` carries:
 - `wataoka-2024` — empirical evidence of self-preference bias.
 - `zheng-neurips-2023` — methodological grounding for LLM-as-judge.
 
-Both keys land in `ADJUDICATOR_CITATIONS` in `src/adjudicator.rs`
+Both keys land in `ADJUDICATOR_CITATIONS` in `src/adjudicator/mod.rs`
 alongside the existing Q-12 keys; the
 `adjudicator_citations_match_layer3_section_exactly` test enforces
 parity.
@@ -270,7 +270,7 @@ the existing `CannedDispatch` (in-process `PromptDispatch` impl).
 Adding stub-script integration tests for the actual CLI shellout
 parsing surface is desirable but not v0-blocking; the wire-format
 parser (`parse_inner_text`) is unit-tested in
-`src/adjudicator.rs::tests`.
+`src/adjudicator/mod.rs::tests`.
 
 ## Non-functional requirements
 

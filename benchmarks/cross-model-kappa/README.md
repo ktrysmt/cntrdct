@@ -123,7 +123,7 @@ Top-level fields:
   MT-Bench and Chatbot Arena", NeurIPS 36, 46595–46623, 2023.
 
 Both keys are surfaced through `ADJUDICATOR_CITATIONS` in
-`src/adjudicator.rs`; the
+`src/adjudicator/mod.rs`; the
 `adjudicator_citations_match_layer3_section_exactly` test in
 `tests/citations_consistency.rs` enforces parity with
 [`CITATIONS.md`](../../CITATIONS.md).

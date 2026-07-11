@@ -48,7 +48,7 @@ jobs:
       # the model ONLY via CLI-shellout PromptDispatch providers, never via
       # the reqwest HTTP path. Keeping `src/candidate_llm.rs` free of the
       # reqwest-reachable symbols preserves the reqwest-reachability
-      # invariant {adjudicator.rs::ReqwestClient, build_default_adjudicator}
+      # invariant {adjudicator/anthropic.rs::ReqwestClient, build_default_adjudicator}
       # structurally, so the network-isolation netns gate keeps holding for
       # the default scan. Spec: docs/spec/p3-amendment-v0.md §3.1 / §6 P3.
       - name: Layer 0 opens no reqwest path (P3 reqwest-reachability)
@@ -145,7 +145,7 @@ jobs:
       # default). If any code path in `cntrdct scan` makes an
       # unexpected network call, the call fails with `ENETUNREACH` /
       # `EAI_*` inside the namespace and the job goes red. The reqwest
-      # dependency is constrained to `src/adjudicator.rs` (gated by
+      # dependency is constrained to `src/adjudicator/anthropic.rs` (gated by
       # the explicit `--adjudicate` flag), so the scan path here
       # exercises everything that runs by default for end-users:
       # walker -> parsers -> Layer 1 detectors -> Layer 2 ranker ->

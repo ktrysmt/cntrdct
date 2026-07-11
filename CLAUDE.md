@@ -60,7 +60,7 @@ end-user-only and does NOT document them, so reproduce here:
 - P3 — only the Layer 3 adjudicator may invoke an LLM. Layers 1, 2,
   and 4 are deterministic, including the Q-12 post-processing helper
   `apply_llm_calibration`. `reqwest` is reachable only from
-  `src/adjudicator.rs::ReqwestClient` and the
+  `src/adjudicator/anthropic.rs::ReqwestClient` and the
   `build_default_adjudicator` constructor in `src/lib.rs` (used by
   `scan --adjudicate --adjudicate-via=anthropic`, an explicit opt-in
   needing `ANTHROPIC_API_KEY`). The DEFAULT `scan --adjudicate` backend
@@ -109,7 +109,10 @@ but worth pinning:
   `src/calibration.rs`). Wilson / Jeffreys lower bound × log-scaled
   sibling count. Auto-picks calibrated vs. uncalibrated per
   `pick_ranker` in `src/lib.rs`.
-- Layer 3 — LLM adjudicator (`src/adjudicator.rs`). The sole layer
+- Layer 3 — LLM adjudicator (`src/adjudicator/`: shared policy —
+  prompts, envelope parsing, traits, fallback — in `mod.rs`; one
+  transport submodule per provider in `anthropic.rs` /
+  `claude_cli.rs` / `agy_cli.rs`). The sole layer
   permitted to invoke an LLM. Three providers ship:
   `AnthropicAdjudicator` (HTTP via `reqwest`, explicit opt-in via
   `scan --adjudicate-via=anthropic`, needs `ANTHROPIC_API_KEY`),
