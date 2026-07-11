@@ -22,7 +22,8 @@
 //! run (`branches_sharing_code`, shared-prefix variant). See
 //! `clone-drift-v0.md` F2b / F2c.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 
 use crate::core::{
     AnomalyClass, Citation, DetectContext, Detector, DetectorError, Evidence, Finding, Language,
@@ -160,7 +161,11 @@ impl CloneDrift {
 struct FnInfo {
     location: Location,
     normalized: Vec<NormalisedToken>,
-    ngrams: HashSet<Vec<NormalisedToken>>,
+    /// Sorted, deduplicated u64 fingerprints of the function's token
+    /// n-grams (see [`build_ngrams`]). Set semantics over fingerprints
+    /// instead of materialised token windows: Jaccard is computed by
+    /// a linear merge over the two sorted slices.
+    ngrams: Vec<u64>,
 }
 
 impl Detector for CloneDrift {
@@ -640,19 +645,54 @@ fn ir_loc_to_core(loc: &crate::ir::Location) -> Location {
     }
 }
 
-fn build_ngrams(seq: &[NormalisedToken], n: usize) -> HashSet<Vec<NormalisedToken>> {
+/// Fold each n-gram window into a u64 fingerprint instead of
+/// materialising it as a `Vec<NormalisedToken>`; the pairwise Jaccard
+/// scan then compares integers instead of heap-allocated token vectors.
+/// Fingerprints are content-derived (`SipHash` over the window), so they
+/// are stable within a run — they are never persisted, and cross-run
+/// determinism of findings is unaffected. Two distinct windows colliding
+/// on the same u64 would merge two n-grams; at corpus scale (thousands
+/// of n-grams per scope against a 2^64 space) the probability is
+/// negligible relative to the detector's own similarity thresholds.
+fn build_ngrams(seq: &[NormalisedToken], n: usize) -> Vec<u64> {
     if seq.len() < n {
-        return HashSet::new();
+        return Vec::new();
     }
-    seq.windows(n).map(|w| w.to_vec()).collect()
+    let mut grams: Vec<u64> = seq
+        .windows(n)
+        .map(|w| {
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            w.hash(&mut h);
+            h.finish()
+        })
+        .collect();
+    grams.sort_unstable();
+    grams.dedup();
+    grams
 }
 
-fn jaccard(a: &HashSet<Vec<NormalisedToken>>, b: &HashSet<Vec<NormalisedToken>>) -> f64 {
+/// Jaccard similarity over two sorted, deduplicated fingerprint slices.
+/// Single merge pass: `|A ∪ B| = |A| + |B| - |A ∩ B|`, so only the
+/// intersection is counted.
+fn jaccard(a: &[u64], b: &[u64]) -> f64 {
     if a.is_empty() && b.is_empty() {
         return 1.0;
     }
-    let inter = a.intersection(b).count();
-    let union = a.union(b).count();
+    let mut i = 0;
+    let mut j = 0;
+    let mut inter = 0usize;
+    while i < a.len() && j < b.len() {
+        match a[i].cmp(&b[j]) {
+            std::cmp::Ordering::Less => i += 1,
+            std::cmp::Ordering::Greater => j += 1,
+            std::cmp::Ordering::Equal => {
+                inter += 1;
+                i += 1;
+                j += 1;
+            }
+        }
+    }
+    let union = a.len() + b.len() - inter;
     if union == 0 {
         return 0.0;
     }
@@ -688,7 +728,20 @@ fn cluster(fns: &[FnInfo]) -> Vec<Vec<usize>> {
         .into_par_iter()
         .flat_map_iter(|i| {
             ((i + 1)..n)
-                .filter(move |&j| jaccard(&fns[i].ngrams, &fns[j].ngrams) >= SIMILARITY_THRESHOLD)
+                .filter(move |&j| {
+                    // Size-ratio prefilter: J(A,B) <= min(|A|,|B|)/max(|A|,|B|),
+                    // so a pair whose smaller set is below THRESHOLD × the
+                    // larger provably cannot qualify — skip it without
+                    // touching the fingerprints. Exact for the current 0.5
+                    // threshold (0.5 × integer is representable); the bound
+                    // itself is conservative, so no qualifying pair is lost.
+                    let small = fns[i].ngrams.len().min(fns[j].ngrams.len());
+                    let large = fns[i].ngrams.len().max(fns[j].ngrams.len());
+                    if (small as f64) < SIMILARITY_THRESHOLD * (large as f64) {
+                        return false;
+                    }
+                    jaccard(&fns[i].ngrams, &fns[j].ngrams) >= SIMILARITY_THRESHOLD
+                })
                 .map(move |j| (i, j))
         })
         .collect();
