@@ -179,7 +179,10 @@ it with a baseline to keep runs quiet in large repos.
 
 ## Docker
 
-A pre-built image is published to GitHub Packages per release:
+A pre-built, multi-arch image (`linux/amd64` + `linux/arm64`) is
+published to GitHub Packages per release; the right architecture is
+selected automatically, so it runs natively on both x86-64 hosts and
+Apple Silicon / arm64 servers:
 
 ```sh
 docker run --rm -v "$PWD:/work" ghcr.io/ktrysmt/cntrdct:latest scan .
