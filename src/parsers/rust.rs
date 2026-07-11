@@ -676,20 +676,7 @@ impl<'a> Converter<'a> {
 // ---------- IrStmt → IrTerminator block-level merge ----------
 
 fn compute_block_terminator(statements: &[IrStmt]) -> Option<IrTerminator> {
-    // Scan in source order; the first divergent statement determines
-    // the block's terminator (everything after it is unreachable).
-    // ir-v0.md §F1 only requires `Some` when every reachable path
-    // through the block ends in a divergent expression; in v0 the
-    // straight-line definition (first terminator wins) is sufficient
-    // because the cross-cutting detector
-    // (`unreachable-after-terminator`) uses this signal to classify
-    // the block's own outer position.
-    for stmt in statements {
-        if let Some(t) = stmt_terminator(stmt) {
-            return Some(t);
-        }
-    }
-    None
+    super::first_stmt_terminator(statements, stmt_terminator)
 }
 
 fn stmt_terminator(stmt: &IrStmt) -> Option<IrTerminator> {

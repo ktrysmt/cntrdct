@@ -32,7 +32,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 pub use crate::core::Language;
-use crate::ir::{IrConvertError, IrFile};
+use crate::ir::{IrConvertError, IrFile, IrStmt, IrTerminator};
 
 pub mod go;
 pub mod python;
@@ -137,6 +137,28 @@ pub(crate) fn build_ir_shell<P: ParserProvider + ?Sized>(
         top_level_comments: Vec::new(),
         parse_recovered,
     })
+}
+
+/// Shared block-terminator rule for the per-language converters
+/// (ir-v0.md §F1): scan `statements` in source order; the first
+/// statement classified as divergent by the language's
+/// `stmt_terminator` determines the block's terminator (everything
+/// after it is unreachable). §F1 only requires `Some` when every
+/// reachable path through the block ends in a divergent expression; in
+/// v0 the straight-line definition (first terminator wins) is
+/// sufficient because the cross-cutting detector
+/// (`unreachable-after-terminator`) uses this signal to classify the
+/// block's own outer position.
+///
+/// What COUNTS as a terminator stays per-language — Rust classifies
+/// `Assert(false)` / `Match` / `Loop`-without-break in addition to the
+/// common set, while Go / TypeScript intentionally cover a subset — so
+/// each converter supplies its own `stmt_terminator` classifier.
+pub(crate) fn first_stmt_terminator(
+    statements: &[IrStmt],
+    stmt_terminator: impl FnMut(&IrStmt) -> Option<IrTerminator>,
+) -> Option<IrTerminator> {
+    statements.iter().find_map(stmt_terminator)
 }
 
 /// Get the [`ParserProvider`] for a language.

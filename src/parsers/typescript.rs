@@ -777,12 +777,7 @@ impl<'a> Converter<'a> {
 // ---------- Block terminator merge ----------
 
 fn compute_block_terminator(statements: &[IrStmt]) -> Option<IrTerminator> {
-    for stmt in statements {
-        if let Some(t) = stmt_terminator(stmt) {
-            return Some(t);
-        }
-    }
-    None
+    super::first_stmt_terminator(statements, stmt_terminator)
 }
 
 fn stmt_terminator(stmt: &IrStmt) -> Option<IrTerminator> {
