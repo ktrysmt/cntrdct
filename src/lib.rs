@@ -286,7 +286,7 @@ fn run_detectors_on(parsed: Vec<IrFile>) -> Result<(Vec<Finding>, Vec<IrFile>), 
 
     let stats = CorpusStats {
         file_count: parsed.len(),
-        total_loc: parsed.iter().map(|p| p.source.lines().count()).sum(),
+        total_loc: parsed.par_iter().map(|p| p.source.lines().count()).sum(),
     };
     let config = DetectorConfig::default();
     let ctx = DetectContext {
