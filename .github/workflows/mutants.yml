@@ -12,12 +12,37 @@ name: cargo-mutants nightly
 # stopped fitting once the detector tree grew past the ~3.7k LOC this
 # workflow was written against (it is 6.8k LOC today, after the Go /
 # TypeScript / Python detector ports). Run 30437082088 (2026-07-29)
-# found 1076 mutants at ~118s each (30s build + 88s test at -j 2) and
-# was killed by the runner after 5h33m with two files still untested,
-# so neither the catch-rate gate nor the artifact upload ever ran.
+# found 1076 mutants and was killed by the runner after 5h33m with two
+# files still untested, so neither the catch-rate gate nor the artifact
+# upload ever ran. Sharded, run 30472236875 measured 43-74 min per
+# shard, i.e. roughly 8h of work serially -- comfortably past the 6h
+# ceiling a hosted runner can offer at all.
+#
 # cargo-mutants' default `slice` sharding splits by mutant *count*
 # (`chunk_size = total.div_ceil(n)` in its src/shard.rs), so shards
-# come out evenly sized and `--sharding round-robin` is not needed.
+# come out evenly sized and `--sharding round-robin` is not needed:
+# that run gave seven shards of 135 mutants and a remainder of 131.
+#
+# Some mutants allocate without bound, and those used to kill the whole
+# job: the log ends in "the runner has received a shutdown signal", one
+# to two minutes after the last reported outcome, with nothing written
+# about why. Every observed instance -- runs 29904768145, 30079487162,
+# 30256461379, 30343694415, 30437082088, and both attempts of shard 5 on
+# run 30472236875 -- landed in `tokenize` in
+# src/detectors/lang/go_build_tag_interaction.rs. Its `while i <
+# chars.len()` loop advances `i` only inside the match arms, so
+# mutating an `i += 1` in an arm that also pushes a token (lines 198,
+# 202, 206, 211, 219) leaves `i` pinned while `tokens` grows every
+# iteration. Measured at ~316 MB/s, which exhausts a 16 GB runner in
+# under a minute -- faster than the ~210s test timeout can fire.
+#
+# CARGO_TARGET_<TRIPLE>_RUNNER wraps test-binary execution only (not
+# rustc, not cargo), so an address-space cap there turns those mutants
+# into ordinary caught mutants: the allocation fails, the test process
+# aborts, cargo test exits non-zero. If the cap were ever too tight for
+# a legitimate test, the unmutated baseline would fail first and exit 4
+# would abort the shard loudly rather than reporting every mutant as
+# caught.
 
 on:
   schedule:
@@ -42,10 +67,10 @@ jobs:
   mutants:
     name: mutants (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
-    # ~50 min expected per shard (~6.5h serial / 8). The ceiling is
+    # 43-74 min measured per shard on run 30472236875. The ceiling is
     # deliberately loose; it only has to catch a runaway, and a shard
     # that hits it is a signal to raise SHARD_COUNT.
-    timeout-minutes: 120
+    timeout-minutes: 150
     strategy:
       # One shard failing must not cancel the others: the gate job
       # needs every shard's counts to compute an aggregate rate.
@@ -66,6 +91,19 @@ jobs:
         uses: taiki-e/install-action@c070f87102a1c75b3183910f391c1cb887fe13c8 # v2.77.6
         with:
           tool: cargo-mutants
+      - name: cap test-binary memory
+        # 4 GiB of address space per test binary. The whole suite runs in
+        # a fraction of that, and with -j 2 the worst case is 8 GiB on a
+        # 16 GB runner, leaving room for the builds and the agent.
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/mem-capped-test.sh" <<'WRAPPER'
+          #!/usr/bin/env bash
+          ulimit -v 4194304
+          exec "$@"
+          WRAPPER
+          chmod +x "$RUNNER_TEMP/mem-capped-test.sh"
+          echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=$RUNNER_TEMP/mem-capped-test.sh" >> "$GITHUB_ENV"
       - name: run cargo-mutants
         # cargo-mutants exit codes (its src/exit_code.rs): 0 = every
         # viable mutant caught, 1 = usage error, 2 = some mutants
