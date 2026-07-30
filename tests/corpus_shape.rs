@@ -169,6 +169,16 @@ fn pr_miner_corpus_meets_per_language_positives() {
     let pr_miner = PrMinerDetector::new();
     let id = pr_miner.id().to_string();
     let supported = pr_miner.supported_languages();
+    // The per-language obligation below is derived by iterating
+    // `supported_languages()`. If that slice is ever empty the loop body
+    // never runs, `shortfalls` stays empty, and this test passes while
+    // checking nothing at all. Fail on the precondition instead, so a
+    // vacuous pass is impossible.
+    assert!(
+        !supported.is_empty(),
+        "pr-miner declares no supported language; the per-language positives \
+         contract below would pass vacuously"
+    );
     let mut shortfalls: Vec<String> = Vec::new();
     for language in supported {
         // `.tsx` rides on the TypeScript corpus (and TypeScript's

@@ -1124,3 +1124,116 @@ fn partition(group: &[usize], fns: &[FnInfo]) -> Vec<Vec<usize>> {
     parts.sort();
     parts
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `is_url_shaped` gates whether a trailing comment fragment is
+    /// treated as a URL rather than prose (call site at the
+    /// `is_url_shaped(rest)` guard above). The cases below are chosen so
+    /// that each clause of the scheme predicate is decided independently:
+    /// a table that only ever exercises alphanumeric schemes cannot tell
+    /// `a || b` from `a && b`, because the alphanumeric disjunct alone
+    /// already settles the result.
+    #[test]
+    fn is_url_shaped_accepts_and_rejects_by_scheme_shape() {
+        let cases: &[(&str, bool)] = &[
+            // Plain alphanumeric scheme — the common case.
+            ("https://example.com", true),
+            ("http://a", true),
+            // Each non-alphanumeric character the scheme grammar allows,
+            // in isolation. These are what distinguish the `||` chain
+            // from a `&&` chain and pin each `==` comparison to its own
+            // character.
+            ("git+ssh://host/repo", true),
+            ("my-scheme://host", true),
+            ("com.example.app://host", true),
+            // A character the scheme grammar does NOT allow. Every
+            // `== c` in the chain must stay an equality test: flipping
+            // any one of them to `!=` would let this through.
+            ("a_b://host", false),
+            ("sch eme://host", false),
+            ("sch/eme://host", false),
+            // Short schemes: the separator is three characters wide, so
+            // the offset arithmetic for `rest` is only correct as
+            // `scheme_end + 3`.
+            ("ab://x", true),
+            ("a://x", true),
+            // Empty scheme.
+            ("://host", false),
+            // Present scheme, absent value.
+            ("https://", false),
+            ("a://", false),
+            // No separator at all.
+            ("", false),
+            ("example.com", false),
+            ("not a url", false),
+            ("//example.com", false),
+            (":/example.com", false),
+        ];
+        for (input, want) in cases {
+            assert_eq!(
+                is_url_shaped(input),
+                *want,
+                "is_url_shaped({input:?}) should be {want}"
+            );
+        }
+    }
+
+    #[test]
+    fn jaccard_of_two_empty_sets_is_one() {
+        assert_eq!(jaccard(&[], &[]), 1.0);
+    }
+
+    #[test]
+    fn jaccard_is_zero_when_only_one_side_is_empty() {
+        // Guards the `&&` in the empty-pair short circuit: under `||` a
+        // single empty side would report a perfect match against a
+        // non-empty set.
+        assert_eq!(jaccard(&[], &[1, 2]), 0.0);
+        assert_eq!(jaccard(&[1, 2], &[]), 0.0);
+    }
+
+    #[test]
+    fn jaccard_is_zero_for_disjoint_sets() {
+        assert_eq!(jaccard(&[1, 2], &[3, 4]), 0.0);
+    }
+
+    #[test]
+    fn jaccard_is_one_for_identical_sets() {
+        assert_eq!(jaccard(&[1, 2, 3], &[1, 2, 3]), 1.0);
+    }
+
+    #[test]
+    fn jaccard_of_partial_overlap_is_intersection_over_union() {
+        // |A| = 3, |B| = 2, |A ∩ B| = 2, so |A ∪ B| = 3 + 2 - 2 = 3.
+        // Chosen so that intersection and union differ and neither is a
+        // fixed point of the division: 2/3 is distinguishable from 2*3
+        // and from 2%3.
+        assert_eq!(jaccard(&[1, 2, 3], &[1, 3]), 2.0 / 3.0);
+        // |A| = 4, |B| = 3, |A ∩ B| = 1, |A ∪ B| = 6.
+        assert_eq!(jaccard(&[1, 2, 3, 4], &[4, 5, 6]), 1.0 / 6.0);
+    }
+
+    #[test]
+    fn find_root_compress_returns_root_and_flattens_the_path() {
+        // Chain 2 -> 1 -> 0 -> 3, with 3 as the self-parent root. The
+        // root is deliberately neither 0 nor 1 so that a constant return
+        // is distinguishable from the real lookup.
+        let mut parent = vec![3, 0, 1, 3];
+        assert_eq!(find_root_compress(&mut parent, 2), 3);
+        assert_eq!(
+            parent,
+            vec![3, 3, 3, 3],
+            "every node on the walked path should point straight at the root"
+        );
+    }
+
+    #[test]
+    fn find_root_compress_on_a_self_root_is_identity() {
+        let mut parent = vec![0, 1, 2];
+        assert_eq!(find_root_compress(&mut parent, 2), 2);
+        assert_eq!(parent, vec![0, 1, 2], "no path to compress");
+    }
+}

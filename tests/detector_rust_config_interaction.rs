@@ -249,3 +249,111 @@ fn t18_f5b_does_not_collide_with_not_pair_evidence() {
         findings[0].evidence.raw
     );
 }
+
+/// `Location` is documented in `src/core.rs` as 1-based, with `end_*`
+/// pointing one past the final character of the span. Tree-sitter reports
+/// 0-based rows and columns, so every coordinate crosses a `+ 1`
+/// conversion on its way out (`node_location` for the primary span,
+/// `parse_cfg_attribute` for each related attribute span).
+///
+/// Nothing else in this suite pinned those coordinates, so an off-by-one
+/// anywhere in that conversion was invisible here while being immediately
+/// visible to users: these are the numbers SARIF reports as the finding's
+/// `region`, and therefore where an editor or code-scanning UI draws the
+/// annotation.
+#[test]
+fn t19_finding_locations_are_one_based_spans() {
+    let src = r#"#[cfg(feature = "x")]
+#[cfg(not(feature = "x"))]
+fn f() {}
+"#;
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert_eq!(findings.len(), 1, "got {:#?}", findings);
+    let f = &findings[0];
+
+    // `fn f() {}` occupies all 9 columns of line 3. The attributes are
+    // siblings of the item rather than part of it, so the primary span
+    // covers the item alone.
+    assert_eq!(
+        (
+            f.primary.start_line,
+            f.primary.start_col,
+            f.primary.end_line,
+            f.primary.end_col
+        ),
+        (3, 1, 3, 10),
+        "primary span should cover `fn f() {{}}` on line 3"
+    );
+
+    assert_eq!(f.related.len(), 2, "one span per contradicting attribute");
+    // `#[cfg(feature = "x")]` is 21 characters on line 1.
+    assert_eq!(
+        (
+            f.related[0].start_line,
+            f.related[0].start_col,
+            f.related[0].end_line,
+            f.related[0].end_col
+        ),
+        (1, 1, 1, 22),
+        "first related span should cover the whole `#[cfg(...)]` attribute"
+    );
+    // `#[cfg(not(feature = "x"))]` is 26 characters on line 2.
+    assert_eq!(
+        (
+            f.related[1].start_line,
+            f.related[1].start_col,
+            f.related[1].end_line,
+            f.related[1].end_col
+        ),
+        (2, 1, 2, 27),
+        "second related span should cover the whole `#[cfg(not(...))]` attribute"
+    );
+}
+
+/// The same contract with every span indented inside a module, so the
+/// column conversion is exercised away from column 0. At the left margin a
+/// dropped `+ 1` still yields a plausible-looking small number; at an
+/// indent it cannot hide.
+#[test]
+fn t20_finding_locations_are_one_based_when_indented() {
+    let src = "mod m {\n    #[cfg(unix)]\n    #[cfg(not(unix))]\n    fn g() {}\n}\n";
+    let findings = run(vec![parsed("a.rs", src)]);
+    assert_eq!(findings.len(), 1, "got {:#?}", findings);
+    let f = &findings[0];
+
+    // Four spaces of indent, so the item starts at column 5.
+    assert_eq!(
+        (
+            f.primary.start_line,
+            f.primary.start_col,
+            f.primary.end_line,
+            f.primary.end_col
+        ),
+        (4, 5, 4, 14),
+        "primary span should cover the indented `fn g() {{}}` on line 4"
+    );
+
+    assert_eq!(f.related.len(), 2, "one span per contradicting attribute");
+    // `#[cfg(unix)]` is 12 characters, starting at column 5 of line 2.
+    assert_eq!(
+        (
+            f.related[0].start_line,
+            f.related[0].start_col,
+            f.related[0].end_line,
+            f.related[0].end_col
+        ),
+        (2, 5, 2, 17),
+        "first related span should start past the indent"
+    );
+    // `#[cfg(not(unix))]` is 17 characters, starting at column 5 of line 3.
+    assert_eq!(
+        (
+            f.related[1].start_line,
+            f.related[1].start_col,
+            f.related[1].end_line,
+            f.related[1].end_col
+        ),
+        (3, 5, 3, 22),
+        "second related span should start past the indent"
+    );
+}
